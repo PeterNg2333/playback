@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>C#／.NET 入門教學與實驗</title>
+  <style>
+    :root { color-scheme: light; --ink:#17202a; --muted:#5f6b75; --paper:#f5f1e8; --card:#fffdf8; --accent:#0b6b5b; --line:#d9d1c2; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:17px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    header, main, footer { width:min(1120px, calc(100% - 2rem)); margin-inline:auto; }
+    header { padding:4.5rem 0 2.5rem; }
+    .eyebrow { color:var(--accent); font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+    h1 { max-width:850px; margin:.4rem 0 1rem; font:clamp(2.25rem,7vw,5.6rem)/.98 Georgia,serif; letter-spacing:-.045em; }
+    .lead { max-width:760px; color:var(--muted); font-size:1.15rem; }
+    .notice { margin:1.5rem 0 2.5rem; padding:1rem 1.2rem; border-left:5px solid var(--accent); background:#e5f2ed; }
+    .start-link { display:inline-block; padding:.65rem 1rem; color:white; background:var(--accent); border-radius:4px; font-weight:700; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(245px,1fr)); gap:1rem; }
+    article { display:flex; flex-direction:column; min-height:260px; padding:1.35rem; border:1px solid var(--line); border-radius:18px; background:var(--card); box-shadow:0 8px 24px rgb(40 33 20 / .06); }
+    .number { color:var(--accent); font:700 .85rem/1 system-ui,sans-serif; letter-spacing:.12em; }
+    h2 { margin:.75rem 0 .45rem; font:1.55rem/1.2 Georgia,serif; }
+    article p { color:var(--muted); margin:.35rem 0 1rem; }
+    a { color:var(--accent); text-underline-offset:.18em; }
+    article a { margin-top:auto; font-weight:700; }
+    code { padding:.1em .35em; border-radius:5px; background:#e9e3d8; font-size:.9em; }
+    footer { padding:3rem 0; color:var(--muted); }
+    a:focus-visible { outline:3px solid #f0a202; outline-offset:4px; border-radius:3px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">從零開始學習 · .NET 10</div>
+    <h1>先從 C# 基礎開始。</h1>
+    <p class="lead">完全未學過 C#，先打開零基礎教學：建立第一個 .NET 程式，逐行理解語法，再自己做練習。完成後，可以用下方八個實驗繼續學習。</p>
+    <a class="start-link" href="csharp-dotnet-tutorial.html">開始 C#／.NET 零基礎 HTML 教學 →</a>
+    <p>由變數、字串、if / else、迴圈和方法開始，每課都有程式、解釋、預期輸出和可展開的練習答案。</p>
+    <div class="notice"><strong>範圍：</strong>這不是 final MVP。沒有常駐 recorder、正式 backend 或 production UI；network 與 container 操作都需在 script 明確 opt-in。</div>
+  </header>
+  <main>
+    <section class="grid" aria-label="學習模組">
+      <article><span class="number">MODULE 00</span><h2>環境與工具</h2><p>分清 SDK、runtime、CLI、VS Code、Docker，先檢查本機。</p><a href="00-setup-dotnet/index.html">打開教學 →</a></article>
+      <article><span class="number">加課 · 基礎課之後</span><h2>C# 中階銜接</h2><p>覺得 MODULE 01 一次過太多概念？先逐個動手寫 record、LINQ、nullable、async。</p><a href="csharp-dotnet-tutorial-2.html">打開中階教學 →</a></article>
+      <article><span class="number">MODULE 01</span><h2>C# 綜合實驗</h2><p>完成零基礎教學後，再用單一 <code>.cs</code> 檔認識 records、LINQ 與 async。</p><a href="01-csharp-basics/index.html">打開實驗解說 →</a></article>
+      <article><span class="number">MODULE 02</span><h2>Audio + VAD</h2><p>理解可靠錄音 ownership、WAV chunk 與簡單 energy gate。</p><a href="02-audio-vad/index.html">打開教學 →</a></article>
+      <article><span class="number">MODULE 03</span><h2>SenseVoice adapter</h2><p>用 multipart WAV probe 隔離公司 ASR endpoint contract。</p><a href="03-sensevoice-adapter/index.html">打開教學 →</a></article>
+      <article><span class="number">MODULE 04</span><h2>Rolling note agent</h2><p>用 watermark 修訂筆記；Gemini + Agent Framework 是 opt-in。</p><a href="04-live-note-agent/index.html">打開教學 →</a></article>
+      <article><span class="number">MODULE 05</span><h2>Chat + search</h2><p>先取 evidence 與 URL，再讓模型回答，避免憑空引用。</p><a href="05-live-chat-search/index.html">打開教學 →</a></article>
+      <article><span class="number">MODULE 06</span><h2>PostgreSQL</h2><p>在 Docker Compose 學 schema、keys、indexes 與 queries。</p><a href="06-postgres-compose/index.html">打開教學 →</a></article>
+      <article><span class="number">MODULE 07</span><h2>POC roadmap</h2><p>三小時 lecture、手機與 microservice 的驗證順序。</p><a href="07-poc-roadmap/index.html">打開教學 →</a></article>
+    </section>
+  </main>
+  <footer>初學者先讀 <a href="csharp-dotnet-tutorial.html">C#／.NET 零基礎教學</a>。實驗執行方式見 <a href="README.zh-HK.md">總 README</a>。</footer>
+</body>
+</html>

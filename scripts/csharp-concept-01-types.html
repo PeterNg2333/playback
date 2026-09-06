@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="C# 型別與變數深入教學：數值家族、bool/char/string、var、literal、型別轉換、value type 與 reference type，附大學程度練習。">
+  <title>C# 型別與變數：深入教學 · .NET 10</title>
+  <style>
+    :root { color-scheme:light; --paper:#f6f4ee; --surface:#fffefa; --ink:#18221f; --muted:#53605a; --accent:#075c4c; --soft:#e5f2ed; --line:#d3d0c5; --code:#172923; --code-ink:#f2faf5; --focus:#a13d17; }
+    * { box-sizing:border-box; } html { scroll-padding-top:1rem; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.8 system-ui,"Segoe UI","Microsoft JhengHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:.2em; } a:hover { text-decoration-thickness:.15em; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    code,kbd,samp { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; font-variant-ligatures:none; }
+    :not(pre)>code { padding:.1em .3em; background:#e9e9df; border-radius:.2rem; overflow-wrap:anywhere; }
+    .wrap { width:min(68rem,calc(100% - 2rem)); margin-inline:auto; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.5rem 1rem; background:var(--ink); color:white; } .skip:focus { top:1rem; }
+    header { padding:2rem 0 1.5rem; border-bottom:1px solid var(--line); } .back { font-size:.92rem; }
+    .eyebrow { margin:1.25rem 0 0; color:var(--accent); font-weight:750; letter-spacing:.05em; font-size:.85rem; }
+    h1 { max-width:42rem; margin:.5rem 0; font-size:clamp(2rem,5vw,3.4rem); line-height:1.2; letter-spacing:-.03em; }
+    .lead { max-width:45rem; margin-bottom:0; color:var(--muted); font-size:1.1rem; }
+    .layout { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:2.5rem; align-items:start; }
+    nav { position:sticky; top:1rem; padding:1.5rem 0; } nav p { margin:0 0 .5rem; font-size:.9rem; font-weight:750; }
+    nav ol { margin:0; padding:0; list-style:none; } nav a { display:block; padding:.35rem .5rem; border-left:2px solid var(--line); text-decoration:none; }
+    nav a:hover,nav a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    main { min-width:0; padding-bottom:3rem; } section { padding:2rem 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 .8rem; font-size:clamp(1.45rem,3vw,2rem); line-height:1.35; } h3 { margin:1.5rem 0 .4rem; font-size:1.15rem; }
+    p { margin:.7rem 0; } li { margin:.35rem 0; }
+    pre { margin:.6rem 0 1rem; padding:1rem 1.25rem; overflow:auto; background:var(--code); color:var(--code-ink); border-radius:.25rem; line-height:1.7; tab-size:4; }
+    .label { margin:1.25rem 0 .3rem; color:var(--accent); font-size:.86rem; font-weight:750; }
+    .output { background:var(--soft); color:var(--ink); border-left:4px solid var(--accent); }
+    .note { margin:1.25rem 0; padding:1rem 1.25rem; background:var(--soft); border-left:4px solid var(--accent); }
+    .note p:first-child { margin-top:0; } .note p:last-child { margin-bottom:0; }
+    .warn { margin:1.25rem 0; padding:1rem 1.25rem; background:#f8ece3; border-left:4px solid var(--focus); }
+    .warn p:first-child { margin-top:0; } .warn p:last-child { margin-bottom:0; }
+    .run { margin:1.25rem 0; padding:.9rem 1.1rem; background:var(--surface); border:1px solid var(--line); font-family:"Cascadia Code",Consolas,monospace; font-size:.92rem; }
+    .run b { display:block; margin-bottom:.3rem; font-family:system-ui,sans-serif; font-weight:750; color:var(--accent); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; }
+    details { margin:1rem 0; border:1px solid var(--line); background:var(--surface); border-radius:.25rem; }
+    summary { padding:.7rem 1rem; cursor:pointer; font-weight:750; color:var(--accent); }
+    summary:hover { background:var(--soft); }
+    details[open] summary { border-bottom:1px solid var(--line); }
+    details > *:not(summary) { padding:0 1.1rem; }
+    details pre { margin-inline:0; }
+    .steps { padding-left:1.35rem; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:.7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); } th { background:var(--soft); }
+    .source,footer { color:var(--muted); font-size:.9rem; } footer { padding:2rem 0; }
+    .sibling { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; margin:1.25rem 0; }
+    .sibling a { display:block; padding:.8rem 1rem; border:1px solid var(--line); background:var(--surface); text-decoration:none; font-weight:750; }
+    .sibling a:hover,.sibling a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    .sibling a span { display:block; margin-top:.25rem; color:var(--muted); font-weight:400; font-size:.85rem; }
+    @media (max-width:52rem) { .layout { grid-template-columns:1fr; gap:0; } nav { position:static; padding-block:1rem; border-bottom:1px solid var(--line); } nav ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem; } }
+    @media (max-width:28rem) { nav ol { grid-template-columns:1fr; } pre { padding:.8rem; } th,td { padding:.5rem; } }
+    @media (prefers-color-scheme:dark) {
+      :root { color-scheme:dark; --paper:#141a17; --surface:#1b2320; --ink:#eef3ee; --muted:#a7b3ac; --accent:#5fcbaa; --soft:#1c2b26; --line:#31413a; --code:#0e1512; --code-ink:#eaf5ee; --focus:#ff9d6c; }
+      :not(pre)>code { background:#22302a; }
+      .warn { background:#2b1f18; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要內容</a>
+  <header>
+    <div class="wrap">
+      <a class="back" href="csharp-dotnet-tutorial-2.html#types-syntax">返回《C# 中階銜接》第 1 節</a>
+      <p class="eyebrow">C# 概念深入 · .NET 10 · 型別與變數</p>
+      <h1>型別與變數，一次搞清楚</h1>
+      <p class="lead">《C# 中階銜接》第 1 節只夠篇幅畀你「快覽」型別；呢頁係佢嘅深入版本——大約大學 C# 入門課第一、二堂嘅份量，會解釋點解 C# 要你講明型別、數值型別點揀、string 點解特別，同埋 <code>var</code> 幾時應該用。全部有例子、有輸出、有練習。</p>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="本頁章節">
+      <p>九個部分</p>
+      <ol>
+        <li><a href="#why">0. 點解獨立一課</a></li>
+        <li><a href="#static-typing">1. Static typing 係咩</a></li>
+        <li><a href="#numeric">2. 數值型別家族</a></li>
+        <li><a href="#bool-char-string">3. bool／char／string</a></li>
+        <li><a href="#var">4. var 型別推斷</a></li>
+        <li><a href="#literals">5. Literal 寫法</a></li>
+        <li><a href="#conversion">6. 型別轉換</a></li>
+        <li><a href="#value-ref">7. Value type vs Reference type</a></li>
+        <li><a href="#practice">8. 動手練習</a></li>
+        <li><a href="#next">9. 下一步</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <section id="why" aria-labelledby="why-title">
+        <h2 id="why-title">0. 點解獨立一課？</h2>
+        <p>型別（type）係 C# 入面最基本、但都最容易輕視嘅概念。表面睇淨係「畀個字加喺變數前面」，但背後決定咗：呢個值用幾多記憶體、會唔會溢位（overflow）、複製嗰陣係複製緊個值定係複製緊個參照（reference）、同埋 compiler 幾時可以幫你捉錯。呢頁會將快覽版本入面提過嘅型別逐個拆開，補返「點解」同「幾時揀邊個」，唔淨係「有邊啲」。</p>
+        <p>建議你已經做完 <a href="csharp-dotnet-tutorial.html">C#／.NET 零基礎教學</a>，識基本嘅變數宣告、<code>Console.WriteLine</code> 同 if/else。呢頁唔會再由零教執行環境。</p>
+      </section>
+
+      <section id="static-typing" aria-labelledby="static-typing-title">
+        <h2 id="static-typing-title">1. Static typing 係咩，點解重要</h2>
+        <p>C# 係 <strong>statically typed</strong> 語言：每一個變數嘅型別喺 <strong>compile time</strong>（build 嗰刻，仲未 run）就已經固定咗，之後唔可以變做另一種型別。相反，Python 係 <strong>dynamically typed</strong>：一個變數今日可以裝 <code>int</code>，聽日執行到另一句就可以裝返 <code>string</code>，Python 唔會理你，一直到你真係用錯個值嗰刻先會喺 <strong>runtime</strong> 爆錯。</p>
+        <pre><code># Python：dynamically typed，呢句合法，但可能收埋 bug
+duration = 14.8
+duration = "fourteen point eight"   # 冇錯，但之後 duration * 2 會喺執行嗰刻先爆</code></pre>
+        <pre><code>// C#：statically typed，呢句喺 build 嗰刻已經報錯，唔使等 run
+double duration = 14.8;
+duration = "fourteen point eight";   // Compiler error: 不能將 string 轉成 double</code></pre>
+        <p>TypeScript 企喺中間：你可以寫型別（同 C# 相似），但都可以用 <code>any</code> 或者索性唔寫（退返做 JS，同 Python 一樣冇保障）。C# 唔容許你「唔寫」——就算用 <code>var</code>，型別都仲係喺背後固定咗，只係唔使你手打出嚟（第 4 節詳解）。</p>
+        <div class="note">
+          <p><strong>點解呢樣值得學？</strong>Static typing 嘅代價係你要打多啲字；換嚟嘅著數係 compiler 可以喺你分享份 code 之前，就幫你捉到大量「呢個值型別根本唔啱」嘅錯——尤其係大型 codebase，呢類錯往往要到好耐之後先會喺 production 出事先發現。</p>
+        </div>
+      </section>
+
+      <section id="numeric" aria-labelledby="numeric-title">
+        <h2 id="numeric-title">2. 數值型別家族</h2>
+        <p>C# 冇一個統一嘅「number」型別，而係按「要唔要小數」、「要幾大範圍」、「要唔要精準無誤差」分咗好幾種：</p>
+        <table>
+          <thead><tr><th scope="col">型別</th><th scope="col">分類</th><th scope="col">大約範圍</th><th scope="col">幾時用</th></tr></thead>
+          <tbody>
+            <tr><td><code>int</code></td><td>整數</td><td>約 ±21 億</td><td>預設嘅整數型別，一般計數、index、迴圈變數</td></tr>
+            <tr><td><code>long</code></td><td>整數</td><td>約 ±922 京</td><td><code>int</code> 唔夠大先用，例如講課錄音嘅 chunk sequence 編號</td></tr>
+            <tr><td><code>short</code>／<code>byte</code></td><td>整數</td><td>細</td><td>好罕用，通常係同底層檔案格式或者網絡協議夾嗰陣先用</td></tr>
+            <tr><td><code>float</code></td><td>浮點（近似值）</td><td>約 7 位有效數字</td><td>好少用；記憶體敏感嘅圖形／遊戲運算先會揀</td></tr>
+            <tr><td><code>double</code></td><td>浮點（近似值）</td><td>約 15-16 位有效數字</td><td>C# 小數嘅預設型別，一般科學計算、量度（例如 chunk 長度秒數）</td></tr>
+            <tr><td><code>decimal</code></td><td>十進制（精準）</td><td>約 28-29 位有效數字</td><td>錢、發票、任何唔容許四捨五入誤差嘅計算</td></tr>
+          </tbody>
+        </table>
+        <p><strong>浮點數會有誤差，呢個唔係 bug：</strong><code>double</code>／<code>float</code> 內部用二進制儲存小數，好似 <code>0.1</code> 呢類數其實冇辦法精準表示，所以先會有 <code>decimal</code> 呢個「肯犧牲少少範圍，換取完全準確」嘅選擇。</p>
+        <div class="run"><b>自己試試（唔使開新檔，直接睇輸出）</b></div>
+        <pre><code>Console.WriteLine(0.1 + 0.2);                 // double：0.30000000000000004
+Console.WriteLine(0.1m + 0.2m);                // decimal：0.3</code></pre>
+        <h3>Overflow：超過範圍會發生咩事？</h3>
+        <p>C# 預設唔會幫你自動報錯，數值會「行完再由頭嚟過」（wrap around）：</p>
+        <pre><code>int max = int.MaxValue;           // 2147483647
+Console.WriteLine(max + 1);       // -2147483648，唔係報錯！</code></pre>
+        <p>如果想喺 overflow 嗰刻即刻拋出例外，可以用 <code>checked</code> 區塊：</p>
+        <pre><code>checked
+{
+    int max = int.MaxValue;
+    Console.WriteLine(max + 1);   // 拋出 OverflowException
+}</code></pre>
+        <p class="note">Lecture-note app 用 <code>long</code> 嚟裝 chunk sequence，就係因為三小時錄音可能產生成千上萬個 chunk，<code>int</code> 理論上夠用，但用 <code>long</code> 買個保險，唔使將來先擔心 overflow。</p>
+      </section>
+
+      <section id="bool-char-string" aria-labelledby="bool-char-string-title">
+        <h2 id="bool-char-string-title">3. bool／char／string</h2>
+        <h3>bool：淨係得兩個值</h3>
+        <pre><code>bool isRecording = true;
+if (isRecording)
+{
+    Console.WriteLine("錄緊音");
+}</code></pre>
+        <p>同 Python 一樣，C# 唔容許用 <code>0</code>／<code>1</code> 或者 <code>null</code> 當 <code>bool</code> 用（Python 3 都唔容許咁做，但 C 系語言以前可以）——一定要係 <code>true</code> 或者 <code>false</code>。</p>
+        <h3>char：單一字元，用單引號</h3>
+        <pre><code>char grade = 'A';
+Console.WriteLine(grade);          // A
+Console.WriteLine((int)grade);     // 65，char 內部其實係一個 16-bit 數字（UTF-16 code unit）</code></pre>
+        <p><code>char</code> 用單引號 <code>'A'</code>，<code>string</code> 用雙引號 <code>"A"</code>——兩者唔可以交換，<code>'AB'</code> 會喺 build 嗰刻報錯（char 只可以裝一個字元）。</p>
+        <h3>string：reference type，但表現似 immutable value</h3>
+        <p>第 7 節會詳細解釋 reference type，但 <code>string</code> 有個特別之處要早啲知：<strong>C# 嘅 string 一建立咗就唔可以修改</strong>。任何「改動」string 嘅操作（<code>.Trim()</code>、<code>.ToUpper()</code>、字串相加）其實都係建立一個全新嘅 string，原本嗰個冇變過：</p>
+        <pre><code>string original = "  cap theorem  ";
+string trimmed = original.Trim();
+
+Console.WriteLine(original);   // "  cap theorem  "（完全冇變）
+Console.WriteLine(trimmed);    // "cap theorem"（呢個係新嘅 string）</code></pre>
+        <div class="warn">
+          <p><strong>常見迷思：</strong>好多初學者以為 <code>original.Trim();</code>（唔接返個結果）會改到 <code>original</code>。唔會——<code>Trim()</code> 冇改任何嘢，佢淨係計算出一個新 string 並 <code>return</code> 出嚟；如果你唔接住（<code>original = original.Trim();</code>），個結果就掉咗。</p>
+        </div>
+        <p>字串內插值（string interpolation）用 <code>$"..."</code>，同 TS 嘅 template literal <code>`...`</code>、Python 嘅 f-string 對應：</p>
+        <pre><code>string lecturer = "Dr. Chan";
+int slideCount = 42;
+Console.WriteLine($"{lecturer} 用咗 {slideCount} 張 slide");</code></pre>
+        <p>如果字串入面有好多反斜線（例如 Windows 路徑）或者要跨行，可以用 verbatim string（前面加 <code>@</code>）：</p>
+        <pre><code>string path = @"C:\lectures\week1\audio.wav";   // 唔使打 \\ 逃逸
+string normal = "C:\\lectures\\week1\\audio.wav"; // 意思一樣，但要逃逸</code></pre>
+        <div class="note"><p><strong>大量拼接字串（例如喺迴圈入面）：</strong>因為每次「修改」都會建立新 string，喺迴圈入面不斷 <code>+=</code> 會製造好多用完即棄嘅中間字串，浪費記憶體同效能。如果要組合大量文字（例如逐行砌一份 transcript），應該用 <code>System.Text.StringBuilder</code>——呢個屬於效能優化話題，呢頁唔展開，記住個名先。</p></div>
+      </section>
+
+      <section id="var" aria-labelledby="var-title">
+        <h2 id="var-title">4. var：型別推斷，唔係「冇型別」</h2>
+        <p><code>var</code> 常被誤會成 JavaScript 嘅 <code>var</code>（動態、可以轉型別）。喺 C#，<code>var</code> 淨係叫 compiler 「你自己由等號右邊嗰個值，推斷返個型別出嚟」——型別喺 compile time 一樣係固定咗，同你手寫明個型別完全冇分別，淨係少打幾個字：</p>
+        <pre><code>var sessionId = Guid.NewGuid();   // compiler 推斷：sessionId 係 Guid
+Guid sessionId2 = Guid.NewGuid(); // 手寫型別，效果一模一樣
+
+sessionId = "not a guid";         // Compiler error：sessionId 仍然係 Guid，唔係 string</code></pre>
+        <p>用 <code>var</code> 有兩個規則要記住：</p>
+        <ul>
+          <li>一定要喺宣告嗰句同時畀初始值（<code>var x;</code> 唔合法，因為冇值就冇嘢好推斷）。</li>
+          <li>只可以用喺本地變數（method 入面），唔可以用嚟宣告 class 嘅 field 或者 method 嘅參數／回傳型別。</li>
+        </ul>
+        <h3>幾時用 var，幾時寫明型別？</h3>
+        <table>
+          <thead><tr><th scope="col">情況</th><th scope="col">建議</th></tr></thead>
+          <tbody>
+            <tr><td><code>var id = Guid.NewGuid();</code></td><td>用 <code>var</code>——右手邊已經寫晒個型別名，寫多次冇意思</td></tr>
+            <tr><td><code>var count = 0;</code></td><td>寫明 <code>int count = 0;</code> 更清楚——單睇 <code>0</code> 唔知係 <code>int</code>、<code>long</code> 定 <code>double</code></td></tr>
+            <tr><td><code>var chunks = LoadChunks();</code></td><td>要視乎 <code>LoadChunks</code> 個名夠唔夠清楚；如果唔清楚回傳緊咩，寫明型別幫讀者</td></tr>
+          </tbody>
+        </table>
+        <p>簡單原則：如果右手邊已經好明顯睇到型別（好似 <code>new LectureChunk(...)</code>、<code>Guid.NewGuid()</code>），用 <code>var</code>；如果唔明顯（method 呼叫、算式），寫明型別對讀者更好。</p>
+        <div class="note"><p><strong>對比 <code>dynamic</code>：</strong>C# 都有一個叫 <code>dynamic</code> 嘅關鍵字，先至係真係「放棄 static typing」——型別檢查延後到 runtime，行為好似 Python。呢個喺 lecture-note app 呢類專案幾乎用唔著，見到都應該當係特殊情況，唔係日常寫法。</p></div>
+      </section>
+
+      <section id="literals" aria-labelledby="literals-title">
+        <h2 id="literals-title">5. Literal 寫法</h2>
+        <p>Literal 即係你直接寫喺程式入面嘅值本身（例如 <code>42</code>、<code>"hi"</code>）。C# 有幾個方便嘅寫法：</p>
+        <pre><code>long totalChunks = 1_000_000L;   // 底線分隔，方便閱讀大數字，compiler 會忽略底線
+int flags = 0b_1010_0101;        // 二進制，前綴 0b
+int color = 0xFF00A0;            // 十六進制，前綴 0x
+double duration = 14.8;          // 冇 suffix，預設就係 double
+float ratio = 14.8f;             // f suffix：float
+decimal price = 14.8m;           // m suffix：decimal</code></pre>
+        <p>Suffix（<code>L</code>／<code>f</code>／<code>m</code>）唔可以慳略：如果你想要一個 <code>decimal</code> 值，一定要寫 <code>14.8m</code>，唔係 <code>14.8</code>（嗰個預設係 <code>double</code>，會令你後面「<code>double</code> 賦值畀 <code>decimal</code> 變數」嗰句喺 build 時報錯，因為呢個係窄化轉換，第 6 節解釋）。</p>
+      </section>
+
+      <section id="conversion" aria-labelledby="conversion-title">
+        <h2 id="conversion-title">6. 型別轉換：implicit、explicit、Parse</h2>
+        <h3>Implicit conversion：安全、自動、唔會call underline call</h3>
+        <p>如果轉換過程保證唔會蝕位（例如由細範圍轉去大範圍），compiler 會自動幫你轉，唔使你寫任何嘢：</p>
+        <pre><code>int count = 42;
+long bigCount = count;      // int -> long，安全，自動轉
+double asDouble = bigCount; // long -> double，安全，自動轉</code></pre>
+        <h3>Explicit conversion（cast）：可能蝕位，要你明確話畀 compiler 知你知情</h3>
+        <pre><code>double duration = 14.8;
+int seconds = (int)duration;   // 明確 cast，結果 14——小數部分直接斬咗（truncate），唔係四捨五入！
+
+long bigNumber = 5_000_000_000;
+int overflowed = (int)bigNumber;  // 明確 cast，但數值太大，結果會係一個冇意思嘅負數</code></pre>
+        <div class="warn"><p><strong>Cast 唔等於四捨五入：</strong><code>(int)9.99</code> 結果係 <code>9</code>，唔係 <code>10</code>——cast 純粹係「斬咗小數部分」。想真正四捨五入，要用 <code>Math.Round(9.99)</code>，或者下面提到嘅 <code>Convert.ToInt32</code>。</p></div>
+        <h3>string ↔ 數值：Parse、TryParse、Convert</h3>
+        <table>
+          <thead><tr><th scope="col">方法</th><th scope="col">輸入唔啱格式時</th><th scope="col">幾時用</th></tr></thead>
+          <tbody>
+            <tr><td><code>int.Parse(text)</code></td><td>拋出 <code>FormatException</code></td><td>你有把握輸入一定啱格式（少用）</td></tr>
+            <tr><td><code>int.TryParse(text, out value)</code></td><td>唔拋錯，回傳 <code>false</code></td><td>處理用家輸入、設定檔呢類唔保證啱格式嘅來源（建議做法）</td></tr>
+            <tr><td><code>Convert.ToInt32(number)</code></td><td>——（呢度係轉數值，唔係 parse string）</td><td>由 <code>double</code>／<code>decimal</code> 轉做 <code>int</code>，並用四捨五入而唔係斬尾</td></tr>
+          </tbody>
+        </table>
+        <pre><code>Console.WriteLine((int)9.7);            // 9  （cast：斬尾）
+Console.WriteLine(Convert.ToInt32(9.7)); // 10 （Convert：四捨五入）
+
+bool ok = int.TryParse("abc", out int value);
+Console.WriteLine($"ok={ok}, value={value}");  // ok=False, value=0（TryParse 失敗時 out 變數會係預設值）</code></pre>
+        <p>《C# 中階銜接》第 6 節嘅 <code>ParsePositiveInterval</code> 就係用 <code>int.TryParse</code> 呢個 pattern，配合 <code>throw</code> 分開「格式錯」同「數值違規」兩種問題——依家你識咗 <code>TryParse</code> 點運作，返去睇會更易明。</p>
+      </section>
+
+      <section id="value-ref" aria-labelledby="value-ref-title">
+        <h2 id="value-ref-title">7. Value type vs Reference type</h2>
+        <p>呢個係 C# 對比 Python／JS 最唔同嘅地方之一：C# 嘅型別分兩大類，<strong>複製嗰陣嘅行為完全唔同</strong>。</p>
+        <table>
+          <thead><tr><th scope="col">類別</th><th scope="col">代表</th><th scope="col">賦值 <code>b = a</code> 之後</th></tr></thead>
+          <tbody>
+            <tr><td>Value type</td><td><code>int</code>、<code>double</code>、<code>bool</code>、<code>char</code>、<code>struct</code></td><td>複製一整份獨立嘅值，<code>a</code>、<code>b</code> 之後互不影響</td></tr>
+            <tr><td>Reference type</td><td><code>string</code>、<code>class</code>、<code>List&lt;T&gt;</code>、陣列</td><td>複製嗰個係「指去邊度」，<code>a</code>、<code>b</code> 依然指住同一份資料</td></tr>
+          </tbody>
+        </table>
+        <pre><code>// Value type：int
+int a = 5;
+int b = a;
+b = 10;
+Console.WriteLine(a);   // 5，a 完全冇受影響
+
+// Reference type：List&lt;int&gt;（陣列型集合，第 3 步 List+LINQ 會再詳細教）
+List&lt;int&gt; listA = [1, 2, 3];
+List&lt;int&gt; listB = listA;
+listB.Add(4);
+Console.WriteLine(listA.Count);   // 4！listA 都變咗，因為 listA 同 listB 指緊同一份 list</code></pre>
+        <p>你可以幻想 value type 好似「影印一份新嘅出嚟畀你」，reference type 好似「畀多一條路牌，指去同一間屋」——郁到嗰間屋，兩條路牌行過去都會見到新裝修。</p>
+        <p><code>string</code> 本身係 reference type，但因為佢<strong>immutable</strong>（第 3 節提過，任何「修改」都係整返個新 string），所以喺日常使用上，你唔會遇到「兩個變數指住同一份、會互相影響」嘅意外——呢個係 C# 刻意嘅設計，等你唔使成日為 string 操心。</p>
+        <p><code>struct</code>（好似 <code>int</code>）係 value type；<code>class</code>／<code>record</code> 係 reference type——呢個分別會直接影響你點揀 class 定 record 定 struct，詳情留喺《Class、Record、Struct》深入教學。</p>
+      </section>
+
+      <section id="practice" aria-labelledby="practice-title">
+        <h2 id="practice-title">8. 動手練習</h2>
+        <details>
+          <summary>估下輸出 1：計算一段錄音嘅總長度</summary>
+          <p>UI 想顯示「呢個 session 大約錄咗幾耐」——用 chunk 數量乘以平均長度粗略估算。唔好即刻跑，先估下呢三句會印咩，同埋 <code>chunkCount</code> 點樣參與埋呢條 <code>double</code> 運算：</p>
+          <pre><code>int chunkCount = 12;
+double averageSeconds = 14.8;
+
+double estimatedTotalSeconds = chunkCount * averageSeconds;
+Console.WriteLine(estimatedTotalSeconds);</code></pre>
+          <p><strong>答案：</strong><code>177.6</code>。<code>chunkCount</code>（<code>int</code>）同 <code>averageSeconds</code>（<code>double</code>）相乘，兩邊型別唔同，compiler 會將 <code>chunkCount</code> implicit widening 做 <code>double</code>（第 6 節教過，安全、唔使你手寫 cast），成條 expression 嘅型別跟返 <code>double</code>。呢類「一個 count（int）乘一個量度值（double）」嘅計算，喺呢個 app 度（例如估算總錄音時長、預算 chunk 檔案大小）成日會用到。</p>
+        </details>
+        <details>
+          <summary>估下輸出 2：倒數計時顯示緊幾多秒</summary>
+          <p>錄緊音嗰陣，UI 想喺一個 chunk 錄完之前顯示「仲有幾多秒」。<code>secondsRemaining</code> 係一個 <code>double</code>（內部計時本身有小數），但 UI 淨係想顯示成一個整數秒。估下呢兩種轉法印咩，邊種對用戶顯示更加合理：</p>
+          <pre><code>double secondsRemaining = 9.6;
+
+int truncated = (int)secondsRemaining;          // cast：斬尾
+int rounded = Convert.ToInt32(secondsRemaining); // Convert：四捨五入
+
+Console.WriteLine(truncated);
+Console.WriteLine(rounded);</code></pre>
+          <p><strong>答案：</strong><code>9</code>、<code>10</code>。兩個都「啱」，但意思唔同：<code>(int)</code> cast 永遠向下斬尾，顯示「9 秒」代表「至少仲有 9 秒未錄完」，比較保守；<code>Convert.ToInt32</code> 四捨五入，顯示「10 秒」比較貼近實際餘下時間，但有機會令用戶以為仲有成 10 秒、其實得返 9.6 秒。呢種「揀邊種轉換」嘅決定，喺寫 UI 倒數呢類 code 成日要諗——唔淨係考機械式記住規則，仲要諗畀用戶睇嘅感覺。</p>
+        </details>
+        <details open>
+          <summary>自己動手：安全解析錄音長度</summary>
+          <p>已經幫你喺 <code>demo/csharp-practice/concepts/01-types-practice.cs</code> 準備咗 TODO 骨架。目標：寫一個 <code>static double? ParseDurationSeconds(string input)</code> method——</p>
+          <ul>
+            <li>用 <code>double.TryParse</code> 嘗試將 <code>input</code> 轉做 <code>double</code>；</li>
+            <li>轉唔到，或者轉到但係負數，回傳 <code>null</code>（<code>double?</code>，第 4 步 nullable 會再詳細教呢個寫法，依家可以照抄）；</li>
+            <li>轉到而且係非負數，就回傳嗰個值。</li>
+          </ul>
+          <p>喺 top-level statements 分別試 <code>"14.8"</code>、<code>"-3"</code>、<code>"abc"</code> 三個輸入，印出結果。</p>
+          <pre><code>cd demo/csharp-practice
+dotnet run concepts/01-types-practice.cs</code></pre>
+          <p><strong>答案：</strong></p>
+          <pre><code>Console.WriteLine(ParseDurationSeconds("14.8"));  // 14.8
+Console.WriteLine(ParseDurationSeconds("-3"));    // （空白，null 印出嚟係空字串）
+Console.WriteLine(ParseDurationSeconds("abc"));   // （空白）
+
+static double? ParseDurationSeconds(string input)
+{
+    if (!double.TryParse(input, out double value))
+    {
+        return null;
+    }
+
+    return value &gt;= 0 ? value : null;
+}</code></pre>
+        </details>
+      </section>
+
+      <section id="next" aria-labelledby="next-title">
+        <h2 id="next-title">9. 下一步</h2>
+        <p>五個深入教學建議跟以下次序讀（同《C# 中階銜接》第 1 節小節出現嘅次序一樣），呢頁係第 1 個：</p>
+        <div class="sibling">
+          <a href="csharp-concept-01-types.html"><strong>1. 型別與變數</strong><span>你依家喺呢頁</span></a>
+          <a href="csharp-concept-02-naming.html">2. 命名規範<span>PascalCase／camelCase 完整規則</span></a>
+          <a href="csharp-concept-03-methods.html">3. Method／Function<span>參數、overload、local function</span></a>
+          <a href="csharp-concept-04-generics.html">4. 泛型 &lt;T&gt;<span>由 List&lt;T&gt; 到自己寫泛型 method</span></a>
+          <a href="csharp-concept-05-class-record-struct.html">5. Class／Record／Struct<span>三者點揀，equality 深入</span></a>
+        </div>
+        <p><a href="csharp-concept-02-naming.html">下一個：2. 命名規範 →</a></p>
+        <p>睇完想返去 pipeline 教學，可以返去 <a href="csharp-dotnet-tutorial-2.html#record">《C# 中階銜接》第 2 步：Record</a>，或者返去 <a href="index.html">scripts 學習首頁</a>。</p>
+        <p class="source">參考：<a href="https://learn.microsoft.com/dotnet/csharp/language-reference/builtin-types/built-in-types">內建型別</a>、<a href="https://learn.microsoft.com/dotnet/csharp/programming-guide/types/casting-and-type-conversions">型別轉換</a>、<a href="https://learn.microsoft.com/dotnet/csharp/programming-guide/classes-and-structs/">Value type 與 reference type</a>。</p>
+      </section>
+    </main>
+  </div>
+  <footer class="wrap">C# 型別與變數深入教學 · <a href="csharp-dotnet-tutorial-2.html">返回中階銜接</a> · <a href="csharp-dotnet-tutorial.html">零基礎教學</a> · <a href="index.html">scripts 學習首頁</a></footer>
+</body>
+</html>

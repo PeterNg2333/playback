@@ -1,0 +1,26 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "pages": [
+      {
+        "pageid": 1,
+        "title": "Voice activity detection",
+        "extract": "Voice activity detection identifies whether human speech is present in an audio segment.",
+        "fullurl": "https://en.wikipedia.org/wiki/Voice_activity_detection"
+      },
+      {
+        "pageid": 2,
+        "title": "Speech recognition",
+        "extract": "Speech recognition converts spoken language into text through computational methods.",
+        "fullurl": "https://en.wikipedia.org/wiki/Speech_recognition"
+      },
+      {
+        "pageid": 3,
+        "title": "Automatic summarization",
+        "extract": "Automatic summarization produces a shorter representation that preserves important information.",
+        "fullurl": "https://en.wikipedia.org/wiki/Automatic_summarization"
+      }
+    ]
+  }
+}
+

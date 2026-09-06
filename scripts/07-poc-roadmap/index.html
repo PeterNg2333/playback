@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Playback ASR + rolling LLM note POC 可行性與驗證 roadmap">
+  <title>07 · Playback POC roadmap</title>
+  <style>
+    :root { color-scheme:light; --ink:#172326; --muted:#526267; --paper:#f3f1e9; --surface:#fffef9; --line:#bfc5c1; --teal:#0b615d; --teal-soft:#dcebe7; --amber:#8a4b08; --amber-soft:#f8ead2; --red:#952f2d; --red-soft:#f6dfdc; font-family:Aptos,"Segoe UI",system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    html { min-width:20rem; scroll-behavior:smooth; }
+    body { margin:0; background:var(--paper); color:var(--ink); line-height:1.62; }
+    a { color:#084945; text-underline-offset:.18em; }
+    a:focus-visible, summary:focus-visible { outline:.1875rem solid #086da5; outline-offset:.1875rem; }
+    .skip { position:fixed; z-index:2; top:.75rem; left:.75rem; padding:.5rem .75rem; transform:translateY(-200%); border:.125rem solid var(--ink); background:var(--surface); font-weight:800; }
+    .skip:focus { transform:translateY(0); }
+    header,main,footer { width:min(100% - 2rem,76rem); margin-inline:auto; }
+    header { padding:2.5rem 0 2rem; border-bottom:.1875rem solid var(--ink); }
+    h1,h2,h3 { font-family:Georgia,"Times New Roman",serif; line-height:1.12; }
+    h1 { margin:.25rem 0 1rem; max-width:17ch; font-size:clamp(2.2rem,7vw,4.8rem); letter-spacing:-.045em; }
+    h2 { margin:0 0 1rem; font-size:1.7rem; }
+    h3 { margin:.25rem 0 .5rem; font-size:1.13rem; }
+    p { max-width:76ch; }
+    .kicker { margin:0; color:var(--teal); font-size:.72rem; font-weight:800; letter-spacing:.14em; }
+    .lead { color:var(--muted); font-size:1.1rem; }
+    .verdict { display:inline-block; margin-top:.5rem; padding:.4rem .75rem; border:.0625rem solid var(--teal); border-radius:999px; background:var(--teal-soft); color:#084945; font-weight:800; }
+    nav ul { display:flex; flex-wrap:wrap; gap:.5rem 1rem; padding:0; list-style:none; }
+    section { margin-top:2rem; padding:1.25rem; border:.0625rem solid var(--line); background:var(--surface); }
+    .callout { padding:1rem; border-left:.25rem solid var(--amber); background:var(--amber-soft); color:#553817; }
+    .boundary { display:grid; grid-template-columns:1fr; gap:.75rem; margin:1rem 0; }
+    .service { padding:1rem; border-top:.25rem solid var(--teal); background:var(--teal-soft); }
+    .service small { display:block; color:var(--muted); }
+    .wire { display:grid; place-items:center; min-height:3rem; padding:.5rem; border:.125rem dashed #6d7e80; font-weight:800; text-align:center; }
+    .roadmap { display:grid; gap:.75rem; margin:1rem 0; padding:0; list-style:none; counter-reset:gate; }
+    .roadmap li { position:relative; padding:1rem 1rem 1rem 3.5rem; border-left:.25rem solid var(--teal); background:#faf9f3; counter-increment:gate; }
+    .roadmap li::before { content:counter(gate); position:absolute; top:1rem; left:.8rem; display:grid; width:1.75rem; height:1.75rem; place-items:center; border-radius:50%; background:var(--teal); color:white; font-weight:800; }
+    .roadmap strong,.roadmap span { display:block; }
+    .roadmap span { color:var(--muted); font-size:.9rem; }
+    .mobile-choice { display:grid; grid-template-columns:1fr; gap:1rem; }
+    .choice { padding:1rem; border:.0625rem solid var(--line); }
+    .choice.recommended { border-top:.25rem solid var(--teal); background:var(--teal-soft); }
+    .choice.later { border-top:.25rem solid var(--amber); background:var(--amber-soft); }
+    .choice.reject { border-top:.25rem solid var(--red); background:var(--red-soft); }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; min-width:42rem; border-collapse:collapse; }
+    th,td { padding:.65rem; border-bottom:.0625rem solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--teal); font-size:.8rem; letter-spacing:.04em; }
+    details { margin-top:.75rem; padding:1rem; border:.0625rem solid var(--line); background:#faf9f3; }
+    summary { cursor:pointer; font-weight:800; }
+    code { font-family:"Cascadia Code",Consolas,monospace; }
+    pre { padding:1rem; overflow:auto; border-left:.25rem solid var(--teal); background:#142426; color:#edf4f1; line-height:1.5; }
+    .go-grid { display:grid; grid-template-columns:1fr; gap:1rem; }
+    .go,.nogo { padding:1rem; border:.0625rem solid var(--line); }
+    .go { border-top:.25rem solid var(--teal); }
+    .nogo { border-top:.25rem solid var(--red); }
+    footer { margin-top:2rem; padding:1.5rem 0 3rem; border-top:.1875rem solid var(--ink); color:var(--muted); font-size:.82rem; }
+    @media (min-width:48rem) { section { padding:2rem; } .boundary { grid-template-columns:1fr .6fr 1fr; align-items:stretch; } .mobile-choice,.go-grid { grid-template-columns:repeat(2,1fr); } .choice.reject { grid-column:1/-1; } }
+    @media (min-width:64rem) { .roadmap { grid-template-columns:repeat(2,1fr); } .mobile-choice { grid-template-columns:repeat(3,1fr); } .choice.reject { grid-column:auto; } }
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">跳到 roadmap</a>
+<header>
+  <p class="kicker">PLAYBACK SPIKE STUDY · 07</p>
+  <h1>先證明不丟錄音，再讓 AI 寫筆記</h1>
+  <p class="lead">三小時 lecture 的 live ASR、rolling note 與即時提問可做，但成功條件是 durability、throughput、recovery、quality 與 privacy 都有量測證據。</p>
+  <p class="verdict">Verdict：值得進入 bounded POC，不是已完成 MVP</p>
+  <nav aria-label="本頁章節">
+    <ul>
+      <li><a href="#boundaries">服務邊界</a></li>
+      <li><a href="#order">驗證順序</a></li>
+      <li><a href="#mobile">手機策略</a></li>
+      <li><a href="#soak">三小時 gate</a></li>
+      <li><a href="#decision">Go / No-go</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="content">
+  <section id="boundaries" aria-labelledby="boundaries-title">
+    <p class="kicker">OWNERSHIP</p>
+    <h2 id="boundaries-title">三個 concept，先用兩個 processes</h2>
+    <div class="boundary">
+      <div class="service"><h3>Audio Client</h3><p>mic、local VAD、finalized WAV、spool、retry</p><small>Windows first；未來可有 native mobile</small></div>
+      <div class="wire">durable chunk contract<br>STORED receipt</div>
+      <div class="service"><h3>AI Server</h3><p>intake、ASR、transcript、note agent、chat/search</p><small>ASP.NET Core + PostgreSQL + adapters</small></div>
+    </div>
+    <div class="boundary">
+      <div class="service"><h3>Web / Mobile UI</h3><p>查看、提問、控制、health</p><small>不持有唯一 microphone stream</small></div>
+      <div class="wire">snapshot + live hint</div>
+      <div class="service"><h3>AI Server API</h3><p>UI reload 後重建所有狀態</p><small>SSE 斷線可 polling</small></div>
+    </div>
+    <p class="callout"><strong>Microservice 是 ownership，不是數量競賽。</strong>POC 可由 Audio Client + AI Server 兩個 local processes 開始，Web UI 由 server 提供；有 profiling 證據才再拆 worker。</p>
+  </section>
+
+  <section id="order" aria-labelledby="order-title">
+    <p class="kicker">RISK-FIRST</p>
+    <h2 id="order-title">未來實作的八道 gates</h2>
+    <ol class="roadmap">
+      <li><strong>Mode + privacy</strong><span>Demo/Real、dependency health、consent、retention、secret boundary</span></li>
+      <li><strong>Durable capture</strong><span>15 秒 WAV、partial→final、spool、restart recovery、3h capture</span></li>
+      <li><strong>SenseVoice throughput</strong><span>real audio、latency、language accuracy、timeout/backoff、backlog slope</span></li>
+      <li><strong>Durable intake + PG</strong><span>idempotent key、STORED after persistence、ordered/versioned transcript</span></li>
+      <li><strong>Reconnectable UI</strong><span>snapshot baseline、SSE hint、poll fallback、pending/error visible</span></li>
+      <li><strong>Rolling note</strong><span>5 active minutes、contiguous watermark、Agent Framework、bounded context</span></li>
+      <li><strong>Chat + search</strong><span>question-time snapshot、allowlisted provider、real citations、prompt injection tests</span></li>
+      <li><strong>Soak + decision</strong><span>3 小時 fault injection、quality/cost/latency evidence、Go/No-go</span></li>
+    </ol>
+    <p>每道 gate 都保留可運行的上一層；例如 Gemini 壞了，audio + transcript 仍可用。不要同時做八層再一次過 debug。</p>
+
+    <details>
+      <summary>Rolling note 為甚麼不能每次重送全堂課？</summary>
+      <p>Context、latency 與成本會隨 lecture 長度持續上升。每版應讀「上一版 note + 尚未涵蓋的連續 transcript + relevant materials」，並存 <code>throughSequence</code>、model 與 revision。Transcript 中間有洞時，watermark 不可越過。</p>
+    </details>
+    <details>
+      <summary>.NET Agent Framework 放在哪裡？</summary>
+      <p>放在 AI Server 的 note/chat adapter。先用單一 <code>Microsoft.Agents.AI</code> agent，不用 Semantic Kernel，也不做 multi-agent。Gemini model ID、package version、quota 與 data terms 要在實作當日再核對及 pin。官方 Gemini table 對 C# hosted web search 標為不支援，因此 search 先做成 server-controlled adapter。</p>
+      <p><a href="https://learn.microsoft.com/en-us/agent-framework/integrations/by-component/model-providers/google-gemini">Microsoft Agent Framework · Gemini integration</a></p>
+    </details>
+  </section>
+
+  <section id="mobile" aria-labelledby="mobile-title">
+    <p class="kicker">MOBILE</p>
+    <h2 id="mobile-title">UI first；可靠收音才做 native</h2>
+    <div class="mobile-choice">
+      <article class="choice recommended">
+        <h3>首版：Mobile UI</h3>
+        <p>查看逐字稿／筆記、即時提問、觀察 recorder health。風險最低，沿用同一 API。</p>
+      </article>
+      <article class="choice later">
+        <h3>日後：Native capture</h3>
+        <p>放近 lecturer；本機 chunk + manifest + retry，收到 STORED 才清理。另測 background、電量、容量。</p>
+      </article>
+      <article class="choice reject">
+        <h3>不可作唯一真相：PWA mic</h3>
+        <p>Browser document、permission、background throttling/unload 都會變；可作短 demo/fast path，不作唯一 durable copy。</p>
+      </article>
+    </div>
+    <p><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia">MDN `getUserMedia()` lifecycle/security</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API">MDN Page Visibility/background policies</a></p>
+  </section>
+
+  <section id="soak" aria-labelledby="soak-title">
+    <p class="kicker">EVIDENCE</p>
+    <h2 id="soak-title">720 chunks 後仍成立，才叫三小時 POC</h2>
+    <p>16 kHz mono PCM16 約 32 KB/s；三小時約 345.6 MB（329.6 MiB）。15 秒一段約 720 chunks。短 demo 看不到 queue leak、retry storm、file handle、thermal 或 long-context cost。</p>
+    <div class="table-wrap" tabindex="0" aria-label="POC 初始通過門檻，可橫向捲動">
+      <table>
+        <thead><tr><th>證據</th><th>初始 pass gate</th><th>必做 failure</th></tr></thead>
+        <tbody>
+          <tr><td>Audio continuity</td><td>duration vs wall-clock 差 ≤ 1%；0 無法解釋遺失</td><td>UI close、server down、sleep</td></tr>
+          <tr><td>Idempotency</td><td>retry 後 0 duplicate logical chunks</td><td>response lost、同段重送十次</td></tr>
+          <tr><td>ASR throughput</td><td>steady state backlog 不持續上升</td><td>429、5xx、timeout、offline</td></tr>
+          <tr><td>Live latency</td><td>p95 chunk final → visible transcript ≤ 30s</td><td>SSE disconnect/reconnect</td></tr>
+          <tr><td>Note latency</td><td>p95 schedule → stored revision ≤ 60s</td><td>missing key、quota、transcript gap</td></tr>
+          <tr><td>Resource/cost</td><td>memory 不線性增長；calls/tokens/cost 全記錄</td><td>3h continuous load、disk low</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="callout">這些是要驗證的初始門檻，不是現有成績或 SLA。測量後可以用 evidence 修訂。</p>
+  </section>
+
+  <section aria-labelledby="slice-title">
+    <p class="kicker">FIRST CODE SLICE</p>
+    <h2 id="slice-title">第一刀只做一條完整路徑</h2>
+    <pre><code>3 fake WAV chunks
+  → durable intake
+  → explicit Demo ASR
+  → PostgreSQL transcript
+  → snapshot API
+  → UI renders segments
+
+Then resend chunk #2 → still one logical result</code></pre>
+    <p>這一刀先不用真 mic、Gemini、search 或 mobile。它證明 contract、persistence、ordering、idempotency、reconnect，再逐個把 fake adapter 換成 Real。</p>
+  </section>
+
+  <section id="decision" aria-labelledby="decision-title">
+    <p class="kicker">CHECKPOINT</p>
+    <h2 id="decision-title">Gate 7 後才決定 MVP</h2>
+    <div class="go-grid">
+      <article class="go">
+        <h3>Go</h3>
+        <ul>
+          <li>Audio durability/idempotency 過關。</li>
+          <li>ASR processing rate 追得上 lecture。</li>
+          <li>Note quality/cost 對學生有實際價值。</li>
+          <li>Consent 與 third-party data flow 可接受。</li>
+        </ul>
+      </article>
+      <article class="nogo">
+        <h3>No-go / redesign</h3>
+        <ul>
+          <li>任何短暫 outage 會永久丟 audio。</li>
+          <li>ASR backlog 在線上狀態仍線性增加。</li>
+          <li>Hallucination/citation 問題無法控制。</li>
+          <li>三小時 battery/disk/cost 或 policy 不接受。</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="next-title">
+    <p class="kicker">NEXT</p>
+    <h2 id="next-title">先核對 study inventory</h2>
+    <pre><code>.\scripts\07-poc-roadmap\study.ps1
+.\scripts\07-poc-roadmap\study.ps1 -Strict</code></pre>
+    <p>它只檢查 00–07 每個 module 是否有 README、study script、HTML，然後印出下一步；不會實作 MVP 或啟動服務。</p>
+    <p>回到 database 教材：<a href="../06-postgres-compose/index.html">06 · PostgreSQL + Docker Compose</a></p>
+  </section>
+</main>
+
+<footer>
+  <p>Playback spike roadmap · 直接以 <code>file://</code> 開啟；無外部 script、font 或 CDN。</p>
+</footer>
+</body>
+</html>

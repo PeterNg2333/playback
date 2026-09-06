@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="C# 泛型深入教學：由 ArrayList 嘅型別不安全問題講起，教你自己寫泛型 method 同 class、認識常見泛型集合、constraints，同埋 Task&lt;T&gt;／Nullable&lt;T&gt; 點解都係泛型，附大學程度練習。">
+  <title>C# 泛型：深入教學 · .NET 10</title>
+  <style>
+    :root { color-scheme:light; --paper:#f6f4ee; --surface:#fffefa; --ink:#18221f; --muted:#53605a; --accent:#075c4c; --soft:#e5f2ed; --line:#d3d0c5; --code:#172923; --code-ink:#f2faf5; --focus:#a13d17; }
+    * { box-sizing:border-box; } html { scroll-padding-top:1rem; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.8 system-ui,"Segoe UI","Microsoft JhengHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:.2em; } a:hover { text-decoration-thickness:.15em; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    code,kbd,samp { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; font-variant-ligatures:none; }
+    :not(pre)>code { padding:.1em .3em; background:#e9e9df; border-radius:.2rem; overflow-wrap:anywhere; }
+    .wrap { width:min(68rem,calc(100% - 2rem)); margin-inline:auto; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.5rem 1rem; background:var(--ink); color:white; } .skip:focus { top:1rem; }
+    header { padding:2rem 0 1.5rem; border-bottom:1px solid var(--line); } .back { font-size:.92rem; }
+    .eyebrow { margin:1.25rem 0 0; color:var(--accent); font-weight:750; letter-spacing:.05em; font-size:.85rem; }
+    h1 { max-width:42rem; margin:.5rem 0; font-size:clamp(2rem,5vw,3.4rem); line-height:1.2; letter-spacing:-.03em; }
+    .lead { max-width:45rem; margin-bottom:0; color:var(--muted); font-size:1.1rem; }
+    .layout { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:2.5rem; align-items:start; }
+    nav { position:sticky; top:1rem; padding:1.5rem 0; } nav p { margin:0 0 .5rem; font-size:.9rem; font-weight:750; }
+    nav ol { margin:0; padding:0; list-style:none; } nav a { display:block; padding:.35rem .5rem; border-left:2px solid var(--line); text-decoration:none; }
+    nav a:hover,nav a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    main { min-width:0; padding-bottom:3rem; } section { padding:2rem 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 .8rem; font-size:clamp(1.45rem,3vw,2rem); line-height:1.35; } h3 { margin:1.5rem 0 .4rem; font-size:1.15rem; }
+    p { margin:.7rem 0; } li { margin:.35rem 0; }
+    pre { margin:.6rem 0 1rem; padding:1rem 1.25rem; overflow:auto; background:var(--code); color:var(--code-ink); border-radius:.25rem; line-height:1.7; tab-size:4; }
+    .label { margin:1.25rem 0 .3rem; color:var(--accent); font-size:.86rem; font-weight:750; }
+    .output { background:var(--soft); color:var(--ink); border-left:4px solid var(--accent); }
+    .note { margin:1.25rem 0; padding:1rem 1.25rem; background:var(--soft); border-left:4px solid var(--accent); }
+    .note p:first-child { margin-top:0; } .note p:last-child { margin-bottom:0; }
+    .warn { margin:1.25rem 0; padding:1rem 1.25rem; background:#f8ece3; border-left:4px solid var(--focus); }
+    .warn p:first-child { margin-top:0; } .warn p:last-child { margin-bottom:0; }
+    .run { margin:1.25rem 0; padding:.9rem 1.1rem; background:var(--surface); border:1px solid var(--line); font-family:"Cascadia Code",Consolas,monospace; font-size:.92rem; }
+    .run b { display:block; margin-bottom:.3rem; font-family:system-ui,sans-serif; font-weight:750; color:var(--accent); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; }
+    details { margin:1rem 0; border:1px solid var(--line); background:var(--surface); border-radius:.25rem; }
+    summary { padding:.7rem 1rem; cursor:pointer; font-weight:750; color:var(--accent); }
+    summary:hover { background:var(--soft); }
+    details[open] summary { border-bottom:1px solid var(--line); }
+    details > *:not(summary) { padding:0 1.1rem; }
+    details pre { margin-inline:0; }
+    .steps { padding-left:1.35rem; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:.7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); } th { background:var(--soft); }
+    .source,footer { color:var(--muted); font-size:.9rem; } footer { padding:2rem 0; }
+    .sibling { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; margin:1.25rem 0; }
+    .sibling a { display:block; padding:.8rem 1rem; border:1px solid var(--line); background:var(--surface); text-decoration:none; font-weight:750; }
+    .sibling a:hover,.sibling a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    .sibling a span { display:block; margin-top:.25rem; color:var(--muted); font-weight:400; font-size:.85rem; }
+    @media (max-width:52rem) { .layout { grid-template-columns:1fr; gap:0; } nav { position:static; padding-block:1rem; border-bottom:1px solid var(--line); } nav ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem; } }
+    @media (max-width:28rem) { nav ol { grid-template-columns:1fr; } pre { padding:.8rem; } th,td { padding:.5rem; } }
+    @media (prefers-color-scheme:dark) {
+      :root { color-scheme:dark; --paper:#141a17; --surface:#1b2320; --ink:#eef3ee; --muted:#a7b3ac; --accent:#5fcbaa; --soft:#1c2b26; --line:#31413a; --code:#0e1512; --code-ink:#eaf5ee; --focus:#ff9d6c; }
+      :not(pre)>code { background:#22302a; }
+      .warn { background:#2b1f18; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要內容</a>
+  <header>
+    <div class="wrap">
+      <a class="back" href="csharp-dotnet-tutorial-2.html#types-syntax">返回《C# 中階銜接》第 1 節</a>
+      <p class="eyebrow">C# 概念深入 · .NET 10 · 泛型</p>
+      <h1>泛型 &lt;T&gt;，一次寫多種型別都啱用</h1>
+      <p class="lead">《C# 中階銜接》第 1 節淨係話你知 <code>&lt;T&gt;</code> 係「角括號入面嘅佔位符」，見到 <code>List&lt;T&gt;</code>、<code>Task&lt;string&gt;</code> 唔使驚。呢頁會將呢個諗法補完——你會由「冇泛型會點慘」開始，學識自己寫泛型 method、自己寫泛型 class／record，再認識常見嘅泛型集合同 constraints。做完呢頁，你唔會再淨係用返人哋寫好嘅泛型，而係識得自己寫。</p>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="本頁章節">
+      <p>九個部分</p>
+      <ol>
+        <li><a href="#why">0. 點解獨立一課</a></li>
+        <li><a href="#without-generics">1. 冇泛型會點？</a></li>
+        <li><a href="#generic-method">2. 自己寫一個泛型 method</a></li>
+        <li><a href="#generic-class">3. 自己寫一個泛型 class／record</a></li>
+        <li><a href="#collections">4. 常見泛型集合</a></li>
+        <li><a href="#constraints">5. Constraints：限制 T 可以係咩</a></li>
+        <li><a href="#task-nullable">6. Task&lt;T&gt; 同 Nullable&lt;T&gt; 都係泛型</a></li>
+        <li><a href="#practice">7. 動手練習</a></li>
+        <li><a href="#next">8. 下一步</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <section id="why" aria-labelledby="why-title">
+        <h2 id="why-title">0. 點解獨立一課？</h2>
+        <p>泛型（generics）係 C# 入面其中一個對初學者最抽象嘅概念，但同時亦係你日後成日都會遇到嘅嘢——<code>List&lt;T&gt;</code>、<code>Dictionary&lt;TKey, TValue&gt;</code>、<code>Task&lt;T&gt;</code>，甚至你自己成日寫嘅 <code>int?</code>，背後全部都係泛型。快覽版本淨係話你「呢個係佔位符」，但冇教你點解要有呢樣嘢、同埋點自己寫一個。呢頁會由「冇泛型嘅世界有幾慘」講起，逐步教到你識自己寫泛型 method 同泛型 class。</p>
+        <p>建議你已經做完 <a href="csharp-dotnet-tutorial.html">C#／.NET 零基礎教學</a>，同埋睇過 <a href="csharp-concept-01-types.html">型別與變數深入教學</a>（起碼識 value type vs reference type）。如果 method 嘅參數、回傳型別呢啲概念仲唔熟，建議先睇 <a href="csharp-concept-03-methods.html">Method／Function 深入教學</a>。</p>
+      </section>
+
+      <section id="without-generics" aria-labelledby="without-generics-title">
+        <h2 id="without-generics-title">1. 冇泛型會點？</h2>
+        <p>C# 1.0（2002 年）其實冇泛型呢樣嘢。嗰陣如果想寫一個「裝任何型別都得」嘅集合，得一個方法：用 <code>System.Collections.ArrayList</code>，佢入面每一格都當係 <code>object</code>（C# 所有型別嘅共同祖先）嚟裝：</p>
+        <pre><code>using System.Collections;
+
+ArrayList untyped = new ArrayList();
+untyped.Add(14.8);       // 將 double 裝落去，內部「包裝」（box）成 object
+untyped.Add("oops");     // compiler 見到係 ArrayList，乜嘢型別都肯畀你放入去
+
+double first = (double)untyped[0];       // 攞返嚟嗰陣要自己手動 cast 返做 double
+double second = (double)untyped[1];      // 呢句 compile 到，因為 compiler 唔知 untyped[1] 實際係咩
+                                          // 一 run 就會拋出 InvalidCastException：明明係 string，你話佢係 double</code></pre>
+        <p>呢個例子暴露咗兩個問題：</p>
+        <ul>
+          <li><strong>冇型別安全（type safety）：</strong><code>ArrayList</code> 入面可以隨便混入任何型別，<code>compiler</code> 完全幫唔到手，攞出嚟嗰刻要自己 cast，cast 錯型別就要等 <strong>runtime</strong> 先爆 <code>InvalidCastException</code>——呢個係第 3 步「先 build 後 run」原則想避免嘅事，卻喺呢度發生埋。</li>
+          <li><strong>Boxing 嘅效能代價：</strong><code>14.8</code> 呢個 <code>double</code> 本身係 value type，直接存喺 stack／變數本身；但要塞入 <code>ArrayList</code> 呢類淨係識收 <code>object</code>（reference type）嘅容器，就要「包裝」（<strong>boxing</strong>）——喺 heap 度開一舊新記憶體，將個 <code>double</code> 值複製埋去，先至攞個 reference 存入 <code>ArrayList</code>。攞返出嚟再 cast 返做 <code>double</code>，仲要「拆返出嚟」（<strong>unboxing</strong>）。兩個動作都有額外記憶體同 CPU 開銷。</li>
+        </ul>
+        <p>而家對比 <code>List&lt;double&gt;</code>——泛型集合：</p>
+        <pre><code>List&lt;double&gt; typed = [14.8];
+typed.Add("oops");   // Compiler error：不能將 string 引數轉換成 double</code></pre>
+        <p>呢句喺 <strong>build 嗰刻</strong>已經報錯，你根本冇機會 run 到嗰句錯嘢。而且因為 <code>List&lt;double&gt;</code> 一早知道自己淨係裝 <code>double</code>，攞元素出嚟嗰陣唔使 cast，亦冇 boxing 開銷。</p>
+        <div class="note">
+          <p><strong>泛型嘅整個重點：</strong>喺唔犧牲「一個 method／class 可以重用喺唔同型別」呢個彈性嘅前提下，攞返型別安全——編譯時期捉錯，唔使等 runtime，亦唔使承受 boxing 嘅效能代價。<code>ArrayList</code> 依家已經幾乎冇人用，見到都應該直接改用泛型版本嘅集合。</p>
+        </div>
+      </section>
+
+      <section id="generic-method" aria-labelledby="generic-method-title">
+        <h2 id="generic-method-title">2. 自己寫一個泛型 method</h2>
+        <p>想像你要寫一個 method：「畀我一個 list，如果有嘢就攞第一個，冇嘢就用個 fallback 值」。如果冇泛型，你要為 <code>int</code>、<code>string</code>、<code>LectureChunk</code> 各寫一個幾乎一模一樣嘅 method，淨係型別唔同。泛型 method 可以令你淨係寫一次：</p>
+        <pre><code>static T FirstOrFallback&lt;T&gt;(List&lt;T&gt; items, T fallback)
+{
+    return items.Count &gt; 0 ? items[0] : fallback;
+}
+
+Console.WriteLine(FirstOrFallback(new List&lt;int&gt; { 1, 2, 3 }, 0));   // 1
+Console.WriteLine(FirstOrFallback(new List&lt;string&gt;(), "none"));    // none</code></pre>
+        <p>拆解一下呢個簽名：</p>
+        <ul>
+          <li><code>&lt;T&gt;</code> 寫喺 method 名<code>FirstOrFallback</code>後面，即係「宣告一個叫 <code>T</code> 嘅型別參數（type parameter）」——你可以叫佢 <code>T</code>、<code>TItem</code>，任何合法識別字都得，<code>T</code> 淨係慣例。</li>
+          <li>宣告咗之後，<code>T</code> 就可以喺呢個 method 嘅參數（<code>List&lt;T&gt; items</code>、<code>T fallback</code>）同回傳型別（<code>static T FirstOrFallback</code>）度，當一個真正嘅型別名咁用。</li>
+          <li>你<strong>唔使</strong>自己寫 <code>FirstOrFallback&lt;int&gt;(...)</code> 話畀 compiler 知 <code>T</code> 係咩——compiler 會由你傳入嘅引數（第一次係 <code>List&lt;int&gt;</code>，第二次係 <code>List&lt;string&gt;</code>）自動<strong>推斷（infer）</strong>出 <code>T</code>，呢個過程同 <code>var</code> 嘅型別推斷係兩回事，但諗法類似——都係 compiler 幫你計。</li>
+        </ul>
+        <p>同一個 method body，第一次呼叫 <code>T</code> 變成 <code>int</code>，第二次變成 <code>string</code>——每次呼叫獨立決定，唔會混淆。呢個就係泛型 method 嘅重用性：邏輯淨係寫一次，型別安全就自動跟晒每種型別走。</p>
+      </section>
+
+      <section id="generic-class" aria-labelledby="generic-class-title">
+        <h2 id="generic-class-title">3. 自己寫一個泛型 class／record</h2>
+        <p><code>&lt;T&gt;</code> 唔止可以擺喺 method 度，都可以擺喺 <code>class</code>／<code>record</code>／<code>struct</code> 個名後面。想像你想要一個「連埋捕獲時間嘅值」——唔理個值本身係咩型別，都想順便記低幾時攞到手：</p>
+        <pre><code>public sealed record TimestampedValue&lt;T&gt;(T Value, DateTime CapturedAt);
+
+var captured = new TimestampedValue&lt;double&gt;(14.8, DateTime.UtcNow);
+Console.WriteLine($"{captured.Value} at {captured.CapturedAt:HH:mm:ss}");   // 14.8 at 09:15:32（時間會唔同）
+
+var namedCapture = new TimestampedValue&lt;string&gt;("CAP theorem intro", DateTime.UtcNow);
+Console.WriteLine(namedCapture.Value);   // CAP theorem intro</code></pre>
+        <p><code>TimestampedValue&lt;T&gt;</code> 呢個 record 一宣告好，入面嘅 <code>Value</code> property 就可以用 <code>T</code> 當係真正嘅型別咁寫——同第 2 節嘅泛型 method 一樣，用嗰陣要填實際型別（<code>TimestampedValue&lt;double&gt;</code>、<code>TimestampedValue&lt;string&gt;</code>），呢次 record 唔似 method 咁可以由引數推斷，因為構造子（constructor）以外冇引數可以睇——但正寫喺 <code>new TimestampedValue&lt;double&gt;(...)</code> 嗰句，<code>&lt;double&gt;</code> 都係一睇就知，唔算麻煩。</p>
+        <p>呢個諗法同《C# 中階銜接》教過嘅 <code>record</code> 完全接得上——<code>TimestampedValue&lt;T&gt;</code> 一樣有埋 record 嘅 <code>with</code> expression、value equality（第 3 個深入頁 <a href="csharp-concept-05-class-record-struct.html">Class／Record／Struct</a> 會詳細講 equality），淨係多咗一個型別參數。</p>
+        <div class="note"><p><strong>命名慣例：</strong>如果一個 class／method 有多過一個型別參數，慣例會用 <code>T</code> 開頭再加有意義嘅字，例如 <code>Dictionary&lt;TKey, TValue&gt;</code>——第 4 節會見到。單一型別參數就直接用 <code>T</code>。</p></div>
+      </section>
+
+      <section id="collections" aria-labelledby="collections-title">
+        <h2 id="collections-title">4. 常見泛型集合</h2>
+        <p>.NET 內建咗幾個好常用嘅泛型集合，全部喺 <code>System.Collections.Generic</code> 命名空間：</p>
+        <table>
+          <thead><tr><th scope="col">型別</th><th scope="col">特性</th><th scope="col">例子</th></tr></thead>
+          <tbody>
+            <tr><td><code>List&lt;T&gt;</code></td><td>有次序、可以動態加減嘅陣列型集合</td><td><code>List&lt;LectureChunk&gt; chunks = []; chunks.Add(chunk);</code></td></tr>
+            <tr><td><code>Dictionary&lt;TKey, TValue&gt;</code></td><td>用 key 快速查值，例如用 session id 搵返嗰個 chunk</td><td><code>Dictionary&lt;Guid, LectureChunk&gt; bySession = []; bySession[chunk.SessionId] = chunk;</code></td></tr>
+            <tr><td><code>Queue&lt;T&gt;</code></td><td>FIFO（先入先出），啱用嚟排隊等處理</td><td><code>Queue&lt;LectureChunk&gt; pendingUpload = []; pendingUpload.Enqueue(chunk);</code></td></tr>
+            <tr><td><code>HashSet&lt;T&gt;</code></td><td>淨係裝唔重複嘅值，查「有冇喺入面」好快</td><td><code>HashSet&lt;string&gt; seenSessionIds = []; seenSessionIds.Add(sessionId.ToString());</code></td></tr>
+          </tbody>
+        </table>
+        <p>四個都係同一個諗法嘅唔同變奏：用 <code>&lt;T&gt;</code>（或者 <code>&lt;TKey, TValue&gt;</code>）話畀 compiler 知呢個容器實際裝緊咩型別，之後 compiler 就會喺你加錯型別、或者攞出嚟當錯型別用嗰陣，喺 build 時捉到你。揀邊個，睇你需要嘅存取方式：要順序遍歷用 <code>List&lt;T&gt;</code>，要用 key 查就用 <code>Dictionary</code>，要排隊處理用 <code>Queue&lt;T&gt;</code>，要快速判斷「見過未」用 <code>HashSet&lt;T&gt;</code>。</p>
+      </section>
+
+      <section id="constraints" aria-labelledby="constraints-title">
+        <h2 id="constraints-title">5. Constraints：限制 T 可以係咩</h2>
+        <p>預設情況下，<code>T</code> 可以係任何型別——但正正因為咩都得，compiler 唔知道 <code>T</code> 實際上有咩 method 可以用，所以你喺 method body 入面淨係可以對 <code>T</code> 做所有型別都共通嘅事（例如 <code>.ToString()</code>、賦值、傳嚟傳去）。如果想寫一個「攞兩個 <code>T</code>，比較邊個大」嘅 method，就要話畀 compiler 知：<code>T</code> 一定要係「識比較自己」嘅型別，用 <code>where</code> 子句加 <strong>constraint</strong>：</p>
+        <pre><code>static T Max&lt;T&gt;(T first, T second) where T : IComparable&lt;T&gt;
+{
+    return first.CompareTo(second) &gt;= 0 ? first : second;
+}
+
+Console.WriteLine(Max(3L, 12L));     // 12，比較兩個 chunk 嘅 Sequence（long）
+Console.WriteLine(Max(14.8, 9.2));   // 14.8，比較兩個 chunk 嘅 DurationSeconds（double）</code></pre>
+        <p><code>where T : IComparable&lt;T&gt;</code> 話畀 compiler 知：「呢個 method 淨係接受有實作 <code>IComparable&lt;T&gt;</code> 呢個 interface 嘅型別」——<code>int</code>、<code>string</code>、<code>double</code> 呢啲內建型別全部都有實作，所以先可以喺 body 入面安心叫 <code>first.CompareTo(second)</code>：冇呢個 constraint，compiler 唔會畀你叫 <code>.CompareTo</code>，因為佢唔保證任意型別 <code>T</code> 一定有呢個 method。</p>
+        <p>其他常見嘅 constraint：</p>
+        <table>
+          <thead><tr><th scope="col">寫法</th><th scope="col">意思</th></tr></thead>
+          <tbody>
+            <tr><td><code>where T : class</code></td><td>T 一定要係 reference type（唔可以係 <code>int</code>、<code>struct</code> 呢類 value type）</td></tr>
+            <tr><td><code>where T : struct</code></td><td>T 一定要係 value type</td></tr>
+            <tr><td><code>where T : new()</code></td><td>T 一定要有一個 public、冇參數嘅構造子，等你喺 method 入面可以寫 <code>new T()</code></td></tr>
+            <tr><td><code>where T : IComparable&lt;T&gt;</code></td><td>T 一定要實作咗指定嘅 interface（呢度係「識比較自己」）</td></tr>
+          </tbody>
+        </table>
+        <p>Constraint 唔係必需，但一旦你嘅泛型 method／class 需要對 <code>T</code> 做啲「唔係所有型別都識」嘅操作，就要用 constraint 話畀 compiler 知——換嚟嘅係 compiler 幫你保證，任何人用呢個泛型嗰陣，傳入嘅型別一定符合要求，唔會漏咗某個型別冇實作而 runtime 先爆。</p>
+      </section>
+
+      <section id="task-nullable" aria-labelledby="task-nullable-title">
+        <h2 id="task-nullable-title">6. Task&lt;T&gt; 同 Nullable&lt;T&gt; 都係泛型</h2>
+        <p>你可能未為意，但《C# 中階銜接》已經教過嘅兩樣嘢，其實一早就係泛型：</p>
+        <h3>Task&lt;T&gt;：「將來會有一個 T 型別嘅結果」</h3>
+        <p>第 5 步 async/await 教過 <code>static async Task&lt;string&gt; NormalizeTranscriptAsync(string text)</code>——<code>Task&lt;string&gt;</code> 唔係一個獨立嘅「async 專用型別」，而係一個泛型 class <code>Task&lt;T&gt;</code>，代表「一個將來會完成、並提供一個 <code>T</code> 型別結果嘅非同步工作」。<code>T</code> 填 <code>string</code>，就係「將來會有個 <code>string</code>」；如果 method 淨係要做嘢、唔需要回傳值，就用冇型別參數嘅 <code>Task</code>（唔泛型嗰個版本）。</p>
+        <h3>int?：其實係 Nullable&lt;int&gt; 嘅簡寫</h3>
+        <p><code>int?</code> 呢種問號寫法，只不過係 <code>Nullable&lt;int&gt;</code> 嘅 <strong>syntactic sugar</strong>（語法糖）——兩句寫法意思完全一樣：</p>
+        <pre><code>int? maybeSlide = 12;
+Nullable&lt;int&gt; sameThing = 12;   // 同一句嘢，淨係寫法唔同</code></pre>
+        <p><code>Nullable&lt;T&gt;</code> 本身有個 constraint：<code>T</code> 一定要係 <code>struct</code>（value type）——呢個亦解釋咗點解 <code>string?</code> 唔係用緊 <code>Nullable&lt;T&gt;</code>：<code>string</code> 本身已經係 reference type，一早就可以係 <code>null</code>，<code>string?</code> 嗰個問號淨係 nullable reference type annotation，同 <code>Nullable&lt;T&gt;</code> 係兩回事。</p>
+        <div class="note"><p><strong>睇返先前學過嘅嘢：</strong>依家你識咗泛型嘅運作，返去睇 <code>List&lt;LectureChunk&gt;</code>、<code>Task&lt;string&gt;</code>、<code>int?</code> 呢類寫法，應該會有種「原來一直都係同一件事」嘅感覺——呢個先係泛型最大嘅價值：一套諗法，貫穿成個 .NET 生態。</p></div>
+      </section>
+
+      <section id="practice" aria-labelledby="practice-title">
+        <h2 id="practice-title">7. 動手練習</h2>
+        <details>
+          <summary>估下輸出 1：Max&lt;T&gt; 用嚟揀最新／最長嘅 chunk</summary>
+          <p>唔好即刻跑，先估下呢兩句會印咩——同一個泛型 <code>Max</code>，一次用嚟揀 <code>Sequence</code> 較大（即係較後）嗰個 chunk，一次揀 <code>DurationSeconds</code> 較長嗰個：</p>
+          <pre><code>static T Max&lt;T&gt;(T first, T second) where T : IComparable&lt;T&gt;
+{
+    return first.CompareTo(second) &gt;= 0 ? first : second;
+}
+
+Console.WriteLine(Max(3L, 12L));
+Console.WriteLine(Max(14.8, 9.2));</code></pre>
+          <p><strong>答案：</strong><code>12</code>、<code>14.8</code>。第一次呼叫 <code>T</code> 推斷做 <code>long</code>，<code>12.CompareTo(3)</code> 係正數，回傳 <code>12</code>——如果呢兩個數係兩個 chunk 嘅 <code>Sequence</code>，代表揀咗較後嗰個。第二次 <code>T</code> 推斷做 <code>double</code>，回傳較大嗰個 <code>14.8</code>——如果係 <code>DurationSeconds</code>，代表揀咗錄得較耐嗰個 chunk。兩次用同一個 method，type 完全唔同，全靠 constraint 保證兩種型別都識 <code>CompareTo</code>，唔使為 <code>Sequence</code> 同 <code>DurationSeconds</code> 各寫一個「揀大嗰個」嘅 method。</p>
+        </details>
+        <details>
+          <summary>估下輸出 2：List&lt;T&gt; 唔畀你亂放型別</summary>
+          <p>如果你試住編譯呢句（<code>chunkDurations</code> 本來想儲一堆 chunk 嘅 <code>DurationSeconds</code>）：</p>
+          <pre><code>List&lt;double&gt; chunkDurations = [14.8, 15.0];
+chunkDurations.Add("oops");</code></pre>
+          <p>會發生咩事？同第 1 節嘅 <code>ArrayList</code> 例子（<code>untyped.Add("oops")</code> 之後攞出嚟先 <code>InvalidCastException</code>）比較。</p>
+          <p><strong>答案：</strong>呢句<strong>根本編譯唔到</strong>——<code>Compiler error: 引數 1: 無法從 "string" 轉換為 "double"</code>，你連 run 都 run 唔到。同 <code>ArrayList</code> 果邊完全唔同：<code>ArrayList</code> 因為冇型別資訊，錯誤延遲到你攞出嚟做 cast 嗰刻先喺 <strong>runtime</strong> 爆；<code>List&lt;double&gt;</code> 因為有型別資訊，錯誤喺你打錯嗰句、仲未 build 完，就已經浮返出嚟。如果 <code>chunkDurations</code> 之後要拎去做 <code>Sum()</code>、<code>Average()</code> 呢類計算，你會好慶幸個錯誤係喺 build 時已經爆，而唔係等到 lecture 錄緊一半、程式先 crash。</p>
+        </details>
+        <details open>
+          <summary>自己動手：一個攞唔到就用預設值嘅泛型 lookup helper</summary>
+          <p>第 4 節提過用 <code>Dictionary&lt;Guid, LectureChunk&gt;</code> 嚟用 session id 搵返個 chunk——但如果嗰個 id 根本唔存在（例如前端傳錯、或者仲未收到嗰個 chunk），<code>lookup[id]</code> 會直接拋 <code>KeyNotFoundException</code>，成個 app 死畀你睇。已經幫你喺 <code>demo/csharp-practice/concepts/04-generics-practice.cs</code> 準備咗 TODO 骨架。目標：寫一個 <code>static TValue GetOrDefault&lt;TKey, TValue&gt;(Dictionary&lt;TKey, TValue&gt; lookup, TKey key, TValue fallback)</code> method——</p>
+          <ul>
+            <li>用 <code>lookup.TryGetValue(key, out var value)</code> 嘗試攞值；</li>
+            <li>攞唔到就回傳 <code>fallback</code>，唔好拋錯；</li>
+            <li>試用喺兩種完全唔同嘅 <code>Dictionary</code>：一個 <code>Dictionary&lt;Guid, LectureChunk&gt;</code>（搵一個唔存在嘅 session id），一個 <code>Dictionary&lt;string, double&gt;</code>（搵一個唔存在嘅語言代碼嘅預設 chunk interval），證明同一個 method 兩種 key／value 型別組合都用得。</li>
+          </ul>
+          <pre><code>cd demo/csharp-practice
+dotnet run concepts/04-generics-practice.cs</code></pre>
+          <p><strong>答案：</strong></p>
+          <pre><code>var bySession = new Dictionary&lt;Guid, LectureChunk&gt;();
+var knownId = Guid.NewGuid();
+bySession[knownId] = new LectureChunk(knownId, 0, "CAP theorem intro", 14.8);
+
+var missingId = Guid.NewGuid();
+var placeholder = new LectureChunk(missingId, -1, "(chunk not received yet)", 0);
+
+Console.WriteLine(GetOrDefault(bySession, knownId, placeholder).Text);    // CAP theorem intro
+Console.WriteLine(GetOrDefault(bySession, missingId, placeholder).Text);  // (chunk not received yet)
+
+var chunkIntervalByLanguage = new Dictionary&lt;string, double&gt; { ["yue"] = 12.0 };
+Console.WriteLine(GetOrDefault(chunkIntervalByLanguage, "yue", 15.0));  // 12
+Console.WriteLine(GetOrDefault(chunkIntervalByLanguage, "en", 15.0));   // 15，"en" 唔存在，用返 fallback
+
+static TValue GetOrDefault&lt;TKey, TValue&gt;(Dictionary&lt;TKey, TValue&gt; lookup, TKey key, TValue fallback)
+{
+    return lookup.TryGetValue(key, out var value) ? value : fallback;
+}
+
+public sealed record LectureChunk(Guid SessionId, long Sequence, string Text, double DurationSeconds);</code></pre>
+          <p>同一個 <code>GetOrDefault&lt;TKey, TValue&gt;</code>，一次用喺 <code>&lt;Guid, LectureChunk&gt;</code>，一次用喺 <code>&lt;string, double&gt;</code>——呢個先係泛型 lookup helper 應該有嘅樣：唔使為每一種 <code>Dictionary</code> 組合各寫一次「搵唔到就用預設值」嘅邏輯。</p>
+        </details>
+      </section>
+
+      <section id="next" aria-labelledby="next-title">
+        <h2 id="next-title">8. 下一步</h2>
+        <p>五個深入教學建議跟以下次序讀（同《C# 中階銜接》第 1 節小節出現嘅次序一樣），呢頁係第 4 個：</p>
+        <div class="sibling">
+          <a href="csharp-concept-01-types.html">1. 型別與變數<span>數值家族、var、型別轉換</span></a>
+          <a href="csharp-concept-02-naming.html">2. 命名規範<span>PascalCase／camelCase 完整規則</span></a>
+          <a href="csharp-concept-03-methods.html">3. Method／Function<span>參數、overload、local function</span></a>
+          <a href="csharp-concept-04-generics.html"><strong>4. 泛型 &lt;T&gt;</strong><span>你依家喺呢頁</span></a>
+          <a href="csharp-concept-05-class-record-struct.html">5. Class／Record／Struct<span>三者點揀，equality 深入</span></a>
+        </div>
+        <p><a href="csharp-concept-03-methods.html">← 上一個：3. Method／Function</a> ・ <a href="csharp-concept-05-class-record-struct.html">下一個：5. Class／Record／Struct →</a></p>
+        <p>睇完想返去 pipeline 教學，可以返去 <a href="csharp-dotnet-tutorial-2.html#types-syntax">《C# 中階銜接》第 1 節</a>，或者返去 <a href="index.html">scripts 學習首頁</a>。</p>
+        <p class="source">參考：<a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/types/generics">泛型（Generics）</a>、<a href="https://learn.microsoft.com/dotnet/csharp/programming-guide/generics/constraints-on-type-parameters">Constraints on type parameters</a>。</p>
+      </section>
+    </main>
+  </div>
+  <footer class="wrap">C# 泛型深入教學 · <a href="csharp-dotnet-tutorial-2.html">返回中階銜接</a> · <a href="csharp-dotnet-tutorial.html">零基礎教學</a> · <a href="index.html">scripts 學習首頁</a></footer>
+</body>
+</html>

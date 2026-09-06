@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>01 · C# Basics for Lecture Notes</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper:#f7f4ec; --ink:#20201e; --muted:#61605b; --line:#cdc7b9;
+      --accent:#a64026; --accent-soft:#f1dfd6; --code:#202524; --code-ink:#f5f3ea;
+      --measure:72rem;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.7 Georgia,"Noto Serif TC",serif; }
+    a { color:#7d2b18; text-underline-offset:.18em; }
+    a:focus-visible { outline:.2rem solid #006d77; outline-offset:.2rem; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.7rem 1rem; background:var(--ink); color:white; z-index:2; }
+    .skip:focus { top:1rem; }
+    header { border-bottom:1px solid var(--line); }
+    .header-inner, main, footer { width:min(var(--measure),calc(100% - 2rem)); margin-inline:auto; }
+    .header-inner { display:grid; grid-template-columns:1fr 16rem; gap:2rem; padding-block:clamp(3rem,9vw,7rem); align-items:end; }
+    .label { margin:0; color:var(--accent); font:700 .78rem/1.2 system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+    h1 { max-width:12ch; margin:.4rem 0 1rem; font-size:clamp(2.5rem,7vw,5.8rem); line-height:.96; letter-spacing:-.045em; }
+    .lead { max-width:40rem; margin:0; color:var(--muted); font-size:1.15rem; }
+    .run { padding:1rem; border-top:.3rem solid var(--accent); background:var(--accent-soft); font-family:system-ui,sans-serif; }
+    main { padding-block:2rem 5rem; }
+    h2 { margin:3.5rem 0 1rem; padding-bottom:.4rem; border-bottom:1px solid var(--line); font-size:clamp(1.5rem,4vw,2.2rem); line-height:1.2; }
+    h3 { margin:.2rem 0 .4rem; font:750 1.05rem/1.3 system-ui,sans-serif; }
+    p,li { max-width:48rem; }
+    .concepts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; }
+    .concept { min-height:9rem; padding:1rem; border:1px solid var(--line); background:rgba(255,255,255,.35); }
+    .concept code { color:var(--accent); font-weight:700; }
+    pre { max-width:100%; overflow:auto; margin:1rem 0; padding:1rem; background:var(--code); color:var(--code-ink); border-radius:.2rem; font: .9rem/1.6 "Cascadia Code",Consolas,monospace; }
+    code { font-family:"Cascadia Code",Consolas,monospace; font-size:.9em; }
+    :not(pre)>code { padding:.08em .28em; background:var(--accent-soft); }
+    .pipeline { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:1.25rem 0; font-family:system-ui,sans-serif; }
+    .pipeline span { padding:.55rem .8rem; border:1px solid var(--line); background:white; }
+    .pipeline b { color:var(--accent); }
+    .note { margin:2rem 0; padding:1rem 1.2rem; border-left:.35rem solid var(--accent); background:var(--accent-soft); }
+    footer { padding-block:2rem 3rem; border-top:1px solid var(--line); color:var(--muted); }
+    @media (max-width:48rem) { .header-inner { grid-template-columns:1fr; } .run { max-width:30rem; } .concepts { grid-template-columns:1fr 1fr; } }
+    @media (max-width:32rem) { .concepts { grid-template-columns:1fr; } }
+    @media (prefers-color-scheme:dark) {
+      :root { color-scheme:dark; --paper:#171817; --ink:#f1eee6; --muted:#c0bbb0; --line:#494943; --accent:#f09a7e; --accent-soft:#37251f; --code:#0d1110; --code-ink:#f5f3ea; }
+      a { color:#ffad93; } .concept { background:#20221f; } .pipeline span { background:#242622; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">跳到主要內容</a>
+  <header>
+    <div class="header-inner">
+      <div>
+        <p class="label">Spike study · 01</p>
+        <h1>一個 C# 檔案，七個核心概念。</h1>
+        <p class="lead">用 lecture transcript 的資料形狀學 language basics。先看資料如何流動，之後再放進 ASP.NET project。</p>
+      </div>
+      <aside class="run" aria-label="執行指令">
+        <strong>Run it</strong>
+        <code>.\scripts\01-csharp-basics\study.ps1 -ShowSource</code>
+      </aside>
+    </div>
+  </header>
+  <main id="content">
+    <aside class="note" aria-label="零基礎學習入口">
+      <p><strong>完全未學過 C#？</strong>先讀 <a href="../csharp-dotnet-tutorial.html">C#／.NET 零基礎 HTML 教學</a>，從第一行程式、變數、if / else、迴圈和方法開始，附完整範例與練習答案。完成後再回到這個綜合實驗。</p>
+      <p><strong>覺得這一課概念太多？</strong>先讀 <a href="../csharp-dotnet-tutorial-2.html">C# 中階銜接教學</a>，把 record、List+LINQ、nullable、async/await、error handling 拆成六個獨立練習，逐個動手寫、逐個跑，再自己組成迷你版本，最後回來對照這裡的 <code>basics.cs</code>。</p>
+    </aside>
+    <h2>概念地圖</h2>
+    <div class="concepts">
+      <article class="concept"><h3><code>types</code></h3><p>資料有形狀；compiler 在 run 前找出不相容操作。</p></article>
+      <article class="concept"><h3><code>record</code></h3><p>用 value equality 和 immutable copy 表示 audio/transcript message。</p></article>
+      <article class="concept"><h3><code>List&lt;T&gt;</code></h3><p>一組有次序、而且全部同 type 的 chunks。</p></article>
+      <article class="concept"><h3><code>LINQ</code></h3><p>過濾、排序、轉換，組成可讀的資料 pipeline。</p></article>
+      <article class="concept"><h3><code>nullable</code></h3><p>「尚未有值」寫進 type intent，不用空字串假裝。</p></article>
+      <article class="concept"><h3><code>async / await</code></h3><p>等待 ASR、database、LLM I/O 時不阻塞 thread。</p></article>
+      <article class="concept"><h3><code>error handling</code></h3><p>預期的輸入問題用 <code>TryParse</code>；只 catch 真正懂得處理的 exception。</p></article>
+    </div>
+
+    <h2>從 chunks 變成 note lines</h2>
+    <div class="pipeline" aria-label="LINQ pipeline">
+      <span>List&lt;LectureChunk&gt;</span><b aria-hidden="true">→</b>
+      <span>Where non-empty</span><b aria-hidden="true">→</b>
+      <span>OrderBy sequence</span><b aria-hidden="true">→</b>
+      <span>Select text</span><b aria-hidden="true">→</b>
+      <span>ToList</span>
+    </div>
+    <pre><code>var noteLines = chunks
+    .Where(chunk =&gt; !string.IsNullOrWhiteSpace(chunk.Text))
+    .OrderBy(chunk =&gt; chunk.Sequence)
+    .Select(chunk =&gt; $"{chunk.Sequence + 1}. {chunk.Text}")
+    .ToList();</code></pre>
+
+    <h2>Record 是 data contract 的好起點</h2>
+    <pre><code>public sealed record LectureChunk(
+    Guid SessionId,
+    long Sequence,
+    string Text,
+    double DurationSeconds);
+
+var cleaned = draft with { Text = draft.Text.Trim() };</code></pre>
+    <p><code>with</code> 產生修改過的 copy，不改原 object。相同 property values 的兩筆 record 會 value-equal。</p>
+
+    <h2>Null 是狀態，不是空白字串</h2>
+    <pre><code>string? lecturerName = null;
+string label = lecturerName?.Trim()
+    ?? "（未提供講師名稱）";</code></pre>
+    <p><code>?</code> 告訴 compiler 這個 reference 可能沒有值；<code>?.</code> 安全存取；<code>??</code> 提供 fallback。</p>
+
+    <h2>Async 的心智模型</h2>
+    <pre><code>static async Task&lt;string&gt; NormalizeTranscriptAsync(string text)
+{
+    await Task.Delay(25);
+    return text.ToUpperInvariant();
+}</code></pre>
+    <p><code>Task&lt;string&gt;</code> 是將來會產生 string 的工作。<code>await</code> 不是「開新 thread」的同義詞；它讓 method 在工作完成後接續。</p>
+
+    <h2>Error handling：不要靜靜吞掉錯誤</h2>
+    <pre><code>try
+{
+    _ = ParsePositiveInterval("-5");
+}
+catch (ArgumentOutOfRangeException exception)
+{
+    Console.WriteLine(exception.ParamName);
+}</code></pre>
+    <p>對正常而可預期的輸入分支，先用 <code>int.TryParse</code>；當資料違反 invariant，才 throw。Catch 具體 exception，讓未知錯誤繼續浮現，日後先分得清「AI server 可 retry」和「checksum 已損壞」。</p>
+
+    <aside class="note">
+      <h2>為何沒有 <code>.csproj</code>？</h2>
+      <p>.NET 10 可直接 build/run 單一 <code>.cs</code>。本課用 <code>dotnet run --file basics.cs</code> 明確選擇 file mode；正式 app 有多個 module、packages 和 tests 時，再轉 project。</p>
+    </aside>
+
+    <h2>官方參考</h2>
+    <ul>
+      <li><a href="https://learn.microsoft.com/dotnet/core/sdk/file-based-apps">File-based apps</a></li>
+      <li><a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/types/">C# type system</a></li>
+      <li><a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/types/records">Record types</a></li>
+      <li><a href="https://learn.microsoft.com/dotnet/csharp/linq/get-started/write-linq-queries">Write LINQ queries</a></li>
+      <li><a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/null-safety/">Null safety</a></li>
+      <li><a href="https://learn.microsoft.com/dotnet/csharp/asynchronous-programming/">Async and await</a></li>
+      <li><a href="https://learn.microsoft.com/dotnet/standard/exceptions/best-practices-for-exceptions">Exception best practices</a></li>
+    </ul>
+  </main>
+  <footer>本頁沒有 JavaScript 或外部 assets，可直接雙擊以 <code>file://</code> 開啟。</footer>
+</body>
+</html>

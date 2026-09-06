@@ -1,0 +1,4 @@
+[chunk 1, 00:00-00:40] A cache stores a result so later requests can reuse it. A cache hit avoids repeating expensive work.
+[chunk 2, 00:40-01:20] Invalidation is important. If the underlying value changes, a stale cached value can make the answer wrong.
+[chunk 3, 01:20-02:00] Two strategies are a time-to-live and explicit invalidation when the source changes.
+

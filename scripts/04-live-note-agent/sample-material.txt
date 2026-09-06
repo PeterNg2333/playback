@@ -1,0 +1,6 @@
+Lecture slide: Caching trade-offs
+
+- Time-to-live (TTL): expire an entry after a bounded duration.
+- Explicit invalidation: remove or replace an entry when its source changes.
+- A cache improves latency only when reuse outweighs lookup and maintenance costs.
+

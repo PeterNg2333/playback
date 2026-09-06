@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SenseVoice Adapter Study</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1e222b;
+      --muted: #5b6372;
+      --paper: #f3f5f7;
+      --surface: #ffffff;
+      --line: #cbd2dc;
+      --accent: #155da4;
+      --accent-soft: #e4f0fb;
+      --safe: #1f6a45;
+      --safe-soft: #e0f1e7;
+      --warn: #8a4d00;
+      --warn-soft: #fff0d4;
+      --code: #17212b;
+      --code-ink: #e9f2f8;
+      font-family: "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--paper); line-height: 1.65; }
+    a { color: var(--accent); text-underline-offset: .18em; }
+    a:focus-visible { outline: .2rem solid #e99b1c; outline-offset: .2rem; }
+    .wrap { width: min(72rem, calc(100% - 2rem)); margin-inline: auto; }
+    header { padding-block: 2.25rem 1.75rem; border-bottom: 1px solid var(--line); background: var(--surface); }
+    .eyebrow { color: var(--accent); font-size: .85rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    h1 { max-width: 22ch; margin: .35rem 0 .8rem; font-size: clamp(2rem, 7vw, 3.8rem); line-height: 1.08; letter-spacing: -.035em; }
+    h2 { margin-top: 0; font-size: clamp(1.35rem, 3vw, 1.85rem); line-height: 1.25; }
+    .lede { max-width: 70ch; color: var(--muted); font-size: 1.1rem; }
+    main { padding-block: 2rem 4rem; }
+    section { margin-bottom: 2.5rem; }
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .mode { padding: 1.25rem; border: 1px solid var(--line); background: var(--surface); }
+    .mode.safe { border-top: .4rem solid var(--safe); background: var(--safe-soft); }
+    .mode.send { border-top: .4rem solid var(--warn); background: var(--warn-soft); }
+    .badge { display: inline-block; padding: .15rem .45rem; border: 1px solid currentColor; font-size: .75rem; font-weight: 800; letter-spacing: .06em; }
+    .request { display: grid; grid-template-columns: 11rem 1fr; border: 1px solid var(--line); background: var(--surface); }
+    .request dt, .request dd { margin: 0; padding: .75rem 1rem; border-bottom: 1px solid var(--line); }
+    .request dt { color: var(--muted); font-weight: 700; background: #f8fafb; }
+    .request dd { overflow-wrap: anywhere; }
+    .request dt:last-of-type, .request dd:last-of-type { border-bottom: 0; }
+    pre { overflow-x: auto; padding: 1rem; border-radius: .25rem; background: var(--code); color: var(--code-ink); }
+    code { font-family: "Cascadia Code", Consolas, monospace; }
+    .pipeline { padding: 0; list-style: none; counter-reset: stage; }
+    .pipeline li { display: grid; grid-template-columns: 3rem 1fr; gap: .75rem; padding-block: .8rem; border-bottom: 1px solid var(--line); }
+    .pipeline li::before { counter-increment: stage; content: counter(stage, decimal-leading-zero); color: var(--accent); font-weight: 800; }
+    .warning { padding: 1rem 1.25rem; border-left: .35rem solid var(--warn); background: var(--warn-soft); }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); }
+    th, td { padding: .75rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--accent-soft); }
+    footer { padding-block: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); }
+    @media (max-width: 42rem) {
+      .mode-grid { grid-template-columns: 1fr; }
+      .request { grid-template-columns: 1fr; }
+      .request dt { border-bottom: 0; padding-bottom: .1rem; }
+      .request dd { padding-top: .1rem; }
+    }
+    @media print { body { background: white; } .wrap { width: 100%; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="eyebrow">Playback · Study 03</div>
+      <h1>先 inspect，再送 SenseVoice</h1>
+      <p class="lede">把 provider-specific HTTP 細節封裝在 adapter：固定 endpoint、multipart field、timeout 和 raw response evidence；核心 lecture pipeline 不需要認識它們。</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section aria-labelledby="contract-title">
+      <h2 id="contract-title">2026-09-06 已核實的 request contract</h2>
+      <dl class="request">
+        <dt>Method</dt><dd><code>POST</code></dd>
+        <dt>Endpoint</dt><dd><code>https://dev-aks.setsailapi.com/stt/infer/upload</code></dd>
+        <dt>Form field</dt><dd><code>file</code></dd>
+        <dt>Filename</dt><dd><code>audio.wav</code></dd>
+        <dt>Part MIME</dt><dd><code>audio/wav</code></dd>
+        <dt>Timeout</dt><dd>120 秒（可在 study 調整）</dd>
+      </dl>
+      <p>證據來自本機 <code>ai-kiosk</code> reference 和同日 valid non-speech WAV probe。這不是 response schema 的永久保證。</p>
+    </section>
+
+    <section aria-labelledby="modes-title">
+      <h2 id="modes-title">兩條刻意分開的路徑</h2>
+      <div class="mode-grid">
+        <article class="mode safe">
+          <span class="badge">DEFAULT</span>
+          <h3>Dry-run / inspect</h3>
+          <p>檢查 extension、25 MiB limit、RIFF/WAVE magic 和 SHA-256；寫出 request plan。程式在建立 <code>HttpClient</code> 前結束。</p>
+          <pre><code>.\study.ps1</code></pre>
+        </article>
+        <article class="mode send">
+          <span class="badge">EXPLICIT</span>
+          <h3>Network send</h3>
+          <p>只有 <code>-Send</code> 才上傳一個 WAV。先確認錄音與第三方處理同意。</p>
+          <pre><code>.\study.ps1 `
+  -WavPath .\chunk.wav `
+  -Send</code></pre>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="adapter-title">
+      <h2 id="adapter-title">Adapter 內部的順序</h2>
+      <ol class="pipeline">
+        <li><div><strong>Validate</strong><br>不要相信 extension；檢查 magic、size 和固定 host。</div></li>
+        <li><div><strong>Compose</strong><br><code>MultipartFormDataContent</code> 加入名為 <code>file</code> 的 <code>StreamContent</code>。</div></li>
+        <li><div><strong>Bound</strong><br>設定 timeout、cancellation 和 response size limit。</div></li>
+        <li><div><strong>Capture evidence</strong><br>先保存 status、content type 與 raw body。</div></li>
+        <li><div><strong>Normalize later</strong><br>觀察真實 schema 後才 parse 成自己的 <code>AsrResult</code>。</div></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="failure-title">
+      <h2 id="failure-title">Timeout 不是「一定失敗」</h2>
+      <div class="warning">Client timeout 只代表沒有及時收到答案；server 可能已處理 request。保留本機 WAV 與穩定 chunk identity，讓 retry 是可追蹤、可去重的操作。</div>
+      <table>
+        <thead><tr><th scope="col">事件</th><th scope="col">應做的事</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">HTTP 2xx</th><td>保存 raw response，再以經測試的 parser 正規化。</td></tr>
+          <tr><th scope="row">HTTP 4xx</th><td>通常不要無限重試；檢查 format/contract。</td></tr>
+          <tr><th scope="row">HTTP 5xx / timeout</th><td>WAV 留在 spool，以 backoff retry。</td></tr>
+          <tr><th scope="row">Unexpected JSON</th><td>視為 provider contract error；不要造一段假 transcript。</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer><div class="wrap">完整命令、C# interface 與三小時 lecture retry 策略見 <a href="README.zh-HK.md">README.zh-HK.md</a>。</div></footer>
+</body>
+</html>

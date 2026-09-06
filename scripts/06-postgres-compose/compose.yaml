@@ -1,0 +1,29 @@
+name: playback-postgres-spike
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      # DEMO ONLY: this credential is intentionally public and must never be reused.
+      POSTGRES_USER: playback_demo
+      POSTGRES_PASSWORD: playback_demo_password_change_me
+      POSTGRES_DB: playback_spike
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      # PostgreSQL 18+ official image expects persistent storage at this parent path.
+      - playback_postgres_data:/var/lib/postgresql
+      # The official image runs *.sql here only when the data directory is empty.
+      - ./schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      # Makes the non-initialization learning queries available to study.ps1.
+      - ./:/study:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 30s
+
+volumes:
+  playback_postgres_data:

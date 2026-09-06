@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="C# Class、Record、Struct 深入教學：constructor、equality 語意、mutability、inheritance，同 record struct，附大學程度練習。">
+  <title>C# Class、Record、Struct：深入教學 · .NET 10</title>
+  <style>
+    :root { color-scheme:light; --paper:#f6f4ee; --surface:#fffefa; --ink:#18221f; --muted:#53605a; --accent:#075c4c; --soft:#e5f2ed; --line:#d3d0c5; --code:#172923; --code-ink:#f2faf5; --focus:#a13d17; }
+    * { box-sizing:border-box; } html { scroll-padding-top:1rem; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.8 system-ui,"Segoe UI","Microsoft JhengHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:.2em; } a:hover { text-decoration-thickness:.15em; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    code,kbd,samp { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; font-variant-ligatures:none; }
+    :not(pre)>code { padding:.1em .3em; background:#e9e9df; border-radius:.2rem; overflow-wrap:anywhere; }
+    .wrap { width:min(68rem,calc(100% - 2rem)); margin-inline:auto; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.5rem 1rem; background:var(--ink); color:white; } .skip:focus { top:1rem; }
+    header { padding:2rem 0 1.5rem; border-bottom:1px solid var(--line); } .back { font-size:.92rem; }
+    .eyebrow { margin:1.25rem 0 0; color:var(--accent); font-weight:750; letter-spacing:.05em; font-size:.85rem; }
+    h1 { max-width:42rem; margin:.5rem 0; font-size:clamp(2rem,5vw,3.4rem); line-height:1.2; letter-spacing:-.03em; }
+    .lead { max-width:45rem; margin-bottom:0; color:var(--muted); font-size:1.1rem; }
+    .layout { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:2.5rem; align-items:start; }
+    nav { position:sticky; top:1rem; padding:1.5rem 0; } nav p { margin:0 0 .5rem; font-size:.9rem; font-weight:750; }
+    nav ol { margin:0; padding:0; list-style:none; } nav a { display:block; padding:.35rem .5rem; border-left:2px solid var(--line); text-decoration:none; }
+    nav a:hover,nav a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    main { min-width:0; padding-bottom:3rem; } section { padding:2rem 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 .8rem; font-size:clamp(1.45rem,3vw,2rem); line-height:1.35; } h3 { margin:1.5rem 0 .4rem; font-size:1.15rem; }
+    p { margin:.7rem 0; } li { margin:.35rem 0; }
+    pre { margin:.6rem 0 1rem; padding:1rem 1.25rem; overflow:auto; background:var(--code); color:var(--code-ink); border-radius:.25rem; line-height:1.7; tab-size:4; }
+    .label { margin:1.25rem 0 .3rem; color:var(--accent); font-size:.86rem; font-weight:750; }
+    .output { background:var(--soft); color:var(--ink); border-left:4px solid var(--accent); }
+    .note { margin:1.25rem 0; padding:1rem 1.25rem; background:var(--soft); border-left:4px solid var(--accent); }
+    .note p:first-child { margin-top:0; } .note p:last-child { margin-bottom:0; }
+    .warn { margin:1.25rem 0; padding:1rem 1.25rem; background:#f8ece3; border-left:4px solid var(--focus); }
+    .warn p:first-child { margin-top:0; } .warn p:last-child { margin-bottom:0; }
+    .run { margin:1.25rem 0; padding:.9rem 1.1rem; background:var(--surface); border:1px solid var(--line); font-family:"Cascadia Code",Consolas,monospace; font-size:.92rem; }
+    .run b { display:block; margin-bottom:.3rem; font-family:system-ui,sans-serif; font-weight:750; color:var(--accent); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; }
+    details { margin:1rem 0; border:1px solid var(--line); background:var(--surface); border-radius:.25rem; }
+    summary { padding:.7rem 1rem; cursor:pointer; font-weight:750; color:var(--accent); }
+    summary:hover { background:var(--soft); }
+    details[open] summary { border-bottom:1px solid var(--line); }
+    details > *:not(summary) { padding:0 1.1rem; }
+    details pre { margin-inline:0; }
+    .steps { padding-left:1.35rem; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:.7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); } th { background:var(--soft); }
+    .source,footer { color:var(--muted); font-size:.9rem; } footer { padding:2rem 0; }
+    .sibling { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; margin:1.25rem 0; }
+    .sibling a { display:block; padding:.8rem 1rem; border:1px solid var(--line); background:var(--surface); text-decoration:none; font-weight:750; }
+    .sibling a:hover,.sibling a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    .sibling a span { display:block; margin-top:.25rem; color:var(--muted); font-weight:400; font-size:.85rem; }
+    @media (max-width:52rem) { .layout { grid-template-columns:1fr; gap:0; } nav { position:static; padding-block:1rem; border-bottom:1px solid var(--line); } nav ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem; } }
+    @media (max-width:28rem) { nav ol { grid-template-columns:1fr; } pre { padding:.8rem; } th,td { padding:.5rem; } }
+    @media (prefers-color-scheme:dark) {
+      :root { color-scheme:dark; --paper:#141a17; --surface:#1b2320; --ink:#eef3ee; --muted:#a7b3ac; --accent:#5fcbaa; --soft:#1c2b26; --line:#31413a; --code:#0e1512; --code-ink:#eaf5ee; --focus:#ff9d6c; }
+      :not(pre)>code { background:#22302a; }
+      .warn { background:#2b1f18; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要內容</a>
+  <header>
+    <div class="wrap">
+      <a class="back" href="csharp-dotnet-tutorial-2.html#types-syntax">返回《C# 中階銜接》第 1 節</a>
+      <p class="eyebrow">C# 概念深入 · .NET 10 · Class／Record／Struct</p>
+      <h1>Class、Record、Struct，點揀啱嗰個</h1>
+      <p class="lead">《C# 中階銜接》第 1 節淨係用三行表快速分咗 <code>class</code>／<code>record</code>／<code>struct</code>，跟住第 2 節就直接用 <code>record</code>。呢頁補返完整版：constructor、property、equality 語意、mutability、inheritance，仲有第 1 節冇提過嘅 <code>record struct</code>——全部有例子、有輸出、有練習。</p>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="本頁章節">
+      <p>九個部分</p>
+      <ol>
+        <li><a href="#why">0. 點解獨立一課</a></li>
+        <li><a href="#class">1. Class 基礎</a></li>
+        <li><a href="#record">2. Record 詳解</a></li>
+        <li><a href="#record-struct">3. Record class vs record struct</a></li>
+        <li><a href="#struct">4. Struct 基礎同陷阱</a></li>
+        <li><a href="#equality">5. Equality 深入</a></li>
+        <li><a href="#inheritance">6. Inheritance 簡介</a></li>
+        <li><a href="#comparison">7. 完整對照表</a></li>
+        <li><a href="#practice">8. 動手練習</a></li>
+        <li><a href="#next">9. 下一步</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <section id="why" aria-labelledby="why-title">
+        <h2 id="why-title">0. 點解獨立一課？</h2>
+        <p>《C# 中階銜接》第 1 節嘅三行表已經夠你跟住第 2 節寫 <code>record LectureChunk</code>，但呢三個關鍵字背後嘅分別遠遠唔止「預設比較方式」咁簡單——仲牽涉緊 constructor 點寫、property 可唔可以改、複製嗰陣係複製緊個 object 定係複製緊份值、可唔可以畀其他型別繼承。呢啲分別揀錯咗，輕則行為古怪，重則好似 <code>Dictionary</code> key 用錯型別咁樣，令 lookup 完全失效。呢頁會逐個攤開，最後仲會補埋 <code>record struct</code>——一個 <code>record</code> 同 <code>struct</code> 嘅混合體，第 1 節嘅表冇提過。</p>
+        <p>建議你已經睇過 <a href="csharp-concept-01-types.html">《型別與變數》深入教學</a>，尤其係 <a href="csharp-concept-01-types.html#value-ref">第 7 節 value type vs reference type</a>——呢頁成套內容都建立喺嗰個分別之上。</p>
+      </section>
+
+      <section id="class" aria-labelledby="class-title">
+        <h2 id="class-title">1. Class 基礎：有身分、會變化嘅嘢</h2>
+        <p><code>class</code> 係 reference type（見 <a href="csharp-concept-01-types.html#value-ref">型別教學第 7 節</a>）。佢啱用喺一樣有<strong>持續身分（identity）</strong>、狀態會<strong>隨時間合理咁變化</strong>嘅嘢——例如一個「錄音緊定未」嘅 session 控制器：</p>
+        <pre><code>public sealed class RecordingSession
+{
+    private bool _isRecording;
+
+    public Guid SessionId { get; }
+
+    public RecordingSession(Guid sessionId)
+    {
+        SessionId = sessionId;
+    }
+
+    public bool IsRecording =&gt; _isRecording;
+
+    public void Start() =&gt; _isRecording = true;
+    public void Stop() =&gt; _isRecording = false;
+}
+
+var session = new RecordingSession(Guid.NewGuid());
+session.Start();
+Console.WriteLine(session.IsRecording);   // True</code></pre>
+        <p>逐個部分：</p>
+        <ul>
+          <li><code>private bool _isRecording;</code>——一個 <strong>field</strong>，屬於呢個 object 嘅內部狀態，慣例用 <code>_camelCase</code> 命名同埋 <code>private</code>（唔畀外面直接改）。</li>
+          <li><code>public Guid SessionId { get; }</code>——一個 <strong>property</strong>，冇寫 <code>set</code>，即係只可以喺 constructor 度賦值一次，之後唔可以再改（叫 get-only property）。</li>
+          <li><code>public RecordingSession(Guid sessionId) { ... }</code>——<strong>constructor</strong>，同 method 名一樣叫做個 type 名，冇回傳型別；<code>new RecordingSession(...)</code> 嗰陣會執行呢段 code。</li>
+          <li><code>Start()</code>／<code>Stop()</code>——一般 method，會<strong>改動</strong> object 內部嘅 <code>_isRecording</code>，呢個係 class 同下面 record 最大分別：class 嘅 instance 通常容許喺原地變化（mutate in place）。</li>
+        </ul>
+        <p>呢個 <code>session</code> 由頭到尾都係<strong>同一個 object</strong>——你 <code>Start()</code> 完佢，唔會變成一個新 <code>RecordingSession</code>，而係同一個 object 入面嘅 <code>_isRecording</code> 由 <code>false</code> 變咗 <code>true</code>。呢種「有一個持續身分，狀態逐步演變」嘅模型，就係 <code>class</code> 存在嘅理由。</p>
+      </section>
+
+      <section id="record" aria-labelledby="record-title">
+        <h2 id="record-title">2. Record 詳解：以資料為中心、預設 immutable</h2>
+        <p>《C# 中階銜接》第 2 節已經用過 positional record：</p>
+        <pre><code>public sealed record LectureChunk(Guid SessionId, long Sequence, string Text, double DurationSeconds);</code></pre>
+        <p>Record 除咗可以淨係聲明個「形狀」，仲可以有 body，加多啲計算出嚟嘅 property：</p>
+        <pre><code>public sealed record LectureChunk(Guid SessionId, long Sequence, string Text, double DurationSeconds)
+{
+    public string Summary =&gt; $"{Sequence}: {Text}";
+}</code></pre>
+        <p><code>Summary</code> 唔係建構時傳入嘅資料，而係每次讀取都即時由 <code>Sequence</code>／<code>Text</code> 計出嚟嘅衍生值——呢個寫法同 class 嘅 expression-bodied property 一樣。</p>
+        <h3>另一種寫法：init-only property（唔用 positional）</h3>
+        <p>如果唔想用 positional 寫法（例如欄位多、想個別加 default 值），可以直接寫 property，配合 <code>init</code>：</p>
+        <pre><code>public sealed record LectureNote
+{
+    public required string Title { get; init; }
+    public string Body { get; init; } = "";
+}
+
+var note = new LectureNote { Title = "Week 1", Body = "CAP theorem" };
+// note.Body = "changed";   // Compiler error: init-only，建立完就唔可以再賦值</code></pre>
+        <p><code>init</code> 同 get-only（<code>{ get; }</code>）好似，分別係 <code>init</code> 容許用 object initializer 語法（<code>new LectureNote { Title = ... }</code>）喺建構嗰刻賦值，之後就同 get-only 一樣唔可以再改。<code>required</code>（C# 11 開始）逼使 caller 一定要喺 object initializer 度提供呢個欄位，否則 compile 唔過——呢個係喺冇用 positional constructor 嗰陣，補返「唔可以漏傳資料」呢個保障嘅方法。</p>
+        <p>兩種寫法（positional／init-only）建構出嚟嘅 object 都係一樣 immutable。<code>with</code>-expression 同 value equality（<code>==</code> 比較所有 property 值）喺《中階銜接》第 2 節已經示範過，呢頁唔重複，第 5 節會再深入 equality 嘅底層原理。</p>
+      </section>
+
+      <section id="record-struct" aria-labelledby="record-struct-title">
+        <h2 id="record-struct-title">3. Record class vs record struct</h2>
+        <p>你寫 <code>record LectureChunk(...)</code>，其實係 <code>record class LectureChunk(...)</code> 嘅簡寫——<code>record</code> 預設係 reference type（同 <code>class</code> 一樣，heap allocate）。由 C# 10 開始，你可以寫 <code>record struct</code>，攞到 record 嘅自動 equality／<code>ToString()</code>／<code>with</code>，但複製行為同一般 <code>struct</code> 一樣係 value type：</p>
+        <pre><code>public readonly record struct AudioLevel(double Rms, bool IsSpeech);
+
+var a = new AudioLevel(0.02, false);
+var b = a;   // 完整複製一份值，唔係指去同一個 object</code></pre>
+        <p><code>AudioLevel</code> 代表 VAD（module 02）每一幀 audio 量度出嚟嘅 energy 讀數（RMS 值）同埋判斷結果——三小時錄音可能每幾十毫秒就產生一個呢種讀數，數量以萬計，而且用完即棄，冇任何一個讀數需要獨立嘅「身分」，正正係 <code>record struct</code> 想解決嘅場景。<code>readonly</code> 呢個修飾詞令 <code>AudioLevel</code> 嘅 property 全部係 get-only（同 <code>record class</code> 嘅 <code>init</code> 效果對齊）。如果淨係寫 <code>record struct AudioLevel(double Rms, bool IsSpeech);</code>（冇 <code>readonly</code>），positional property 預設會係<strong>可變</strong>嘅 <code>{ get; set; }</code>，同 <code>record class</code> 預設 <code>{ get; init; }</code> 唔同——呢個係初學者常見誤會位，記住：想要一個真正 immutable 嘅 <code>record struct</code>，一定要自己加 <code>readonly</code>。</p>
+        <table>
+          <thead><tr><th scope="col">情況</th><th scope="col">建議</th></tr></thead>
+          <tbody>
+            <tr><td>細、複製頻繁、冇必要有身分嘅資料</td><td>用 <code>readonly record struct</code>——例如上面嘅 <code>AudioLevel</code>，每幀都新建一個、冇人會記住「呢個係邊一個 AudioLevel」</td></tr>
+            <tr><td>大啲嘅資料、或者概念上應該由多處共享同一份參照</td><td>用預設嘅 <code>record</code>（record class）——例如呢個 app 嘅 <code>LectureChunk</code>、<code>LectureNote</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="struct" aria-labelledby="struct-title">
+        <h2 id="struct-title">4. Struct 基礎同 mutable struct 陷阱</h2>
+        <p><code>struct</code> 係 value type（同 <a href="csharp-concept-01-types.html#value-ref">型別教學第 7 節</a>提過嘅 <code>int</code> 同一類）：賦值、傳參、放入 <code>foreach</code> 變數，全部都係複製一份完整獨立嘅值，唔係指去同一份資料。呢個特性配合<strong>可變（mutable）</strong>嘅 <code>struct</code> 就會整出一個經典初學者陷阱——想像你想將一批 VAD energy 讀數入面，太細聲嘅一律重新標記做「唔係人聲」：</p>
+        <pre><code>public struct RawAudioLevel
+{
+    public double Rms;
+    public bool IsSpeech;
+}
+
+var readings = new List&lt;RawAudioLevel&gt; { new RawAudioLevel { Rms = 0.01, IsSpeech = true } };
+
+foreach (var reading in readings)
+{
+    if (reading.Rms &lt; 0.02)
+    {
+        reading.IsSpeech = false;   // 諗住標低太細聲嘅讀數，只改到 foreach 變數嗰個 copy
+    }
+}
+
+Console.WriteLine(readings[0].IsSpeech);   // 依然係 True，list 入面嗰個冇變過！</code></pre>
+        <p><strong>點解會咁：</strong><code>foreach</code> 入面嘅 <code>reading</code> 係 <code>readings[0]</code> 嗰份值嘅一份<strong>複製</strong>，唔係一條指去 <code>readings[0]</code> 嘅參照——因為 <code>RawAudioLevel</code> 係 value type。<code>reading.IsSpeech = false</code> 呢句完全合法，冇任何 compiler 警告，但佢改嘅係 <code>reading</code> 呢個獨立複製品，同 <code>readings</code> list 入面嗰個原本嘅值完全冇關係——如果呢個 VAD gate 真係咁寫，太細聲嘅讀數永遠都唔會被重新標記，靜音都會被當人聲送去 ASR。</p>
+        <div class="warn">
+          <p><strong>呢個唔係 bug，係設計上嘅風險：</strong>正因為 mutable struct 好容易整出「睇落改咗、其實冇改到」嘅程式碼，普遍建議係：如果要寫 <code>struct</code>，就寫成 <code>readonly struct</code>（所有 field 一律 <code>readonly</code>，逼你用 <code>with</code> 或者重新 <code>new</code> 嚟產生新值，而唔係原地改）；又或者直接用第 3 節嘅 <code>readonly record struct</code>，一步到位攞埋自動 equality。</p>
+        </div>
+      </section>
+
+      <section id="equality" aria-labelledby="equality-title">
+        <h2 id="equality-title">5. Equality 深入：呢個係最多人估錯嘅位</h2>
+        <h3>Class：預設係 reference equality</h3>
+        <p>冇 override 嘅 <code>class</code>，<code>==</code> 同 <code>.Equals()</code> 兩個都係比較「係唔係同一個 object」，唔理內容：</p>
+        <pre><code>public class ChunkLabel
+{
+    public string Text = "";
+}
+
+var a = new ChunkLabel { Text = "intro" };
+var b = new ChunkLabel { Text = "intro" };
+
+Console.WriteLine(a == b);        // False，兩個獨立 object，就算內容一樣
+Console.WriteLine(a.Equals(b));   // False，同一個原因</code></pre>
+        <h3>Record（record class 或 record struct）：編譯器自動生成 value equality</h3>
+        <pre><code>public sealed record ChunkLabelRecord(string Text);
+
+var ra = new ChunkLabelRecord("intro");
+var rb = new ChunkLabelRecord("intro");
+
+Console.WriteLine(ra == rb);        // True，逐個 property 比較內容
+Console.WriteLine(ra.Equals(rb));   // True</code></pre>
+        <h3>Plain struct（唔係 record）：<code>.Equals()</code> 有，但 <code>==</code> 未必有</h3>
+        <p>呢度係最容易搞錯嘅位：<code>struct</code> 嘅 <code>.Equals(object)</code> 係由 <code>System.ValueType</code> 繼承嚟嘅，會用 reflection 逐個 field 做 value 比較（work，但慢）。但 <strong><code>==</code> operator 唔會自動生成</strong>——如果你冇自己寫 <code>operator ==</code>，直接寫 <code>p1 == p2</code> 會喺 build 嗰刻報 <strong>CS0019</strong>：</p>
+        <pre><code>public struct RawAudioLevel
+{
+    public double Rms;
+    public bool IsSpeech;
+}
+
+var a1 = new RawAudioLevel { Rms = 0.02, IsSpeech = true };
+var a2 = new RawAudioLevel { Rms = 0.02, IsSpeech = true };
+
+Console.WriteLine(a1.Equals(a2));   // True，ValueType 用 reflection 逐個 field 比較
+Console.WriteLine(a1 == a2);        // Compiler error CS0019：RawAudioLevel 冇定義 == operator</code></pre>
+        <p>如果由其他語言（例如 Python 嘅 <code>@dataclass</code>，<code>==</code> 通常隨手就有）過嚟，呢個係好常見嘅意外。想要 plain struct 支援 <code>==</code>，就要自己寫 <code>public static bool operator ==(RawAudioLevel a, RawAudioLevel b)</code>（同埋對應嘅 <code>!=</code>），呢頁唔展開手寫做法——直接用 <code>record struct</code> 就自動攞晒。</p>
+        <h3>Record struct：同 record class 一樣，<code>==</code> 同 <code>.Equals()</code> 都自動生成</h3>
+        <pre><code>public readonly record struct AudioLevel(double Rms, bool IsSpeech);
+
+var r1 = new AudioLevel(0.02, true);
+var r2 = new AudioLevel(0.02, true);
+
+Console.WriteLine(r1 == r2);        // True
+Console.WriteLine(r1.Equals(r2));   // True</code></pre>
+        <h3>總結表</h3>
+        <table>
+          <thead><tr><th scope="col">型別</th><th scope="col">預設 <code>==</code></th><th scope="col">預設 <code>.Equals()</code></th></tr></thead>
+          <tbody>
+            <tr><td><code>class</code>（冇 override）</td><td>Reference equality</td><td>Reference equality（繼承自 <code>object</code>）</td></tr>
+            <tr><td><code>record</code>（record class）</td><td>Value equality（編譯器生成）</td><td>Value equality（編譯器生成，並實作 <code>IEquatable&lt;T&gt;</code>）</td></tr>
+            <tr><td><code>struct</code>（plain，非 record）</td><td>未定義——直接用會係 <strong>CS0019 compile error</strong>，除非自己寫 <code>operator ==</code></td><td>Value equality（繼承自 <code>ValueType</code>，reflection 實作，較慢）</td></tr>
+            <tr><td><code>record struct</code></td><td>Value equality（編譯器生成）</td><td>Value equality（編譯器生成）</td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <p><strong>牢記呢條規矩：</strong>如果你手動 override <code>Equals()</code>，就<strong>一定要</strong>同時 override <code>GetHashCode()</code>。兩個「相等」嘅 object 如果 hash code 唔一致，喺 <code>Dictionary</code>／<code>HashSet</code> 呢類靠 hash bucket 分類嘅集合入面會查唔到——表面睇落 <code>Equals</code> 冇錯，但整個 lookup 已經悄悄壞咗。<code>record</code>／<code>record struct</code> 會自動幫你同步生成呢兩個，唔使自己記。</p>
+        </div>
+      </section>
+
+      <section id="inheritance" aria-labelledby="inheritance-title">
+        <h2 id="inheritance-title">6. Inheritance 簡介</h2>
+        <h3>Class：單一繼承 + 多個 interface</h3>
+        <p><code>class</code> 可以繼承一個 base class（單一繼承），同時實作任意多個 interface：</p>
+        <pre><code>public class Base
+{
+    public virtual string Describe() =&gt; "base";
+}
+
+public class Derived : Base
+{
+    public override string Describe() =&gt; "derived";
+}</code></pre>
+        <p><code>sealed</code>（第 2 節 <code>LectureChunk</code> 一直都有用）令一個 class／record 唔可以再被繼承。呢兩份教學入面自訂型別預設都寫 <code>sealed</code>：喺未有實際需要俾其他型別繼承之前，<code>sealed</code> 係更安全嘅預設值——一來避免將來有人喺完全冇諗過嘅情況下繼承你嘅型別、令行為變得難以推斷；二來 <code>sealed</code> 型別喺某啲場景（例如 equality 比較）仲有少少效能著數。</p>
+        <h3>Record：都可以繼承，包括 positional record</h3>
+        <pre><code>public record BaseChunk(Guid SessionId);
+public record LectureChunk(Guid SessionId, string Text) : BaseChunk(SessionId);</code></pre>
+        <p><code>LectureChunk</code> 繼承 <code>BaseChunk</code>，並將 <code>SessionId</code> 傳返俾 base record 嘅 constructor——寫法同 class 繼承時要 call <code>base(...)</code> 意思一樣。呢個機制存在，但呢頁唔深入（例如多層 record 繼承嗰陣 equality 點運作），記住「record 都可以繼承」就夠。</p>
+        <h3>Struct：唔可以繼承（但可以實作 interface）</h3>
+        <p><code>struct</code>（plain 或 <code>record struct</code>）<strong>唔可以</strong>繼承另一個 struct 或者 class——struct 喺繼承呢件事上係隱式 sealed 嘅。但佢哋可以實作 interface：</p>
+        <pre><code>public readonly record struct AudioLevel(double Rms, bool IsSpeech) : IComparable&lt;AudioLevel&gt;
+{
+    public int CompareTo(AudioLevel other) =&gt; Rms.CompareTo(other.Rms);
+}</code></pre>
+      </section>
+
+      <section id="comparison" aria-labelledby="comparison-title">
+        <h2 id="comparison-title">7. 完整對照表</h2>
+        <p>將《中階銜接》第 1 節嗰三行表，擴展做呢一個：</p>
+        <table>
+          <thead><tr><th scope="col">關鍵字</th><th scope="col">預設 <code>==</code>／equality</th><th scope="col">Mutable？</th><th scope="col">可以繼承？</th><th scope="col">典型用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>class</code></td><td>Reference equality</td><td>可以（field／property 可以有 <code>set</code>）</td><td>可以（單一繼承 + 多 interface）</td><td>有身分、狀態隨時間變化——例如 <code>RecordingSession</code></td></tr>
+            <tr><td><code>record</code>（record class）</td><td>Value equality（自動生成）</td><td>預設唔可以（<code>init</code>／positional 都係唯讀）</td><td>可以（record 之間可以繼承）</td><td>immutable 純資料——<code>LectureChunk</code>、<code>LectureNote</code></td></tr>
+            <tr><td><code>record struct</code></td><td>Value equality（自動生成）</td><td>預設可以，加 <code>readonly</code> 先變唯讀</td><td>唔可以（struct 隱式 sealed）</td><td>細、複製頻繁、冇身分嘅資料——例如 VAD 每幀嘅 <code>AudioLevel</code> 讀數</td></tr>
+            <tr><td><code>struct</code>（plain）</td><td><code>.Equals()</code> 有，<code>==</code> 預設冇（CS0019）</td><td>可以，但通常建議寫成 <code>readonly struct</code></td><td>唔可以（struct 隱式 sealed）</td><td>好罕用；需要極致效能、手動控制 memory layout 先會揀</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="practice" aria-labelledby="practice-title">
+        <h2 id="practice-title">8. 動手練習</h2>
+        <details>
+          <summary>估下輸出 1：class 定 record equality</summary>
+          <p>唔好即刻跑，先估下呢四句會印咩：</p>
+          <pre><code>public class ChunkLabel
+{
+    public string Text = "";
+}
+
+public sealed record ChunkLabelRecord(string Text);
+
+var a = new ChunkLabel { Text = "intro" };
+var b = new ChunkLabel { Text = "intro" };
+
+var ra = new ChunkLabelRecord("intro");
+var rb = new ChunkLabelRecord("intro");
+
+Console.WriteLine(a == b);
+Console.WriteLine(ra == rb);</code></pre>
+          <p><strong>答案：</strong><code>False</code>、<code>True</code>。<code>a</code>、<code>b</code> 係兩個獨立 <code>new</code> 出嚟嘅 <code>ChunkLabel</code> object，<code>class</code> 預設 <code>==</code> 比較嘅係「係唔係同一個 object」，內容一樣都唔算。<code>ra</code>、<code>rb</code> 就唔同：<code>record</code> 嘅 <code>==</code> 係編譯器自動生成嘅 value equality，逐個 property 比較，內容一樣就 <code>True</code>。</p>
+        </details>
+        <details>
+          <summary>估下輸出 2：mutable struct 喺 foreach 入面</summary>
+          <pre><code>public struct RawAudioLevel
+{
+    public double Rms;
+    public bool IsSpeech;
+}
+
+var readings = new List&lt;RawAudioLevel&gt; { new RawAudioLevel { Rms = 0.01, IsSpeech = true } };
+
+foreach (var reading in readings)
+{
+    reading.IsSpeech = false;
+}
+
+Console.WriteLine(readings[0].IsSpeech);</code></pre>
+          <p><strong>答案：</strong><code>True</code>，唔係 <code>False</code>。<code>RawAudioLevel</code> 係 value type，<code>foreach</code> 入面嘅 <code>reading</code> 係 <code>readings[0]</code> 嗰份值嘅獨立複製；<code>reading.IsSpeech = false</code> 淨係改到 <code>reading</code> 呢個複製品，同 list 入面嗰個原本嘅值完全冇關係——呢個就係第 4 節提過嘅 mutable struct 陷阱，喺一個真正嘅 VAD gate 入面，呢個 bug 會令標記完全冇生效。</p>
+        </details>
+        <details open>
+          <summary>自己動手：由 mutable class 改做 immutable record</summary>
+          <p>已經幫你喺 <code>demo/csharp-practice/concepts/05-class-record-struct-practice.cs</code> 準備咗 TODO 骨架，入面有一個設計錯咗嘅 mutable class：</p>
+          <pre><code>public class LectureNoteDraft
+{
+    public string Title;
+    public string Body;
+}</code></pre>
+          <p><code>LectureNoteDraft</code> 概念上係一份「寫低咗就唔應該再喺原地被人靜靜雞改」嘅筆記草稿，但依家用緊 mutable class + public field，任何人隨時可以喺任何地方偷偷改咗個 <code>Title</code> 或者 <code>Body</code>，冇留低任何痕跡。你嘅任務：</p>
+          <ul>
+            <li>將 <code>LectureNoteDraft</code> 改寫做一個 <code>sealed record</code>，<code>Title</code>、<code>Body</code> 兩個屬性寫成 positional 或者 init-only 都可以（揀一種）；</li>
+            <li>建立一個 <code>draft</code> instance；</li>
+            <li>用 <code>with</code>-expression 產生一份改咗 <code>Body</code> 嘅新 copy <code>edited</code>，印出兩份，並印出 <code>draft == edited</code>。</li>
+          </ul>
+          <pre><code>cd demo/csharp-practice
+dotnet run concepts/05-class-record-struct-practice.cs</code></pre>
+          <p><strong>答案：</strong></p>
+          <pre><code>public sealed record LectureNoteDraft(string Title, string Body);
+
+var draft = new LectureNoteDraft("Week 1", "CAP theorem intro");
+var edited = draft with { Body = "CAP theorem intro, revised after Q&amp;A" };
+
+Console.WriteLine(draft);
+Console.WriteLine(edited);
+Console.WriteLine(draft == edited);   // False，Body 唔同，value equality 判佢哋唔相等</code></pre>
+        </details>
+      </section>
+
+      <section id="next" aria-labelledby="next-title">
+        <h2 id="next-title">9. 下一步</h2>
+        <p>五個深入教學建議跟以下次序讀（同《C# 中階銜接》第 1 節小節出現嘅次序一樣），呢頁係第 5 個，亦係最後一個：</p>
+        <div class="sibling">
+          <a href="csharp-concept-01-types.html">1. 型別與變數<span>數值家族、var、型別轉換</span></a>
+          <a href="csharp-concept-02-naming.html">2. 命名規範<span>PascalCase／camelCase 完整規則</span></a>
+          <a href="csharp-concept-03-methods.html">3. Method／Function<span>參數、overload、local function</span></a>
+          <a href="csharp-concept-04-generics.html">4. 泛型 &lt;T&gt;<span>由 List&lt;T&gt; 到自己寫泛型 method</span></a>
+          <a href="csharp-concept-05-class-record-struct.html"><strong>5. Class／Record／Struct</strong><span>你依家喺呢頁</span></a>
+        </div>
+        <p><a href="csharp-concept-04-generics.html">← 上一個：4. 泛型 &lt;T&gt;</a> ・ 五個深入教學完成晒，返去 <a href="csharp-dotnet-tutorial-2.html#record">《C# 中階銜接》第 2 步：Record</a> 繼續。</p>
+        <p>睇完想返去 pipeline 教學，可以返去 <a href="csharp-dotnet-tutorial-2.html#types-syntax">《C# 中階銜接》第 1 節</a>，或者返去 <a href="index.html">scripts 學習首頁</a>。</p>
+        <p class="source">參考：<a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/types/records">Record types</a>、<a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/object-oriented/">Object-oriented programming (C#)</a>、<a href="https://learn.microsoft.com/dotnet/csharp/programming-guide/statements-expressions-operators/equality-comparisons">Equality comparisons</a>。</p>
+      </section>
+    </main>
+  </div>
+  <footer class="wrap">C# Class、Record、Struct 深入教學 · <a href="csharp-dotnet-tutorial-2.html">返回中階銜接</a> · <a href="csharp-dotnet-tutorial.html">零基礎教學</a> · <a href="index.html">scripts 學習首頁</a></footer>
+</body>
+</html>

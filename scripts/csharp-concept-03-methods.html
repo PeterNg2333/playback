@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="C# Method／Function 深入教學：參數傳遞（value／ref／out／in）、optional parameter、named argument、params 陣列、overloading、local function、recursion，附大學程度練習。">
+  <title>C# Method／Function：深入教學 · .NET 10</title>
+  <style>
+    :root { color-scheme:light; --paper:#f6f4ee; --surface:#fffefa; --ink:#18221f; --muted:#53605a; --accent:#075c4c; --soft:#e5f2ed; --line:#d3d0c5; --code:#172923; --code-ink:#f2faf5; --focus:#a13d17; }
+    * { box-sizing:border-box; } html { scroll-padding-top:1rem; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.8 system-ui,"Segoe UI","Microsoft JhengHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:.2em; } a:hover { text-decoration-thickness:.15em; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    code,kbd,samp { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; font-variant-ligatures:none; }
+    :not(pre)>code { padding:.1em .3em; background:#e9e9df; border-radius:.2rem; overflow-wrap:anywhere; }
+    .wrap { width:min(68rem,calc(100% - 2rem)); margin-inline:auto; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.5rem 1rem; background:var(--ink); color:white; } .skip:focus { top:1rem; }
+    header { padding:2rem 0 1.5rem; border-bottom:1px solid var(--line); } .back { font-size:.92rem; }
+    .eyebrow { margin:1.25rem 0 0; color:var(--accent); font-weight:750; letter-spacing:.05em; font-size:.85rem; }
+    h1 { max-width:42rem; margin:.5rem 0; font-size:clamp(2rem,5vw,3.4rem); line-height:1.2; letter-spacing:-.03em; }
+    .lead { max-width:45rem; margin-bottom:0; color:var(--muted); font-size:1.1rem; }
+    .layout { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:2.5rem; align-items:start; }
+    nav { position:sticky; top:1rem; padding:1.5rem 0; } nav p { margin:0 0 .5rem; font-size:.9rem; font-weight:750; }
+    nav ol { margin:0; padding:0; list-style:none; } nav a { display:block; padding:.35rem .5rem; border-left:2px solid var(--line); text-decoration:none; }
+    nav a:hover,nav a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    main { min-width:0; padding-bottom:3rem; } section { padding:2rem 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 .8rem; font-size:clamp(1.45rem,3vw,2rem); line-height:1.35; } h3 { margin:1.5rem 0 .4rem; font-size:1.15rem; }
+    p { margin:.7rem 0; } li { margin:.35rem 0; }
+    pre { margin:.6rem 0 1rem; padding:1rem 1.25rem; overflow:auto; background:var(--code); color:var(--code-ink); border-radius:.25rem; line-height:1.7; tab-size:4; }
+    .label { margin:1.25rem 0 .3rem; color:var(--accent); font-size:.86rem; font-weight:750; }
+    .output { background:var(--soft); color:var(--ink); border-left:4px solid var(--accent); }
+    .note { margin:1.25rem 0; padding:1rem 1.25rem; background:var(--soft); border-left:4px solid var(--accent); }
+    .note p:first-child { margin-top:0; } .note p:last-child { margin-bottom:0; }
+    .warn { margin:1.25rem 0; padding:1rem 1.25rem; background:#f8ece3; border-left:4px solid var(--focus); }
+    .warn p:first-child { margin-top:0; } .warn p:last-child { margin-bottom:0; }
+    .run { margin:1.25rem 0; padding:.9rem 1.1rem; background:var(--surface); border:1px solid var(--line); font-family:"Cascadia Code",Consolas,monospace; font-size:.92rem; }
+    .run b { display:block; margin-bottom:.3rem; font-family:system-ui,sans-serif; font-weight:750; color:var(--accent); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; }
+    details { margin:1rem 0; border:1px solid var(--line); background:var(--surface); border-radius:.25rem; }
+    summary { padding:.7rem 1rem; cursor:pointer; font-weight:750; color:var(--accent); }
+    summary:hover { background:var(--soft); }
+    details[open] summary { border-bottom:1px solid var(--line); }
+    details > *:not(summary) { padding:0 1.1rem; }
+    details pre { margin-inline:0; }
+    .steps { padding-left:1.35rem; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:.7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); } th { background:var(--soft); }
+    .source,footer { color:var(--muted); font-size:.9rem; } footer { padding:2rem 0; }
+    .sibling { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; margin:1.25rem 0; }
+    .sibling a { display:block; padding:.8rem 1rem; border:1px solid var(--line); background:var(--surface); text-decoration:none; font-weight:750; }
+    .sibling a:hover,.sibling a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    .sibling a span { display:block; margin-top:.25rem; color:var(--muted); font-weight:400; font-size:.85rem; }
+    @media (max-width:52rem) { .layout { grid-template-columns:1fr; gap:0; } nav { position:static; padding-block:1rem; border-bottom:1px solid var(--line); } nav ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem; } }
+    @media (max-width:28rem) { nav ol { grid-template-columns:1fr; } pre { padding:.8rem; } th,td { padding:.5rem; } }
+    @media (prefers-color-scheme:dark) {
+      :root { color-scheme:dark; --paper:#141a17; --surface:#1b2320; --ink:#eef3ee; --muted:#a7b3ac; --accent:#5fcbaa; --soft:#1c2b26; --line:#31413a; --code:#0e1512; --code-ink:#eaf5ee; --focus:#ff9d6c; }
+      :not(pre)>code { background:#22302a; }
+      .warn { background:#2b1f18; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要內容</a>
+  <header>
+    <div class="wrap">
+      <a class="back" href="csharp-dotnet-tutorial-2.html#types-syntax">返回《C# 中階銜接》第 1 節</a>
+      <p class="eyebrow">C# 概念深入 · .NET 10 · Method／Function</p>
+      <h1>Method，由基本到進階</h1>
+      <p class="lead">《C# 中階銜接》第 1 節淨係夠篇幅畀你睇一個最基本嘅 <code>static</code> method 同 expression-bodied 寫法。呢頁係佢嘅深入版本——大約大學 C# 入門課入面「函式」嗰一、兩堂嘅份量，會補齊參數點樣傳入（value／ref／out／in）、optional parameter、named argument、<code>params</code> 陣列、method overloading、local function 同 recursion。全部有例子、有輸出、有練習。</p>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="本頁章節">
+      <p>十一個部分</p>
+      <ol>
+        <li><a href="#why">0. 點解獨立一課</a></li>
+        <li><a href="#recap">1. Method 結構回顧</a></li>
+        <li><a href="#params">2. 參數傳遞：value／ref／out／in</a></li>
+        <li><a href="#optional">3. Optional parameters 同預設值</a></li>
+        <li><a href="#named">4. Named arguments</a></li>
+        <li><a href="#params-array">5. params 陣列</a></li>
+        <li><a href="#overload">6. Method overloading</a></li>
+        <li><a href="#local-function">7. Local function</a></li>
+        <li><a href="#recursion">8. Recursion</a></li>
+        <li><a href="#practice">9. 動手練習</a></li>
+        <li><a href="#next">10. 下一步</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <section id="why" aria-labelledby="why-title">
+        <h2 id="why-title">0. 點解獨立一課？</h2>
+        <p>《C# 中階銜接》第 1 節教嘅 method 淨係得一個參數、一句 <code>return</code>——夠用嚟入門，但真正寫 lecture-note app 嗰陣，method 好快就會需要：回傳多過一個值（<code>out</code>）、畀個「唔強制填」嘅參數（optional parameter）、接受數量不定嘅輸入（<code>params</code>），或者同名但唔同參數嘅版本（overload）。呢頁會將呢啲全部拆開講清楚，仲會加埋 local function 同 recursion——兩個之後喺 pipeline 教學（例如整理 transcript、遞迴處理巢狀資料）會不斷見到嘅寫法。</p>
+        <p>建議你已經睇完《C# 中階銜接》第 1 節，識最基本嘅 <code>static</code> method 結構同 expression-bodied 語法。呢頁唔會再由零教「乜嘢係 method」。</p>
+      </section>
+
+      <section id="recap" aria-labelledby="recap-title">
+        <h2 id="recap-title">1. Method 結構回顧</h2>
+        <p>一個 method 由「修飾詞、回傳型別、名、參數列、body」五部分組成；如果 body 淨係一句 <code>return</code>，可以用 <code>=&gt;</code> 寫做 expression-bodied，兩種寫法完全等價：</p>
+        <pre><code>static int Square(int number)
+{
+    return number * number;
+}
+
+// 等價，expression-bodied 寫法：
+static int Square(int number) => number * number;</code></pre>
+        <p>之後所有例子都會延續呢個樣式，逐步加入新概念——參數列會由一個變到多個，body 會由一句變到有 <code>if</code>、迴圈、甚至自己入面再包一個 method。</p>
+      </section>
+
+      <section id="params" aria-labelledby="params-title">
+        <h2 id="params-title">2. 參數傳遞：value／ref／out／in</h2>
+        <p>C# 有四種方式將參數傳入 method，決定咗「method 入面改嗰個參數，會唔會影響返出面個變數」：</p>
+        <table>
+          <thead><tr><th scope="col">方式</th><th scope="col">關鍵字</th><th scope="col">method 入面改動</th><th scope="col">呼叫者要唔要預先畀值</th></tr></thead>
+          <tbody>
+            <tr><td>By value（預設）</td><td>（冇）</td><td>唔會影響出面</td><td>要</td></tr>
+            <tr><td>By reference</td><td><code>ref</code></td><td>會影響出面</td><td>要</td></tr>
+            <tr><td>Output</td><td><code>out</code></td><td>會影響出面（method 一定要賦值）</td><td>唔使</td></tr>
+            <tr><td>Read-only reference</td><td><code>in</code></td><td>唔會影響出面（method 唔准改）</td><td>要</td></tr>
+          </tbody>
+        </table>
+
+        <h3>By value（預設）：method 攞到嘅係一份複本</h3>
+        <p>冇寫任何關鍵字嘅參數，預設就係 by value——method 攞到嘅係呼叫者個值嘅複本，喺 method 入面點改都好，出面個變數完全唔受影響（呢個同第 7 節「value type vs reference type」講嘅「複製值」係同一個原理）：</p>
+        <pre><code>static void TryDouble(int number)
+{
+    number = number * 2;   // 淨係改咗呢個複本
+}
+
+int count = 5;
+TryDouble(count);
+Console.WriteLine(count);   // 5，count 完全冇變</code></pre>
+
+        <h3><code>ref</code>：傳返個「路牌」入去，method 可以改到出面個變數</h3>
+        <p>加咗 <code>ref</code> 之後，method 攞到嘅唔再係複本，而係直接指去呼叫者個變數——method 入面改咗，出面即刻見到。<code>ref</code> 一定要喺參數宣告同呼叫兩個位都寫，唔可以淨寫一邊：</p>
+        <pre><code>static void AddBonusSeconds(ref double duration)
+{
+    duration += 5;
+}
+
+double duration = 10;
+AddBonusSeconds(ref duration);
+Console.WriteLine(duration);   // 15</code></pre>
+        <p>用 <code>ref</code> 之前，呼叫者一定要已經畀咗個初始值（好似上面 <code>double duration = 10;</code>），因為 method 唔保證一定會賦新值畀佢。</p>
+
+        <h3><code>out</code>：專門用嚟「回傳多過一個值」</h3>
+        <p>《C# 中階銜接》其實你已經見過 <code>out</code>——<code>int.TryParse(input, out int value)</code> 就係呢個 pattern。<code>out</code> 同 <code>ref</code> 好似，都係傳「路牌」入去，分別係：<code>out</code> 唔使呼叫者預先畀值，但換嚟一個規矩——method <strong>一定要</strong>喺每一條執行路徑入面幫個 <code>out</code> 參數賦值，否則 build 唔到。用 <code>out</code> 嚟自己寫一個「拆返兩個值出嚟」嘅 method：</p>
+        <pre><code>static bool TrySplitName(string fullName, out string firstName, out string lastName)
+{
+    string[] parts = fullName.Split(' ');
+    if (parts.Length != 2)
+    {
+        firstName = "";
+        lastName = "";
+        return false;
+    }
+
+    firstName = parts[0];
+    lastName = parts[1];
+    return true;
+}
+
+bool ok = TrySplitName("Ada Lovelace", out string first, out string last);
+Console.WriteLine($"{ok}: {first} / {last}");   // True: Ada / Lovelace</code></pre>
+        <p>呢個「回傳 <code>bool</code> 表示成功與否，實際結果用 <code>out</code> 帶出嚟」就係 C# 標準函式庫成日用嘅 <code>TryXxx</code> pattern——好處係唔使靠拋例外（exception）嚟表達「呢個輸入唔啱格式」呢類預期之內嘅失敗。</p>
+
+        <h3><code>in</code>：讀取用嘅 reference，唔准改</h3>
+        <p><code>in</code> 都係傳「路牌」入去（避免複製一大份資料嘅效能開銷），但 method 入面唔准修改佢——寫嘗試修改 <code>in</code> 參數會喺 build 時報錯。呢個主要係為咗大型 <code>struct</code> 值嘅效能優化（唔使複製一大份 struct 落去 method），日常寫 lecture-note app 呢類專案幾乎用唔著，見到知係咩就夠。</p>
+      </section>
+
+      <section id="optional" aria-labelledby="optional-title">
+        <h2 id="optional-title">3. Optional parameters 同預設值</h2>
+        <p>參數可以畀一個預設值，變成 optional——呼叫者可以唔理佢，method 就會用返個預設值：</p>
+        <pre><code>static string FormatDuration(double seconds, string unit = "s") => $"{seconds}{unit}";
+
+Console.WriteLine(FormatDuration(14.8));          // 14.8s
+Console.WriteLine(FormatDuration(14.8, "sec"));   // 14.8sec</code></pre>
+        <div class="warn">
+          <p><strong>規則：</strong>optional parameter 一定要排喺所有 required parameter 之後——<code>(string unit = "s", double seconds)</code> 呢種寫法唔合法，因為 compiler 冇辦法判斷「跳過咗邊個」。</p>
+        </div>
+      </section>
+
+      <section id="named" aria-labelledby="named-title">
+        <h2 id="named-title">4. Named arguments</h2>
+        <p>正常呼叫 method 係跟參數列嘅次序（positional）；但都可以用「參數名: 值」嘅寫法，噉就可以打亂次序，令有多個 optional parameter 嘅呼叫更加清楚：</p>
+        <pre><code>Console.WriteLine(FormatDuration(unit: "sec", seconds: 14.8));   // 14.8sec，次序調轉都冇問題</code></pre>
+        <p>Named argument 對「一睇個名就知呢個位傳緊咩」特別有用，例如一堆 <code>bool</code> 參數嘅呼叫，單靠位置好難分辨邊個係邊個；配合具名，可讀性即刻提升。</p>
+      </section>
+
+      <section id="params-array" aria-labelledby="params-array-title">
+        <h2 id="params-array-title">5. params 陣列</h2>
+        <p><code>params</code> 令一個參數可以接收「零個、一個，或者任意多個」引數，method 入面會當佢係一個陣列嚟用：</p>
+        <pre><code>static double SumDurations(params double[] seconds)
+{
+    double total = 0;
+    foreach (var s in seconds)
+    {
+        total += s;
+    }
+
+    return total;
+}
+
+Console.WriteLine(SumDurations(14.8, 15.0, 4.2));   // 34
+Console.WriteLine(SumDurations());                   // 0，冇傳任何引數都合法</code></pre>
+        <p><code>params</code> 只可以用喺參數列嘅最後一個位置，一個 method 最多只可以有一個 <code>params</code> 參數。呼叫嗰陣，你亦都可以直接傳一個現成嘅陣列入去（<code>SumDurations(myArray)</code>），效果一樣。</p>
+      </section>
+
+      <section id="overload" aria-labelledby="overload-title">
+        <h2 id="overload-title">6. Method overloading</h2>
+        <p>Overloading 即係幾個 method 用<strong>同一個名</strong>，但參數列（型別和／或數量）唔同。Compiler 會喺 <strong>compile time</strong>（唔係 runtime）根據你傳嘅引數型別，揀返啱嗰個版本嚟用：</p>
+        <pre><code>static string Describe(int count) => $"{count} chunks";
+static string Describe(string text) => $"text: {text}";
+
+Console.WriteLine(Describe(5));        // 5 chunks
+Console.WriteLine(Describe("hello"));  // text: hello</code></pre>
+        <div class="note">
+          <p><strong>唔淨係睇返回型別：</strong>單靠「返回型別唔同」唔算 overload——參數列（型別、數量或者順序）一定要有分別。<code>static int Foo()</code> 同 <code>static string Foo()</code> 呢兩個放埋一齊會喺 build 時報錯，因為 compiler 揀 overload 嗰陣淨係睇你「點樣呼叫」（傳咗咩引數），唔會理你之後點用個返回值。</p>
+        </div>
+        <p>因為揀邊個 overload 係 compile time 就決定咗，所以喺 IDE 打 <code>Describe(</code> 嗰刻，只要你輸入緊個引數，IDE 已經可以即時話你知會叫緊邊一個版本、提示緊邊個型別——呢個係 static typing 帶嚟嘅其中一個著數。</p>
+      </section>
+
+      <section id="local-function" aria-labelledby="local-function-title">
+        <h2 id="local-function-title">7. Local function</h2>
+        <p>Local function 係一個定義喺<strong>另一個 method body 入面</strong>嘅 method，淨係嗰個外層 method 先叫得到佢，好處係唔會污染成個 class／檔案嘅 method 列表——啱用嚟寫一啲淨係嗰度先用得著嘅小型 helper。Local function 可以直接讀到外層 method 嘅變數（呢個叫 closure）：</p>
+        <pre><code>static List&lt;string&gt; BuildNoteLines(List&lt;string&gt; texts)
+{
+    var lines = new List&lt;string&gt;();
+    int index = 1;
+
+    foreach (var text in texts)
+    {
+        if (IsUseful(text))
+        {
+            lines.Add($"{index}. {text}");
+            index++;
+        }
+    }
+
+    return lines;
+
+    bool IsUseful(string candidate) => !string.IsNullOrWhiteSpace(candidate);
+}</code></pre>
+        <p><code>IsUseful</code> 定義喺 <code>return</code> 之後，但一樣用得——local function 唔似 top-level statements 話「輔助 method 一定要放最尾」咁死板，C# 會喺 build 時掃描成個外層 method body，唔理你將 local function 寫喺頭定尾。習慣上會擺喺最後，等主要邏輯行先睇到。</p>
+        <p>同攞出去做獨立 <code>private static</code> method 比較：如果 <code>IsUseful</code> 淨係 <code>BuildNoteLines</code> 用得著，寫做 local function 可以清楚表達「呢個 helper 唔屬於任何其他地方」，同埋唔使額外傳個 <code>texts</code> 或者 <code>index</code> 落去（因為 closure 已經睇到）。</p>
+      </section>
+
+      <section id="recursion" aria-labelledby="recursion-title">
+        <h2 id="recursion-title">8. Recursion</h2>
+        <p>Recursion（遞迴）即係一個 method 喺自己 body 入面再呼叫自己。寫法一定要有兩部分：<strong>base case</strong>（唔使再遞迴、直接有答案嘅情況）同 <strong>recursive case</strong>（將問題拆細，再交返畀自己處理）。經典例子——階乘：</p>
+        <pre><code>static long Factorial(int n) => n &lt;= 1 ? 1 : n * Factorial(n - 1);
+
+Console.WriteLine(Factorial(5));   // 120</code></pre>
+        <p>拆開睇：<code>n &lt;= 1</code> 就係 base case（<code>0!</code> 同 <code>1!</code> 都定義做 <code>1</code>，唔使再遞迴）；否則就係 recursive case——<code>n * Factorial(n - 1)</code>，將「計 <code>n</code> 嘅階乘」拆做「<code>n</code> 乘以計 <code>n-1</code> 嘅階乘」，每叫一次個問題就細一步，最終一定會撞到 base case 停低。</p>
+        <div class="warn">
+          <p><strong>留意 stack 深度：</strong>每次遞迴呼叫都會喺 call stack 開多一層；如果 base case 寫錯（或者輸入太大、遞迴太深），會撞到 <code>StackOverflowException</code>，甚至令成個程式即時崩潰（呢個例外唔似其他 exception 咁可以用 <code>try/catch</code> 救返）。一般迴圈（<code>for</code>／<code>foreach</code>）冇呢個限制，處理巨大或者深度不定嘅資料時，往往迴圈比遞迴穩陣。</p>
+        </div>
+      </section>
+
+      <section id="practice" aria-labelledby="practice-title">
+        <h2 id="practice-title">9. 動手練習</h2>
+        <details>
+          <summary>估下輸出 1：overload resolution</summary>
+          <p>唔好即刻跑，先估下呢兩句會印咩：</p>
+          <pre><code>static string Describe(int count) => $"{count} chunks";
+static string Describe(string text) => $"text: {text}";
+
+Console.WriteLine(Describe(5));
+Console.WriteLine(Describe("hi"));</code></pre>
+          <p><strong>答案：</strong><code>5 chunks</code> 同 <code>text: hi</code>。Compiler 喺 compile time 就已經根據引數型別（<code>int</code> 定 <code>string</code>）決定咗叫邊一個 <code>Describe</code> 版本，唔使等到 runtime 先揀。</p>
+        </details>
+        <details>
+          <summary>估下輸出 2：by value vs ref</summary>
+          <p>兩個版本睇落好似，估下輸出會唔會一樣：</p>
+          <pre><code>static void AddBonusSecondsByValue(double duration)
+{
+    duration += 5;
+}
+
+static void AddBonusSecondsByRef(ref double duration)
+{
+    duration += 5;
+}
+
+double a = 10;
+AddBonusSecondsByValue(a);
+Console.WriteLine(a);
+
+double b = 10;
+AddBonusSecondsByRef(ref b);
+Console.WriteLine(b);</code></pre>
+          <p><strong>答案：</strong><code>10</code> 同 <code>15</code>。<code>AddBonusSecondsByValue</code> 攞到嘅係 <code>a</code> 嘅複本，method 入面加 5 淨係改咗嗰份複本，<code>a</code> 出面完全冇變；<code>AddBonusSecondsByRef</code> 因為有 <code>ref</code>，直接指去 <code>b</code> 本身，加 5 之後出面即刻見到 <code>15</code>。</p>
+        </details>
+        <details open>
+          <summary>自己動手：平均錄音長度</summary>
+          <p>已經幫你喺 <code>demo/csharp-practice/concepts/03-methods-practice.cs</code> 準備咗 TODO 骨架。目標：寫一個 <code>static double AverageDuration(params double[] seconds)</code> method——</p>
+          <ul class="steps">
+            <li>陣列冇任何元素（空陣列）就回傳 <code>0</code>，避免除以零；</li>
+            <li>否則回傳所有數值嘅平均數（總和除以個數）。</li>
+          </ul>
+          <p>喺 top-level statements 分別試 <code>AverageDuration(14.8, 15.0, 4.2)</code> 同 <code>AverageDuration()</code>，印出結果。</p>
+          <pre><code>cd demo/csharp-practice
+dotnet run concepts/03-methods-practice.cs</code></pre>
+          <p><strong>答案：</strong></p>
+          <pre><code>Console.WriteLine(AverageDuration(14.8, 15.0, 4.2));  // 11.333333333333334
+Console.WriteLine(AverageDuration());                  // 0
+
+static double AverageDuration(params double[] seconds)
+{
+    if (seconds.Length == 0)
+    {
+        return 0;
+    }
+
+    double total = 0;
+    foreach (var s in seconds)
+    {
+        total += s;
+    }
+
+    return total / seconds.Length;
+}</code></pre>
+        </details>
+      </section>
+
+      <section id="next" aria-labelledby="next-title">
+        <h2 id="next-title">10. 下一步</h2>
+        <p>五個深入教學建議跟以下次序讀（同《C# 中階銜接》第 1 節小節出現嘅次序一樣），呢頁係第 3 個：</p>
+        <div class="sibling">
+          <a href="csharp-concept-01-types.html">1. 型別與變數<span>數值家族、var、型別轉換</span></a>
+          <a href="csharp-concept-02-naming.html">2. 命名規範<span>PascalCase／camelCase 完整規則</span></a>
+          <a href="csharp-concept-03-methods.html"><strong>3. Method／Function</strong><span>你依家喺呢頁</span></a>
+          <a href="csharp-concept-04-generics.html">4. 泛型 &lt;T&gt;<span>由 List&lt;T&gt; 到自己寫泛型 method</span></a>
+          <a href="csharp-concept-05-class-record-struct.html">5. Class／Record／Struct<span>三者點揀，equality 深入</span></a>
+        </div>
+        <p><a href="csharp-concept-02-naming.html">← 上一個：2. 命名規範</a> ・ <a href="csharp-concept-04-generics.html">下一個：4. 泛型 &lt;T&gt; →</a></p>
+        <p>睇完想返去 pipeline 教學，可以返去 <a href="csharp-dotnet-tutorial-2.html#types-syntax">《C# 中階銜接》第 1 節</a>，或者返去 <a href="index.html">scripts 學習首頁</a>。</p>
+        <p class="source">參考：<a href="https://learn.microsoft.com/dotnet/csharp/methods">Methods</a>、<a href="https://learn.microsoft.com/dotnet/csharp/programming-guide/classes-and-structs/local-functions">Local functions</a>。</p>
+      </section>
+    </main>
+  </div>
+  <footer class="wrap">C# Method／Function 深入教學 · <a href="csharp-dotnet-tutorial-2.html">返回中階銜接</a> · <a href="csharp-dotnet-tutorial.html">零基礎教學</a> · <a href="index.html">scripts 學習首頁</a></footer>
+</body>
+</html>

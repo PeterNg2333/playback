@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="C# 中階銜接教學：由零基礎過渡到 01-csharp-basics，逐個概念動手實作。">
+  <title>C# 中階銜接：為 Lecture Notes 打基礎 · .NET 10</title>
+  <style>
+    :root { color-scheme:light; --paper:#f6f4ee; --surface:#fffefa; --ink:#18221f; --muted:#53605a; --accent:#075c4c; --soft:#e5f2ed; --line:#d3d0c5; --code:#172923; --code-ink:#f2faf5; --focus:#a13d17; }
+    * { box-sizing:border-box; } html { scroll-padding-top:1rem; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.8 system-ui,"Segoe UI","Microsoft JhengHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:.2em; } a:hover { text-decoration-thickness:.15em; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    code,kbd,samp { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; font-variant-ligatures:none; }
+    :not(pre)>code { padding:.1em .3em; background:#e9e9df; border-radius:.2rem; overflow-wrap:anywhere; }
+    .wrap { width:min(68rem,calc(100% - 2rem)); margin-inline:auto; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.5rem 1rem; background:var(--ink); color:white; } .skip:focus { top:1rem; }
+    header { padding:2rem 0 1.5rem; border-bottom:1px solid var(--line); } .back { font-size:.92rem; }
+    .eyebrow { margin:1.25rem 0 0; color:var(--accent); font-weight:750; letter-spacing:.05em; font-size:.85rem; }
+    h1 { max-width:42rem; margin:.5rem 0; font-size:clamp(2rem,5vw,3.4rem); line-height:1.2; letter-spacing:-.03em; }
+    .lead { max-width:45rem; margin-bottom:0; color:var(--muted); font-size:1.1rem; }
+    .layout { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:2.5rem; align-items:start; }
+    nav { position:sticky; top:1rem; padding:1.5rem 0; } nav p { margin:0 0 .5rem; font-size:.9rem; font-weight:750; }
+    nav ol { margin:0; padding:0; list-style:none; } nav a { display:block; padding:.35rem .5rem; border-left:2px solid var(--line); text-decoration:none; }
+    nav a:hover,nav a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    main { min-width:0; padding-bottom:3rem; } section { padding:2rem 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 .8rem; font-size:clamp(1.45rem,3vw,2rem); line-height:1.35; } h3 { margin:1.5rem 0 .4rem; font-size:1.15rem; }
+    p { margin:.7rem 0; } li { margin:.35rem 0; }
+    pre { margin:.6rem 0 1rem; padding:1rem 1.25rem; overflow:auto; background:var(--code); color:var(--code-ink); border-radius:.25rem; line-height:1.7; tab-size:4; }
+    .label { margin:1.25rem 0 .3rem; color:var(--accent); font-size:.86rem; font-weight:750; }
+    .output { background:var(--soft); color:var(--ink); border-left:4px solid var(--accent); }
+    .note { margin:1.25rem 0; padding:1rem 1.25rem; background:var(--soft); border-left:4px solid var(--accent); }
+    .note p:first-child { margin-top:0; } .note p:last-child { margin-bottom:0; }
+    .run { margin:1.25rem 0; padding:.9rem 1.1rem; background:var(--surface); border:1px solid var(--line); font-family:"Cascadia Code",Consolas,monospace; font-size:.92rem; }
+    .run b { display:block; margin-bottom:.3rem; font-family:system-ui,sans-serif; font-weight:750; color:var(--accent); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; }
+    details { margin:1rem 0; border:1px solid var(--line); background:var(--surface); border-radius:.25rem; }
+    summary { padding:.7rem 1rem; cursor:pointer; font-weight:750; color:var(--accent); }
+    summary:hover { background:var(--soft); }
+    details[open] summary { border-bottom:1px solid var(--line); }
+    details > *:not(summary) { padding:0 1.1rem; }
+    details pre { margin-inline:0; }
+    .steps { padding-left:1.35rem; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:.7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); } th { background:var(--soft); }
+    .source,footer { color:var(--muted); font-size:.9rem; } footer { padding:2rem 0; }
+    .progress { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:1.25rem 0; font-family:system-ui,sans-serif; font-size:.9rem; }
+    .progress span { padding:.5rem .75rem; border:1px solid var(--line); background:white; }
+    .progress b { color:var(--accent); }
+    @media (max-width:52rem) { .layout { grid-template-columns:1fr; gap:0; } nav { position:static; padding-block:1rem; border-bottom:1px solid var(--line); } nav ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem; } }
+    @media (max-width:28rem) { nav ol { grid-template-columns:1fr; } pre { padding:.8rem; } th,td { padding:.5rem; } }
+    @media (prefers-color-scheme:dark) {
+      :root { color-scheme:dark; --paper:#141a17; --surface:#1b2320; --ink:#eef3ee; --muted:#a7b3ac; --accent:#5fcbaa; --soft:#1c2b26; --line:#31413a; --code:#0e1512; --code-ink:#eaf5ee; --focus:#ff9d6c; }
+      :not(pre)>code { background:#22302a; }
+      .progress span { background:var(--surface); }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要內容</a>
+  <header>
+    <div class="wrap">
+      <a class="back" href="index.html">返回 scripts 學習首頁</a>
+      <p class="eyebrow">C# 中階銜接 · .NET 10 · Part 2</p>
+      <h1>由零基礎，過渡到 lecture-note 概念</h1>
+      <p class="lead">你已完成 <a href="csharp-dotnet-tutorial.html">C#／.NET 零基礎教學</a>，也試過 <code>01-csharp-basics/basics.cs</code>，但覺得七個概念一次過有點多。這頁把它們拆開，逐個動手寫、逐個跑，最後你自己組成一個迷你版本。</p>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="本頁章節">
+      <p>八步，逐步來</p>
+      <ol>
+        <li><a href="#bridge">0. 點解要有呢頁</a></li>
+        <li><a href="#types-syntax">1. 型別與語法快覽</a></li>
+        <li><a href="#record">2. Record</a></li>
+        <li><a href="#list-linq">3. List + LINQ</a></li>
+        <li><a href="#nullable">4. Nullable</a></li>
+        <li><a href="#async">5. async / await</a></li>
+        <li><a href="#error">6. Error handling</a></li>
+        <li><a href="#capstone">7. 動手：迷你 pipeline</a></li>
+        <li><a href="#next">8. 下一步</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <section id="bridge" aria-labelledby="bridge-title">
+        <h2 id="bridge-title">0. 點解要有呢頁？</h2>
+        <p><code>01-csharp-basics/basics.cs</code> 一次過示範七個概念（type、record、list、LINQ、nullable、async、error handling），目的係俾你睇到佢哋喺同一個 lecture-note pipeline 入面點樣夾埋用。但如果呢七樣嘢你未逐個試過，一次過睇會好難消化。</p>
+        <p>呢頁會將每個概念拆做<strong>獨立、可以自己跑嘅細檔案</strong>，全部放喺 <code>demo/csharp-practice/</code>（你自己嘅練習區，同 <code>demo/hello-csharp/</code> 一樣）。跟住做完六步之後，你先返去睇 <code>01-csharp-basics</code>，會發現嗰七個 marker 全部你都識。</p>
+        <div class="progress" aria-label="學習進度">
+          <span>零基礎教學 ✓</span><b aria-hidden="true">→</b>
+          <span><strong>依家：中階銜接</strong></span><b aria-hidden="true">→</b>
+          <span>01-csharp-basics</span><b aria-hidden="true">→</b>
+          <span>02+ 正式實驗</span>
+        </div>
+        <p>先建立練習資料夾（如果未有）：</p>
+        <pre><code>mkdir demo\csharp-practice
+cd demo\csharp-practice</code></pre>
+        <p>之後每一步都係：喺呢個資料夾開一個新 <code>.cs</code> 檔，貼程式碼，然後 <code>dotnet run 檔名.cs</code>。呢啲同 <code>hello.cs</code> 一樣係 file-based app，唔需要 <code>.csproj</code>。</p>
+      </section>
+
+      <section id="types-syntax" aria-labelledby="types-syntax-title">
+        <h2 id="types-syntax-title">1. C# 基本型別與語法快覽</h2>
+        <p>落去 record 之前，先打好基礎。你識少少 TypeScript 同 Python，所以呢度會不斷用返嗰兩種語言做對照，幫你將舊知識搭埋 C# 度。零基礎教學教過變數、字串、if/else、迴圈；<strong>但仲未教過 function／method</strong>，所以呢頁會由頭教起，唔會 skip。</p>
+        <div class="note">
+          <p><strong>呢節係快覽，唔係全部。</strong>下面五個概念每一個都另外有一頁大學程度嘅深入教學，有更多例子同動手練習。建議跟以下次序讀（同呢節小節出現嘅次序一樣）：</p>
+          <ol>
+            <li><a href="csharp-concept-01-types.html">型別與變數</a></li>
+            <li><a href="csharp-concept-02-naming.html">命名規範</a></li>
+            <li><a href="csharp-concept-03-methods.html">Method／Function</a></li>
+            <li><a href="csharp-concept-04-generics.html">泛型 &lt;T&gt;</a></li>
+            <li><a href="csharp-concept-05-class-record-struct.html">Class／Record／Struct</a></li>
+          </ol>
+          <p>想快啲過去下一步就留喺呢頁，想深入就跟住小節入面嘅連結去。</p>
+        </div>
+
+        <h3>先用你識嘅嘢做地圖：TS / Python → C#</h3>
+        <p>唔使背，睇一次有個印象就夠，之後逐個概念再詳細講：</p>
+        <table>
+          <thead><tr><th scope="col">你想做嘅嘢</th><th scope="col">TypeScript</th><th scope="col">Python</th><th scope="col">C#</th></tr></thead>
+          <tbody>
+            <tr><td>宣告變數</td><td><code>let name = "Ada";</code></td><td><code>name = "Ada"</code></td><td><code>string name = "Ada";</code> 或 <code>var name = "Ada";</code></td></tr>
+            <tr><td>字串內插值</td><td><code>`Hi ${name}`</code></td><td><code>f"Hi {name}"</code></td><td><code>$"Hi {name}"</code></td></tr>
+            <tr><td>一組同類資料</td><td><code>Array&lt;string&gt;</code> / <code>string[]</code></td><td><code>list[str]</code></td><td><code>List&lt;string&gt;</code></td></tr>
+            <tr><td>函式</td><td><code>function square(n: number): number { return n * n; }</code></td><td><code>def square(n): return n * n</code></td><td><code>static int Square(int n) { return n * n; }</code></td></tr>
+            <tr><td>箭頭／簡短函式</td><td><code>const square = (n: number) =&gt; n * n;</code></td><td><code>square = lambda n: n * n</code></td><td><code>static int Square(int n) =&gt; n * n;</code></td></tr>
+            <tr><td>不可變資料物件</td><td><code>readonly interface</code></td><td><code>@dataclass(frozen=True)</code></td><td><code>record</code></td></tr>
+            <tr><td>泛型</td><td><code>Promise&lt;string&gt;</code></td><td><code>list[str]</code>（typing 泛型）</td><td><code>Task&lt;string&gt;</code>／<code>List&lt;string&gt;</code></td></tr>
+          </tbody>
+        </table>
+        <p>最大分別：C# 係 <strong>strongly typed</strong> 兼且<strong>型別要明確寫出嚟</strong>——TS 型別可以靠 inference 或者乾脆唔寫（JS），Python 完全唔使寫型別。C# 大部分位置都要求你講明型別（或者用 <code>var</code> 畀 compiler 推斷），compiler 會喺你 build 嗰刻（唔使等 run）就同你講邊度型別唔夾。</p>
+
+        <h3>常見內建型別</h3>
+        <table>
+          <thead><tr><th scope="col">型別</th><th scope="col">例子</th><th scope="col">喺 lecture-note app 用喺邊</th></tr></thead>
+          <tbody>
+            <tr><td><code>string</code></td><td><code>"Ada"</code></td><td>講師名、transcript 文字</td></tr>
+            <tr><td><code>int</code></td><td><code>42</code></td><td>一般計數（例如迴圈次數）</td></tr>
+            <tr><td><code>long</code></td><td><code>720L</code></td><td>三小時錄音嘅 chunk sequence——數量可能好大，用 <code>long</code> 保險過 <code>int</code></td></tr>
+            <tr><td><code>double</code></td><td><code>14.8</code></td><td>chunk 長度（秒）呢類有小數嘅量度</td></tr>
+            <tr><td><code>bool</code></td><td><code>true</code></td><td>錄音緊定未（<code>isRecording</code>）</td></tr>
+            <tr><td><code>char</code></td><td><code>'A'</code></td><td>單一字元，呢個 app 較少直接用</td></tr>
+            <tr><td><code>Guid</code></td><td><code>Guid.NewGuid()</code></td><td>session ID：全域唯一，唔使 database 都可以先產生</td></tr>
+          </tbody>
+        </table>
+        <p><code>var</code> 唔係新型別，只係叫 compiler 自己由右邊嘅值推斷型別；<code>var sessionId = Guid.NewGuid();</code> 同 <code>Guid sessionId = Guid.NewGuid();</code>係完全一樣，淨係少打幾個字。</p>
+        <p class="note">想再深入啲：overflow、literal 寫法、implicit/explicit 轉換、<code>TryParse</code>、value type vs reference type，全部喺 <a href="csharp-concept-01-types.html">《型別與變數》深入教學</a>。</p>
+
+        <h3 id="naming">命名習慣：PascalCase 同 camelCase</h3>
+        <p>C# 唔會強制你點命名，但成個生態系統（包括 .NET 官方 library）都跟同一套習慣，跟住做會方便自己同其他人睇：</p>
+        <ul>
+          <li><strong>PascalCase</strong>（每個字首字母大寫）：型別名、method 名、public property——例如 <code>LectureChunk</code>、<code>NormalizeTranscriptAsync</code>、<code>Sequence</code>。</li>
+          <li><strong>camelCase</strong>（第一個字細楷，之後大寫）：本地變數、method 參數——例如 <code>sessionId</code>、<code>lecturerName</code>。</li>
+        </ul>
+        <p class="note">完整規則表（private field 用 <code>_camelCase</code>、constant 用 PascalCase 唔係 ALL_CAPS、acronym 大小寫）同好名/壞名對照，睇 <a href="csharp-concept-02-naming.html">《命名規範》深入教學</a>。</p>
+
+        <h3 id="methods">Function／Method：C# 點樣寫一個函式</h3>
+        <p>C# 入面唔叫 <code>function</code>，叫 <code>method</code>——概念同 TS 嘅 <code>function</code>、Python 嘅 <code>def</code> 一模一樣：畀個名一組步驟，之後隨時可以「叫」佢做嘢，唔使抄多次程式碼。</p>
+        <pre><code>static int Square(int number)
+{
+    return number * number;
+}
+
+Console.WriteLine(Square(4));  // 叫（call）呢個 method，會印 16</code></pre>
+        <p>逐個部分拆開睇（由左至右）：</p>
+        <table>
+          <thead><tr><th scope="col">部分</th><th scope="col">呢個例子</th><th scope="col">意思</th></tr></thead>
+          <tbody>
+            <tr><td>修飾詞</td><td><code>static</code></td><td>下面解釋——依家可以當成「必寫嘅樣板」</td></tr>
+            <tr><td>回傳型別</td><td><code>int</code></td><td>呢個 method 執行完會俾返一個 <code>int</code>。冇嘢要俾返就寫 <code>void</code>（等於 TS 嘅 <code>void</code>、Python 冇 <code>return</code> 時嘅 <code>None</code>）</td></tr>
+            <tr><td>名</td><td><code>Square</code></td><td>叫佢嗰陣要用嘅名，習慣用 PascalCase</td></tr>
+            <tr><td>參數</td><td><code>(int number)</code></td><td>括號入面，每個參數都要寫明型別——同 TS 個 <code>(n: number)</code> 好似，但 C# 呢個位<strong>唔可以</strong>唔寫型別（Python 就完全唔使寫）</td></tr>
+            <tr><td>body</td><td><code>{ return number * number; }</code></td><td>大括號入面係實際執行嘅步驟；<code>return</code> 令 method 完結並交返個值</td></tr>
+          </tbody>
+        </table>
+        <pre><code>// 冇嘢要 return，用 void：
+static void PrintChunkCount(int count)
+{
+    Console.WriteLine($"chunk count = {count}");
+}
+
+// 內容淨係一句 return，可以寫做 expression-bodied（有啲似 TS 嘅箭頭函式）：
+static int Square(int number) => number * number;</code></pre>
+        <p>之後你會不斷見到 <code>static async Task&lt;string&gt; NormalizeTranscriptAsync(string text)</code> 呢類寫法，其實都係同一個樣式，只係加咗 <code>async</code>、回傳型別換成 <code>Task&lt;string&gt;</code>（第 5 步會解釋點解）。</p>
+        <p><code>static</code> 代表呢個 method 屬於「呢個檔案／type 本身」，唔屬於某一個 object instance，所以唔使先 <code>new</code> 一個 object 先可以叫佢——同 Python module-level 嘅 <code>def</code> 或者 TS 頂層嘅 <code>function</code> 差唔多咁易用。喺 file-based app（好似依家啲練習檔）嘅 top-level statements 下面，輔助 method 通常都寫成 <code>static</code>。</p>
+        <p class="note"><code>ref</code>／<code>out</code>／<code>in</code> 參數、optional parameter、named argument、<code>params</code> 陣列、overloading、local function、recursion，呢啲進階寫法留咗喺 <a href="csharp-concept-03-methods.html">《Method／Function》深入教學</a>。</p>
+
+        <h3 id="generics">泛型 <code>&lt;T&gt;</code>：一個「型別入面嘅型別」佔位符</h3>
+        <p>好快你會見到 <code>List&lt;LectureChunk&gt;</code> 同 <code>Task&lt;string&gt;</code>。角括號入面嘅 <code>T</code> 唔係固定嘅型別名，而係一個佔位符——用嗰陣填返實際型別：</p>
+        <pre><code>List&lt;int&gt; numbers = [1, 2, 3];         // 一個裝 int 嘅 list
+List&lt;string&gt; names = ["Ada", "Bo"];    // 一個裝 string 嘅 list
+List&lt;LectureChunk&gt; chunks = [];        // 一個裝 LectureChunk 嘅 list</code></pre>
+        <p><code>Task&lt;string&gt;</code> 同理：唔係「一個叫 Task 嘅嘢加返個 string」，而係「一個將來會完成、並提供一個 <code>string</code> 結果嘅工作」——第 5 步 async/await 會再詳細講。如果你用過 TS 嘅 <code>Promise&lt;string&gt;</code> 或者 <code>Array&lt;T&gt;</code>，呢個諗法係一樣嘅：角括號入面填緊「呢個容器／工作實際處理緊咩型別」。</p>
+        <p class="note">想自己寫一個泛型 method／class、識 <code>where T : ...</code> constraint，睇 <a href="csharp-concept-04-generics.html">《泛型》深入教學</a>。</p>
+
+        <h3 id="class-record-struct">Class vs Record vs Struct：先知有得揀</h3>
+        <p>零基礎教學未教過點自訂型別，落去下一步會直接用 <code>record</code>，所以先簡單分清三者：</p>
+        <table>
+          <thead><tr><th scope="col">關鍵字</th><th scope="col">預設比較方式</th><th scope="col">幾時啱用</th></tr></thead>
+          <tbody>
+            <tr><td><code>class</code></td><td>reference equality（同一個 object 先算 equal）</td><td>有身分、會隨時間變化嘅嘢（例如一個 UI 上嘅 recorder controller）</td></tr>
+            <tr><td><code>record</code></td><td>value equality（property 值一樣就 equal）</td><td>純資料、想 immutable——呢個 app 嘅 chunk／transcript／note 都啱</td></tr>
+            <tr><td><code>struct</code></td><td>value type，複製時整份 copy</td><td>好細、好常用嘅值（例如座標），呢個 app 暫時用唔著</td></tr>
+          </tbody>
+        </table>
+        <p>下一步就會實際用 <code>record</code> 嚟定義 <code>LectureChunk</code>。如果你用過 Python 嘅 <code>@dataclass(frozen=True)</code>，<code>record</code> 就係嗰個諗法——自動生成 <code>__init__</code>／<code>__eq__</code>，仲加埋 <code>with</code> 咁樣整 copy 嘅寫法；TS 冇原生對應，最接近嘅係 <code>readonly</code> interface 加手寫嘅 equality function。</p>
+        <p class="note">呢張表淨係三行；constructor、init-only property、<code>record struct</code>、equality 底層原理（點解 plain <code>struct</code> 嘅 <code>==</code> 用唔到）、inheritance，全部喺 <a href="csharp-concept-05-class-record-struct.html">《Class／Record／Struct》深入教學</a>。</p>
+        <details>
+          <summary>自己試試：估下輸出</summary>
+          <p>睇住以下程式，唔好即刻跑，先估下 <code>Console.WriteLine</code> 會印咩，再用一個新檔案跑一次核對：</p>
+          <pre><code>Console.WriteLine(ToMilliseconds(4.2));
+Console.WriteLine(ToMilliseconds(15.0));
+
+static int ToMilliseconds(double seconds) =&gt; (int)(seconds * 1000);</code></pre>
+          <p><strong>答案：</strong><code>4200</code> 同 <code>15000</code>——<code>ToMilliseconds</code> 將 chunk 嘅秒數轉做毫秒（乘 1000），再 cast 做 <code>int</code>。呢個練習主要係想你熟習「expression-bodied method」（<code>=&gt; ...</code>）呢種寫法，因為第 6 步 <code>ParsePositiveInterval</code> 都用類似嘅 <code>? :</code> expression 寫 return。</p>
+        </details>
+        <details>
+          <summary>自己動手：由零寫一個 method</summary>
+          <p>喺一個新檔案（例如 <code>demo/csharp-practice/00-function.cs</code>）寫一個 <code>static</code> method 叫 <code>IsLongChunk</code>：接收一個 <code>double durationSeconds</code>，如果大過 10 秒就回傳 <code>true</code>，否則 <code>false</code>。喺 top-level statements 度分別用 <code>5.0</code>、<code>14.8</code> 試一次，並印出結果。</p>
+          <p>提示：回傳型別唔係 <code>int</code> 或 <code>string</code>，而係 <code>bool</code>；method body 可以用一句 <code>return durationSeconds &gt; 10;</code>，或者寫做 expression-bodied。</p>
+          <p><strong>答案：</strong></p>
+          <pre><code>Console.WriteLine(IsLongChunk(5.0));    // False
+Console.WriteLine(IsLongChunk(14.8));   // True
+
+static bool IsLongChunk(double durationSeconds) => durationSeconds &gt; 10;</code></pre>
+        </details>
+      </section>
+
+      <section id="record" aria-labelledby="record-title">
+        <h2 id="record-title">2. Record：定義一筆唔可以隨便變形嘅資料</h2>
+        <p>Lecture-note app 入面，一段講課片段（chunk）一路都需要記住邊個 session、第幾段、內容係咩。呢種「以資料為主，唔想被人隨便改」嘅嘢，用 <code>record</code> 啱過用 <code>class</code>。</p>
+        <div class="run"><b>建立檔案</b>demo/csharp-practice/01-record.cs</div>
+        <pre><code>// Record 練習：LectureChunk 是一筆不可變的講課片段資料
+var sessionId = Guid.NewGuid();
+var draft = new LectureChunk(sessionId, 0, "  CAP theorem intro  ", 14.8);
+var cleaned = draft with { Text = draft.Text.Trim() };
+
+Console.WriteLine($"draft   = {draft}");
+Console.WriteLine($"cleaned = {cleaned}");
+
+var same = new LectureChunk(sessionId, 0, "CAP theorem intro", 14.8);
+Console.WriteLine($"cleaned == same content -> {cleaned == same}");
+
+public sealed record LectureChunk(
+    Guid SessionId,
+    long Sequence,
+    string Text,
+    double DurationSeconds);</code></pre>
+        <p class="note"><strong>注意 record 定義擺喺最尾。</strong>C# 規定 top-level statements（會執行嘅程式碼）要行先，<code>record</code>／<code>class</code> 呢類 type 定義要行後，唔可以擺中間。</p>
+        <pre><code>dotnet run 01-record.cs</code></pre>
+        <p class="label">預期輸出</p>
+        <pre class="output"><samp>draft   = LectureChunk { SessionId = ..., Sequence = 0, Text =   CAP theorem intro  , DurationSeconds = 14.8 }
+cleaned = LectureChunk { SessionId = ..., Sequence = 0, Text = CAP theorem intro, DurationSeconds = 14.8 }
+cleaned == same content -> True</samp></pre>
+        <p><code>with</code> 產生一份改咗 <code>Text</code> 嘅新 copy，唔會改到 <code>draft</code> 本身；兩筆 record 只要 property 值一樣就 <code>==</code>，呢個叫 value equality，同 <code>class</code> 預設比較 reference 唔同。</p>
+        <details>
+          <summary>自己試試：加一個 Language property</summary>
+          <p>喺 <code>LectureChunk</code> 加一個 <code>string Language</code>，並喺建立 <code>draft</code> 時補一個值（例如 <code>"yue"</code>）。你會見到 compiler 即刻報錯，要求所有建立 <code>LectureChunk</code> 嘅地方都補呢個新欄位——呢個係 record 幫你喺 compile-time 抓漏，唔使等 runtime 先發現漏咗資料。</p>
+          <p><strong>答案：</strong></p>
+          <pre><code>public sealed record LectureChunk(
+    Guid SessionId,
+    long Sequence,
+    string Text,
+    double DurationSeconds,
+    string Language);
+
+// 建立時要多傳一個參數：
+var draft = new LectureChunk(sessionId, 0, "  CAP theorem intro  ", 14.8, "yue");</code></pre>
+        </details>
+      </section>
+
+      <section id="list-linq" aria-labelledby="list-linq-title">
+        <h2 id="list-linq-title">3. List + LINQ：由一疊 chunk 變成有次序嘅筆記</h2>
+        <p>ASR 送返嚟嘅 chunk 未必跟次序到，中間仲可能有靜音（空白文字）。呢一步用 <code>List&lt;T&gt;</code> 裝住佢哋，再用 LINQ 一條 pipeline 過濾、排序、轉做顯示文字。</p>
+        <div class="run"><b>建立檔案</b>demo/csharp-practice/02-list-linq.cs</div>
+        <pre><code>// List&lt;T&gt; + LINQ 練習：由一疊 chunk 變成有次序、乾淨的筆記行
+var sessionId = Guid.NewGuid();
+
+List&lt;LectureChunk&gt; chunks =
+[
+    new(sessionId, 2, "Eventual consistency examples", 15.0),
+    new(sessionId, 0, "CAP theorem intro", 14.8),
+    new(sessionId, 3, "   ", 4.2),
+    new(sessionId, 1, "Network partitions", 15.0),
+];
+
+var noteLines = chunks
+    .Where(chunk =&gt; !string.IsNullOrWhiteSpace(chunk.Text))
+    .OrderBy(chunk =&gt; chunk.Sequence)
+    .Select(chunk =&gt; $"{chunk.Sequence + 1}. {chunk.Text}")
+    .ToList();
+
+Console.WriteLine($"input={chunks.Count}, useful={noteLines.Count}");
+foreach (var line in noteLines)
+{
+    Console.WriteLine($"  {line}");
+}
+
+public sealed record LectureChunk(
+    Guid SessionId,
+    long Sequence,
+    string Text,
+    double DurationSeconds);</code></pre>
+        <pre><code>dotnet run 02-list-linq.cs</code></pre>
+        <p class="label">預期輸出</p>
+        <pre class="output"><samp>input=4, useful=3
+  1. CAP theorem intro
+  2. Network partitions
+  3. Eventual consistency examples</samp></pre>
+        <p>留意輸入資料本身次序係亂嘅（2, 0, 3, 1），但 <code>OrderBy</code> 幫你按 <code>Sequence</code> 復原正確次序；空白嗰筆（sequence 3）畀 <code>Where</code> 篩走咗，所以 <code>useful</code> 得返 3 筆。</p>
+        <details>
+          <summary>自己試試：加返一個 Reverse，由新到舊顯示</summary>
+          <p>喺 <code>OrderBy</code> 後面加 <code>.Reverse()</code>，睇下輸出次序點樣變。諗下：如果係 <code>OrderByDescending</code> 呢，結果會唔會一樣？</p>
+          <p><strong>答案：</strong>兩種寫法喺呢個例子結果一樣，但意思唔同——<code>.OrderBy(...).Reverse()</code> 係「排完序，再掉轉」；<code>OrderByDescending(...)</code> 係「一開始就由大到小排」。資料多嘅時候，直接用 <code>OrderByDescending</code> 更清楚，唔使多一步。</p>
+          <pre><code>var noteLines = chunks
+    .Where(chunk =&gt; !string.IsNullOrWhiteSpace(chunk.Text))
+    .OrderByDescending(chunk =&gt; chunk.Sequence)
+    .Select(chunk =&gt; $"{chunk.Sequence + 1}. {chunk.Text}")
+    .ToList();</code></pre>
+        </details>
+      </section>
+
+      <section id="nullable" aria-labelledby="nullable-title">
+        <h2 id="nullable-title">4. Nullable：講師姓名可能真係未有</h2>
+        <p>錄音開始嗰刻，可能仲未知道講師係邊個。與其用空字串 <code>""</code> 扮「未有」，C# 俾你喺 type 層面講明「呢個位可能冇值」。</p>
+        <div class="run"><b>建立檔案</b>demo/csharp-practice/03-nullable.cs</div>
+        <pre><code>// Nullable 練習：講師名稱同 slide 編號都可能「未有值」
+string? lecturerName = null;
+int? currentSlide = 12;
+
+string lecturerLabel = lecturerName?.Trim() ?? "（未提供講師名稱）";
+Console.WriteLine($"lecturer = {lecturerLabel}");
+Console.WriteLine($"slide = {currentSlide ?? 0}");
+
+lecturerName = "  Dr. Chan  ";
+lecturerLabel = lecturerName?.Trim() ?? "（未提供講師名稱）";
+Console.WriteLine($"lecturer (after set) = {lecturerLabel}");</code></pre>
+        <pre><code>dotnet run 03-nullable.cs</code></pre>
+        <p class="label">預期輸出</p>
+        <pre class="output"><samp>lecturer = （未提供講師名稱）
+slide = 12
+lecturer (after set) = Dr. Chan</samp></pre>
+        <p><code>string?</code> 話俾 compiler 知呢個變數可能係 <code>null</code>；<code>?.</code> 只有喺唔係 <code>null</code> 先會執行後面（例如 <code>.Trim()</code>）；<code>??</code> 提供 <code>null</code> 時嘅後備值。</p>
+        <details>
+          <summary>自己試試：如果攞走 <code>?.</code> 會點？</summary>
+          <p>將 <code>lecturerName?.Trim()</code> 改做 <code>lecturerName.Trim()</code>（去咗個 <code>?</code>），保持 <code>lecturerName = null</code>，再跑一次。</p>
+          <p><strong>答案：</strong>程式會喺 runtime 拋出 <code>NullReferenceException</code>——因為冇咗 <code>?.</code> 嘅安全檢查，程式會強行喺 <code>null</code> 上面呼叫 <code>.Trim()</code>。如果開咗 nullable 分析（<code>#:property Nullable=enable</code>，01-csharp-basics 有用），compiler 仲會喺 build 嗰陣already 用底線標黃提早警告你。</p>
+        </details>
+      </section>
+
+      <section id="async" aria-labelledby="async-title">
+        <h2 id="async-title">5. async / await：等 ASR 回應時唔好卡住成個程式</h2>
+        <p>真正嘅 ASR 服務、Gemini、database 都要透過網絡等待。如果用一般 method 死等，成個程式（甚至成個 server）會卡住。<code>async</code>/<code>await</code> 令你可以「等緊嘅時候」畀其他嘢繼續行。</p>
+        <div class="run"><b>建立檔案</b>demo/csharp-practice/04-async.cs</div>
+        <pre><code>// async/await 練習：模擬等待 ASR 服務回應時，不卡住程式
+Console.WriteLine("Sending transcript chunk to ASR (simulated)...");
+string normalized = await NormalizeTranscriptAsync("  cap theorem intro  ");
+Console.WriteLine($"normalized = {normalized}");
+
+static async Task&lt;string&gt; NormalizeTranscriptAsync(string text)
+{
+    await Task.Delay(300); // 模擬等待 ASR / network 回應
+    return text.Trim().ToUpperInvariant();
+}</code></pre>
+        <pre><code>dotnet run 04-async.cs</code></pre>
+        <p class="label">預期輸出（第二行會停約 0.3 秒先出現）</p>
+        <pre class="output"><samp>Sending transcript chunk to ASR (simulated)...
+normalized = CAP THEOREM INTRO</samp></pre>
+        <p><code>Task&lt;string&gt;</code> 代表「將來會完成、並提供一個 <code>string</code> 嘅工作」。<code>await</code> 唔係「開新 thread」，而係話俾 compiler 知：呢度暫停返，等呢個工作完成先繼續行落去。</p>
+        <details>
+          <summary>自己試試：同時處理多個 chunk</summary>
+          <p>試吓將三個唔同文字用 <code>NormalizeTranscriptAsync</code> 分別處理，先用一個一個 <code>await</code>（順序等），再改用 <code>Task.WhenAll</code> 一齊等。留意邊個快啲。</p>
+          <p><strong>答案：</strong></p>
+          <pre><code>Task&lt;string&gt; t1 = NormalizeTranscriptAsync("intro");
+Task&lt;string&gt; t2 = NormalizeTranscriptAsync("network partitions");
+Task&lt;string&gt; t3 = NormalizeTranscriptAsync("consistency");
+
+string[] results = await Task.WhenAll(t1, t2, t3);
+foreach (var r in results) Console.WriteLine(r);
+// 三個 Task.Delay(300) 會「一齊等」，總時間大約仍然係 0.3 秒，
+// 唔係 0.9 秒——呢個係 async 對 I/O-bound 工作嘅主要著數。</code></pre>
+        </details>
+      </section>
+
+      <section id="error" aria-labelledby="error-title">
+        <h2 id="error-title">6. Error handling：分清「估到嘅壞輸入」同「真係意外」</h2>
+        <p>錄音間隔呢類數值，用家／設定檔可能俾錯格式。呢一步示範點樣用 <code>TryParse</code> 處理估到嘅情況，用 <code>throw</code>／<code>catch</code> 處理違反規則嘅情況，並且淨係 catch 你識得處理嘅 exception type。</p>
+        <div class="run"><b>建立檔案</b>demo/csharp-practice/05-error-handling.cs</div>
+        <pre><code>// Error handling 練習：分清「可預期的壞輸入」同「真正意外」
+Console.WriteLine(TryDescribe("5"));
+Console.WriteLine(TryDescribe("-5"));
+Console.WriteLine(TryDescribe("abc"));
+
+static string TryDescribe(string input)
+{
+    try
+    {
+        int value = ParsePositiveInterval(input);
+        return $"OK: interval = {value}";
+    }
+    catch (ArgumentOutOfRangeException exception)
+    {
+        return $"REJECTED (out of range): {exception.ParamName}";
+    }
+    catch (FormatException exception)
+    {
+        return $"REJECTED (not a number): {exception.Message}";
+    }
+}
+
+static int ParsePositiveInterval(string input)
+{
+    if (!int.TryParse(input, out int value))
+    {
+        throw new FormatException("Interval must be a whole number.");
+    }
+
+    return value &gt; 0
+        ? value
+        : throw new ArgumentOutOfRangeException(nameof(input), "Interval must be positive.");
+}</code></pre>
+        <pre><code>dotnet run 05-error-handling.cs</code></pre>
+        <p class="label">預期輸出</p>
+        <pre class="output"><samp>OK: interval = 5
+REJECTED (out of range): input
+REJECTED (not a number): Interval must be a whole number.</samp></pre>
+        <p>兩個 <code>catch</code> 分別處理兩種完全唔同嘅問題：格式錯（唔係數字）同數值違規（唔係正數）。如果淨係用一個 <code>catch (Exception)</code> 全部吞晒，你會分唔清將來 AI server 之類嘅 code 應唔應該 retry。</p>
+        <details>
+          <summary>自己試試：加一個 catch-all，睇下有咩後果</summary>
+          <p>喺兩個 <code>catch</code> 之後，再加一個 <code>catch (Exception exception) { return "UNKNOWN ERROR"; }</code>，然後試吓傳一個會令 <code>ParsePositiveInterval</code> 拋出其他你冇特登處理嘅 exception（例如將 input 換做 <code>null</code>）。</p>
+          <p><strong>答案：</strong>傳 <code>null</code> 會令 <code>int.TryParse(null, ...)</code> 內部拋出 <code>ArgumentNullException</code>，會被你新加嘅 catch-all 接住變成 "UNKNOWN ERROR"。呢個示範咗點解教材建議唔好隨便加 catch-all：佢會靜靜地吞咗你未預計到嘅錯，令你唔知程式其實已經收到不合法輸入（例如 caller 忘記檢查 null），問題會延後先浮現。</p>
+        </details>
+      </section>
+
+      <section id="capstone" aria-labelledby="capstone-title">
+        <h2 id="capstone-title">7. 動手：組成迷你 rolling notes pipeline</h2>
+        <p>依家將五步組埋一齊。呢個係你自己嘅版本，比 <code>01-csharp-basics/basics.cs</code> 細，但概念一樣：清理資料 → 排序 → 轉筆記 → async 正規化 → 處理壞輸入。</p>
+        <div class="run"><b>建立檔案</b>demo/csharp-practice/06-capstone.cs</div>
+        <p>檔案已經幫你準備好 TODO 骨架（喺 <code>demo/csharp-practice/06-capstone.cs</code>），入面淨係得註解，冇實作。跟住底下六個 TODO 逐個填，填一個就 <code>dotnet run 06-capstone.cs</code> 一次，睇住錯誤訊息一步步修：</p>
+        <ol class="steps">
+          <li>喺檔案最尾貼上 <code>LectureChunk</code> record（同第 2 步一樣）。</li>
+          <li>用 <code>Guid.NewGuid()</code> 整 <code>sessionId</code>，再整一個最少 4 筆嘅 <code>List&lt;LectureChunk&gt;</code>，其中一筆 Text 要係空白。</li>
+          <li>用 <code>Where → OrderBy → Select → ToList</code> 產生 <code>noteLines</code>，foreach 印出嚟。</li>
+          <li>宣告 <code>string? lecturerName = null</code>，用 <code>?.</code>／<code>??</code> 計 <code>lecturerLabel</code> 並印出。</li>
+          <li>寫 <code>NormalizeTranscriptAsync</code>（async，內部 <code>await Task.Delay</code>），<code>await</code> 佢處理 <code>noteLines[0]</code>。</li>
+          <li>照抄第 6 步嘅 <code>ParsePositiveInterval</code>，用 <code>try/catch</code> 包住一個會 throw 嘅呼叫，catch 到就印訊息、唔好令程式 crash。</li>
+        </ol>
+        <p>全部填完應該會見到 <code>PASS: capstone completed.</code> 喺最尾一行。</p>
+        <details>
+          <summary>卡住咗？睇完整答案</summary>
+          <pre><code>var sessionId = Guid.NewGuid();
+
+List&lt;LectureChunk&gt; chunks =
+[
+    new(sessionId, 2, "Eventual consistency examples", 15.0),
+    new(sessionId, 0, "CAP theorem intro", 14.8),
+    new(sessionId, 3, "   ", 4.2),
+    new(sessionId, 1, "Network partitions", 15.0),
+];
+
+var noteLines = chunks
+    .Where(chunk =&gt; !string.IsNullOrWhiteSpace(chunk.Text))
+    .OrderBy(chunk =&gt; chunk.Sequence)
+    .Select(chunk =&gt; $"{chunk.Sequence + 1}. {chunk.Text}")
+    .ToList();
+
+foreach (var line in noteLines)
+{
+    Console.WriteLine($"  {line}");
+}
+
+string? lecturerName = null;
+string lecturerLabel = lecturerName?.Trim() ?? "（未提供講師名稱）";
+Console.WriteLine($"lecturer = {lecturerLabel}");
+
+string normalized = await NormalizeTranscriptAsync(noteLines[0]);
+Console.WriteLine($"normalized[0] = {normalized}");
+
+try
+{
+    _ = ParsePositiveInterval("-5");
+}
+catch (ArgumentOutOfRangeException exception)
+{
+    Console.WriteLine($"handled: {exception.ParamName}");
+}
+
+Console.WriteLine("PASS: capstone completed.");
+
+static async Task&lt;string&gt; NormalizeTranscriptAsync(string text)
+{
+    await Task.Delay(50);
+    return text.Trim().ToUpperInvariant();
+}
+
+static int ParsePositiveInterval(string input)
+{
+    if (!int.TryParse(input, out int value))
+    {
+        throw new FormatException("Interval must be a whole number.");
+    }
+
+    return value &gt; 0
+        ? value
+        : throw new ArgumentOutOfRangeException(nameof(input), "Interval must be positive.");
+}
+
+public sealed record LectureChunk(
+    Guid SessionId,
+    long Sequence,
+    string Text,
+    double DurationSeconds);</code></pre>
+        </details>
+      </section>
+
+      <section id="next" aria-labelledby="next-title">
+        <h2 id="next-title">8. 下一步：返去 01-csharp-basics</h2>
+        <p>做完 <code>06-capstone.cs</code>，你已經逐個試過 record、<code>List&lt;T&gt;</code>、LINQ、nullable、async/await、error handling。依家打開 <a href="01-csharp-basics/index.html">01-csharp-basics</a>，睇 <code>basics.cs</code> 會發現七個 <code>[marker]</code>（<code>[types]</code>、<code>[record]</code>、<code>[list+linq]</code>、<code>[nullable]</code>、<code>[async]</code>、<code>[error]</code>），全部你都啱啱寫過一次，剩係將佢哋放埋同一個檔案，並多加一啲 file-based app 嘅 <code>#:property</code> 設定。</p>
+        <table>
+          <thead><tr><th scope="col">你依家識嘅嘢</th><th scope="col">喺正式 app 對應邊部分</th></tr></thead>
+          <tbody>
+            <tr><td>record + <code>with</code></td><td>audio chunk、transcript segment、note revision 呢啲 immutable data（AGENTS.md：即時 ASR + LLM notes）</td></tr>
+            <tr><td>List + LINQ</td><td>將亂序、含空白嘅 chunk 整理做連續 transcript，先交俾 note agent</td></tr>
+            <tr><td>nullable</td><td>未提供講師名、ASR 未辨識到嘅 language、未產生嘅 note</td></tr>
+            <tr><td>async/await</td><td>module 03 嘅 SenseVoice HTTP upload、module 04 嘅 Gemini 呼叫、module 06 嘅 database I/O</td></tr>
+            <tr><td>error handling</td><td>分清「AI server 可以 retry」同「checksum 已經損壞」（AGENTS.md 安全與資料限制）</td></tr>
+          </tbody>
+        </table>
+        <p class="source">參考：<a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/types/records">Record types</a>、<a href="https://learn.microsoft.com/dotnet/csharp/linq/get-started/write-linq-queries">Write LINQ queries</a>、<a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/null-safety/">Null safety</a>、<a href="https://learn.microsoft.com/dotnet/csharp/asynchronous-programming/">Async and await</a>、<a href="https://learn.microsoft.com/dotnet/standard/exceptions/best-practices-for-exceptions">Exception best practices</a>。</p>
+      </section>
+    </main>
+  </div>
+  <footer class="wrap">C#／.NET 中階銜接教學 · <a href="csharp-dotnet-tutorial.html">上一課：零基礎教學</a> · <a href="01-csharp-basics/index.html">下一課：01-csharp-basics</a> · <a href="index.html">返回 scripts 學習首頁</a></footer>
+</body>
+</html>

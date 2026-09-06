@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="C# 命名規範深入教學：PascalCase、camelCase、acronym 大小寫規則、private field 慣例、好名 vs 壞名，附大學程度練習。">
+  <title>C# 命名規範：深入教學 · .NET 10</title>
+  <style>
+    :root { color-scheme:light; --paper:#f6f4ee; --surface:#fffefa; --ink:#18221f; --muted:#53605a; --accent:#075c4c; --soft:#e5f2ed; --line:#d3d0c5; --code:#172923; --code-ink:#f2faf5; --focus:#a13d17; }
+    * { box-sizing:border-box; } html { scroll-padding-top:1rem; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.8 system-ui,"Segoe UI","Microsoft JhengHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:.2em; } a:hover { text-decoration-thickness:.15em; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    code,kbd,samp { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; font-variant-ligatures:none; }
+    :not(pre)>code { padding:.1em .3em; background:#e9e9df; border-radius:.2rem; overflow-wrap:anywhere; }
+    .wrap { width:min(68rem,calc(100% - 2rem)); margin-inline:auto; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.5rem 1rem; background:var(--ink); color:white; } .skip:focus { top:1rem; }
+    header { padding:2rem 0 1.5rem; border-bottom:1px solid var(--line); } .back { font-size:.92rem; }
+    .eyebrow { margin:1.25rem 0 0; color:var(--accent); font-weight:750; letter-spacing:.05em; font-size:.85rem; }
+    h1 { max-width:42rem; margin:.5rem 0; font-size:clamp(2rem,5vw,3.4rem); line-height:1.2; letter-spacing:-.03em; }
+    .lead { max-width:45rem; margin-bottom:0; color:var(--muted); font-size:1.1rem; }
+    .layout { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:2.5rem; align-items:start; }
+    nav { position:sticky; top:1rem; padding:1.5rem 0; } nav p { margin:0 0 .5rem; font-size:.9rem; font-weight:750; }
+    nav ol { margin:0; padding:0; list-style:none; } nav a { display:block; padding:.35rem .5rem; border-left:2px solid var(--line); text-decoration:none; }
+    nav a:hover,nav a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    main { min-width:0; padding-bottom:3rem; } section { padding:2rem 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 .8rem; font-size:clamp(1.45rem,3vw,2rem); line-height:1.35; } h3 { margin:1.5rem 0 .4rem; font-size:1.15rem; }
+    p { margin:.7rem 0; } li { margin:.35rem 0; }
+    pre { margin:.6rem 0 1rem; padding:1rem 1.25rem; overflow:auto; background:var(--code); color:var(--code-ink); border-radius:.25rem; line-height:1.7; tab-size:4; }
+    .label { margin:1.25rem 0 .3rem; color:var(--accent); font-size:.86rem; font-weight:750; }
+    .output { background:var(--soft); color:var(--ink); border-left:4px solid var(--accent); }
+    .note { margin:1.25rem 0; padding:1rem 1.25rem; background:var(--soft); border-left:4px solid var(--accent); }
+    .note p:first-child { margin-top:0; } .note p:last-child { margin-bottom:0; }
+    .warn { margin:1.25rem 0; padding:1rem 1.25rem; background:#f8ece3; border-left:4px solid var(--focus); }
+    .warn p:first-child { margin-top:0; } .warn p:last-child { margin-bottom:0; }
+    .run { margin:1.25rem 0; padding:.9rem 1.1rem; background:var(--surface); border:1px solid var(--line); font-family:"Cascadia Code",Consolas,monospace; font-size:.92rem; }
+    .run b { display:block; margin-bottom:.3rem; font-family:system-ui,sans-serif; font-weight:750; color:var(--accent); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; }
+    details { margin:1rem 0; border:1px solid var(--line); background:var(--surface); border-radius:.25rem; }
+    summary { padding:.7rem 1rem; cursor:pointer; font-weight:750; color:var(--accent); }
+    summary:hover { background:var(--soft); }
+    details[open] summary { border-bottom:1px solid var(--line); }
+    details > *:not(summary) { padding:0 1.1rem; }
+    details pre { margin-inline:0; }
+    .steps { padding-left:1.35rem; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:.7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); } th { background:var(--soft); }
+    .source,footer { color:var(--muted); font-size:.9rem; } footer { padding:2rem 0; }
+    .sibling { display:grid; grid-template-columns:repeat(auto-fit,minmax(13rem,1fr)); gap:.75rem; margin:1.25rem 0; }
+    .sibling a { display:block; padding:.8rem 1rem; border:1px solid var(--line); background:var(--surface); text-decoration:none; font-weight:750; }
+    .sibling a:hover,.sibling a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    .sibling a span { display:block; margin-top:.25rem; color:var(--muted); font-weight:400; font-size:.85rem; }
+    @media (max-width:52rem) { .layout { grid-template-columns:1fr; gap:0; } nav { position:static; padding-block:1rem; border-bottom:1px solid var(--line); } nav ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem; } }
+    @media (max-width:28rem) { nav ol { grid-template-columns:1fr; } pre { padding:.8rem; } th,td { padding:.5rem; } }
+    @media (prefers-color-scheme:dark) {
+      :root { color-scheme:dark; --paper:#141a17; --surface:#1b2320; --ink:#eef3ee; --muted:#a7b3ac; --accent:#5fcbaa; --soft:#1c2b26; --line:#31413a; --code:#0e1512; --code-ink:#eaf5ee; --focus:#ff9d6c; }
+      :not(pre)>code { background:#22302a; }
+      .warn { background:#2b1f18; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要內容</a>
+  <header>
+    <div class="wrap">
+      <a class="back" href="csharp-dotnet-tutorial-2.html#types-syntax">返回《C# 中階銜接》第 1 節</a>
+      <p class="eyebrow">C# 概念深入 · .NET 10 · 命名規範</p>
+      <h1>一個好名，點樣改？</h1>
+      <p class="lead">《C# 中階銜接》第 1 節淨係夠篇幅提一句「PascalCase 同 camelCase」；呢頁將命名規範呢部分拆出嚟，補齊完整規則、acronym 大小寫呢類最易錯嘅細節，同「點解要咁改」嘅原因。命名唔係美觀問題——跟錯規範，其他人（同幾個月後嘅你自己）睇 code 會慢好多，甚至以為兩個名代表緊唔同嘅嘢。</p>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="本頁章節">
+      <p>八個部分</p>
+      <ol>
+        <li><a href="#why">0. 點解獨立一課</a></li>
+        <li><a href="#pascal-camel">1. PascalCase vs camelCase</a></li>
+        <li><a href="#full-table">2. 完整命名規則表</a></li>
+        <li><a href="#acronyms">3. Acronym 大小寫規則</a></li>
+        <li><a href="#private-field">4. Private field 慣例</a></li>
+        <li><a href="#good-bad">5. 好名 vs 壞名</a></li>
+        <li><a href="#practice">6. 動手練習</a></li>
+        <li><a href="#next">7. 下一步</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <section id="why" aria-labelledby="why-title">
+        <h2 id="why-title">0. 點解獨立一課？</h2>
+        <p>C# 唔會強制你點命名——compiler 唔理你叫個變數 <code>x</code> 定係 <code>lectureChunk</code>，兩句都一樣可以 build 到、run 到。但成個 .NET 生態系統（BCL、你用緊嘅 NuGet package、其他人寫嘅 code）都跟同一套命名慣例，跟住做有兩個實際著數：第一，你睇一個名嘅大小寫，就已經知佢係 type 定係本地變數，唔使打開定義去確認；第二，你自己嘅 code 同其他 C# 開發者嘅 code 睇落一致，減低溝通成本。呢頁會將呢套慣例逐一講清楚，唔淨係「型別 PascalCase、變數 camelCase」咁概括。</p>
+        <p>建議你已經做完 <a href="csharp-dotnet-tutorial.html">C#／.NET 零基礎教學</a>，識基本嘅 class、method、變數宣告。呢頁唔會再由零教執行環境。</p>
+      </section>
+
+      <section id="pascal-camel" aria-labelledby="pascal-camel-title">
+        <h2 id="pascal-camel-title">1. PascalCase vs camelCase 基本規則</h2>
+        <p>C# 命名幾乎全部圍繞呢兩種寫法：</p>
+        <ul>
+          <li><strong>PascalCase</strong>：每一個字嘅首字母都大寫，包括第一個字。例如 <code>LectureChunk</code>、<code>SessionId</code>、<code>NormalizeTranscriptAsync</code>。</li>
+          <li><strong>camelCase</strong>：第一個字全部細楷，之後每一個字嘅首字母大寫。例如 <code>sessionId</code>、<code>lecturerName</code>、<code>durationSeconds</code>。</li>
+        </ul>
+        <p>兩者嘅分別淨係「第一個字嘅首字母大寫定細楷」，之後嘅字兩種寫法都係大寫開頭。分得清呢個之後，剩低嘅問題就係：邊種識別字（identifier）用邊種寫法？</p>
+        <table>
+          <thead><tr><th scope="col">識別字種類</th><th scope="col">寫法</th><th scope="col">例子</th></tr></thead>
+          <tbody>
+            <tr><td>Class／Record／Struct／Interface 名</td><td>PascalCase</td><td><code>LectureChunk</code></td></tr>
+            <tr><td>Method 名</td><td>PascalCase</td><td><code>NormalizeTranscriptAsync</code></td></tr>
+            <tr><td>Public property</td><td>PascalCase</td><td><code>SessionId</code></td></tr>
+            <tr><td>本地變數／method 參數</td><td>camelCase</td><td><code>sessionId</code></td></tr>
+          </tbody>
+        </table>
+        <p>下一節會將呢張表擴展到全部識別字種類，包括 private field、常數、enum 呢類容易搞錯嘅。</p>
+      </section>
+
+      <section id="full-table" aria-labelledby="full-table-title">
+        <h2 id="full-table-title">2. 完整命名規則表</h2>
+        <p>以下呢張表涵蓋日常寫 C# 會遇到嘅所有識別字種類：</p>
+        <table>
+          <thead><tr><th scope="col">識別字種類</th><th scope="col">寫法</th><th scope="col">例子</th></tr></thead>
+          <tbody>
+            <tr><td>Class／Record／Struct</td><td>PascalCase</td><td><code>LectureChunk</code></td></tr>
+            <tr><td>Interface</td><td>PascalCase，加 <code>I</code> 前綴</td><td><code>IComparable</code></td></tr>
+            <tr><td>Method</td><td>PascalCase</td><td><code>NormalizeTranscriptAsync</code></td></tr>
+            <tr><td>Public property</td><td>PascalCase</td><td><code>SessionId</code></td></tr>
+            <tr><td>Public field／const field</td><td>PascalCase</td><td><code>MaxChunkSeconds</code></td></tr>
+            <tr><td>Private field</td><td>camelCase，加底線前綴 <code>_</code></td><td><code>_sessionId</code></td></tr>
+            <tr><td>本地變數／method 參數</td><td>camelCase</td><td><code>sessionId</code></td></tr>
+            <tr><td>常數（<code>const</code>／<code>static readonly</code>）</td><td>PascalCase（<strong>唔係</strong> <code>ALL_CAPS</code>）</td><td><code>public const int MaxRetryCount = 3;</code></td></tr>
+            <tr><td>Enum 型別同成員</td><td>PascalCase</td><td><code>enum RecordingState { Idle, Recording, Paused }</code></td></tr>
+            <tr><td>Namespace</td><td>PascalCase，用點分隔，對應資料夾結構</td><td><code>Playback.Audio</code></td></tr>
+            <tr><td>Async method</td><td>PascalCase，加 <code>Async</code> 後綴</td><td><code>NormalizeTranscriptAsync</code></td></tr>
+            <tr><td>Generic 型別參數</td><td><code>T</code> 前綴；單一個就叫 <code>T</code>，多個就 <code>TKey</code>／<code>TValue</code></td><td><code>Dictionary&lt;TKey, TValue&gt;</code></td></tr>
+            <tr><td>Boolean 變數／property</td><td>camelCase／PascalCase，加 <code>Is</code>／<code>Has</code>／<code>Can</code> 前綴</td><td><code>IsRecording</code>、<code>HasTranscript</code></td></tr>
+          </tbody>
+        </table>
+        <div class="warn">
+          <p><strong>常見迷思：常數唔係 <code>ALL_CAPS</code>。</strong>如果你識 C、Java 或者好多其他語言，會習慣常數用全大寫加底線，例如 <code>MAX_RETRY_COUNT</code>。C# <strong>唔跟呢個慣例</strong>——<code>const</code> 同 <code>static readonly</code> 一樣用 PascalCase，同其他 public 成員睇齊：</p>
+          <pre><code>// 啱：C# 慣例
+public const int MaxRetryCount = 3;
+
+// 唔啱：呢個係 C／Java 嘅慣例，唔係 C# 嘅
+public const int MAX_RETRY_COUNT = 3;</code></pre>
+        </div>
+        <p>Generic 型別參數例子：</p>
+        <pre><code>// 單一個型別參數，叫 T
+class Cache&lt;T&gt; { }
+
+// 多個型別參數，用有意思嘅名加 T 前綴
+class Dictionary&lt;TKey, TValue&gt; { }</code></pre>
+        <p>Boolean 命名例子：</p>
+        <pre><code>bool isRecording = true;      // 本地變數：camelCase + Is 前綴
+public bool IsRecording { get; set; }   // Public property：PascalCase + Is 前綴
+public bool HasTranscript { get; set; }
+public bool CanRetry { get; set; }</code></pre>
+      </section>
+
+      <section id="acronyms" aria-labelledby="acronyms-title">
+        <h2 id="acronyms-title">3. Acronym 大小寫規則（最易錯嘅細節）</h2>
+        <p>當一個識別字入面包含縮寫（acronym，例如 HTTP、XML、JSON、IO、UI），大小寫要跟一條特別規則，唔係跟返 acronym 本身嘅大寫：</p>
+        <table>
+          <thead><tr><th scope="col">Acronym 長度</th><th scope="col">PascalCase 入面點寫</th><th scope="col">例子</th></tr></thead>
+          <tbody>
+            <tr><td>2 個字母</td><td>兩個字母都大寫</td><td><code>IOException</code>、<code>UIElement</code></td></tr>
+            <tr><td>3 個字母或以上</td><td>淨係第一個字母大寫，其餘細楷</td><td><code>HttpClient</code>（唔係 <code>HTTPClient</code>）、<code>XmlWriter</code>（唔係 <code>XMLWriter</code>）、<code>JsonSerializer</code>（唔係 <code>JSONSerializer</code>）</td></tr>
+          </tbody>
+        </table>
+        <div class="warn">
+          <p><strong>最常見嘅錯：</strong>好多人由其他語言或者由「acronym 應該全部大寫」呢個直覺出發，寫成 <code>HTTPClient</code>、<code>XMLWriter</code>、<code>JSONSerializer</code>。呢啲喺 C# 慣例入面全部錯——.NET BCL 本身嘅類別就係 <code>HttpClient</code>、<code>XmlWriter</code>、<code>JsonSerializer</code>，三個字母或以上嘅 acronym 淨係大寫第一個字。</p>
+        </div>
+        <p>喺 camelCase（acronym 出現喺識別字<strong>開頭</strong>）嗰陣，規則對應咁調：2 個字母嘅 acronym 全部細楷，3 個字母或以上就淨係第一個字母細楷：</p>
+        <pre><code>// 2 個字母 acronym（IO）：PascalCase 兩個字母都大寫，camelCase 兩個字母都細楷
+class IOStream { }
+var ioStream = new IOStream();
+
+// 3 個字母或以上 acronym（HTTP）：PascalCase 淨係首字母大寫，camelCase 淨係首字母細楷
+class HttpClient { }
+var httpClient = new HttpClient();</code></pre>
+        <p>Acronym 出現喺識別字<strong>中間或者尾段</strong>（唔係開頭）嗰陣，兩種寫法都跟返「3 個字母或以上淨係首字母大寫」嘅規則，同開頭嗰個字係咪 acronym 冇關係：</p>
+        <pre><code>// jsonSerializer：json 喺開頭，camelCase 淨係首字母細楷（因為 JSON 係 4 個字母）
+var jsonSerializer = new JsonSerializer();
+
+// lectureIoAdapter：Io 喺中間，一律跟「首字母大寫、其餘細楷」
+class LectureIoAdapter { }</code></pre>
+      </section>
+
+      <section id="private-field" aria-labelledby="private-field-title">
+        <h2 id="private-field-title">4. Private field 慣例：<code>_camelCase</code></h2>
+        <p>喺一個 <code>class</code> 入面，private field（即係淨係嗰個 class 自己用嚟儲存資料，唔對外公開嘅變數，又叫 <strong>backing field</strong>）跟一個特別慣例：camelCase 之前加一個底線 <code>_</code>。呢個係現時 .NET 社群嘅主流寫法（.NET runtime 本身、ASP.NET Core 呢類官方 codebase 都跟緊）。</p>
+        <pre><code>public class RecordingSession
+{
+    private bool _isRecording;
+
+    public bool IsRecording =&gt; _isRecording;
+
+    public void Start()
+    {
+        _isRecording = true;
+    }
+
+    public void Stop()
+    {
+        _isRecording = false;
+    }
+}</code></pre>
+        <p>底線前綴嘅著數：喺 method 入面一眼就分得出邊個係 field（<code>_isRecording</code>），邊個係本地變數或者參數（<code>isRecording</code>）——唔使加 <code>this.</code> 都唔會撞名。</p>
+        <div class="note">
+          <p><strong>Record 通常唔使呢個慣例。</strong>如果你用 positional record（例如 <code>public record LectureChunk(Guid SessionId, long Sequence, string Text, double DurationSeconds);</code>），property 係 compiler 幫你自動生成，背後雖然都有 backing field，但你唔會、亦唔使自己攞到嗰個 field 嚟寫——你成日都係直接用 <code>chunk.SessionId</code> 呢種 public property。<code>_camelCase</code> 呢條規則淨係用喺你自己手寫、需要喺 class 入面操作嘅 private field。</p>
+        </div>
+      </section>
+
+      <section id="good-bad" aria-labelledby="good-bad-title">
+        <h2 id="good-bad-title">5. 好名 vs 壞名</h2>
+        <p>跟啱大小寫只係第一步，名本身有冇意思一樣重要。以下對比幾組常見嘅壞名同對應嘅好名：</p>
+        <table>
+          <thead><tr><th scope="col">壞名</th><th scope="col">好名</th><th scope="col">問題喺邊</th></tr></thead>
+          <tbody>
+            <tr><td><code>string s;</code></td><td><code>string lecturerName;</code></td><td><code>s</code> 完全冇透露呢個值代表咩，睇 code 嗰個要向上追蹤先知</td></tr>
+            <tr><td><code>int temp;</code></td><td><code>int retryCount;</code></td><td><code>temp</code> 講緊「呢個變數係暫時嘅」，但冇講「暫時裝住咩」</td></tr>
+            <tr><td><code>class dataHolder</code></td><td><code>class LectureChunk</code></td><td>兩個問題：大小寫錯咗（type 應該用 PascalCase），加上 <code>dataHolder</code> 太籠統，冇講呢個 class 裝緊邊種資料</td></tr>
+            <tr><td><code>bool flag</code></td><td><code>bool isRecording</code></td><td><code>flag</code> 冇講呢個 true/false 代表緊咩狀態；好嘅 bool 名應該似一句可以答「係」定「唔係」嘅問題</td></tr>
+            <tr><td><code>int usrCnt</code></td><td><code>int userCount</code></td><td>唔清楚嘅縮寫（<code>usr</code>、<code>cnt</code>）慳唔到幾多字，但加重讀者嘅認知負擔</td></tr>
+          </tbody>
+        </table>
+        <p>背後嘅原則：<strong>名要講呢個值「係咩」或者「做緊咩」，唔係講佢「點樣實作」</strong>。<code>lecturerName</code> 講緊呢個值代表講師個名；<code>s</code> 完全冇提供呢類資訊，逼讀者要睇埋周圍嘅 code 先明。</p>
+        <div class="note">
+          <p><strong>唔使 Hungarian notation。</strong>好耐之前有種寫法叫 Hungarian notation，會喺變數名前面加返個型別縮寫，例如 <code>strName</code>（string）、<code>iCount</code>（int）。C# 係 statically typed 語言（第一頁《型別與變數》教過），editor／IDE 隨時可以話你知一個變數嘅型別，所以呢種前綴喺 C# 完全冇需要，加咗反而令個名更長、更難讀。</p>
+        </div>
+        <pre><code>// 唔使咁做：
+string strLecturerName = "Dr. Chan";
+int iRetryCount = 3;
+
+// 應該咁做：型別由 IDE／compiler 負責，個名淨係負責講呢個值代表咩
+string lecturerName = "Dr. Chan";
+int retryCount = 3;</code></pre>
+      </section>
+
+      <section id="practice" aria-labelledby="practice-title">
+        <h2 id="practice-title">6. 動手練習</h2>
+        <details>
+          <summary>睇一睇：邊個啱？1——private field</summary>
+          <p>一個 private field 裝住「錄音緊定未錄音」呢個狀態，以下邊個名最啱？</p>
+          <pre><code>recording
+_isRecording
+IsRecording
+_recording_state</code></pre>
+          <p><strong>答案：</strong><code>_isRecording</code>。理由：（1）呢個係 private field，要跟 <code>_camelCase</code> 慣例，所以 <code>recording</code>（冇底線）同 <code>IsRecording</code>（PascalCase，通常留畀 public property）都唔啱；（2）<code>_recording_state</code> 用咗 snake_case，C# 完全唔用呢種寫法；（3）加埋 <code>Is</code> 前綴令個名清楚表達呢個係一個 boolean 問句「係咪錄緊音」，比純粹 <code>_recording</code> 更明確。</p>
+        </details>
+        <details>
+          <summary>睇一睇：邊個啱？2——HTTP 相關嘅 class 名</summary>
+          <p>要寫一個 class 負責用 HTTP 去攞 lecture materials，以下邊個名最啱？</p>
+          <pre><code>HTTPMaterialFetcher
+HttpMaterialFetcher
+httpMaterialFetcher
+HttpmaterialFetcher</code></pre>
+          <p><strong>答案：</strong><code>HttpMaterialFetcher</code>。理由：<code>HTTP</code> 係 4 個字母嘅 acronym，喺 PascalCase 入面跟「3 個字母或以上淨係首字母大寫」嘅規則，寫成 <code>Http</code>，所以 <code>HTTPMaterialFetcher</code> 錯（全大寫）；<code>httpMaterialFetcher</code> 錯（class 名要用 PascalCase，唔係 camelCase）；<code>HttpmaterialFetcher</code> 錯（<code>Material</code> 呢個字冧咗做細楷，斷詞唔清）。</p>
+        </details>
+        <details open>
+          <summary>自己動手：幫個 record 改返啱名</summary>
+          <p>已經幫你喺 <code>demo/csharp-practice/concepts/02-naming-practice.cs</code> 準備咗 TODO 骨架，入面有以下呢段用咗好差命名嘅 code：</p>
+          <pre><code>record lc(Guid id, long seq, string txt, double dur);
+
+var x = new lc(Guid.NewGuid(), 0, "CAP theorem", 14.8);
+Console.WriteLine($"{x.seq}: {x.txt}");</code></pre>
+          <p>你嘅任務：跟返呢頁教嘅規則，將個 record 型別名同全部 property 改做符合 C# 慣例嘅名，再更新埋用到嗰段 code：</p>
+          <ul>
+            <li><code>lc</code>（型別名）→ <code>LectureChunk</code>：擴充清楚，PascalCase；</li>
+            <li><code>id</code> → <code>SessionId</code>：講清楚呢個 Guid 係邊個 session 嘅 id；</li>
+            <li><code>seq</code> → <code>Sequence</code>：擴充唔清楚嘅縮寫；</li>
+            <li><code>txt</code> → <code>Text</code>：擴充唔清楚嘅縮寫；</li>
+            <li><code>dur</code> → <code>DurationSeconds</code>：講清楚單位係秒，唔淨係「一個 duration」。</li>
+          </ul>
+          <p>保持成個型別係 <code>sealed record</code>，並用改咗名之後嘅 property 印返同一段資訊。</p>
+          <pre><code>cd demo/csharp-practice
+dotnet run concepts/02-naming-practice.cs</code></pre>
+          <p><strong>答案：</strong></p>
+          <pre><code>sealed record LectureChunk(Guid SessionId, long Sequence, string Text, double DurationSeconds);
+
+var chunk = new LectureChunk(Guid.NewGuid(), 0, "CAP theorem", 14.8);
+Console.WriteLine($"{chunk.Sequence}: {chunk.Text}");</code></pre>
+          <p>留意 <code>chunk</code> 呢個本地變數名都由冇意思嘅 <code>x</code> 改咗做 <code>chunk</code>——雖然題目冇明文要求，但呢個都係跟返第 5 節「名要講呢個值係咩」嘅原則：<code>x</code> 冇透露任何資訊，<code>chunk</code> 即刻話你知呢個變數裝住一個 lecture chunk。</p>
+        </details>
+      </section>
+
+      <section id="next" aria-labelledby="next-title">
+        <h2 id="next-title">7. 下一步</h2>
+        <p>五個深入教學建議跟以下次序讀（同《C# 中階銜接》第 1 節小節出現嘅次序一樣），呢頁係第 2 個：</p>
+        <div class="sibling">
+          <a href="csharp-concept-01-types.html">1. 型別與變數<span>數值家族、var、型別轉換</span></a>
+          <a href="csharp-concept-02-naming.html"><strong>2. 命名規範</strong><span>你依家喺呢頁</span></a>
+          <a href="csharp-concept-03-methods.html">3. Method／Function<span>參數、overload、local function</span></a>
+          <a href="csharp-concept-04-generics.html">4. 泛型 &lt;T&gt;<span>由 List&lt;T&gt; 到自己寫泛型 method</span></a>
+          <a href="csharp-concept-05-class-record-struct.html">5. Class／Record／Struct<span>三者點揀，equality 深入</span></a>
+        </div>
+        <p><a href="csharp-concept-01-types.html">← 上一個：1. 型別與變數</a> ・ <a href="csharp-concept-03-methods.html">下一個：3. Method／Function →</a></p>
+        <p>睇完想返去 pipeline 教學，可以返去 <a href="csharp-dotnet-tutorial-2.html#types-syntax">《C# 中階銜接》第 1 節</a>，或者返去 <a href="index.html">scripts 學習首頁</a>。</p>
+        <p class="source">參考：<a href="https://learn.microsoft.com/dotnet/csharp/fundamentals/coding-style/identifier-names">Microsoft 官方 C# 命名指引（Identifier names）</a>。</p>
+      </section>
+    </main>
+  </div>
+  <footer class="wrap">C# 命名規範深入教學 · <a href="csharp-dotnet-tutorial-2.html">返回中階銜接</a> · <a href="csharp-dotnet-tutorial.html">零基礎教學</a> · <a href="index.html">scripts 學習首頁</a></footer>
+</body>
+</html>

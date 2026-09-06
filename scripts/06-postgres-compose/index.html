@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Playback PostgreSQL 與 Docker Compose 初學 spike">
+  <title>06 · PostgreSQL + Docker Compose spike</title>
+  <style>
+    :root { color-scheme:light; --ink:#172326; --muted:#526267; --paper:#f3f1e9; --surface:#fffef9; --line:#bfc5c1; --teal:#0b615d; --teal-soft:#dcebe7; --amber:#8a4b08; --amber-soft:#f8ead2; --red:#952f2d; font-family:Aptos,"Segoe UI",system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    html { min-width:20rem; scroll-behavior:smooth; }
+    body { margin:0; background:var(--paper); color:var(--ink); line-height:1.6; }
+    a { color:#084945; text-underline-offset:.18em; }
+    a:focus-visible, summary:focus-visible { outline:.1875rem solid #086da5; outline-offset:.1875rem; }
+    .skip { position:fixed; top:.75rem; left:.75rem; z-index:2; padding:.5rem .75rem; transform:translateY(-200%); border:.125rem solid var(--ink); background:var(--surface); font-weight:700; }
+    .skip:focus { transform:translateY(0); }
+    header,main,footer { width:min(100% - 2rem,72rem); margin-inline:auto; }
+    header { padding:2.5rem 0 2rem; border-bottom:.1875rem solid var(--ink); }
+    h1,h2,h3 { font-family:Georgia,"Times New Roman",serif; line-height:1.12; }
+    h1 { margin:.25rem 0 1rem; max-width:15ch; font-size:clamp(2.2rem,7vw,4.7rem); letter-spacing:-.045em; }
+    h2 { margin:0 0 1rem; font-size:1.65rem; }
+    h3 { margin:.25rem 0 .5rem; font-size:1.1rem; }
+    p { max-width:74ch; }
+    .kicker { margin:0; color:var(--teal); font-size:.72rem; font-weight:800; letter-spacing:.14em; }
+    .lead { color:var(--muted); font-size:1.08rem; }
+    nav ul { display:flex; flex-wrap:wrap; gap:.5rem 1rem; padding:0; list-style:none; }
+    section { margin-top:2rem; padding:1.25rem; border:.0625rem solid var(--line); background:var(--surface); }
+    .warning { padding:1rem; border-left:.25rem solid var(--amber); background:var(--amber-soft); color:#553817; }
+    .command-flow { display:grid; grid-template-columns:1fr; gap:.65rem; margin:1rem 0; padding:0; list-style:none; counter-reset:step; }
+    .command-flow li { position:relative; padding:1rem 1rem 1rem 3rem; border-left:.25rem solid var(--teal); background:var(--teal-soft); counter-increment:step; }
+    .command-flow li::before { content:counter(step); position:absolute; left:.75rem; top:1rem; width:1.5rem; height:1.5rem; display:grid; place-items:center; border-radius:50%; background:var(--teal); color:white; font-weight:800; }
+    code { font-family:"Cascadia Code",Consolas,monospace; }
+    pre { padding:1rem; overflow:auto; border-left:.25rem solid var(--teal); background:#142426; color:#edf4f1; line-height:1.5; }
+    .diagram { display:grid; grid-template-columns:1fr; gap:.75rem; margin:1rem 0; }
+    .diagram div { padding:1rem; border-top:.25rem solid var(--teal); background:var(--teal-soft); }
+    .arrow { display:grid !important; min-height:auto; place-items:center; border:0 !important; background:transparent !important; font-size:1.5rem; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; min-width:38rem; border-collapse:collapse; }
+    th,td { padding:.65rem; border-bottom:.0625rem solid var(--line); text-align:left; vertical-align:top; }
+    th { color:var(--teal); font-size:.8rem; letter-spacing:.04em; }
+    details { margin-top:1rem; padding:1rem; border:.0625rem solid var(--line); }
+    summary { cursor:pointer; font-weight:800; }
+    footer { margin-top:2rem; padding:1.5rem 0 3rem; border-top:.1875rem solid var(--ink); color:var(--muted); font-size:.82rem; }
+    @media (min-width:48rem) { section { padding:2rem; } .command-flow { grid-template-columns:repeat(5,1fr); } .diagram { grid-template-columns:1fr auto 1fr auto 1fr; align-items:stretch; } }
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">跳到教材</a>
+<header>
+  <p class="kicker">PLAYBACK SPIKE STUDY · 06</p>
+  <h1>先學 database，再把它接進 app</h1>
+  <p class="lead">這個隔離 module 用一個 PostgreSQL container 證明本機開發流程與 relational schema。它不代表 Playback runtime 已使用這個 database。</p>
+  <nav aria-label="本頁章節">
+    <ul>
+      <li><a href="#boundary">安全邊界</a></li>
+      <li><a href="#commands">五個動作</a></li>
+      <li><a href="#relations">資料關係</a></li>
+      <li><a href="#parameters">Parameters</a></li>
+      <li><a href="#verify">自我驗證</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="content">
+  <section id="boundary" aria-labelledby="boundary-title">
+    <p class="kicker">BOUNDARY</p>
+    <h2 id="boundary-title">只讓這部電腦連入</h2>
+    <pre><code>ports:
+  - "127.0.0.1:55432:5432"</code></pre>
+    <p>左邊是 host IP + port，右邊是 container port。明寫 <code>127.0.0.1</code>，避免預設綁到所有 interfaces。</p>
+    <p class="warning"><strong>公開 demo credential：</strong><code>playback_demo / playback_demo_password_change_me</code>。它只供這個 loopback spike；不得複製到 production、LAN 或其他服務。</p>
+    <p><a href="https://docs.docker.com/reference/compose-file/services/#ports">Docker Compose 官方 ports reference</a></p>
+  </section>
+
+  <section id="commands" aria-labelledby="commands-title">
+    <p class="kicker">OPERATE</p>
+    <h2 id="commands-title">用五個 bounded actions 學習</h2>
+    <ol class="command-flow">
+      <li><strong>Check</strong><br>CLI、Compose syntax、engine</li>
+      <li><strong>Start</strong><br>啟動並等 healthy</li>
+      <li><strong>Status</strong><br>觀察 running / health</li>
+      <li><strong>Query</strong><br>寫 demo data、JOIN、EXPLAIN</li>
+      <li><strong>Stop</strong><br>停 container，保留 volume</li>
+    </ol>
+    <pre><code>.\study.ps1
+.\study.ps1 -Action Start
+.\study.ps1 -Action Status
+.\study.ps1 -Action Query
+.\study.ps1 -Action Stop</code></pre>
+    <p>沒有 Reset。停止 process 與刪除 data 是兩件事；教學腳本不把破壞性操作包成捷徑。</p>
+  </section>
+
+  <section aria-labelledby="docker-title">
+    <p class="kicker">MENTAL MODEL</p>
+    <h2 id="docker-title">Image、container、volume</h2>
+    <div class="diagram" aria-label="Docker storage flow">
+      <div><h3>Image</h3><p><code>postgres:18.6-alpine</code><br>固定、唯讀模板</p></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div><h3>Container</h3><p>Postgres process 與暫時 filesystem layer</p></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div><h3>Named volume</h3><p>真正持久的 database files</p></div>
+    </div>
+    <p>Official image 只在空 data directory 執行 <code>/docker-entrypoint-initdb.d/*.sql</code>。因此改了 <code>schema.sql</code> 不會神奇更新已有 volume；正式 app 要用 migrations。</p>
+    <p><a href="https://hub.docker.com/_/postgres">Docker Official Image: postgres</a></p>
+  </section>
+
+  <section id="relations" aria-labelledby="relations-title">
+    <p class="kicker">RELATIONAL MODEL</p>
+    <h2 id="relations-title">Key 令錯誤資料進不去</h2>
+    <div class="table-wrap" tabindex="0" aria-label="Playback spike tables，可橫向捲動">
+      <table>
+        <thead><tr><th>Table</th><th>Identity</th><th>Relation</th><th>預期 query</th></tr></thead>
+        <tbody>
+          <tr><td><code>lecture_sessions</code></td><td>PK: <code>id</code></td><td>root</td><td>取一堂課</td></tr>
+          <tr><td><code>audio_chunks</code></td><td>composite PK</td><td>FK → session</td><td>按 sequence 讀 chunk</td></tr>
+          <tr><td><code>transcript_segments</code></td><td>identity PK + unique revision</td><td>composite FK → chunk</td><td>最新 revision</td></tr>
+          <tr><td><code>note_revisions</code></td><td>identity PK + unique revision</td><td>FK → session</td><td>最新筆記版本</td></tr>
+          <tr><td><code>lecture_materials</code></td><td>identity PK</td><td>FK → session</td><td>課堂 context</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li><strong>PK：</strong>唯一且 non-null；可被其他 table 引用。</li>
+      <li><strong>FK：</strong>保護 referential integrity；不存在的 session 不可有 chunk。</li>
+      <li><strong>Index：</strong>針對常見 filter/order 加速，但會增加寫入及空間成本。</li>
+    </ul>
+    <p><a href="https://www.postgresql.org/docs/current/ddl-constraints.html">PostgreSQL 官方 constraints</a> · <a href="https://www.postgresql.org/docs/current/indexes.html">官方 indexes</a></p>
+  </section>
+
+  <section id="parameters" aria-labelledby="parameters-title">
+    <p class="kicker">QUERY SAFETY</p>
+    <h2 id="parameters-title">Value 與 SQL 分開</h2>
+    <pre><code>await using var command = dataSource.CreateCommand(
+    "SELECT title FROM lecture_sessions WHERE id = $1");
+command.Parameters.Add(new() { Value = sessionId });</code></pre>
+    <p><code>$1</code> 是 value placeholder。不要用字串插值把 session id、title、transcript 或 user question 拼入 SQL。Table/column name 不能用 value parameter 代替；若需要動態 identifier，要用固定 allowlist。</p>
+    <p><a href="https://www.npgsql.org/doc/basic-usage.html#parameters">Npgsql 官方 parameters 指引</a></p>
+  </section>
+
+  <section id="verify" aria-labelledby="verify-title">
+    <p class="kicker">EVIDENCE</p>
+    <h2 id="verify-title">不要只看「container 跑了」</h2>
+    <ol>
+      <li>Start 要等 healthcheck，而不是只等 process created。</li>
+      <li>Query 應顯示 JOIN 出來的 session/chunk/transcript。</li>
+      <li>重跑 Query 會用新 UUID，不會破壞前一次資料。</li>
+      <li>Stop → Start 後舊 rows 仍存在，證明 volume persistence。</li>
+      <li>用 <code>docker compose config</code> 核對 port 仍是 loopback。</li>
+    </ol>
+    <details>
+      <summary>為甚麼 tiny dataset 未必使用 index？</summary>
+      <p>Query planner 估計掃描幾列比走 index 更便宜時，會合理選 sequential scan。Index 是否值得，要用接近真實資料量的 <code>EXPLAIN (ANALYZE, BUFFERS)</code> 驗證；本 spike 只先學讀 plan，不做 performance claim。</p>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <p>Playback spike study · 直接以 <code>file://</code> 打開，無外部 script、font 或 CDN。</p>
+</footer>
+</body>
+</html>

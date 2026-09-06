@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="給完全初學者的 C# 與 .NET 10 入門。">
+  <title>從一個檔案開始學 C# · .NET 10</title>
+  <style>
+    :root { color-scheme:light; --paper:#f6f4ee; --surface:#fffefa; --ink:#18221f; --muted:#53605a; --accent:#075c4c; --soft:#e5f2ed; --line:#d3d0c5; --code:#172923; --code-ink:#f2faf5; --focus:#a13d17; }
+    * { box-sizing:border-box; } html { scroll-padding-top:1rem; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.8 system-ui,"Segoe UI","Microsoft JhengHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:.2em; } a:hover { text-decoration-thickness:.15em; }
+    :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+    code,kbd,samp { font-family:"Cascadia Code",Consolas,monospace; font-size:.92em; font-variant-ligatures:none; }
+    :not(pre)>code { padding:.1em .3em; background:#e9e9df; border-radius:.2rem; overflow-wrap:anywhere; }
+    .wrap { width:min(68rem,calc(100% - 2rem)); margin-inline:auto; }
+    .skip { position:absolute; top:-5rem; left:1rem; padding:.5rem 1rem; background:var(--ink); color:white; } .skip:focus { top:1rem; }
+    header { padding:2rem 0 1.5rem; border-bottom:1px solid var(--line); } .back { font-size:.92rem; }
+    .eyebrow { margin:1.25rem 0 0; color:var(--accent); font-weight:750; letter-spacing:.05em; font-size:.85rem; }
+    h1 { max-width:42rem; margin:.5rem 0; font-size:clamp(2rem,5vw,3.4rem); line-height:1.2; letter-spacing:-.03em; }
+    .lead { max-width:45rem; margin-bottom:0; color:var(--muted); font-size:1.1rem; }
+    .layout { display:grid; grid-template-columns:13rem minmax(0,1fr); gap:2.5rem; align-items:start; }
+    nav { position:sticky; top:1rem; padding:1.5rem 0; } nav p { margin:0 0 .5rem; font-size:.9rem; font-weight:750; }
+    nav ol { margin:0; padding:0; list-style:none; } nav a { display:block; padding:.35rem .5rem; border-left:2px solid var(--line); text-decoration:none; }
+    nav a:hover,nav a:focus-visible { border-color:var(--accent); background:var(--soft); }
+    main { min-width:0; padding-bottom:3rem; } section { padding:2rem 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 .8rem; font-size:clamp(1.45rem,3vw,2rem); line-height:1.35; } h3 { margin:1.5rem 0 .4rem; font-size:1.15rem; }
+    p { margin:.7rem 0; } li { margin:.35rem 0; }
+    pre { margin:.6rem 0 1rem; padding:1rem 1.25rem; overflow:auto; background:var(--code); color:var(--code-ink); border-radius:.25rem; line-height:1.7; tab-size:4; }
+    .label { margin:1.25rem 0 .3rem; color:var(--accent); font-size:.86rem; font-weight:750; }
+    .output { background:var(--soft); color:var(--ink); border-left:4px solid var(--accent); }
+    .note { margin:1.25rem 0; padding:1rem 1.25rem; background:var(--soft); border-left:4px solid var(--accent); }
+    .note p:first-child { margin-top:0; } .note p:last-child { margin-bottom:0; }
+    .steps { padding-left:1.35rem; } .tree { white-space:pre; }
+    table { width:100%; border-collapse:collapse; background:var(--surface); } th,td { padding:.7rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); } th { background:var(--soft); }
+    .source,footer { color:var(--muted); font-size:.9rem; } footer { padding:2rem 0; }
+    @media (max-width:52rem) { .layout { grid-template-columns:1fr; gap:0; } nav { position:static; padding-block:1rem; border-bottom:1px solid var(--line); } nav ol { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem; } }
+    @media (max-width:28rem) { nav ol { grid-template-columns:1fr; } pre { padding:.8rem; } th,td { padding:.5rem; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到教學內容</a>
+  <header>
+    <div class="wrap">
+      <a class="back" href="index.html">返回 scripts 學習首頁</a>
+      <p class="eyebrow">C# 入門 · .NET 10 · 完全新手</p>
+      <h1>先寫一個檔案，再理解 .NET 專案</h1>
+      <p class="lead">C# 是你寫的程式語言；.NET 是幫你執行它的工具和環境。先讓程式跑起來，不用先理解所有資料夾。</p>
+    </div>
+  </header>
+
+  <div class="wrap layout">
+    <nav aria-label="本頁章節">
+      <p>這頁會做甚麼</p>
+      <ol>
+        <li><a href="#start">1. 準備工具</a></li>
+        <li><a href="#hello">2. 第一個程式</a></li>
+        <li><a href="#basics">3. 基本概念</a></li>
+        <li><a href="#project">4. 之後才學專案</a></li>
+        <li><a href="#next">5. 下一步</a></li>
+      </ol>
+    </nav>
+
+    <main id="main" tabindex="-1">
+      <section id="start" aria-labelledby="start-title">
+        <h2 id="start-title">1. 你需要甚麼？</h2>
+        <p>只需要安裝 <strong>.NET 10 SDK</strong>。SDK 是用來建立、執行和發布 C# 程式的工具組。VS Code 很方便，但不是必須；任何純文字編輯器也能編輯 <code>.cs</code> 檔案。</p>
+        <ol class="steps">
+          <li>安裝 <a href="https://dotnet.microsoft.com/en-us/download/dotnet/10.0">.NET 10 SDK</a>。請選 <strong>SDK</strong>，不是 Runtime。</li>
+          <li>開啟 PowerShell：按 Windows 開始鍵，輸入 <code>PowerShell</code>，再按 Enter。</li>
+          <li>輸入以下指令，然後按 Enter：</li>
+        </ol>
+        <pre><code>dotnet --version</code></pre>
+        <p>若看到 <code>10.0.x</code>，代表安裝成功。若剛安裝而看不到，先關閉 PowerShell，再重新開啟一次。</p>
+        <aside class="note">
+          <p><strong>暫時不用安裝很多東西。</strong></p>
+          <p>現在不需要 NuGet、Visual Studio、資料庫或專案模板。只要 SDK、文字編輯器和 PowerShell。</p>
+        </aside>
+      </section>
+
+      <section id="hello" aria-labelledby="hello-title">
+        <h2 id="hello-title">2. 寫第一個 C# 程式</h2>
+        <p>.NET 10 支援<strong>單檔程式</strong>。所以第一個 Hello World 不需要 <code>.csproj</code>、<code>obj</code> 或模板。</p>
+        <h3>建立練習資料夾</h3>
+        <p>在 PowerShell 逐行輸入：</p>
+        <pre><code>mkdir hello-csharp
+cd hello-csharp</code></pre>
+        <p>接著用 VS Code 或記事本建立一個名為 <code>hello.cs</code> 的檔案，把以下內容貼進去並儲存：</p>
+        <pre><code>Console.WriteLine("Hello, C#!");</code></pre>
+        <p>回到同一個 PowerShell 視窗，執行：</p>
+        <pre><code>dotnet run hello.cs</code></pre>
+        <p class="label">你應該看見</p>
+        <pre class="output"><samp>Hello, C#!</samp></pre>
+        <p>目前只要記得這個流程：</p>
+        <pre><code>改 hello.cs → 儲存 → dotnet run hello.cs</code></pre>
+
+        <h3>這一行是甚麼意思？</h3>
+        <table>
+          <thead><tr><th scope="col">部分</th><th scope="col">意思</th></tr></thead>
+          <tbody>
+            <tr><td><code>Console</code></td><td>.NET 提供的一個「文字視窗」工具。</td></tr>
+            <tr><td><code>WriteLine</code></td><td>在文字視窗印出一行內容。</td></tr>
+            <tr><td><code>"Hello, C#!"</code></td><td>要印出的文字。雙引號代表文字。</td></tr>
+            <tr><td><code>;</code></td><td>這句 C# 指令的結尾。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="basics" aria-labelledby="basics-title">
+        <h2 id="basics-title">3. 先學三個基本概念</h2>
+        <p>以下每一段都是完整程式。練習時，把 <code>hello.cs</code> 的全部內容換成其中一段，再執行 <code>dotnet run hello.cs</code>。</p>
+        <h3>把資料放進變數</h3>
+        <pre><code>string lecturerName = "Dr. Chan";
+int slideCount = 42;
+
+Console.WriteLine($"呢堂課由 {lecturerName} 教，用咗 {slideCount} 張 slide。");</code></pre>
+        <p><code>lecturerName</code> 和 <code>slideCount</code> 是變數名稱。<code>string</code> 表示文字；<code>int</code> 表示整數。<code>$"..."</code> 讓你能把變數放進文字的 <code>{ }</code> 裏。呢個 app 之後會用差唔多嘅寫法記低講師、session、chunk 呢類資料。</p>
+
+        <h3>根據情況做選擇</h3>
+        <pre><code>double chunkSeconds = 8;
+
+if (chunkSeconds &gt;= 10)
+{
+    Console.WriteLine("chunk 夠長，送去做語音辨識");
+}
+else
+{
+    Console.WriteLine("chunk 太短，繼續錄多陣");
+}</code></pre>
+        <p><code>if</code> 是「如果」。大括號 <code>{ }</code> 裏的指令，只有條件成立時才會執行。呢個 app 之後真係會用類似嘅判斷，決定一段錄音夠唔夠長先送去 ASR。</p>
+
+        <h3>重複做事</h3>
+        <pre><code>for (int chunkNumber = 1; chunkNumber &lt;= 3; chunkNumber++)
+{
+    Console.WriteLine($"Chunk {chunkNumber} 錄緊...");
+}</code></pre>
+        <p>這會印出「Chunk 1 錄緊...」到「Chunk 3 錄緊...」。現在不用背完整寫法；先知道 <code>for</code> 可以重複執行一段程式即可——一段三小時嘅錄音會產生成千上萬個 chunk，之後就係靠 <code>for</code>／<code>foreach</code> 逐個處理。</p>
+        <aside class="note"><p><strong>初學時的好習慣：</strong>一次只改一小段，執行後看結果。出錯很正常；錯誤訊息通常會告訴你檔案和行數。</p></aside>
+      </section>
+
+      <section id="project" aria-labelledby="project-title">
+        <h2 id="project-title">4. 甚麼時候才需要 C# 專案？</h2>
+        <p>當程式開始有多個檔案、想安裝函式庫、寫測試或發布應用程式時，才建立專案。這時可使用模板：</p>
+        <pre><code>dotnet new console -n MyFirstApp
+cd MyFirstApp
+dotnet run</code></pre>
+        <p>它會建立像這樣的資料夾：</p>
+        <pre class="tree"><code>MyFirstApp/
+├── Program.cs          你主要會改的 C# 程式
+├── MyFirstApp.csproj   專案設定
+├── bin/                編譯後的程式，自動產生
+└── obj/                建置與套件資料，自動產生</code></pre>
+        <p>你只需要先碰前兩個檔案。<code>bin</code> 和 <code>obj</code> 是 .NET 的工作檔案，正常情況下不修改，也不需要閱讀。</p>
+
+        <h3><code>.csproj</code> 和 <code>package.json</code> 像嗎？</h3>
+        <p>像。它們都記錄專案使用甚麼依賴和設定。差別是 <code>.csproj</code> 同時也記錄 .NET 要如何編譯程式。</p>
+        <pre><code>&lt;Project Sdk="Microsoft.NET.Sdk"&gt;
+  &lt;PropertyGroup&gt;
+    &lt;OutputType&gt;Exe&lt;/OutputType&gt;
+    &lt;TargetFramework&gt;net10.0&lt;/TargetFramework&gt;
+  &lt;/PropertyGroup&gt;
+&lt;/Project&gt;</code></pre>
+        <p>目前你只要認得 <code>TargetFramework</code>：它表示「這個程式使用 .NET 10」。其餘設定可以等需要時再學。</p>
+        <h3>之後想安裝函式庫</h3>
+        <p>Node.js 常寫 <code>npm install 套件名稱</code>；.NET 常寫：</p>
+        <pre><code>dotnet add package 套件名稱</code></pre>
+        <p>這時 .NET 會在 <code>.csproj</code> 加入套件資料，並在 <code>obj</code> 產生需要的快取檔案。</p>
+      </section>
+
+      <section id="next" aria-labelledby="next-title">
+        <h2 id="next-title">5. 下一步怎樣學？</h2>
+        <p>先把小程式寫順，比一次學完所有名詞重要。試做這三個練習：</p>
+        <ol class="steps">
+          <li>把講師名同 slide 數量改成自己想像嘅堂課資料。</li>
+          <li>把 <code>chunkSeconds</code> 從 <code>8</code> 改成 <code>12</code>，睇下條件點樣變。</li>
+          <li>把迴圈嘅上限從 3 改成 10，想像成模擬十個 chunk 陸續錄完。</li>
+        </ol>
+        <h3>常見問題</h3>
+        <table>
+          <thead><tr><th scope="col">看到甚麼？</th><th scope="col">先做甚麼？</th></tr></thead>
+          <tbody>
+            <tr><td><code>dotnet</code> 不是命令</td><td>安裝 .NET 10 SDK 後，關閉並重新開啟 PowerShell。</td></tr>
+            <tr><td>找不到 <code>hello.cs</code></td><td>先用 <code>dir</code> 確認檔案名稱；再確定 PowerShell 位於檔案所在的資料夾。</td></tr>
+            <tr><td>程式有紅字錯誤</td><td>看錯誤訊息中的檔案名稱和行數；先檢查引號、分號和大括號是否成對。</td></tr>
+          </tbody>
+        </table>
+        <p>完成以上練習後，覺得 <a href="01-csharp-basics/index.html">01-csharp-basics</a> 一次過七個概念太多？可以先讀 <a href="csharp-dotnet-tutorial-2.html">C# 中階銜接教學</a>，逐個概念動手寫、逐個跑，再組成一個迷你版本。</p>
+        <p class="source">參考：<a href="https://learn.microsoft.com/en-us/dotnet/csharp/tour-of-csharp/overview">C# 語言導覽</a>、<a href="https://learn.microsoft.com/en-us/dotnet/core/sdk/file-based-apps">.NET 10 單檔應用程式</a>、<a href="https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-new">dotnet new</a>。</p>
+      </section>
+    </main>
+  </div>
+  <footer class="wrap">C#／.NET 零基礎教學 · <a href="index.html">返回 scripts 學習首頁</a></footer>
+</body>
+</html>
+

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>04 · Rolling note agent</title>
+  <style>
+    :root{--ink:#18211d;--muted:#5e6963;--paper:#f2f5ef;--card:#fff;--accent:#176b4d;--line:#ced9d2}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.65 system-ui,"Segoe UI",sans-serif}header,main,footer{width:min(960px,calc(100% - 2rem));margin:auto}header{padding:3.5rem 0 2rem}.tag{color:var(--accent);font-weight:800;letter-spacing:.1em}h1{font:clamp(2.2rem,7vw,4.8rem)/1 Georgia,serif;margin:.4rem 0}h2{font:1.7rem/1.2 Georgia,serif;margin-top:2.5rem}.lead,.muted{color:var(--muted)}.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin:2rem 0}.step{padding:1rem;border:1px solid var(--line);border-radius:14px;background:var(--card)}.step b{display:block;color:var(--accent)}pre{overflow:auto;padding:1rem;border-radius:12px;background:#17231d;color:#e8f4ec}code{font:90% ui-monospace,SFMono-Regular,Consolas,monospace}.callout{padding:1rem 1.2rem;border-left:5px solid #c47b10;background:#fff3d8}a{color:var(--accent);text-underline-offset:.2em}footer{padding:3rem 0;color:var(--muted)}@media(max-width:700px){.flow{grid-template-columns:1fr 1fr}}@media(max-width:430px){.flow{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header><div class="tag">MODULE 04 · SPIKE</div><h1>筆記是一連串 revision。</h1><p class="lead">不要每隔數分鐘「重做整堂課」。保存 transcript watermark，才知道模型已處理到哪裏，也能安全 retry。</p></header>
+  <main>
+    <div class="flow" aria-label="rolling note data flow"><div class="step"><b>1 · SAVE</b>immutable ASR chunk</div><div class="step"><b>2 · READ</b>watermark 後的新文字</div><div class="step"><b>3 · EDIT</b>previous note + material</div><div class="step"><b>4 · COMMIT</b>revision + watermark</div></div>
+    <section><h2>先跑 deterministic demo</h2><pre><code>&amp; .\scripts\04-live-note-agent\study.ps1 -SelfTest</code></pre><p>它故意再次送入 chunk 3，也嘗試在空 state 先送 chunk 2。正確結果是 duplicate 不改 state、gap 被拒絕；watermark 只可越過連續資料。</p></section>
+    <section><h2>再明確選擇 Gemini</h2><pre><code>$env:GOOGLE_AI_STUDIO_API_KEY = '你的 key'
+&amp; .\scripts\04-live-note-agent\study.ps1 -Mode Gemini
+
+# 較強、通常較昂貴的 consolidation experiment
+&amp; .\scripts\04-live-note-agent\study.ps1 -Mode Gemini -Model gemini-3.8-flash</code></pre><p>預設 <code>gemini-3.5-flash-lite</code>。若 key 缺失或 request 失敗，script 會明確失敗；不會用 mock 冒充成功。</p></section>
+    <section><h2>你正在讀的 C# boundary</h2><pre><code>var client = new Client(vertexAI: false, apiKey: apiKey)
+    .AsIChatClient(model);
+
+var agent = new ChatClientAgent(
+    client,
+    name: "RollingLectureNoteEditor",
+    instructions: instructions);
+
+AgentResponse draft = await agent.RunAsync(prompt);</code></pre><p><code>await</code> 讓 network I/O 不阻塞 thread；型別清楚標示 input/output。真正產品仍需驗證 draft，再寫 database。</p></section>
+    <aside class="callout"><strong>Privacy checkpoint：</strong>lecture audio、同學發言、教材可能受私隱或版權規則約束。先取得同意，再把任何內容送到第三方 LLM。</aside>
+    <section><h2>Spike 通過才做的下一步</h2><p>用相同 20–30 個 chunks 比較兩個 model：p50/p95 latency、token cost、source coverage、錯誤修正與 hallucination。數據支持後，才選 interval 和 model routing。</p></section>
+  </main>
+  <footer><a href="../index.html">← 回到所有 modules</a> · 詳情見 <a href="README.zh-HK.md">README</a></footer>
+</body>
+</html>

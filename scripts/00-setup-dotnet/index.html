@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>00 · 準備 .NET 10 開發環境</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3f0e8;
+      --ink: #18211f;
+      --muted: #52615d;
+      --surface: #fffdf7;
+      --line: #c8d0c8;
+      --accent: #096b5a;
+      --accent-ink: #06483d;
+      --code: #13201d;
+      --code-ink: #e6fff8;
+      --space: clamp(1rem, 2.4vw, 1.5rem);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 1rem/1.65 system-ui, -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
+    }
+    a { color: var(--accent-ink); text-underline-offset: .18em; }
+    a:focus-visible { outline: .2rem solid #e38817; outline-offset: .2rem; }
+    .skip {
+      position: absolute; left: 1rem; top: -5rem; z-index: 2;
+      padding: .65rem 1rem; background: var(--ink); color: white;
+    }
+    .skip:focus { top: 1rem; }
+    header, main, footer { width: min(70rem, calc(100% - 2rem)); margin-inline: auto; }
+    header { padding-block: clamp(2.5rem, 8vw, 6rem) 2rem; border-bottom: 1px solid var(--line); }
+    .kicker { color: var(--accent); font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+    h1 { max-width: 13ch; margin: .35rem 0 1rem; font-size: clamp(2.3rem, 7vw, 5.6rem); line-height: .98; letter-spacing: -.05em; }
+    h2 { margin-top: 3rem; font-size: clamp(1.5rem, 4vw, 2.2rem); line-height: 1.2; }
+    h3 { margin-block: .25rem; }
+    .lead { max-width: 43rem; color: var(--muted); font-size: 1.15rem; }
+    main { padding-block: 1rem 4rem; }
+    .steps { display: grid; gap: 1px; margin: 2rem 0; background: var(--line); border: 1px solid var(--line); }
+    .step { display: grid; grid-template-columns: 3rem 1fr; gap: 1rem; padding: var(--space); background: var(--surface); }
+    .number { color: var(--accent); font: 700 1.25rem/1 ui-monospace, monospace; }
+    .step p { margin: .35rem 0 0; color: var(--muted); }
+    .tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .tool { padding: var(--space); border: 1px solid var(--line); background: var(--surface); }
+    .tool strong { color: var(--accent); }
+    pre { max-width: 100%; overflow: auto; padding: 1rem; border-radius: .25rem; background: var(--code); color: var(--code-ink); }
+    code { font-family: "Cascadia Code", Consolas, ui-monospace, monospace; font-size: .92em; }
+    :not(pre) > code { padding: .1em .3em; background: #e1e6df; border-radius: .2rem; }
+    .callout { margin: 2rem 0; padding: var(--space); border-left: .35rem solid #d27b0b; background: #fff4dd; }
+    footer { padding-block: 2rem 3rem; border-top: 1px solid var(--line); color: var(--muted); }
+    @media (max-width: 40rem) {
+      .tool-grid { grid-template-columns: 1fr; }
+      .step { grid-template-columns: 2rem 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media (prefers-color-scheme: dark) {
+      :root { color-scheme: dark; --paper:#101614; --ink:#edf4ef; --muted:#afbeb8; --surface:#18211e; --line:#3b4a45; --accent:#65d3bc; --accent-ink:#8de5d3; }
+      :not(pre) > code { background:#26332f; }
+      .callout { background:#332815; color:#fff3d6; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要內容</a>
+  <header>
+    <p class="kicker">Spike study · 00</p>
+    <h1>先認識工具，再開始寫 C#。</h1>
+    <p class="lead">這個 module 把「檢查」和「安裝」明確分開。你可以放心先跑檢查；沒有 <code>-InstallMissing</code>，系統不會被改動。</p>
+  </header>
+  <main id="main">
+    <h2>三步完成環境準備</h2>
+    <div class="steps">
+      <section class="step"><span class="number">01</span><div><h3>Read-only check</h3><pre><code>.\scripts\00-setup-dotnet\study.ps1</code></pre><p>報告 WinGet、SDK 10、VS Code、Docker CLI 與 engine 狀態。</p></div></section>
+      <section class="step"><span class="number">02</span><div><h3>Preview</h3><pre><code>.\scripts\00-setup-dotnet\study.ps1 `
+  -InstallMissing -WhatIf</code></pre><p>看到固定 package ID，但仍不安裝。</p></div></section>
+      <section class="step"><span class="number">03</span><div><h3>Explicit install</h3><pre><code>.\scripts\00-setup-dotnet\study.ps1 `
+  -InstallMissing</code></pre><p>只為缺少的項目呼叫 WinGet。完成後開一個新 terminal。</p></div></section>
+    </div>
+
+    <h2>四件工具，各有一個角色</h2>
+    <div class="tool-grid">
+      <article class="tool"><strong>WinGet</strong><h3>可信的 package selector</h3><p>用固定 ID 和 exact match，避免搜尋結果選錯軟件。</p></article>
+      <article class="tool"><strong>.NET SDK 10</strong><h3>Compiler + CLI + Runtime</h3><p>SDK 是工作台；runtime 只是執行 app 的播放機。Package ID：<code>Microsoft.DotNet.SDK.10</code></p></article>
+      <article class="tool"><strong>VS Code</strong><h3>Editor</h3><p>再加 Microsoft C# Dev Kit，得到 IntelliSense、debug 和 testing UI。Package ID：<code>Microsoft.VisualStudioCode</code></p></article>
+      <article class="tool"><strong>Docker Desktop</strong><h3>稍後裝 PostgreSQL</h3><p>CLI 已安裝不等於 engine 已啟動；checker 會分開顯示。Package ID：<code>Docker.DockerDesktop</code></p></article>
+    </div>
+
+    <aside class="callout" aria-labelledby="policy-title">
+      <h2 id="policy-title">PowerShell 說 script 被封鎖？</h2>
+      <p>先確認你信任 repo 內容，再用只限單次 process 的命令：</p>
+      <pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\00-setup-dotnet\study.ps1</code></pre>
+      <p>不要為了方便而永久關閉全機 execution policy。</p>
+    </aside>
+
+    <h2>在 VS Code 的下一步</h2>
+    <ol>
+      <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd>，安裝 Microsoft 發佈的 C# Dev Kit。</li>
+      <li>用 File → Open Folder 打開整個 repo。</li>
+      <li>開新 terminal，執行 <code>.\scripts\01-csharp-basics\study.ps1</code>。</li>
+      <li>打開 <code>basics.cs</code>，用 hover 和 <kbd>F12</kbd>探索 types。</li>
+    </ol>
+
+    <h2>官方參考</h2>
+    <ul>
+      <li><a href="https://learn.microsoft.com/dotnet/core/sdk">Microsoft：.NET SDK 是甚麼</a></li>
+      <li><a href="https://learn.microsoft.com/dotnet/core/install/windows">Microsoft：在 Windows 安裝 .NET</a></li>
+      <li><a href="https://learn.microsoft.com/windows/package-manager/winget/install">Microsoft：WinGet install</a></li>
+      <li><a href="https://code.visualstudio.com/docs/csharp/get-started">VS Code：C# getting started</a></li>
+      <li><a href="https://docs.docker.com/desktop/setup/install/windows-install/">Docker：Windows 安裝</a></li>
+    </ul>
+  </main>
+  <footer>完成後前往 Module 01；本頁沒有外部字型、script 或網絡依賴，可直接用 <code>file://</code> 開啟。</footer>
+</body>
+</html>
