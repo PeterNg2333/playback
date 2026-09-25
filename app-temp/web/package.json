@@ -1,0 +1,27 @@
+{
+  "name": "playback-prototype-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --configLoader runner",
+    "build": "tsc -b && vite build --configLoader runner"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.6",
+    "mermaid": "^11.4.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright-core": "^1.63.0",
+    "prettier": "^3.6.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.2.0"
+  }
+}

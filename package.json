@@ -1,0 +1,10 @@
+{
+  "name": "playback-prototype",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix app-temp/web ci && dotnet restore app-temp/api/Playback.Api.csproj",
+    "db:up": "docker compose -f app-temp/compose.yaml up -d",
+    "db:stop": "docker compose -f app-temp/compose.yaml stop",
+    "dev": "node app-temp/dev.mjs"
+  }
+}

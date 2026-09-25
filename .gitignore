@@ -54,3 +54,7 @@ TestResult.xml
 nunit-*.xml
 
 .env
+
+# Local prototype recordings and Electron cache
+/app-temp/data/desktop/
+/app-temp/data/local-capture/
