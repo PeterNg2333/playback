@@ -12,6 +12,10 @@ if (!existsSync(path.join(app, "web", "node_modules"))) {
   console.error("Missing web dependencies. Run pnpm.cmd setup first.");
   process.exit(1);
 }
+if (!existsSync(path.join(app, "api", "obj", "project.assets.json"))) {
+  console.error("Missing .NET dependencies. Run pnpm.cmd setup first.");
+  process.exit(1);
+}
 
 function stop(exitCode = 0) {
   if (stopping) return;
