@@ -28,6 +28,8 @@
 | 7 | `06-postgres-compose` | Compose、PostgreSQL schema、PK/FK/index/query |
 | 8 | `07-poc-roadmap` | POC 決策閘門與日後實作次序 |
 
+附加的 [UI 設計 demo](./ui-design-demo/index.html) 用虛構資料預覽筆記、原文、來源與浮動提問；它不是第九個技術 gate，亦未連接錄音或 AI。
+
 每個 folder 都有三個入口：
 
 - `README.zh-HK.md`：概念、限制、逐步解釋。
