@@ -1,5 +1,33 @@
 import assert from "node:assert/strict";
-import { ensureMongo } from "./dev.mjs";
+import { ensureMongo, restoredPackagesAvailable } from "./dev.mjs";
+
+const assets = {
+  packageFolders: { "C:/old-cache/": {} },
+  libraries: { "Example/1.0": { path: "example/1.0" } },
+  targets: { net10: { "Example/1.0": { compile: { "lib/example.dll": {} } } } },
+};
+const cache = {
+  success: true,
+  expectedPackageFiles: ["C:/old-cache/library.dll"],
+};
+assert.equal(
+  restoredPackagesAvailable(assets, cache, () => false),
+  false,
+  "An assets file pointing to an unavailable NuGet cache must trigger restore",
+);
+assert.equal(
+  restoredPackagesAvailable(
+    assets,
+    cache,
+    (file) => !file.endsWith("example.dll"),
+  ),
+  false,
+  "Missing package assemblies must trigger restore even if cache metadata exists",
+);
+assert.equal(
+  restoredPackagesAvailable(assets, cache, () => true),
+  true,
+);
 
 const previousUri = process.env.PLAYBACK_MONGO_URI;
 let starts = 0;

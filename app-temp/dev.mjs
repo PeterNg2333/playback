@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,47 @@ function setupIfMissing(label, exists, command, args) {
     throw new Error(
       `${label} setup failed. Check the output above, then run pnpm.cmd dev again.`,
     );
+  }
+}
+
+export function restoredPackagesAvailable(assets, cache, exists = existsSync) {
+  const folders = Object.keys(assets.packageFolders ?? {});
+  const files = cache.expectedPackageFiles ?? [];
+  const assemblies = Object.values(assets.targets ?? {}).flatMap((target) =>
+    Object.entries(target).flatMap(([name, entry]) => {
+      const packagePath = assets.libraries?.[name]?.path;
+      if (!packagePath) return [];
+      return [
+        ...Object.keys(entry.compile ?? {}),
+        ...Object.keys(entry.runtime ?? {}),
+      ]
+        .filter((file) => file !== "_._")
+        .map((file) => path.join(packagePath, file));
+    }),
+  );
+  return (
+    cache.success === true &&
+    folders.length > 0 &&
+    files.length > 0 &&
+    folders.every(exists) &&
+    files.every(exists) &&
+    assemblies.every((assembly) =>
+      folders.some((folder) => exists(path.join(folder, assembly))),
+    )
+  );
+}
+
+function dotnetAssetsReady() {
+  try {
+    const assets = JSON.parse(
+      readFileSync(path.join(app, "api", "obj", "project.assets.json"), "utf8"),
+    );
+    const cache = JSON.parse(
+      readFileSync(path.join(app, "api", "obj", "project.nuget.cache"), "utf8"),
+    );
+    return restoredPackagesAvailable(assets, cache);
+  } catch {
+    return false;
   }
 }
 
@@ -200,12 +241,10 @@ async function main() {
       process.platform === "win32" ? "npm.cmd" : "npm",
       ["--prefix", "app-temp/web", "ci"],
     );
-    setupIfMissing(
-      ".NET",
-      existsSync(path.join(app, "api", "obj", "project.assets.json")),
-      "dotnet",
-      ["restore", "app-temp/api/Playback.Api.csproj"],
-    );
+    setupIfMissing(".NET", dotnetAssetsReady(), "dotnet", [
+      "restore",
+      "app-temp/api/Playback.Api.csproj",
+    ]);
     const api = run("API", "dotnet", [
       "run",
       "--no-restore",
