@@ -1,6 +1,12 @@
 # Playback 本機 prototype
 
-此目錄是 .NET 10 + React/Vite 的本機驗證版。網頁的 Start／Stop 控制同機運行的 .NET API 錄音；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**此版本沒有登入或分享權限，不可當作已可部署的產品。**
+此目錄是 .NET 10 + React/Vite 的本機驗證版。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**此版本沒有登入或分享權限，不可當作已可部署的產品。**
+
+## 介面與錄音狀態
+
+左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session、錄音控制和設定；設定內可切換逐字稿／來源及原文／翻譯。筆記標題旁的 `vN` 是已儲存版本，Markdown 編輯器佔滿筆記面板，底部固定 Save 和 Revise with AI。
+
+錄音狀態由本機 API 保持。暫停會封存目前音訊 chunk；繼續後使用新的收音來源，錄音時間不計暫停時段。麥克風連續一分鐘沒有偵測到足夠音量時，UI 會提示檢查裝置。這是簡單的 energy VAD 診斷：噪音可能被視為聲音，較遠或細聲的語音也可能被漏掉，並不判斷是否有人說話。
 
 ## 短期可行性審核（2026-09-25）
 
@@ -53,12 +59,12 @@ pnpm.cmd dev
 - 獨立測試 API 端口的 `/api/capture/status` 回報 `idle`、無效 session 的 Start 回 HTTP 409、閒置 Stop 安全返回；沒有在測試中開咪。
 - `dotnet run --project app-temp/checks/Playback.Checks.csproj`：驗證 ASR 原文優先、靜音與未知 provider schema、web citation 映射與不安全 URL 拒絕。
 - `node app-temp/archive/desktop/queue-check.mjs`：封存候選曾用合成 1,080 段、每段十秒的三小時時間線測試 queue。這**沒有證實**真實 48 kHz 連續三小時擷取、權限、CPU／磁碟吞吐或系統音源。
-- `node app-temp/web/browser-check.mjs`：在本機 Edge 測等寬雙欄、主題、Markdown 的**有標籤實際 SVG 圖表**、Ask Playback、手機 tabs、Start Recording 按鈕，無頁面錯誤；測試沒有開咪。
+- `node app-temp/web/src/test/browser-check.mjs`：在本機 Edge 測等寬雙欄、主題、Markdown 的**有標籤實際 SVG 圖表**、Ask Playback、手機 tabs、Start Recording 按鈕，無頁面錯誤；測試沒有開咪。
 - `node app-temp/dev-check.mjs`：不啟動 container，以替身函式測現有 DB、自訂連接字串、啟動及等待、Docker 失敗訊息。
-- `node app-temp/web/asr-ui-check.mjs`：以攔截 API 測自動排隊、日期／時段樹、無逐段 Retry 及直接開始錄音，不上傳錄音。
+- `node app-temp/web/src/test/asr-ui-check.mjs`：以攔截 API 測來源音訊、日期／時段樹、session 翻譯設定及本機錄音請求；不會啟動咪高峰或上傳音訊。
 - SenseVoice 靜音 fixture 在 2026-09-26 直接呼叫回 HTTP 200；此前版本的本機 API 單段 retry 曾保存一條空白但標示不確定的 transcript。新版本跳過完全數位靜音，並已用短篇真實語音完成端到端測試。Gemini／Jev 無憑證，因此只執行四個合成詞的簡單規則比較：4 個中 3 個符合標籤；兩種模型的 latency、confidence、usage／cost 均未測得。可明確 opt in 用 `POST /api/terms/evaluate-synthetic` 測合成詞。
 - 本機收音的硬件權限、Windows loopback 無聲情況、較長真實語音及連續三小時穩定性仍需實測。流暢的即時筆記取決於 chunk 完成及 ASR latency；不是 streaming ASR。
-- `node app-temp/api/integration-check.mjs` 已通過 session 隔離、note versions、chunk retry 與時間範圍測試；測試建立兩個合成 session 並保留它們，不會刪除資料。
+- `node app-temp/api/integration-check.mjs` 已通過 session 隔離、note versions、chunk retry 與時間範圍測試；測試建立兩個合成 session，並在結束時刪除本次資料。
 - 目前只可附上文字教材。PDF 頁碼擷取、翻譯 job、講者辨識、長時間磁碟配額、分享權限及部署未實作。
 
 ## 相關官方資料
@@ -70,13 +76,15 @@ pnpm.cmd dev
 
 ## 本機端到端測試
 
+> 以下為舊版測試紀錄；目前的離線指令與限制見下方「2026-09-26：session、逐字稿與 Notes 流程」。
+
 先用 `pnpm.cmd dev` 啟動 API、Vite 和本機 MongoDB，然後在另一個 PowerShell 視窗執行：
 
 ```powershell
 pnpm.cmd test:e2e
 ```
 
-測試使用本機 Edge 和真實 UI/API/MongoDB：在 UI 建立獨立 demo session、附加文字教材、儲存筆記並重載驗證，再上傳一秒數位靜音 WAV，確認背景佇列自動標記為 `silent`、沒有產生假逐字稿。預設測試離線且不會把音訊送往 SenseVoice；每次會在 MongoDB 留下一筆有 `E2E demo` 標題的測試 session。改動 UI、API、儲存或 ASR 流程後，應重新執行此測試。
+測試使用本機 Edge 和真實 UI/API/MongoDB：在 UI 建立獨立 demo session 與 group、附加文字教材、儲存筆記並重載驗證，再上傳一秒數位靜音 WAV，確認背景佇列自動標記為 `silent`、沒有產生假逐字稿。預設測試離線且不會把音訊送往 SenseVoice；測試結束時只刪除本次建立的 `E2E demo` session、group 和 WAV。改動 UI、API、儲存或 ASR 流程後，應重新執行此測試。
 
 如已另行取得真實語音上傳授權，並有已完成轉寫的 session，可額外檢查真實逐字稿及日期／小時時間樹：
 
@@ -87,3 +95,13 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 ```
 
 2026-09-26 使用獲授權的 5.1 秒粵語 WAV 與 MongoDB 驗證：SenseVoice 直接請求約 2.28 秒，回報推理約 0.94 秒；新上傳到 API 約 17 毫秒獲接受，約 4.61 秒後 MongoDB 出現逐字稿。API 儲存的逐字稿有文字而沒有 SenseVoice 標記，UI 的時間樹亦通過 Playwright 檢查。這些是短片段的單次實測，未有人工標準稿比對文字準確度，也不能代表三小時錄音的吞吐量。
+
+## 2026-09-26：session、逐字稿與 Notes 流程
+
+- Session 只有一個可空的 `groupId`。側欄以 group 為父層顯示 session，可在 group 內建立、重新命名 group，並在目前 session 旁移動至其他 group 或「未分組」。現有 MongoDB 紀錄會按新增欄位的預設值讀取，不需要清空資料庫。
+- Transcript 標題列的齒輪提供整個 session 的「啟用翻譯」與目標語言。啟用須先在該 session 確認講者、參與者、機構的同意及私隱／保留規則；翻譯工作每 15 秒檢查待處理原文，涵蓋啟用前及之後的紀錄。失敗會保存錯誤、次數及下一次重試時間；可手動重試。關閉只隱藏譯文，原文不改。選取原文可帶 transcript ID、時間與選取文字至 Ask Playback。
+- ASR 分開 `silent`（完全數位靜音）、`asr-empty`（服務沒有回傳文字）、`asr-error`（辨識失敗）、`transcribed`，音訊仍與 chunk 關聯。空文字不代表低 confidence 或人工覆核。辨識原文及材料中有來源的術語以本地保守規則標籤；Ask Playback 使用 session 內的來源 ID，網絡搜尋要逐次勾選。
+- Notes 按 transcript 保存 `pending`／`processing`／`failed`／`completed`、嘗試次數及重試時間。每次最多處理 40 條；遲到紀錄不依賴時間游標。版本保存實際輸入的 transcript/material ID、輸入 SHA-256、來源時間與先前筆記版本。使用者編輯另成版本，AI 失敗不覆寫它；失敗可在「Revise with AI」重試。來源清單可跳到音訊時間或材料。
+- 所有對外 ASR、Gemini、網絡搜尋均須 session 的外部處理同意；錄音本身另提示先確認錄音同意。未同意的音訊保存在本機並顯示 `awaiting-consent`。`PLAYBACK_OFFLINE_TEST=yes` 時服務只綁定 `127.0.0.1:5079`、停用背景掃描，provider 呼叫一律拒絕；測試前端使用 5174。測試 fixture 端點只接受 `E2E demo` session 與合成文字，測試腳本會刪除其建立的 session、group 與音訊。
+
+離線檢查：`dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/`。在已啟動本機 MongoDB 後，用 `dotnet build app-temp/api/Playback.Api.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/` 編譯；另一個 PowerShell 設定 `$env:PLAYBACK_OFFLINE_TEST="yes"; $env:ASPNETCORE_ENVIRONMENT="Development"` 後執行 `dotnet app-temp/api/bin/verification/net10.0/Playback.Api.dll`，再在 `app-temp/web` 的 PowerShell 設定 `$env:PLAYBACK_OFFLINE_TEST="yes"` 並執行 `npm.cmd run dev -- --port 5174`。測試 shell 同樣設定 `PLAYBACK_OFFLINE_TEST=yes`，執行 `node app-temp/api/integration-check.mjs` 及 `node app-temp/web/src/test/e2e-check.mjs`。不要為測試設定講課資料、對外 provider key，亦不要啟動容器或上傳音訊。實機咪高峰錄音仍依賴 Windows 音訊裝置／權限；若 Core Audio 拒絕啟動，UI 顯示實際錯誤並保持 idle，不能視作錄音成功。

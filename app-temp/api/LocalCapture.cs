@@ -4,7 +4,7 @@ using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 using NAudio.Wave;
 
-public sealed record CaptureStatus(string State, string? SessionId, Dictionary<string, long> Bytes, bool AutoAsr, string? Error);
+public sealed record CaptureStatus(string State, string? SessionId, Dictionary<string, long> Bytes, bool AutoAsr, bool NoSoundWarning, string? Error);
 
 public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<LocalCapture> logger) : IAsyncDisposable
 {
@@ -16,9 +16,10 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
     public CaptureStatus Status()
     {
         var recording = active;
-        return new(recording is null ? "idle" : "recording", recording?.SessionId,
+        return new(recording is null ? "idle" : recording.Paused ? "paused" : "recording", recording?.SessionId,
             recording?.Sources.ToDictionary(source => source.Name, source => source.Bytes) ?? [],
             recording?.AutoAsr ?? false,
+            recording is { Paused: false } && DateTime.UtcNow - recording.LastSoundAt > TimeSpan.FromMinutes(1),
             recording?.Error ?? lastError);
     }
 
@@ -86,7 +87,7 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
         try
         {
             while (await timer.WaitForNextTickAsync(recording.Cancel.Token))
-                await FinalizeChunks(recording);
+                if (!recording.Paused) await FinalizeChunks(recording);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -98,17 +99,22 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
 
     async Task FinalizeChunks(Recording recording)
     {
-        var endMs = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
-        foreach (var source in recording.Sources)
+        await recording.FinalizeGate.WaitAsync();
+        try
         {
-            try { source.Rotate(endMs); }
-            catch (Exception ex)
+            var endMs = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
+            foreach (var source in recording.Sources)
             {
-                recording.Error = $"{source.Name} WAV could not be finalized: {ex.Message}";
-                logger.LogError(ex, "Capture WAV could not be finalized");
+                try { source.Rotate(endMs); }
+                catch (Exception ex)
+                {
+                    recording.Error = $"{source.Name} WAV could not be finalized: {ex.Message}";
+                    logger.LogError(ex, "Capture WAV could not be finalized");
+                }
             }
+            await ReplayPending(recording.SessionId, recording);
         }
-        await ReplayPending(recording.SessionId, recording);
+        finally { recording.FinalizeGate.Release(); }
     }
 
     [SupportedOSPlatform("windows")]
@@ -141,6 +147,50 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
             lastError = recording.Error;
             active = null;
             recording.Cancel.Dispose();
+            return Status();
+        }
+        finally { transition.Release(); }
+    }
+
+    public async Task<CaptureStatus> Pause()
+    {
+        if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Local capture requires Windows");
+        await transition.WaitAsync();
+        try
+        {
+            if (active is null || active.Paused) return Status();
+            active.Paused = true;
+            active.Clock.Stop();
+            await CloseSources(active);
+            await FinalizeChunks(active);
+            active.Sources.Clear();
+            return Status();
+        }
+        finally { transition.Release(); }
+    }
+
+    public async Task<CaptureStatus> Resume()
+    {
+        if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Local capture requires Windows");
+        await transition.WaitAsync();
+        try
+        {
+            if (active is null || !active.Paused) return Status();
+            active.Clock.Start();
+            active.LastSoundAt = DateTime.UtcNow;
+            try
+            {
+                await StartSource(active, "microphone", new WasapiRecorderBuilder(), required: true);
+                await StartSource(active, "system", new WasapiRecorderBuilder().WithLoopbackCapture(), required: false);
+            }
+            catch
+            {
+                await CloseSources(active);
+                active.Sources.Clear();
+                active.Clock.Stop();
+                throw;
+            }
+            active.Paused = false;
             return Status();
         }
         finally { transition.Release(); }
@@ -198,9 +248,12 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
         public long OffsetMs { get; } = offsetMs;
         public bool AutoAsr => true;
         public Stopwatch Clock { get; } = Stopwatch.StartNew();
+        public bool Paused { get; set; }
+        public DateTime LastSoundAt { get; set; } = DateTime.UtcNow;
         public CancellationTokenSource Cancel { get; } = new();
         public List<CaptureSource> Sources { get; } = [];
         public Task Pump { get; set; } = Task.CompletedTask;
+        public SemaphoreSlim FinalizeGate { get; } = new(1, 1);
         public string? Error { get; set; }
     }
 
@@ -226,10 +279,12 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
             Recorder = recorder;
             this.directory = directory;
             this.recording = recording;
-            startMs = recording.OffsetMs;
+            startMs = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
             var format = recorder.WaveFormat;
             recorder.DataAvailable += (buffer, _, _, _) =>
             {
+                if (name == "microphone" && AudioActivity.HasSound(buffer, format))
+                    recording.LastSoundAt = DateTime.UtcNow;
                 lock (gate)
                 {
                     try
@@ -249,7 +304,7 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
             };
             recorder.RecordingStopped += (_, _) =>
             {
-                if (!recording.Cancel.IsCancellationRequested)
+                if (!recording.Cancel.IsCancellationRequested && !recording.Paused)
                     recording.Error = $"{name} capture stopped unexpectedly; check the audio device";
             };
         }
@@ -269,5 +324,32 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
                 startMs = endMs;
             }
         }
+    }
+}
+
+public static class AudioActivity
+{
+    // An energy gate for device diagnostics, not a speech classifier.
+    public static bool HasSound(ReadOnlySpan<byte> buffer, WaveFormat format)
+    {
+        var encoding = format.AsStandardWaveFormat().Encoding;
+        var bits = format.BitsPerSample;
+        if (bits != 16 && bits != 24 && bits != 32) return false;
+        var sampleBytes = bits / 8;
+        var above = 0;
+        for (var offset = 0; offset + sampleBytes <= buffer.Length; offset += sampleBytes * 8)
+        {
+            var sample = encoding == WaveFormatEncoding.IeeeFloat && bits == 32
+                ? BitConverter.ToSingle(buffer.Slice(offset, 4))
+                : encoding == WaveFormatEncoding.Pcm && bits == 16
+                    ? BitConverter.ToInt16(buffer.Slice(offset, 2)) / 32768f
+                    : encoding == WaveFormatEncoding.Pcm && bits == 24
+                        ? ((buffer[offset] | buffer[offset + 1] << 8 | buffer[offset + 2] << 16) << 8) / 2147483648f
+                    : encoding == WaveFormatEncoding.Pcm && bits == 32
+                        ? BitConverter.ToInt32(buffer.Slice(offset, 4)) / 2147483648f
+                        : 0;
+            if (float.IsFinite(sample) && Math.Abs(sample) >= 0.015f && ++above >= 8) return true;
+        }
+        return false;
     }
 }

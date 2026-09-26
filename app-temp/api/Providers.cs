@@ -14,6 +14,7 @@ public sealed class Providers
 
     public async Task<string> Agent(string name, string instructions, string prompt, CancellationToken ct, string model = "gemini-3.8-flash")
     {
+        if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") throw new InvalidOperationException("External AI is disabled for offline tests");
         var key = Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY") ?? throw new InvalidOperationException("Google AI Studio key is unavailable");
         var agent = new ChatClientAgent(new Client(vertexAI: false, apiKey: key).AsIChatClient(model), name: name, instructions: instructions);
         var response = await agent.RunAsync(prompt, cancellationToken: ct);
@@ -22,6 +23,7 @@ public sealed class Providers
 
     public async Task<AsrResult> Transcribe(string path, CancellationToken ct)
     {
+        if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") throw new InvalidOperationException("External ASR is disabled for offline tests");
         var endpoint = Environment.GetEnvironmentVariable("PLAYBACK_ASR_ENDPOINT") ?? "https://dev-aks.setsailapi.com/stt/infer/upload";
         if (endpoint != "https://dev-aks.setsailapi.com/stt/infer/upload") throw new InvalidOperationException("ASR endpoint is not allowlisted");
         if (new FileInfo(path).Length is < 44 or > 25_000_000) throw new InvalidOperationException("ASR WAV must be 44 bytes to 25 MB");
@@ -58,6 +60,7 @@ public sealed class Providers
     public async Task<GroundedResult> GroundedSearch(string question, CancellationToken ct) => await Grounded(question, true, ct);
     async Task<GroundedResult> Grounded(string value, bool question, CancellationToken ct)
     {
+        if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") throw new InvalidOperationException("External search is disabled for offline tests");
         if (value.Length is < 1 or > 1000) throw new InvalidOperationException("Invalid grounded request");
         var key = Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY") ?? throw new InvalidOperationException("Google AI Studio key is unavailable");
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://generativelanguage.googleapis.com/v1beta/interactions");
@@ -92,6 +95,7 @@ public sealed class Providers
 
     public async Task<object> RankTerm(string term, CancellationToken ct)
     {
+        if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") throw new InvalidOperationException("External term ranking is disabled for offline tests");
         if (term.Length is < 1 or > 100) throw new InvalidOperationException("Invalid term");
         var rule = term.Length >= 8 || term.Any(char.IsUpper);
         var key = Environment.GetEnvironmentVariable("JEV_API_KEY") ?? throw new InvalidOperationException("Jev credential is unavailable");

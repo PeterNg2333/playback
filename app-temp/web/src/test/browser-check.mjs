@@ -16,19 +16,19 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("http://127.0.0.1:5173/");
-  await page.getByRole("heading", { name: "Notes" }).waitFor();
+  await page.getByRole("heading", { name: "Lecture notes" }).waitFor();
   const health = await page.evaluate(() => fetch("/api/health").then((response) => response.json()));
   if (!health.mongo)
     await page.getByRole("alert").filter({ hasText: "Local MongoDB is unavailable" }).waitFor();
-  await page.getByRole("button", { name: "Start Recording" }).waitFor();
+  await page.getByRole("button", { name: "Start recording" }).waitFor();
   const columns = await page
     .locator(".panel")
     .evaluateAll((items) => items.map((x) => x.getBoundingClientRect().width));
   assert.ok(Math.abs(columns[0] - columns[1]) < 2, `columns: ${columns}`);
-  await page.getByRole("button", { name: "Theme" }).click();
-  await page.getByRole("button", { name: "Wave" }).click();
-  assert.equal(await page.locator("body").getAttribute("data-theme"), "wave");
-  await page.getByRole("button", { name: "Markdown" }).click();
+  await page.getByRole("button", { name: "Transcript settings" }).click();
+  await page.getByLabel("啟用翻譯").waitFor();
+  await page.getByRole("button", { name: "Transcript settings" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
   await page
     .getByLabel("Editable Markdown")
     .fill(
@@ -51,7 +51,12 @@ try {
     .locator(".chat-head strong", { hasText: "Ask Playback" })
     .waitFor();
   await page.screenshot({ path: "app-temp/.artifacts/browser-desktop.png" });
+  await page.getByRole("button", { name: "Close chat" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Toggle sessions" }).click();
+  assert.ok(await page.locator(".sidebar.is-open").isVisible());
+  await page.getByRole("button", { name: "Close sessions" }).click();
+  await page.locator(".sidebar").evaluate((element) => element.getAnimations().map((animation) => animation.finish()));
   await page
     .getByRole("navigation", { name: "Workspace views" })
     .getByRole("button", { name: "Notes" })
@@ -60,7 +65,7 @@ try {
   await page.screenshot({ path: "app-temp/.artifacts/browser-mobile.png" });
   assert.deepEqual(errors, []);
   console.log(
-    "Browser check passed: desktop columns, theme, Markdown diagram, chat, mobile tabs, no page errors",
+    "Browser check passed: desktop columns, settings, Markdown diagram, chat, mobile navigation, no page errors",
   );
 } finally {
   await browser.close();
