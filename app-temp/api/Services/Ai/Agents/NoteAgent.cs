@@ -72,6 +72,11 @@ public sealed class NoteAgent : IAsyncDisposable
     public static List<Transcript> Pending(IEnumerable<Transcript> transcripts) => transcripts
         .Where(x => !string.IsNullOrWhiteSpace(x.Original) && x.NoteStatus != "completed")
         .OrderBy(x => x.StartMs).Take(40).ToList();
+    public static List<Material> MaterialsForPrompt(IEnumerable<Material> materials, Note? latest, bool revisionOnly) =>
+        (revisionOnly || latest is null
+            ? materials
+            : materials.Where(x => !latest.MaterialIds.Contains(x.Id)))
+        .Take(5).ToList();
     public async Task<object> Generate(string id, CancellationToken ct, bool allowRevision = false)
     {
         var gate = gates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
@@ -89,10 +94,11 @@ public sealed class NoteAgent : IAsyncDisposable
         var latest = session.CurrentNote;
         if (!revisionOnly && latest is not null && pending.All(x => latest.TranscriptIds.Contains(x.Id)))
         {
+            logger.LogInformation("Note request reused existing source IDs: {Count} transcripts", pending.Count);
             await store.MarkNotes(pending.Select(x => x.Id), "completed");
             return new { latest.Version, latest.Markdown, latest.Author };
         }
-        var materials = session.Materials.Take(5).ToList();
+        var materials = MaterialsForPrompt(session.Materials, latest, revisionOnly);
         var materialText = string.Join("\n", materials.Select(x =>
             $"[{x.Id}] {x.Text[..Math.Min(x.Text.Length, 3000)]}"));
         var transcriptText = string.Join("\n", pending.Select(x =>
@@ -100,6 +106,8 @@ public sealed class NoteAgent : IAsyncDisposable
         var input = $"BASE VERSION {session.NoteVersion}\n{session.NoteMarkdown}\n" +
             $"MATERIALS\n{materialText}\nTRANSCRIPTS\n{transcriptText}";
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input))).ToLowerInvariant();
+        logger.LogInformation("Note request input: {TranscriptCount} transcripts, {MaterialCount} materials, {InputBytes} UTF-8 bytes, {BaseNoteBytes} base-note bytes",
+            pending.Count, materials.Count, Encoding.UTF8.GetByteCount(input), Encoding.UTF8.GetByteCount(session.NoteMarkdown));
         if (!revisionOnly) await store.MarkNotes(pending.Select(x => x.Id), "processing");
         try
         {

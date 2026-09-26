@@ -120,9 +120,8 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
                         className="record-row transcript-row audio-row"
                         key={chunk.id}
                       >
-                        <span className="record-time">
-                          {time(chunk.startMs)}–
-                          {time(entry.chunks.at(-1)!.endMs)}
+                        <span className="record-time" title={`${time(chunk.startMs)}–${time(entry.chunks.at(-1)!.endMs)}`}>
+                          {time(chunk.startMs)}
                         </span>
                         <details className="record-copy">
                           <summary className="record-summary">
@@ -131,6 +130,7 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
                               : chunkStatus(chunk.status)}
                           </summary>
                           <div className="record-extra">
+                            <span>{time(chunk.startMs)}–{time(entry.chunks.at(-1)!.endMs)}</span>
                             <span className="speaker">{chunk.sourceId}</span>
                             {entry.chunks.length > 1 && (
                               <p>

@@ -93,6 +93,8 @@ public sealed class JevTermClassifier
         using var models = new HttpRequestMessage(HttpMethod.Get, "https://api.typesafe.ai/v1/models");
         models.Headers.Authorization = new("Bearer", key);
         using var response = await http.SendAsync(models, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            throw new InvalidOperationException("Jev rejected JEV_API_KEY at GET /v1/models (HTTP 401); check API access and replace the key if needed");
         if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Jev model discovery HTTP {(int)response.StatusCode}");
         using var discovered = JsonDocument.Parse(await ProviderResponseReader.ReadBounded(response, 100_000, ct));
         var model = discovered.RootElement.GetProperty("models")

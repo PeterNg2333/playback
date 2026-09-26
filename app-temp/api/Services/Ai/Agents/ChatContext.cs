@@ -1,24 +1,32 @@
 using Playback.Api.Db;
 using Playback.Api.Endpoints;
+using System.Text.RegularExpressions;
 
 namespace Playback.Api.Services.Ai.Agents;
 
-internal sealed record ChatContext(
+public sealed record ChatContext(
     string Prompt,
     Transcript[] RelevantTranscripts,
     Material[] Materials,
     Transcript? FocusedTranscript,
     Material? FocusedMaterial);
 
-internal static class ChatContextBuilder
+public static class ChatContextBuilder
 {
+    static readonly Regex Word = new(@"[\p{L}\p{N}]+", RegexOptions.Compiled);
+    static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "about", "after", "before", "class", "could", "does", "from", "have", "lecture", "please",
+        "said", "that", "their", "there", "these", "this", "what", "when", "where", "which", "with", "would",
+        "was", "were", "the", "and", "for", "you", "your", "are", "but", "not", "how", "why"
+    };
     public static ChatContext Build(SessionView session, QuestionInput input)
     {
-        var terms = input.Question
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(x => x.Length > 3)
-            .Take(15)
-            .ToArray();
+        var terms = Word.Matches(input.Question)
+            .Select(x => x.Value)
+            .Where(x => x.Length > 2 && !StopWords.Contains(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(15).ToArray();
         var focused = input.TranscriptId is null
             ? null
             : session.Transcripts.SingleOrDefault(x => x.Id == input.TranscriptId)

@@ -1,4 +1,6 @@
 using Playback.Api.Services.Ai.Providers;
+using Playback.Api.Services.Ai.Agents;
+using Playback.Api.Db;
 
 internal static class GeminiLiveCheck
 {
@@ -47,8 +49,30 @@ internal static class GeminiLiveCheck
             grounded.Evidence.Count == 0 || string.IsNullOrWhiteSpace(grounded.SearchSuggestions))
             throw new InvalidOperationException("Vertex grounding did not return an answer, citation, and search suggestions");
 
+        var syntheticEntries = new[]
+        {
+            new Transcript { Id = "synthetic-one", Original = "A Fourier transform describes frequency components." },
+            new Transcript { Id = "synthetic-two", Original = "Aliasing can occur below the Nyquist sampling rate." }
+        };
+        var translationPrompt = TranslationContext.BuildBatch(syntheticEntries, syntheticEntries, "zh-Hant");
+        var translated = await gemini.Generate("PlaybackSyntheticTranslator",
+            TranslationAgent.Instructions("zh-Hant"),
+            translationPrompt, timeout.Token);
+        var translations = TranslationAgent.ParseBatch(translated, syntheticEntries.Select(x => x.Id).ToArray());
+        if (translations.Count != 2 || translations.Values.Any(string.IsNullOrWhiteSpace))
+            throw new InvalidOperationException("Vertex translation did not map both synthetic transcript IDs");
+
+        var answer = await gemini.Generate("PlaybackSyntheticQuestionAnswerer",
+            "Answer only from the supplied synthetic lecture source. Cite its ID in square brackets.",
+            $"[{transcriptId}, 0-120000 ms] {transcript}\nQuestion: What can happen if a signal is sampled below twice its highest frequency?",
+            timeout.Token);
+        if (!answer.Contains("alias", StringComparison.OrdinalIgnoreCase) ||
+            !answer.Contains($"[{transcriptId}]", StringComparison.Ordinal))
+            throw new InvalidOperationException("Vertex question answer omitted the synthetic fact or source ID");
+
         Console.WriteLine("Gemini live demo passed: synthetic transcript produced cited summary and notes.");
         Console.WriteLine("Vertex grounding passed: synthetic FFT question returned public citation and search suggestions.");
+        Console.WriteLine("Vertex translation and lecture Q&A passed: synthetic passages retained source IDs.");
         Console.WriteLine(markdown.Length <= 3000 ? markdown : markdown[..3000] + "…");
     }
 }

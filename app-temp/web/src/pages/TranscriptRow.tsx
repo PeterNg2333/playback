@@ -19,8 +19,8 @@ export function TranscriptRow({
 }) {
   return (
     <article className="record-row transcript-row" id={transcript.id}>
-      <span className="record-time">
-        {time(transcript.startMs)}–{time(transcript.endMs)}
+      <span className="record-time" title={`${time(transcript.startMs)}–${time(transcript.endMs)}`}>
+        {time(transcript.startMs)}
       </span>
       <details className="record-copy">
         <summary
@@ -31,6 +31,7 @@ export function TranscriptRow({
           {cleanAsrText(transcript.original) || "No words returned by ASR"}
         </summary>
         <div className="record-extra">
+          <span>{time(transcript.startMs)}–{time(transcript.endMs)}</span>
           <span className="speaker">{transcript.sourceId}</span>
           {transcript.uncertain && (
             <span className="uncertain">Unclear · review audio</span>

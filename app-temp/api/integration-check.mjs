@@ -70,6 +70,13 @@ const range = (await call(`/sessions/${first.id}`)).data.chunks
 assert.deepEqual(range.map(x => [x.sourceId, x.startMs, x.endMs]), [['system', 0, 1000], ['microphone', 100, 1100]])
 assert.equal((await call(`/sessions/${second.id}`)).data.chunks.length, 1)
 if (process.env.PLAYBACK_OFFLINE_TEST === 'yes') {
+  async function expectSafeChunk(sessionId, chunkId) {
+    if (process.env.PLAYBACK_PAUSE_EXTERNAL_ASR === 'yes') {
+      assert.equal((await call(`/sessions/${sessionId}`)).data.chunks.find(x => x.id === chunkId)?.status, 'pending-asr')
+    } else {
+      await waitForChunk(sessionId, chunkId, 'silent')
+    }
+  }
   const fixture = await call(`/testing/sessions/${first.id}/transcripts`, 'POST', { chunkId: sent.data.id, text: 'Synthetic lecture uses Fourier Transform and FFT bins.' })
   assert.equal(fixture.status, 200)
   await call(`/sessions/${first.id}/translation`, 'PUT', { enabled: true, language: 'zh-Hant' })
@@ -78,17 +85,17 @@ if (process.env.PLAYBACK_OFFLINE_TEST === 'yes') {
   assert.equal(translated.transcripts[0].translationStatus, 'pending', 'Existing transcript must be queued for translation')
   assert.deepEqual((await call(`/testing/sessions/${first.id}/translations/pending`)).data, [sent.data.id])
   const lateChunk = await upload(first.id, 'late', 0, 1200, 2200, wav, hash)
-  await waitForChunk(first.id, lateChunk.data.id, 'silent')
+  await expectSafeChunk(first.id, lateChunk.data.id)
   await call(`/testing/sessions/${first.id}/transcripts`, 'POST', { chunkId: lateChunk.data.id, text: 'Synthetic FFT appears after settings were enabled.' })
   const emptyChunk = await upload(first.id, 'empty', 0, 2300, 3300, wav, hash)
-  await waitForChunk(first.id, emptyChunk.data.id, 'silent')
+  await expectSafeChunk(first.id, emptyChunk.data.id)
   await call(`/testing/sessions/${first.id}/transcripts`, 'POST', { chunkId: emptyChunk.data.id, text: '' })
   const emptySession = (await call(`/sessions/${first.id}`)).data
   assert.equal(emptySession.chunks.find(x => x.id === emptyChunk.data.id).status, 'asr-empty')
   assert.equal(emptySession.transcripts.find(x => x.id === emptyChunk.data.id).uncertain, false)
   assert.equal(emptySession.transcripts.find(x => x.id === emptyChunk.data.id).noteStatus, 'skipped')
   const reviewChunk = await upload(first.id, 'review', 0, 3400, 4400, wav, hash)
-  await waitForChunk(first.id, reviewChunk.data.id, 'silent')
+  await expectSafeChunk(first.id, reviewChunk.data.id)
   await call(`/testing/sessions/${first.id}/transcripts`, 'POST', { chunkId: reviewChunk.data.id, text: 'Synthetic speech was [unclear].' })
   assert.equal((await call(`/sessions/${first.id}`)).data.transcripts.find(x => x.id === reviewChunk.data.id).recognitionStatus, 'review-needed')
   const pendingTranslations = (await call(`/testing/sessions/${first.id}/translations/pending`)).data
@@ -107,7 +114,7 @@ if (process.env.PLAYBACK_OFFLINE_TEST === 'yes') {
   await call(`/sessions/${first.id}/translation`, 'PUT', { enabled: false, language: 'zh-Hant' })
   assert.equal((await call(`/sessions/${first.id}`)).data.translationEnabled, false)
 }
-console.log('Integration check passed: source isolation, note versions, automatic ASR queue, time ranges')
+console.log(`Integration check passed: source isolation, note versions, ${process.env.PLAYBACK_PAUSE_EXTERNAL_ASR === 'yes' ? 'paused ASR queue' : 'automatic ASR queue'}, time ranges`)
 } finally {
   for (const id of created) {
     const response = await fetch(`${base}/testing/sessions/${id}`, { method: 'DELETE' })

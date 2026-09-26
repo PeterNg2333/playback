@@ -293,6 +293,17 @@ try {
       status: "pending-asr",
     })),
   );
+  session.transcripts.push(
+    ...Array.from({ length: 1266 }, (_, index) => ({
+      id: `scale-${index}`,
+      sourceId: "microphone",
+      startMs: 1_800_000 + index * 7_110,
+      endMs: 1_800_000 + (index + 1) * 7_110,
+      original: `Synthetic lecture passage ${index + 1}`,
+      uncertain: false,
+      recognitionStatus: "recognized",
+    })),
+  );
   await page.setViewportSize({ width: 1440, height: 720 });
   await page.reload();
   await page.getByText("Note paragraph 80.").waitFor();
@@ -318,6 +329,18 @@ try {
     await page.getByRole("button", { name: "Save", exact: true }).isVisible(),
     true,
   );
+  assert.equal(await page.locator(".record-row").count() >= 1266, true);
+  assert.equal(await page.getByText("02:59:54", { exact: true }).count() > 0, true);
+  assert.equal(await page.locator(".silence-section:not([open])").count() > 0, true);
+  await page.setViewportSize({ width: 375, height: 720 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), true);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Notes" }).click();
+  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).isVisible(), true);
+  await page.getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Transcript" }).click();
+  await page.setViewportSize({ width: 1440, height: 720 });
   asrPaused = true;
   await page.reload();
   await page.getByText("ASR paused · audio saved locally").waitFor();

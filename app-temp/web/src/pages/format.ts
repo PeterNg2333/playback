@@ -1,7 +1,12 @@
 import type { Chunk, Session, Transcript } from "../types/api";
 
-export const time = (ms: number) =>
-  `${String(Math.floor(ms / 60000)).padStart(2, "0")}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
+export const time = (ms: number) => {
+  const seconds = Math.floor(ms / 1000);
+  const clock = `${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  return seconds >= 3600
+    ? `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${clock}`
+    : clock;
+};
 export const cleanAsrText = (value: string) =>
   value.replace(/<\|[^|>]*\|>/g, "").trim();
 export const chunkStatus = (status: string) =>
