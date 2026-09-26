@@ -1,0 +1,127 @@
+# Playback 本機 prototype
+
+Code layout: [STRUCTURE.md](STRUCTURE.md).
+
+此目錄是 .NET 10 + React/Vite 的本機驗證版。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**此版本沒有登入或分享權限，不可當作已可部署的產品。**
+
+## 介面與錄音狀態
+
+左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。音訊直接出現在 Transcript，按時間、逐字稿或 ASR 狀態、播放／停止鍵排成精簡列表；點開某段才顯示詳細資料。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
+
+錄音狀態由本機 API 保持。暫停會封存目前音訊 chunk；繼續後使用新的收音來源，錄音時間不計暫停時段。麥克風連續一分鐘沒有偵測到足夠音量時，UI 會提示檢查裝置。這是簡單的 energy VAD 診斷：噪音可能被視為聲音，較遠或細聲的語音也可能被漏掉，並不判斷是否有人說話。
+
+## 短期可行性審核（2026-09-27）
+
+| 能力 | 結果 | 證據／限制 |
+|---|---|---|
+| .NET / 套件 | 已驗證可編譯 | SDK 10.0.400；Microsoft.Agents.AI 1.22.0、Google.GenAI 1.22.0、MongoDB.Driver 3.12.0。Agent Framework 透過 Google GenAI `IChatClient` 執行 agent。 |
+| Gemini model ID | Vertex Express live 測試通過 | `gemini-3.5-flash-lite` 經 [Vertex Express API](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 和 .NET Agent Framework 產生含來源 ID 的合成逐字稿摘要與筆記。現有環境變數名稱仍是 `GOOGLE_AI_STUDIO_API_KEY`，但 key 實際用於 Vertex Express；project/location 在此路徑不參與請求。 |
+| Google Search grounding | Vertex Express live 測試通過 | `generateContent` 配 `googleSearch` 回傳 FFT 公開來源連結與 search suggestions；後者在 Ask Playback 的沙盒 frame 顯示。[Vertex grounding 文件](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search)。 |
+| SenseVoice | 靜音合成 WAV live probe 通過 | `POST /stt/infer/upload` 的 `file` 欄位收到 HTTP 200；本機 API 亦成功保存一條標示不確定的空白 transcript。真實語音準確度及長時間負載未驗證。 |
+| Jev | 離線 HTTP fixture 通過，live 認證受阻 | [TypeSafe OpenAPI](https://api.typesafe.ai/docs) 要求先 `GET /v1/models`，再用 `model/state/questions` 呼叫 `POST /v1/systemone`。現有 key 的 `GET /v1/models` 回 `401 authentication_error`，沒有 live ranking；fixture 驗證模型發現與重複術語快取。 |
+| MongoDB | 本機合成資料整合檢查通過 | 2026-09-25 API 回報 `mongo:true`；session 隔離、note versions、chunk retry 與時間範圍已用合成資料實測。 |
+| Windows system + mic | 已在本機保存音訊，可靠性尚未驗證 | 使用者已成功播放保存的錄音；咪高峰必須成功開始，system loopback 若失敗會顯示原因而保留咪高峰錄音。兩個來源獨立保存，長時間及不同裝置尚未測試。[NAudio WASAPI 文件](https://github.com/naudio/NAudio/blob/main/Docs/WasapiRecorder.md)；[Microsoft loopback 說明](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording)。 |
+
+## 架構
+
+```text
+React/Vite UI ── localhost API ──> MongoDB: sessions/materials/chunks/transcripts/notes
+                              ├── Agent Framework + Vertex Gemini 3.5 Flash-Lite: notes, translation, private Q&A
+                              ├── Vertex Gemini 3.5 Flash-Lite + Google Search: explanations / web evidence
+                              └── Jev: candidate term decisions
+Windows mic + system output ── .NET API process ── 約 30s WAV ── local disk + MongoDB
+                                                    └── SenseVoice (automatic queue, at most 2 requests)
+```
+
+錄音先在 `app-temp/data/local-capture` 完成每段 WAV，再匯入 `app-temp/data/audio`；匯入失敗的完整 WAV 會留待下一次 Start 時重試。MongoDB 只存 metadata。原始 ASR 為獨立欄位，翻譯及修訂不覆蓋它。材料與 transcript 查詢依 session ID 隔離。私人問題只留在當前 UI 狀態，暫未持久化。
+
+## 執行
+
+`compose.yaml` 提供只綁定 localhost 的 [官方 Mongo image](https://hub.docker.com/_/mongo/)。開啟 Docker Desktop 後，在 repo root 執行：
+
+```powershell
+pnpm.cmd dev
+```
+
+`pnpm.cmd dev` 首次會自動安裝缺少的 web 套件及還原 .NET 套件（可能連網），不必先執行 `setup`。啟動時檢查 MongoDB；若未連上且沒有指定 `PLAYBACK_MONGO_URI`，會提示並嘗試以現有本機 image 啟動 Playback 的 MongoDB container，然後等待資料庫就緒。此步不會下載 image 或重建現有 container。若 Docker Desktop 未開或本機沒有 image，網頁仍會起動，但不能建立或讀取 session；先開 Docker Desktop，再明確執行 `pnpm.cmd db:up`（首次可能下載 image）。若用 process environment `PLAYBACK_MONGO_URI` 指定其他 MongoDB，`dev` 不會啟動 bundled container；不要把連接字串放進 `.env` 或提交。
+
+開始錄音就代表把保存好的非靜音音訊自動送往公司 SenseVoice，毋須逐段同意或 Retry。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存，只有完全數位靜音才跳過上傳；這個簡單檢查不是可靠的語音 VAD。連續靜音或 ASR 沒有回傳文字的片段預設收合為「No sound section」，可展開播放。逐字稿按日期、時段及音訊時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
+
+`dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
+
+先建立 session，再在 Transcript 頁按 Start Recording。API 會先開預設咪高峰，再嘗試錄預設播放裝置的聲音；兩者分開保存。一般錄音每約三十秒完成一段 WAV，暫停及停止時會封存剩餘片段；Transcript 時間線可查看和播放，舊錄音中相鄰而尚未轉錄的短片段會合併顯示並連續播放。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成實機權限、靜音 stream 或連續三小時驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
+
+錄音音訊會自動上傳 SenseVoice。介面與 API 不設同意勾選或同意 header；AI 筆記、提問和翻譯直接觸發 Gemini，術語評估直接觸發 Jev。憑證只從 process environment 讀 `GOOGLE_AI_STUDIO_API_KEY`、`JEV_API_KEY`；沒有 key 時顯示實際錯誤，不會回傳假成功。
+
+若執行環境暫時禁止外部音訊傳送，可設定 process environment `PLAYBACK_PAUSE_EXTERNAL_ASR=yes` 再啟動 API。這只暫停 ASR 佇列，錄音仍保存在本機；Transcript 顯示暫停狀態。移除此設定並重啟後，待處理音訊會自動續傳。
+
+2026-09-26 用合成音訊量度 SenseVoice：0.25 秒靜音的端到端時間 1.08 秒；10 秒單音首次 10.04 秒、暖機後 3.98 秒；兩個同時上傳各為 5.15／5.96 秒，服務回報 inference 由單次 1.54 秒升到約 2.35／2.39 秒。回應包含 `duration_seconds`、`file`、`inference_time_seconds`、`language`、`raw`、`rtf`；`raw` 會包含 `<|en|>` 等控制 token。網絡及服務排隊時間佔了可見延遲；服務 CPU 配置無法由回應確認。這些數字不能代表真實演講語音。背景 ASR 暫設最多兩個並行；增加並行未證明可改善單段延遲。靜音檢查只能節省完全靜音片段的上傳，不能代替 WebRTC／模型 VAD。
+
+## 本次測試與確切限制
+
+- `dotnet build app-temp/api/Playback.Api.csproj`、`npm.cmd run build`（web、當時的 desktop 候選）已通過；本機 WASAPI capture 尚未做實機測試。
+- 獨立測試 API 端口的 `/api/capture/status` 回報 `idle`、無效 session 的 Start 回 HTTP 409、閒置 Stop 安全返回；沒有在測試中開咪。
+- `dotnet run --project app-temp/checks/Playback.Checks.csproj`：驗證 ASR 原文優先、靜音與未知 provider schema、web citation 映射與不安全 URL 拒絕。
+- 真實 Gemini 檢查使用 `pnpm.cmd test:gemini-live`，從程序環境或根目錄 `.env` 載入 `GOOGLE_AI_STUDIO_API_KEY`。測試只傳虛構 Fourier/FFT 逐字稿，要求 Vertex Gemini 3.5 Flash-Lite 產生含來源 ID 的 Markdown 摘要和筆記，亦檢查 Google Search 的公開 citation 與 suggestions；2026-09-27 已通過。`pnpm.cmd dev` 也會載入可選的根目錄 `.env`，程序環境已有的值優先；不會輸出或提交密鑰。Vertex Express key 請求不使用 `GOOGLE_AI_STUDIO_PROJECT_ID` 或 `GOOGLE_AI_STUDIO_LOCATION`。
+- [Vertex Express REST](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 目前沒有顯式 context cache 端點；[隱式 cache](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/context-cache/context-cache-overview) 由 Google 自動處理。程式用 transcript ID/輸入 hash 避免重做筆記，用有上限的來源片段組 prompt，Jev 模型發現及同一術語排名在本機短期快取；沒有聲稱量到實際 cache hit 或費用。
+- `node app-temp/archive/desktop/queue-check.mjs`：封存候選曾用合成 1,080 段、每段十秒的三小時時間線測試 queue。這**沒有證實**真實 48 kHz 連續三小時擷取、權限、CPU／磁碟吞吐或系統音源。
+- `node app-temp/web/src/test/browser-check.mjs`：在本機 Edge 測等寬雙欄、主題、Markdown 的**有標籤實際 SVG 圖表**、Ask Playback、手機 tabs、Start Recording 按鈕，無頁面錯誤；測試沒有開咪。
+- `node app-temp/dev-check.mjs`：不啟動 container，以替身函式測現有 DB、自訂連接字串、啟動及等待、Docker 失敗訊息。
+- `node app-temp/web/src/test/asr-ui-check.mjs`：以攔截 API 測音訊時間線、靜音收合、不同螢幕寬度與獨立捲動、session 翻譯設定及本機錄音請求；不會啟動咪高峰或上傳音訊。
+- SenseVoice 靜音 fixture 在 2026-09-26 直接呼叫回 HTTP 200；此前版本的本機 API 單段 retry 曾保存一條空白但標示不確定的 transcript。新版本跳過完全數位靜音，並已用短篇真實語音完成端到端測試。Gemini 的合成筆記及公開搜尋已 live 通過。Jev key 的 live 授權仍失敗，排名／confidence／usage 尚未取得；可在 key 修復後以 `POST /api/terms/evaluate-synthetic` 測四個合成詞。
+- 本機收音的硬件權限、Windows loopback 無聲情況、較長真實語音及連續三小時穩定性仍需實測。流暢的即時筆記取決於 chunk 完成及 ASR latency；不是 streaming ASR。
+- `node app-temp/api/integration-check.mjs` 已通過 session 隔離、note versions、chunk retry 與時間範圍測試；測試建立兩個合成 session，並在結束時刪除本次資料。
+- 目前只可附上文字教材。PDF 頁碼擷取、講者辨識、長時間磁碟配額、分享權限及部署未實作。
+
+## 相關官方資料
+
+- [Microsoft Agent Framework 的 Google Gemini 整合](https://learn.microsoft.com/en-us/agent-framework/integrations/by-component/model-providers/google-gemini)
+- [Google Search grounding 與 annotation](https://ai.google.dev/gemini-api/docs/google-search)
+- [Electron desktopCapturer](https://www.electronjs.org/docs/latest/api/desktop-capturer)
+- [TypeSafe OpenAPI](https://api.typesafe.ai/docs)
+
+## 本機端到端測試
+
+> 以下為舊版測試紀錄；目前的離線指令與限制見下方「2026-09-26：session、逐字稿與 Notes 流程」。
+
+先用 `pnpm.cmd dev` 啟動 API、Vite 和本機 MongoDB，然後在另一個 PowerShell 視窗執行：
+
+```powershell
+pnpm.cmd test:e2e
+```
+
+測試使用本機 Edge 和真實 UI/API/MongoDB：在 UI 建立獨立 demo session 與 group、附加文字教材、儲存筆記並重載驗證，再上傳一秒數位靜音 WAV，確認背景佇列自動標記為 `silent`、沒有產生假逐字稿。預設測試離線且不會把音訊送往 SenseVoice；測試結束時只刪除本次建立的 `E2E demo` session、group 和 WAV。改動 UI、API、儲存或 ASR 流程後，應重新執行此測試。
+
+如已另行取得真實語音上傳授權，並有已完成轉寫的 session，可額外檢查真實逐字稿及日期／小時時間樹：
+
+```powershell
+$env:PLAYBACK_E2E_REAL_SESSION_ID = '<session-id>'
+pnpm.cmd test:e2e
+Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
+```
+
+2026-09-26 使用獲授權的 5.1 秒粵語 WAV 與 MongoDB 驗證：SenseVoice 直接請求約 2.28 秒，回報推理約 0.94 秒；新上傳到 API 約 17 毫秒獲接受，約 4.61 秒後 MongoDB 出現逐字稿。API 儲存的逐字稿有文字而沒有 SenseVoice 標記，UI 的時間樹亦通過 Playwright 檢查。這些是短片段的單次實測，未有人工標準稿比對文字準確度，也不能代表三小時錄音的吞吐量。
+
+## 2026-09-26：session、逐字稿與 Notes 流程
+
+- Session 只有一個可空的 `groupId`。側欄以 group 為父層顯示 session，可在 group 內建立、重新命名 group，並在目前 session 旁移動至其他 group 或「未分組」。現有 MongoDB 紀錄會按新增欄位的預設值讀取，不需要清空資料庫。
+- Transcript 標題列的齒輪提供整個 session 的「啟用翻譯」與目標語言；翻譯工作每 15 秒檢查待處理原文，按 session 將最多 10 段合成一次 Gemini 請求，並按 transcript ID 驗證及逐段儲存譯文版本。失敗會保存錯誤、次數及下一次重試時間；可手動重試。關閉只隱藏譯文，原文不改。選取原文可帶 transcript ID、時間與選取文字至 Ask Playback。
+- ASR 分開 `silent`（完全數位靜音）、`asr-empty`（服務沒有回傳文字）、`asr-error`（辨識失敗）、`transcribed`，音訊仍與 chunk 關聯。空文字不代表低 confidence 或人工覆核。辨識原文及材料中有來源的術語以本地保守規則標籤；Ask Playback 使用 session 內的來源 ID，網絡搜尋要逐次勾選。
+- Notes 按 transcript 保存 `pending`／`processing`／`failed`／`completed`、嘗試次數及重試時間。每次最多處理 40 條；遲到紀錄不依賴時間游標。版本保存實際輸入的 transcript/material ID、輸入 SHA-256、來源時間與先前筆記版本。使用者編輯另成版本，AI 失敗不覆寫它；失敗可在「Revise with AI」重試。來源清單可跳到音訊時間或材料。
+- 錄音一開始便自動處理封存好的音訊，介面與 API 沒有 session 同意勾選或同意 header。舊版留下的 `awaiting-consent` 音訊在新版 API 啟動後重新排入 ASR。`PLAYBACK_OFFLINE_TEST=yes` 時服務只綁定 `127.0.0.1:5079`、停用背景掃描，provider 呼叫一律拒絕；測試前端使用 5174。測試 fixture 端點只接受 `E2E demo` session 與合成文字，測試腳本會刪除其建立的 session、group 與音訊。
+
+離線檢查：`dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/`。在已啟動本機 MongoDB 後，用 `dotnet build app-temp/api/Playback.Api.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/` 編譯；另一個 PowerShell 設定 `$env:PLAYBACK_OFFLINE_TEST="yes"; $env:ASPNETCORE_ENVIRONMENT="Development"` 後執行 `dotnet app-temp/api/bin/verification/net10.0/Playback.Api.dll`，再在 `app-temp/web` 的 PowerShell 設定 `$env:PLAYBACK_OFFLINE_TEST="yes"` 並執行 `npm.cmd run dev -- --port 5174`。測試 shell 同樣設定 `PLAYBACK_OFFLINE_TEST=yes`，執行 `node app-temp/api/integration-check.mjs` 及 `node app-temp/web/src/test/e2e-check.mjs`。不要為測試設定講課資料、對外 provider key，亦不要啟動容器或上傳音訊。實機咪高峰錄音仍依賴 Windows 音訊裝置／權限；若 Core Audio 拒絕啟動，UI 顯示實際錯誤並保持 idle，不能視作錄音成功。
+
+## 2026-09-27：Week 3 唯讀長時段檢查
+
+`python app-temp/checks/long-lecture-check.py "C:\Users\a1831\Downloads\Week 3"` 只讀取五段 M4A 的 MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊合計 9,889.29 秒（2:44:49），前四段各約 40 分鐘，最後一段 289.27 秒；逐字稿有 1,266 段、97,717 字元，最後一句無時間戳，離線檢查暫以音訊尾段定位。此舉不改動原始檔案，也沒有解碼或上傳音訊。
+
+依每兩分鐘更新及每次最多 40 段模擬，該逐字稿會有 82 次定時筆記請求；原本每次重送 3,000 字元教材時，來源輸入約 432,337 字元，其中 243,000 字元是第二次起重複的教材。自動筆記現在只在初次或新增教材時發送未處理教材；估算來源輸入降至約 189,337 字元。這些數字不含前版筆記、指示詞、模型輸出或 token 計費，也不是已發生的外部呼叫。每次實際請求現會記錄段落數與 UTF-8 輸入大小，不記錄原文。
+
+`dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/ -- --week3 "C:\Users\a1831\Downloads\Week 3"` 用真實逐字稿在記憶體驗證 40 段 backlog、無重複來源 ID、開頭／中段／末段問答的來源挑選及音訊時間。若整批離線處理，需要 32 個最多 40 段的 batch；這與上面 82 次定時更新是兩種不同情境。另以 360 段合成三小時時間線測早／晚來源問答；web fixture 以 1,266 段跨約三小時驗證視窗高度、面板捲動、Save 可見、精簡逐字稿及無聲收合。這些檢查不代表真實三小時 ASR、筆記內容品質或課堂問答準確度已通過。
+
+離線 API 整合測試可在獨立的 5079 端口執行，設定 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_PAUSE_EXTERNAL_ASR=yes`、`PLAYBACK_AUTO_NOTES=no`，再執行 `node app-temp/api/integration-check.mjs`。此模式會確認新合成音訊維持待處理，不會因背景佇列送往 SenseVoice；測試僅清理自己建立的合成 session、group 與音訊。測試前先查核現有 5078 API 程序，勿重啟舊程序觸發舊資料重試。
+
+翻譯若啟用，1,266 段在沒有失敗重試時約需 127 次十段批次請求，原逐段流程會有 1,266 次。批次回應必須包含每個 transcript ID 且不可重複；解析失敗會標記該批次失敗並按原有退避規則重試。Jev 的 `Bearer` header、`GET /v1/models` 及回應 schema 已按 [TypeSafe OpenAPI](https://api.typesafe.ai/docs) 核對；既有 401 仍須有效且獲授權的 key 才能排除。`pnpm.cmd test:jev-live` 只用虛構術語測模型發現、排名和快取；fixture 通過不等於 live 通過。[Vertex Express REST 資源](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 仍沒有建立顯式 context cache 的端點，故此流程沒有使用顯式 cache。
+
+在把 Week 3 音訊、逐字稿或教材交給 SenseVoice、Gemini 或 Jev 前，須先確認講師、同學、學校的同意及相關私隱與保留規則；外部 live 檢查只可用虛構內容。

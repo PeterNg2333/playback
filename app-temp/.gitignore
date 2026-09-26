@@ -1,0 +1,9 @@
+**/node_modules/
+**/.npm-cache/
+**/dist/
+**/bin/
+**/obj/
+data/
+browser-*.png
+*.log
+*.tsbuildinfo

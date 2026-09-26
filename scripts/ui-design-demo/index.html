@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playback · Speech Recognition Basics</title>
+  <style>
+    :root { color-scheme:light; font-family:Inter,"Segoe UI",system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    html { min-width:320px; scroll-behavior:smooth; }
+    body { --canvas:#f7f6ff; --surface:#fff; --ink:#25243c; --muted:#686d82; --line:#e6e4f2; --accent:#6557d8; --accent-soft:#f1efff; --pink:#ea78a9; --pink-soft:#fff0f7; --blue:#608aeb; margin:0; background:var(--canvas); color:var(--ink); line-height:1.5; }
+    body[data-theme="wave"] { --canvas:#f3f8ff; --line:#dce7f4; --accent:#326fc2; --accent-soft:#eaf3ff; --pink:#ee7bab; --pink-soft:#fff1f7; --blue:#5b84dc; }
+    body[data-theme="loop"] { --canvas:#fcf6fb; --line:#f0e2ee; --accent:#a64898; --accent-soft:#fcecf8; --pink:#ec79a8; --pink-soft:#fff0f6; --blue:#6d82de; }
+    button,input,textarea { font:inherit; }
+    button { cursor:pointer; }
+    button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+    [hidden] { display:none!important; }
+    .skip { position:fixed; top:-5rem; left:1rem; z-index:50; padding:.5rem .8rem; background:#fff; }
+    .skip:focus { top:.5rem; }
+    .svg-defs { position:absolute; width:0; height:0; overflow:hidden; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; height:64px; padding:0 20px; }
+    .brand { display:flex; align-items:center; gap:10px; min-width:0; }
+    .brand-icon { display:grid; place-items:center; width:32px; height:32px; flex:none; border-radius:10px; background:var(--accent); color:#fff; }
+    .brand-icon svg { width:22px; height:22px; }
+    .brand-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:17px; font-weight:700; letter-spacing:-.025em; }
+    .top-actions { display:flex; align-items:center; gap:11px; flex:none; }
+    .session-time { color:var(--muted); font-size:12px; }
+    .avatar { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--accent-soft); color:var(--accent); font-size:11px; font-weight:800; }
+    .theme-wrap { position:relative; }
+    .theme-toggle { display:flex; align-items:center; gap:6px; padding:7px 10px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); font-size:11px; font-weight:700; }
+    .theme-toggle svg { width:15px; height:15px; color:var(--accent); }
+    .theme-menu { position:absolute; top:39px; right:0; z-index:20; width:248px; padding:10px; border:1px solid var(--line); border-radius:13px; background:#fff; box-shadow:0 14px 36px #26284825; }
+    .theme-menu-title { margin:2px 7px 7px; color:var(--muted); font-size:11px; font-weight:700; }
+    .theme-option { display:grid; grid-template-columns:32px minmax(0,1fr) auto; align-items:center; gap:9px; width:100%; padding:9px 7px; border:0; border-radius:9px; background:transparent; color:var(--ink); text-align:left; }
+    .theme-option:hover,.theme-option[aria-pressed="true"] { background:#f7f6fc; }
+    .theme-option strong { display:block; font-size:12px; }
+    .theme-option small { display:block; color:var(--muted); font-size:10px; }
+    .theme-icon { display:grid; place-items:center; width:30px; height:30px; border-radius:8px; background:#6557d8; color:#fff; }
+    .theme-icon svg { width:21px; height:21px; }
+    .theme-option[data-theme="wave"] .theme-icon { background:#326fc2; }
+    .theme-option[data-theme="loop"] .theme-icon { background:#a64898; }
+    .swatches { display:flex; gap:3px; }
+    .swatches i { width:8px; height:8px; border-radius:50%; background:#6557d8; }
+    .swatches i:nth-child(2) { background:#ea78a9; }
+    .swatches i:nth-child(3) { background:#608aeb; }
+    .theme-option[data-theme="wave"] .swatches i:first-child { background:#326fc2; }
+    .theme-option[data-theme="loop"] .swatches i:first-child { background:#a64898; }
+    .workspace { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; max-width:1700px; margin:0 auto; padding:0 16px 16px; }
+    .panel { display:flex; flex-direction:column; min-width:0; min-height:calc(100vh - 80px); overflow:hidden; border:1px solid var(--line); border-radius:16px; background:var(--surface); }
+    .panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:58px; padding:0 18px; border-bottom:1px solid var(--line); }
+    h1,h2,h3,h4,p { margin-top:0; }
+    h1 { margin:0; font-size:15px; font-weight:750; }
+    h2 { margin:0; font-size:15px; font-weight:750; }
+    .panel-actions { display:flex; align-items:center; gap:8px; }
+    .status { padding:4px 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent); font-size:10px; font-weight:750; white-space:nowrap; }
+    .segmented { display:flex; gap:2px; padding:3px; border-radius:8px; background:#f3f3f9; }
+    .segmented button { padding:5px 8px; border:0; border-radius:6px; background:transparent; color:var(--muted); font-size:11px; font-weight:700; white-space:nowrap; }
+    .segmented button[aria-pressed="true"] { background:#fff; color:var(--accent); box-shadow:0 1px 4px #2628481b; }
+    .notes-body { flex:1; min-height:0; padding:20px 24px 10px; }
+    .document-meta { display:flex; align-items:center; gap:8px; margin-bottom:14px; color:var(--muted); font-size:11px; }
+    .document-meta span:first-child { display:grid; place-items:center; width:24px; height:24px; border-radius:7px; background:var(--pink-soft); color:var(--pink); font-size:14px; }
+    .markdown-preview { max-width:64ch; }
+    .markdown-preview h3 { margin:0 0 14px; font-size:23px; font-weight:720; letter-spacing:-.035em; line-height:1.2; }
+    .markdown-preview h4 { margin:23px 0 9px; font-size:13px; font-weight:760; }
+    .markdown-preview p,.markdown-preview li,.markdown-preview blockquote { color:#495065; font-size:13px; line-height:1.65; }
+    .markdown-preview p { margin:0 0 13px; }
+    .markdown-preview ul { display:grid; gap:7px; margin:0 0 15px; padding-left:20px; }
+    .markdown-preview li::marker { color:var(--pink); }
+    .markdown-preview blockquote { margin:19px 0 0; padding:9px 14px; border-left:3px solid var(--pink); border-radius:0 8px 8px 0; background:var(--pink-soft); }
+    .markdown-preview code { padding:1px 4px; border-radius:4px; background:var(--accent-soft); color:var(--accent); font-size:12px; }
+    .markdown-editor { display:block; width:100%; min-height:360px; padding:14px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#fcfcff; color:var(--ink); font:12px/1.7 Consolas,"Cascadia Code",monospace; }
+    .flowchart { margin:15px 0 18px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#fcfbff; }
+    .flowchart figcaption { margin-bottom:8px; color:var(--muted); font-size:10px; font-weight:750; text-transform:uppercase; letter-spacing:.07em; }
+    .flowchart-scroll { overflow-x:auto; }
+    .flowchart-svg { display:block; width:100%; height:auto; }
+    .flow-edge { fill:none; stroke:var(--blue); stroke-width:2; }
+    .flow-arrow { fill:var(--blue); }
+    .flow-node rect { fill:var(--accent-soft); stroke:#dcd6fa; stroke-width:1; }
+    .flow-node.tone-pink rect { fill:var(--pink-soft); stroke:#f8d4e5; }
+    .flow-node text { fill:var(--ink); font-size:12px; font-weight:700; text-anchor:middle; dominant-baseline:middle; }
+    .flowchart-fallback { margin:0; overflow:auto; color:var(--muted); font:11px/1.6 Consolas,monospace; }
+    .transcript-head-tabs { display:flex; align-items:center; gap:6px; }
+    .tab-button { padding:6px 9px; border:0; border-radius:7px; background:none; color:var(--muted); font-size:11px; font-weight:700; }
+    .tab-button[aria-current="page"] { background:var(--accent-soft); color:var(--accent); }
+    .content-meta { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:15px 22px; border-bottom:1px solid var(--line); color:var(--muted); font-size:11px; }
+    .content-meta strong { color:var(--ink); font-size:12px; }
+    .rows { padding:0 22px 60px; }
+    .transcript-row { display:grid; grid-template-columns:90px minmax(0,1fr); gap:14px; padding:22px 0; border-bottom:1px solid var(--line); scroll-margin-top:16px; }
+    .transcript-row:last-child { border-bottom:0; }
+    .transcript-row.highlight,.source-item.highlight { border-radius:8px; background:var(--accent-soft); }
+    .time-range { padding-top:1px; color:var(--accent); font-size:11px; font-weight:750; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .speaker { display:block; margin-bottom:6px; color:var(--muted); font-size:11px; font-weight:700; }
+    .original { margin:0; font-size:13px; line-height:1.7; }
+    .translation { margin:7px 0 0; color:#5e637b; font-size:11px; line-height:1.6; }
+    body[data-language="original"] .translation { display:none; }
+    .term { display:inline; padding:0; border:0; border-bottom:1px dashed var(--accent); background:none; color:var(--accent); font-weight:750; }
+    .uncertain { display:inline-block; margin-top:8px; padding:3px 7px; border-radius:5px; background:var(--pink-soft); color:#ac4c79; font-size:10px; font-weight:700; }
+    .citation { margin:0 5px 0 0; padding:3px 6px; border:0; border-radius:5px; background:var(--accent-soft); color:var(--accent); font-size:10px; font-weight:750; }
+    .source-content { padding:8px 18px 25px; }
+    .source-item { display:grid; grid-template-columns:30px minmax(0,1fr); gap:10px; padding:14px 6px; border-bottom:1px solid var(--line); scroll-margin-top:16px; }
+    .source-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:8px; background:var(--accent-soft); color:var(--accent); font-size:14px; font-weight:800; }
+    .source-item:nth-child(2) .source-icon { background:var(--pink-soft); color:var(--pink); }
+    .source-item:nth-child(3) .source-icon { background:#edf3ff; color:var(--blue); }
+    .source-item strong { display:block; font-size:12px; }
+    .source-item p { margin:2px 0 0; color:var(--muted); font-size:11px; }
+    .floating { position:fixed; right:28px; bottom:24px; z-index:10; display:flex; align-items:center; gap:7px; padding:11px 16px; border:0; border-radius:999px; background:var(--accent); color:#fff; box-shadow:0 8px 22px #44417e36; font-size:12px; font-weight:750; }
+    .floating svg { width:17px; height:17px; }
+    .chat { position:fixed; right:28px; bottom:24px; z-index:10; display:none; flex-direction:column; width:min(370px,calc(100vw - 24px)); max-height:min(560px,calc(100vh - 48px)); overflow:hidden; border:1px solid var(--line); border-radius:15px; background:#fff; box-shadow:0 15px 45px #27325f29; }
+    .chat.open { display:flex; }
+    .chat-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--line); }
+    .chat-head strong { display:block; font-size:13px; }
+    .chat-head small { display:block; color:var(--muted); font-size:10px; }
+    .icon-button { display:grid; place-items:center; width:27px; height:27px; border:0; border-radius:7px; background:#f3f3f9; color:var(--muted); font-size:18px; }
+    .chat-scroll { overflow:auto; padding:15px; }
+    .chat-hint { margin:0 0 10px; color:var(--muted); font-size:11px; }
+    .prompt-list { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:15px; }
+    .prompt-list button { padding:6px 9px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--accent); font-size:10px; }
+    .answer { padding:12px; border-radius:10px; background:var(--accent-soft); font-size:12px; }
+    .answer p { margin:0 0 9px; }
+    .answer p:last-child { margin-bottom:0; }
+    .answer .citation { background:#fff; }
+    .chat-form { display:flex; gap:7px; padding:12px; border-top:1px solid var(--line); }
+    .chat-form input { min-width:0; flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:11px; }
+    .chat-form button { padding:8px 10px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:11px; font-weight:750; }
+    dialog { width:min(390px,calc(100vw - 24px)); padding:0; border:1px solid var(--line); border-radius:15px; color:var(--ink); box-shadow:0 20px 60px #25305c30; }
+    dialog::backdrop { background:#2429465c; }
+    .dialog-head { display:flex; align-items:center; justify-content:space-between; padding:14px 17px; border-bottom:1px solid var(--line); }
+    .dialog-body { padding:17px; font-size:12px; }
+    .dialog-body p { margin:0 0 13px; }
+    .mobile-nav { display:none; }
+    @media(max-width:1100px) { .flowchart-svg { min-width:500px; } }
+    @media(max-width:900px) { .workspace { gap:10px; padding:0 10px 10px; } .panel-head { padding:0 12px; } .notes-body { padding:16px; } .rows { padding:0 14px 50px; } .transcript-row { grid-template-columns:72px minmax(0,1fr); gap:8px; } .content-meta { padding:14px; } }
+    @media(max-width:700px) { .topbar { height:56px; padding:0 13px; } .brand-title { font-size:14px; } .session-time { display:none; } .theme-toggle { padding:7px; } .theme-toggle span { display:none; } .workspace { display:block; padding:0 10px 90px; } .mobile-nav { position:sticky; top:0; z-index:5; display:grid; grid-template-columns:repeat(3,1fr); margin:0 -10px 10px; padding:0 10px; border-bottom:1px solid var(--line); background:var(--canvas); } .mobile-nav button { padding:10px 2px; border:0; border-bottom:2px solid transparent; background:none; color:var(--muted); font-size:11px; font-weight:750; } .mobile-nav button[aria-current="page"] { border-bottom-color:var(--accent); color:var(--accent); } .transcript-head-tabs { display:none; } .panel { min-height:calc(100vh - 160px); } body[data-view="notes"] .transcript-panel { display:none; } body:not([data-view="notes"]) .notes-panel { display:none; } .floating { right:14px; bottom:14px; } .chat { right:12px; bottom:12px; } }
+    @media(max-width:390px) { .panel-actions { gap:3px; } .panel-head { padding:0 10px; } .tab-button { padding:5px 6px; } .segmented button { padding:5px 6px; } .content-meta { padding:12px; } .transcript-row { grid-template-columns:70px minmax(0,1fr); gap:7px; } .time-range { font-size:10px; } .original { font-size:12px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+  </style>
+</head>
+<body data-theme="pulse" data-view="transcript" data-language="original" data-note-mode="preview">
+<svg class="svg-defs" aria-hidden="true">
+  <symbol id="icon-pulse" viewBox="0 0 24 24"><path d="M3 12h3l2-5 3 10 2-7 2 3h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="icon-wave" viewBox="0 0 24 24"><path d="M3 12c2.2 0 2.2-5 4.5-5S9.8 17 12 17s2.2-10 4.5-10S18.8 12 21 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="icon-loop" viewBox="0 0 24 24"><path d="M19 7a8 8 0 1 0 1 8M19 3v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m10 8 6 4-6 4z" fill="currentColor"/></symbol>
+  <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="11" r="1" fill="currentColor"/><circle cx="15" cy="11" r="1" fill="currentColor"/></symbol>
+</svg>
+<a class="skip" href="#workspace">Skip to workspace</a>
+<header class="topbar"><div class="brand"><span class="brand-icon"><svg aria-hidden="true"><use id="brand-use" href="#icon-pulse"></use></svg></span><span class="brand-title">Speech Recognition Basics</span></div><div class="top-actions"><span class="session-time">Week 4 · 24:18 processed</span><div class="theme-wrap"><button class="theme-toggle" id="theme-toggle" type="button" aria-controls="theme-menu" aria-expanded="false" aria-label="Choose color theme"><svg aria-hidden="true"><use href="#icon-loop"></use></svg><span>Theme</span></button><div class="theme-menu" id="theme-menu" hidden><p class="theme-menu-title">Playback themes & icons</p><button class="theme-option" type="button" data-theme="pulse" aria-pressed="true"><span class="theme-icon"><svg aria-hidden="true"><use href="#icon-pulse"></use></svg></span><span><strong>Pulse</strong><small>Violet · pink · blue</small></span><span class="swatches" aria-hidden="true"><i></i><i></i><i></i></span></button><button class="theme-option" type="button" data-theme="wave" aria-pressed="false"><span class="theme-icon"><svg aria-hidden="true"><use href="#icon-wave"></use></svg></span><span><strong>Wave</strong><small>Blue · soft pink</small></span><span class="swatches" aria-hidden="true"><i></i><i></i><i></i></span></button><button class="theme-option" type="button" data-theme="loop" aria-pressed="false"><span class="theme-icon"><svg aria-hidden="true"><use href="#icon-loop"></use></svg></span><span><strong>Loop</strong><small>Pink · lavender</small></span><span class="swatches" aria-hidden="true"><i></i><i></i><i></i></span></button></div></div><span class="avatar" aria-label="Personal account">YL</span></div></header>
+<main class="workspace" id="workspace">
+  <nav class="mobile-nav" aria-label="Workspace views"><button type="button" data-mobile-view="notes">Notes</button><button type="button" data-mobile-view="transcript" aria-current="page">Transcript</button><button type="button" data-mobile-view="sources">Sources</button></nav>
+  <section class="panel notes-panel" id="notes" aria-labelledby="notes-title"><div class="panel-head"><h2 id="notes-title">Notes</h2><div class="panel-actions"><span class="status">Revision 03</span><div class="segmented" aria-label="Note view"><button type="button" data-note-mode="preview" aria-pressed="true">Preview</button><button type="button" data-note-mode="markdown" aria-pressed="false">Markdown</button></div></div></div><div class="notes-body"><div class="document-meta"><span aria-hidden="true">▤</span> Lecture notes · Edited at 24:18</div><div class="markdown-preview" id="note-preview" aria-label="Rendered Markdown note"></div><label class="skip" for="note-editor">Edit note in Markdown</label><textarea class="markdown-editor" id="note-editor" spellcheck="false" hidden># From sound to text
+
+Voice activity detection (VAD) locates speech before recognition begins.
+
+## Key points
+- **VAD** identifies speech intervals.
+- **ASR** converts spoken language into text.
+- Acoustic features summarize short windows of the waveform.
+
+## Pipeline
+```flowchart
+flowchart LR
+Audio[Audio] --> VAD[Speech detection]
+VAD --> ASR[Transcription]
+ASR --> Notes[Rolling notes]
+```
+
+> Check the window length mentioned near 20:44.</textarea></div></section>
+  <section class="panel transcript-panel" id="transcript" aria-labelledby="transcript-title"><div class="panel-head"><h2 id="transcript-title">Transcript</h2><div class="panel-actions"><div class="transcript-head-tabs"><button class="tab-button" type="button" data-pane-view="transcript" aria-current="page">Transcript</button><button class="tab-button" type="button" data-pane-view="sources">Sources <span aria-hidden="true">3</span></button></div><div class="segmented" aria-label="Transcript language"><button type="button" data-language="original" aria-pressed="true">Original</button><button type="button" data-language="bilingual" aria-pressed="false">Bilingual</button></div></div></div>
+    <div class="transcript-content" id="transcript-content"><div class="content-meta"><strong>Lecture audio</strong><span>Processed through 24:18</span></div><div class="rows">
+      <article class="transcript-row" id="t-0812" tabindex="-1"><span class="time-range">08:12–08:27</span><div><span class="speaker">Lecturer</span><p class="original">Before recognition, we need to find where speech begins and ends. That's voice activity detection.</p><p class="translation">辨識之前，先找出語音的開始與結束位置。 <button class="citation" type="button" data-jump="source-audio" data-view="sources">Audio</button></p></div></article>
+      <article class="transcript-row" id="t-1356" tabindex="-1"><span class="time-range">13:56–14:10</span><div><span class="speaker">Lecturer</span><p class="original">The model works with <button class="term" type="button" id="term-trigger" aria-haspopup="dialog">acoustic features</button> extracted from the waveform.</p><p class="translation">模型處理的是從波形提取的聲學特徵。 <button class="citation" type="button" data-jump="source-slide" data-view="sources">Slides p.12</button></p></div></article>
+      <article class="transcript-row" id="t-2044" tabindex="-1"><span class="time-range">20:44–20:58</span><div><span class="speaker">Lecturer</span><p class="original">The [unclear] window is about twenty-five milliseconds here.</p><span class="uncertain">Unclear word · review audio</span><p class="translation">Possible revision: analysis window. <button class="citation" type="button" data-jump="source-audio" data-view="sources">Audio</button></p></div></article>
+    </div></div>
+    <div class="source-content" id="sources" aria-label="Lecture sources" hidden><div class="source-item" id="source-slide" tabindex="-1"><span class="source-icon" aria-hidden="true">▤</span><div><strong>Speech Processing · Week 4.pdf</strong><p>Page 12 · Acoustic features</p></div></div><div class="source-item" id="source-audio" tabindex="-1"><span class="source-icon" aria-hidden="true">♫</span><div><strong>Lecture recording</strong><p>08:12–08:27 · 20:44–20:58</p></div></div><div class="source-item" id="source-status" tabindex="-1"><span class="source-icon" aria-hidden="true">◷</span><div><strong>Transcript</strong><p>Processed through 24:18</p></div></div></div>
+  </section>
+</main>
+<button class="floating" id="chat-toggle" type="button" aria-controls="chat-panel" aria-expanded="false"><svg aria-hidden="true"><use href="#icon-chat"></use></svg> Ask Playback</button>
+<section class="chat" id="chat-panel" aria-labelledby="chat-title" hidden><div class="chat-head"><div><strong id="chat-title">Ask Playback</strong><small>Private · Notes + processed transcript</small></div><button class="icon-button" id="chat-close" type="button" aria-label="Close chat">×</button></div><div class="chat-scroll"><p class="chat-hint">Ask about what has been covered so far.</p><div class="prompt-list"><button type="button" data-question="vad">VAD vs ASR</button><button type="button" data-question="features">Acoustic features</button><button type="button" data-question="unclear">What happened at 20:44?</button></div><div class="answer" id="chat-answer" role="status"><p>Choose a question to explore the lecture.</p></div></div><form class="chat-form" id="chat-form"><label class="skip" for="chat-input">Your question</label><input id="chat-input" type="text" placeholder="Ask a question…" autocomplete="off"><button type="submit">Send</button></form></section>
+<dialog id="explanation" aria-labelledby="explanation-title"><div class="dialog-head"><h2 id="explanation-title">Acoustic features</h2><button class="icon-button" id="explanation-close" type="button" aria-label="Close explanation">×</button></div><div class="dialog-body"><p>Numbers extracted from short slices of a sound waveform so a model can recognize speech patterns.</p><button class="citation" type="button" data-jump="source-slide" data-view="sources" data-close-dialog>View slides · p.12</button></div></dialog>
+<script>
+  const body = document.body;
+  const chat = document.getElementById('chat-panel');
+  const chatToggle = document.getElementById('chat-toggle');
+  const themeMenu = document.getElementById('theme-menu');
+  const themeToggle = document.getElementById('theme-toggle');
+  const dialog = document.getElementById('explanation');
+  const answer = document.getElementById('chat-answer');
+  const answers = {
+    vad: { text: 'VAD finds speech intervals. ASR turns the speech in those intervals into text.', refs: [['08:12–08:27', 't-0812', 'transcript']] },
+    features: { text: 'Acoustic features are numerical patterns extracted from a waveform.', refs: [['13:56–14:10', 't-1356', 'transcript'], ['Slides p.12', 'source-slide', 'sources']] },
+    unclear: { text: 'One word in this range is unclear. The original transcript is preserved for review.', refs: [['20:44–20:58', 't-2044', 'transcript'], ['Lecture audio', 'source-audio', 'sources']] }
+  };
+  function appendInline(target, value) {
+    const pattern = /\*\*([^*]+)\*\*|`([^`]+)`/g;
+    let start = 0;
+    for (const match of value.matchAll(pattern)) {
+      target.append(document.createTextNode(value.slice(start, match.index)));
+      const child = document.createElement(match[1] ? 'strong' : 'code');
+      child.textContent = match[1] || match[2];
+      target.append(child);
+      start = match.index + match[0].length;
+    }
+    target.append(document.createTextNode(value.slice(start)));
+  }
+  function renderFlowchart(source, index) {
+    const figure = document.createElement('figure');
+    figure.className = 'flowchart';
+    const caption = document.createElement('figcaption');
+    caption.textContent = 'Flowchart';
+    figure.append(caption);
+    const fallback = () => {
+      const code = document.createElement('pre');
+      code.className = 'flowchart-fallback';
+      code.textContent = source;
+      figure.append(code);
+      return figure;
+    };
+    const lines = source.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.shift() !== 'flowchart LR') return fallback();
+    const nodes = new Map();
+    const edges = [];
+    for (const line of lines) {
+      const match = /^([A-Za-z]\w*)(?:\[([^\]]{1,32})\])?\s*-->\s*([A-Za-z]\w*)(?:\[([^\]]{1,32})\])?$/.exec(line);
+      if (!match) return fallback();
+      if (!nodes.has(match[1]) || match[2]) nodes.set(match[1], match[2] || match[1]);
+      if (!nodes.has(match[3]) || match[4]) nodes.set(match[3], match[4] || match[3]);
+      edges.push([match[1], match[3]]);
+    }
+    if (nodes.size < 2 || nodes.size > 8 || edges.length > 10) return fallback();
+    const degree = new Map([...nodes.keys()].map(id => [id, 0]));
+    const rank = new Map([...nodes.keys()].map(id => [id, 0]));
+    edges.forEach(([, to]) => degree.set(to, degree.get(to) + 1));
+    const queue = [...nodes.keys()].filter(id => degree.get(id) === 0);
+    let visited = 0;
+    while (queue.length) {
+      const from = queue.shift();
+      visited++;
+      edges.filter(edge => edge[0] === from).forEach(([, to]) => {
+        rank.set(to, Math.max(rank.get(to), rank.get(from) + 1));
+        degree.set(to, degree.get(to) - 1);
+        if (degree.get(to) === 0) queue.push(to);
+      });
+    }
+    if (visited !== nodes.size) return fallback();
+    const groups = new Map();
+    for (const id of nodes.keys()) {
+      const level = rank.get(id);
+      if (!groups.has(level)) groups.set(level, []);
+      groups.get(level).push(id);
+    }
+    const maxRows = Math.max(...[...groups.values()].map(group => group.length));
+    const width = Math.max(...rank.values()) * 158 + 160;
+    const height = maxRows * 72 + 28;
+    const position = new Map();
+    for (const [level, group] of groups) {
+      group.forEach((id, row) => position.set(id, { x:16 + level * 158, y:18 + row * 72 + (maxRows - group.length) * 36 }));
+    }
+    const namespace = 'http' + '://www.w3.org/2000/svg';
+    const make = (name, attributes) => {
+      const element = document.createElementNS(namespace, name);
+      Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+      return element;
+    };
+    const svg = make('svg', { class:'flowchart-svg', viewBox:`0 0 ${width} ${height}`, role:'img', 'aria-label':'Flowchart: ' + edges.map(([from, to]) => `${nodes.get(from)} to ${nodes.get(to)}`).join(', ') });
+    const defs = make('defs', {});
+    const markerId = 'flow-arrow-' + index;
+    const marker = make('marker', { id:markerId, viewBox:'0 0 10 10', refX:9, refY:5, markerWidth:6, markerHeight:6, orient:'auto' });
+    marker.append(make('path', { d:'M 0 0 L 10 5 L 0 10 z', class:'flow-arrow' }));
+    defs.append(marker);
+    svg.append(defs);
+    edges.forEach(([from, to]) => {
+      const start = position.get(from);
+      const end = position.get(to);
+      const x1 = start.x + 128;
+      const y1 = start.y + 23;
+      const x2 = end.x - 5;
+      const y2 = end.y + 23;
+      svg.append(make('path', { class:'flow-edge', d:`M ${x1} ${y1} C ${x1 + 18} ${y1}, ${x2 - 18} ${y2}, ${x2} ${y2}`, 'marker-end':`url(#${markerId})` }));
+    });
+    let count = 0;
+    for (const [id, label] of nodes) {
+      const point = position.get(id);
+      const group = make('g', { class:'flow-node' + (count++ % 2 ? ' tone-pink' : '') });
+      group.append(make('rect', { x:point.x, y:point.y, width:128, height:46, rx:10 }));
+      const text = make('text', { x:point.x + 64, y:point.y + 24 });
+      text.textContent = label.length > 18 ? label.slice(0, 17) + '…' : label;
+      group.append(text);
+      svg.append(group);
+    }
+    const scroller = document.createElement('div');
+    scroller.className = 'flowchart-scroll';
+    scroller.append(svg);
+    figure.append(scroller);
+    return figure;
+  }
+  function renderNote() {
+    const preview = document.getElementById('note-preview');
+    preview.replaceChildren();
+    let list = null;
+    const lines = document.getElementById('note-editor').value.split(/\r?\n/);
+    let chartIndex = 0;
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
+      if (!line.trim()) { list = null; continue; }
+      if (line.trim() === '```flowchart') {
+        const chart = [];
+        while (++index < lines.length && lines[index].trim() !== '```') chart.push(lines[index]);
+        preview.append(renderFlowchart(chart.join('\n'), chartIndex++));
+        list = null;
+        continue;
+      }
+      const heading = /^(#{1,2})\s+(.+)$/.exec(line);
+      const bullet = /^-\s+(.+)$/.exec(line);
+      const quote = /^>\s+(.+)$/.exec(line);
+      let element;
+      let content;
+      if (heading) { list = null; element = document.createElement(heading[1].length === 1 ? 'h3' : 'h4'); content = heading[2]; }
+      else if (bullet) { if (!list) { list = document.createElement('ul'); preview.append(list); } element = document.createElement('li'); content = bullet[1]; }
+      else if (quote) { list = null; element = document.createElement('blockquote'); content = quote[1]; }
+      else { list = null; element = document.createElement('p'); content = line; }
+      appendInline(element, content);
+      (bullet ? list : preview).append(element);
+    }
+  }
+  function setNoteMode(mode) {
+    body.dataset.noteMode = mode;
+    document.getElementById('note-preview').hidden = mode !== 'preview';
+    document.getElementById('note-editor').hidden = mode !== 'markdown';
+    document.querySelectorAll('.segmented button[data-note-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.noteMode === mode)));
+  }
+  function setView(view) {
+    body.dataset.view = view;
+    document.getElementById('transcript-content').hidden = view === 'sources';
+    document.getElementById('sources').hidden = view !== 'sources';
+    document.querySelectorAll('[data-mobile-view]').forEach(button => {
+      if (button.dataset.mobileView === view) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('[data-pane-view]').forEach(button => {
+      if (button.dataset.paneView === view) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+  }
+  function jump(id, view) {
+    setView(view);
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.classList.add('highlight');
+    target.scrollIntoView({ block:'center', behavior:'smooth' });
+    target.focus({ preventScroll:true });
+    window.setTimeout(() => target.classList.remove('highlight'), 1800);
+  }
+  function setChat(open) {
+    chat.hidden = !open;
+    chat.classList.toggle('open', open);
+    chatToggle.hidden = open;
+    chatToggle.setAttribute('aria-expanded', String(open));
+    if (open) document.getElementById('chat-close').focus();
+    else chatToggle.focus();
+  }
+  function showAnswer(key) {
+    const item = answers[key];
+    answer.replaceChildren();
+    const paragraph = document.createElement('p');
+    paragraph.textContent = item.text;
+    answer.append(paragraph);
+    item.refs.forEach(([label, id, view]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'citation';
+      button.textContent = label;
+      button.addEventListener('click', () => jump(id, view));
+      answer.append(button);
+    });
+  }
+  function ask(value) {
+    const question = value.trim().toLowerCase();
+    if (!question) return;
+    setChat(true);
+    const key = /vad|asr|speech interval/.test(question) ? 'vad' : /feature|waveform/.test(question) ? 'features' : /20:44|unclear|window/.test(question) ? 'unclear' : null;
+    if (key) showAnswer(key);
+    else { const message = document.createElement('p'); message.textContent = 'I could not find enough in the processed sources to answer that.'; answer.replaceChildren(message); }
+  }
+  renderNote();
+  document.getElementById('note-editor').addEventListener('input', renderNote);
+  document.querySelectorAll('.segmented button[data-note-mode]').forEach(button => button.addEventListener('click', () => setNoteMode(button.dataset.noteMode)));
+  document.querySelectorAll('[data-mobile-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.mobileView)));
+  document.querySelectorAll('[data-pane-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.paneView)));
+  document.querySelectorAll('.segmented button[data-language]').forEach(button => button.addEventListener('click', () => {
+    body.dataset.language = button.dataset.language;
+    document.querySelectorAll('.segmented button[data-language]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+  }));
+  document.querySelectorAll('[data-jump]').forEach(button => button.addEventListener('click', () => {
+    if (button.hasAttribute('data-close-dialog')) dialog.close();
+    jump(button.dataset.jump, button.dataset.view);
+  }));
+  document.querySelectorAll('[data-question]').forEach(button => button.addEventListener('click', () => { setChat(true); showAnswer(button.dataset.question); }));
+  document.getElementById('chat-form').addEventListener('submit', event => { event.preventDefault(); const input = document.getElementById('chat-input'); ask(input.value); input.value = ''; });
+  chatToggle.addEventListener('click', () => setChat(true));
+  document.getElementById('chat-close').addEventListener('click', () => setChat(false));
+  document.getElementById('term-trigger').addEventListener('click', () => dialog.showModal());
+  document.getElementById('explanation-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+  themeToggle.addEventListener('click', () => { themeMenu.hidden = !themeMenu.hidden; themeToggle.setAttribute('aria-expanded', String(!themeMenu.hidden)); });
+  document.querySelectorAll('.theme-option').forEach(button => button.addEventListener('click', () => {
+    body.dataset.theme = button.dataset.theme;
+    document.getElementById('brand-use').setAttribute('href', '#icon-' + button.dataset.theme);
+    document.querySelectorAll('.theme-option').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    themeMenu.hidden = true;
+    themeToggle.setAttribute('aria-expanded', 'false');
+    themeToggle.focus();
+  }));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      if (!themeMenu.hidden) { themeMenu.hidden = true; themeToggle.setAttribute('aria-expanded', 'false'); themeToggle.focus(); }
+      if (!chat.hidden) setChat(false);
+    }
+  });
+</script>
+</body>
+</html>
