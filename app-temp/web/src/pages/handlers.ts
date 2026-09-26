@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AnswerSchema,
   CaptureStatusSchema,
@@ -10,7 +10,7 @@ import {
   SessionSummarySchema,
   SessionTitleSchema,
 } from "../types/api";
-import type { Evidence, TermCandidate, Transcript } from "../types/api";
+import type { Chunk, Evidence, TermCandidate } from "../types/api";
 import { api } from "./api";
 import { usePlaybackField } from "./store";
 
@@ -38,6 +38,10 @@ export function usePlaybackController() {
   const [textDialogError, setTextDialogError] =
     usePlaybackField("textDialogError");
   const audio = useRef<HTMLAudioElement>(null);
+  const playback = useRef<{ key: string; ids: string[]; index: number } | null>(
+    null,
+  );
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
   const savedMarkdown = useRef("");
   const textDialogSubmitting = useRef(false);
   useEffect(() => {
@@ -49,6 +53,9 @@ export function usePlaybackController() {
   useEffect(() => {
     setSelection(null);
     setFocusMaterialId(null);
+    audio.current?.pause();
+    playback.current = null;
+    setPlayingKey(null);
   }, [session?.id]);
   async function refresh(id?: string) {
     const h = await api("/health", "GET", undefined, HealthSchema);
@@ -119,18 +126,56 @@ export function usePlaybackController() {
       setBusy("");
     }
   }
-  function seek(entry: Transcript) {
-    if (!audio.current) return;
-    audio.current.src = `/api/chunks/${entry.id}/audio`;
-    audio.current.currentTime = 0;
-    audio.current.play().catch((e) => setError(e.message));
+  function togglePlayback(key: string, chunks: Pick<Chunk, "id">[]) {
+    const player = audio.current;
+    if (!player) return;
+    if (playingKey === key) {
+      player.pause();
+      player.currentTime = 0;
+      playback.current = null;
+      setPlayingKey(null);
+      return;
+    }
+    player.pause();
+    const queue = { key, ids: chunks.map((chunk) => chunk.id), index: 0 };
+    playback.current = queue;
+    player.src = `/api/chunks/${chunks[0].id}/audio`;
+    setPlayingKey(key);
+    player.play().catch((error) => {
+      if (playback.current !== queue) return;
+      playback.current = null;
+      setPlayingKey(null);
+      setError(`Audio playback failed: ${error.message}`);
+    });
+  }
+  function audioEnded() {
+    const queue = playback.current;
+    if (!queue || !audio.current) return;
+    queue.index += 1;
+    if (queue.index >= queue.ids.length) {
+      playback.current = null;
+      setPlayingKey(null);
+      return;
+    }
+    audio.current.src = `/api/chunks/${queue.ids[queue.index]}/audio`;
+    audio.current.play().catch((error) => {
+      if (playback.current !== queue) return;
+      playback.current = null;
+      setPlayingKey(null);
+      setError(`Audio playback failed: ${error.message}`);
+    });
   }
   function jump(evidence: Evidence) {
     if (evidence.url) {
       window.open(evidence.url, "_blank", "noopener,noreferrer");
       return;
     }
-    setView(evidence.kind === "material" ? "sources" : "transcript");
+    setView("transcript");
+    if (evidence.kind === "material") {
+      document
+        .querySelector<HTMLDetailsElement>("#session-materials")
+        ?.setAttribute("open", "");
+    }
     setTimeout(
       () =>
         document
@@ -176,7 +221,6 @@ export function usePlaybackController() {
           {
             question: parsed.data,
             useWeb,
-            webConsentConfirmed: useWeb,
             transcriptId: selection?.transcriptId,
             selectedText: selection?.text,
             materialId: focusMaterialId,
@@ -187,20 +231,6 @@ export function usePlaybackController() {
       setQuestion("");
       setSelection(null);
       setFocusMaterialId(null);
-    });
-  }
-  async function setConsent(confirmed: boolean) {
-    if (!session) return;
-    const previous = session;
-    setSession({ ...session, externalProcessingConsent: confirmed });
-    await action("consent", async () => {
-      try {
-        await api(`/sessions/${session.id}/consent`, "PUT", { confirmed });
-        await refresh(session.id);
-      } catch (error) {
-        setSession(previous);
-        throw error;
-      }
     });
   }
   async function setTranslation(
@@ -219,7 +249,6 @@ export function usePlaybackController() {
         await api(`/sessions/${session.id}/translation`, "PUT", {
           enabled,
           language,
-          consentConfirmed: enabled,
         });
         await refresh(session.id);
       } catch (error) {
@@ -269,20 +298,11 @@ export function usePlaybackController() {
   }
   async function record(command: "start" | "stop" | "pause" | "resume") {
     if (command === "start" && !session) return;
-    if (
-      command === "start" &&
-      !window.confirm(
-        "Before recording, confirm the lecturer's, participants' and institution's consent and applicable privacy and retention rules. Continue with local recording?",
-      )
-    )
-      return;
     await action("capture", async () => {
       const status = await api(
         `/capture/${command}`,
         "POST",
-        command === "start"
-          ? { sessionId: session!.id, consentConfirmed: true }
-          : undefined,
+        command === "start" ? { sessionId: session!.id } : undefined,
         CaptureStatusSchema,
       );
       setCapture(status);
@@ -356,6 +376,15 @@ export function usePlaybackController() {
       await refresh(session?.id);
     });
   }
+  async function deleteGroup(id: string) {
+    let deleted = false;
+    await action("group", async () => {
+      await api("/groups/" + id, "DELETE");
+      deleted = true;
+      await refresh(session?.id);
+    });
+    return deleted;
+  }
   return {
     settingsOpen,
     setSettingsOpen,
@@ -393,12 +422,13 @@ export function usePlaybackController() {
     savedMarkdown,
     refresh,
     action,
-    seek,
+    playingKey,
+    togglePlayback,
+    audioEnded,
     jump,
     create,
     attach,
     ask,
-    setConsent,
     setTranslation,
     captureSelection,
     askTerm,
@@ -408,6 +438,7 @@ export function usePlaybackController() {
     closeTextDialog,
     submitTextDialog,
     moveSession,
+    deleteGroup,
   };
 }
 

@@ -7,6 +7,25 @@ using Playback.Api.Db;
 using System.Text;
 using NAudio.Wave;
 
+if (args is ["--gemini-live"])
+{
+    try { await GeminiLiveCheck.Run(); }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine($"Gemini live demo failed: {ex.Message}");
+        Environment.ExitCode = 1;
+    }
+    catch (Exception ex)
+    {
+        var message = ex.Message;
+        var key = Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY");
+        if (!string.IsNullOrEmpty(key)) message = message.Replace(key, "[REDACTED]", StringComparison.Ordinal);
+        Console.Error.WriteLine($"Gemini live demo failed ({ex.GetType().Name}): {message}");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 static byte[] Json(string value) => Encoding.UTF8.GetBytes(value);
 static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
 
@@ -79,11 +98,62 @@ finally
 }
 
 var grounded = GeminiLanguageModel.ParseGrounding(Json("""
-{"steps":[{"type":"model_output","content":[{"type":"text","text":"Acoustic features summarize a waveform.","annotations":[{"type":"url_citation","url":"https://example.org/source","title":"Example source","start_index":0,"end_index":17},{"type":"url_citation","url":"javascript:alert(1)","title":"Unsafe","start_index":0,"end_index":17}]}]}]}
+{"candidates":[{"content":{"parts":[{"text":"Acoustic features summarize a waveform."}]},"groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://example.org/source","title":"Example source"}},{"web":{"uri":"javascript:alert(1)","title":"Unsafe"}}],"searchEntryPoint":{"renderedContent":"<div>Search suggestions</div>"}}}]}
 """));
 Check(grounded.Answer == "Acoustic features summarize a waveform.", "Grounded answer text was lost");
 Check(grounded.Evidence.Count == 1, "Unsafe or missing citation was accepted");
-Check(grounded.Evidence[0].StartIndex == 0 && grounded.Evidence[0].EndIndex == 17, "Citation span changed");
-try { GeminiLanguageModel.ParseGrounding(Json("{\"steps\":[]}")); throw new Exception("Empty grounded response was accepted"); }
+Check(grounded.Evidence[0].Url == "https://example.org/source" && grounded.SearchSuggestions.Contains("Search suggestions"),
+    "Vertex citation or search suggestions were lost");
+try { GeminiLanguageModel.ParseGrounding(Json("{\"candidates\":[]}")); throw new Exception("Empty grounded response was accepted"); }
 catch (InvalidOperationException) { }
-Console.WriteLine("Protocol checks passed: ASR original, silence, provider failures, grounded citation mapping");
+var previousJevKey = Environment.GetEnvironmentVariable("JEV_API_KEY");
+var previousOffline = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST");
+try
+{
+    Environment.SetEnvironmentVariable("JEV_API_KEY", "synthetic-fixture-key");
+    Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", null);
+    var jevHandler = new DemoJevHandler();
+    var jev = new JevTermClassifier(jevHandler);
+    var first = await Task.WhenAll(jev.Rank("Spectrogram", CancellationToken.None),
+                                   jev.Rank("Spectrogram", CancellationToken.None));
+    var cached = (JevRankResult)await jev.Rank("spectrogram", CancellationToken.None);
+    var second = (JevRankResult)await jev.Rank("Phoneme", CancellationToken.None);
+    Check(jevHandler.ModelRequests == 1 && jevHandler.RankRequests == 2,
+        "Jev should discover its model once and avoid duplicate paid term calls");
+    Check(cached.Cached && cached.JevRank == "high" && second.JevProbability == 0.92,
+        "Cached Jev ranking should preserve the real model result");
+}
+finally
+{
+    Environment.SetEnvironmentVariable("JEV_API_KEY", previousJevKey);
+    Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", previousOffline);
+}
+Console.WriteLine("Protocol checks passed: ASR original, silence, Vertex citations, Jev ranking cache");
+
+sealed class DemoJevHandler : HttpMessageHandler
+{
+    public int ModelRequests;
+    public int RankRequests;
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var path = request.RequestUri?.AbsolutePath;
+        if (request.Method == HttpMethod.Get && path == "/v1/models")
+        {
+            Interlocked.Increment(ref ModelRequests);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"models\":[{\"name\":\"demo-jev\"}]}")
+            });
+        }
+        if (request.Method == HttpMethod.Post && path == "/v1/systemone")
+        {
+            Interlocked.Increment(ref RankRequests);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"answers\":{\"explain\":{\"noul\":0.92},\"category\":{\"choice\":\"high\",\"confidence\":0.87}},\"usage\":{\"input_tokens\":5}}")
+            });
+        }
+        throw new InvalidOperationException("Unexpected Jev fixture request");
+    }
+}

@@ -12,15 +12,26 @@ public sealed class GeminiLanguageModel
     readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
     public bool IsConfigured => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY"));
 
-    public async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string model = "gemini-3.8-flash")
+    public async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string model = "gemini-3.5-flash-lite")
     {
         if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes")
             throw new InvalidOperationException("External AI is disabled for offline tests");
         var key = Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY")
-            ?? throw new InvalidOperationException("Google AI Studio key is unavailable");
-        var agent = new ChatClientAgent(new Client(vertexAI: false, apiKey: key).AsIChatClient(model), name: name, instructions: instructions);
-        var response = await agent.RunAsync(prompt, cancellationToken: ct);
-        return response.ToString();
+            ?? throw new InvalidOperationException("Vertex AI key is unavailable");
+        // Vertex Express accepts an API key without project/location: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/samples/googlegenaisdk-vertexai-express-mode
+        using var client = new Client(vertexAI: true, apiKey: key);
+        var agent = new ChatClientAgent(client.AsIChatClient(model), name: name, instructions: instructions);
+        try
+        {
+            var response = await agent.RunAsync(prompt, cancellationToken: ct);
+            return response.ToString();
+        }
+        catch (ClientError ex) when (ex.Message.Contains("not been used in project", StringComparison.OrdinalIgnoreCase) ||
+                                     ex.Message.Contains("SERVICE_DISABLED", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Vertex AI is disabled for this API key's Google project. Enable the Vertex AI API or use a key from an enabled project.");
+        }
     }
 
     public Task<GroundedResult> GroundedExplain(string term, CancellationToken ct) =>
@@ -33,19 +44,19 @@ public sealed class GeminiLanguageModel
             throw new InvalidOperationException("External search is disabled for offline tests");
         if (value.Length is < 1 or > 1000) throw new InvalidOperationException("Invalid grounded request");
         var key = Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY")
-            ?? throw new InvalidOperationException("Google AI Studio key is unavailable");
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://generativelanguage.googleapis.com/v1beta/interactions");
+            ?? throw new InvalidOperationException("Vertex AI key is unavailable");
+        // Express endpoint and Google Search tool: https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.5-flash-lite:generateContent");
         request.Headers.Add("x-goog-api-key", key);
         request.Content = JsonContent.Create(new
         {
-            model = "gemini-3.5-flash-lite",
-            input = question
+            contents = new[] { new { role = "user", parts = new[] { new { text = question
                 ? $"Answer this question using public web evidence. Label uncertainty: {value}"
-                : $"Explain this academic term concisely and say when evidence is uncertain: {value}",
-            tools = new[] { new { type = "google_search" } }
+                : $"Explain this academic term concisely and say when evidence is uncertain: {value}" } } } },
+            tools = new[] { new { googleSearch = new { } } }
         });
         using var response = await http.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Gemini grounding HTTP {(int)response.StatusCode}");
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Vertex grounding HTTP {(int)response.StatusCode}");
         var bytes = await ProviderResponseReader.ReadBounded(response, 1_000_000, ct);
         return ParseGrounding(bytes);
     }
@@ -54,36 +65,46 @@ public sealed class GeminiLanguageModel
         using var doc = JsonDocument.Parse(bytes);
         var evidence = new List<WebEvidence>();
         var answer = "";
-        if (doc.RootElement.TryGetProperty("steps", out var steps))
+        var suggestions = "";
+        if (doc.RootElement.TryGetProperty("candidates", out var candidates) &&
+            candidates.ValueKind == JsonValueKind.Array && candidates.GetArrayLength() > 0)
         {
-            foreach (var step in steps.EnumerateArray())
+            var candidate = candidates[0];
+            if (candidate.TryGetProperty("content", out var content) &&
+                content.TryGetProperty("parts", out var parts))
             {
-                if (!step.TryGetProperty("type", out var kind) || kind.GetString() != "model_output" ||
-                    !step.TryGetProperty("content", out var contents)) continue;
-                foreach (var content in contents.EnumerateArray())
+                foreach (var part in parts.EnumerateArray())
                 {
-                    if (content.TryGetProperty("text", out var text)) answer += text.GetString();
-                    if (!content.TryGetProperty("annotations", out var annotations)) continue;
-                    foreach (var annotation in annotations.EnumerateArray())
+                    if (part.TryGetProperty("text", out var text)) answer += text.GetString();
+                }
+            }
+            if (candidate.TryGetProperty("groundingMetadata", out var metadata))
+            {
+                if (metadata.TryGetProperty("searchEntryPoint", out var entry) &&
+                    entry.TryGetProperty("renderedContent", out var rendered))
+                    suggestions = rendered.GetString() ?? "";
+                if (metadata.TryGetProperty("groundingChunks", out var chunks))
+                {
+                    foreach (var chunk in chunks.EnumerateArray())
                     {
-                        if (!annotation.TryGetProperty("url", out var url) ||
+                        if (!chunk.TryGetProperty("web", out var web) ||
+                            !web.TryGetProperty("uri", out var url) ||
                             !Uri.TryCreate(url.GetString(), UriKind.Absolute, out var uri) ||
                             uri.Scheme != "https") continue;
                         evidence.Add(new WebEvidence(
                             "web",
                             uri.ToString(),
-                            annotation.TryGetProperty("title", out var title) ? title.GetString() ?? uri.Host : uri.Host,
-                            annotation.TryGetProperty("start_index", out var start) ? start.GetInt32() : 0,
-                            annotation.TryGetProperty("end_index", out var end) ? end.GetInt32() : 0));
+                            web.TryGetProperty("title", out var title) ? title.GetString() ?? uri.Host : uri.Host,
+                            0, 0));
                     }
                 }
             }
         }
         if (string.IsNullOrWhiteSpace(answer)) throw new InvalidOperationException("Gemini grounding returned no answer");
-        return new GroundedResult(answer, evidence, true);
+        return new GroundedResult(answer, evidence, true, suggestions);
     }
 
 }
 
 public sealed record WebEvidence(string Kind, string Url, string Title, int StartIndex, int EndIndex);
-public sealed record GroundedResult(string Answer, List<WebEvidence> Evidence, bool Inference);
+public sealed record GroundedResult(string Answer, List<WebEvidence> Evidence, bool Inference, string SearchSuggestions);

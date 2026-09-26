@@ -16,6 +16,7 @@ public sealed class AsrQueue : IAsyncDisposable
     readonly CancellationTokenSource stopping = new();
     readonly Task[] workers;
     readonly Task scanner;
+    readonly bool paused = Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") == "yes";
     bool databaseUnavailable;
 
     public AsrQueue(PlaybackStore store, AsrProcessor processor, ILogger<AsrQueue> logger)
@@ -23,6 +24,7 @@ public sealed class AsrQueue : IAsyncDisposable
         this.store = store;
         this.processor = processor;
         this.logger = logger;
+        if (paused) logger.LogWarning("External ASR is paused; saved audio remains queued for a later restart");
         workers = Enumerable.Range(0, 2).Select(_ => Task.Run(ProcessQueue)).ToArray();
         scanner = Task.Run(ScanPending);
     }
@@ -38,6 +40,7 @@ public sealed class AsrQueue : IAsyncDisposable
 
     public bool Enqueue(string id, bool recovery = false)
     {
+        if (paused) return false;
         lock (queued)
         {
             if (stopping.IsCancellationRequested) throw new InvalidOperationException("ASR queue is stopping");
@@ -52,7 +55,7 @@ public sealed class AsrQueue : IAsyncDisposable
 
     async Task ScanPending()
     {
-        if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") return;
+        if (paused || Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") return;
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
         try
         {
@@ -66,7 +69,8 @@ public sealed class AsrQueue : IAsyncDisposable
     {
         try
         {
-            EnqueuePending(await store.PendingAsrChunks());
+            var restored = EnqueuePending(await store.PendingAsrChunks());
+            if (restored > 0) logger.LogInformation("Queued {Count} saved audio chunks for ASR", restored);
             databaseUnavailable = false;
         }
         catch (Exception ex) when (ex is MongoException or TimeoutException)

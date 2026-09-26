@@ -11,7 +11,10 @@ public static class HealthEndpoints
             mongo = await store.IsReady(),
             gemini = gemini.IsConfigured,
             jev = jev.IsConfigured,
-            automaticAsr = true
+            automaticAsr = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") != "yes"
+                && Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes",
+            asrPaused = Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") == "yes",
+            consentFreeAsr = true
         });
     }
 }

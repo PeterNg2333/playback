@@ -12,12 +12,9 @@ public static class SessionsEndpoints
         app.MapPut("/api/sessions/{id}/group", async (
             string id, MoveSessionInput input, PlaybackStore store) =>
             await store.MoveSession(id, input.GroupId));
-        app.MapPut("/api/sessions/{id}/consent", async (
-            string id, ConsentInput input, PlaybackStore store) =>
-            await store.SetExternalConsent(id, input.Confirmed));
         app.MapPut("/api/sessions/{id}/translation", async (
             string id, TranslationInput input, PlaybackStore store) =>
-            await store.SetTranslation(id, input.Enabled, input.Language, input.ConsentConfirmed));
+            await store.SetTranslation(id, input.Enabled, input.Language));
         app.MapPost("/api/sessions/{id}/translation/retry", async (string id, PlaybackStore store) =>
         {
             var session = await store.Session(id)

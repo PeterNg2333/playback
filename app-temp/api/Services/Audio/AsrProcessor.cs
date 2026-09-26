@@ -1,13 +1,11 @@
 using System.Diagnostics;
 using Playback.Api.Db;
-using Playback.Api.Services.Ai.Agents;
 
 namespace Playback.Api.Services.Audio;
 
 public sealed class AsrProcessor(
     PlaybackStore store,
     SenseVoiceClient senseVoice,
-    NoteAgent notes,
     ILogger<AsrProcessor> logger)
 {
     public async Task Process(string id, CancellationToken ct)
@@ -34,12 +32,6 @@ public sealed class AsrProcessor(
             await store.SetChunkStatus(id, "silent");
             return;
         }
-        if (!await store.HasExternalConsent(chunk.SessionId))
-        {
-            await store.SetChunkStatus(id, "awaiting-consent");
-            return;
-        }
-
         await store.SetChunkStatus(id, "transcribing");
         var watch = Stopwatch.StartNew();
         var result = await senseVoice.Transcribe(chunk.Path, ct);
@@ -48,8 +40,6 @@ public sealed class AsrProcessor(
             "ASR completed for {ChunkId} in {ElapsedMs} ms; provider inference {InferenceSeconds} s, " +
             "duration {DurationSeconds} s, rtf {Rtf}, language {Language}",
             id, watch.ElapsedMilliseconds, result.InferenceSeconds, result.DurationSeconds, result.RealTimeFactor, result.Language);
-        if (!string.IsNullOrWhiteSpace(result.Text))
-            await notes.AfterTranscription(chunk.SessionId, ct);
     }
 
     async Task SaveFailure(string id, CancellationToken ct, Exception failure)

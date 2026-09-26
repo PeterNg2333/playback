@@ -88,7 +88,7 @@
     .timeline-day:not([open]) > summary::before, .timeline-hour:not([open]) > summary::before { content:"▸"; }
     .transcript-row { display:grid; grid-template-columns:90px minmax(0,1fr); gap:14px; padding:22px 0; border-bottom:1px solid var(--line); scroll-margin-top:16px; }
     .transcript-row:last-child { border-bottom:0; }
-    .transcript-row.highlight,.source-item.highlight { border-radius:8px; background:var(--accent-soft); }
+    .transcript-row.highlight { border-radius:8px; background:var(--accent-soft); }
     .time-range { padding-top:1px; color:var(--accent); font-size:11px; font-weight:750; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .speaker { display:block; margin-bottom:6px; color:var(--muted); font-size:11px; font-weight:700; }
     .original { margin:0; font-size:13px; line-height:1.7; }
@@ -97,13 +97,6 @@
     .term { display:inline; padding:0; border:0; border-bottom:1px dashed var(--accent); background:none; color:var(--accent); font-weight:750; }
     .uncertain { display:inline-block; margin-top:8px; padding:3px 7px; border-radius:5px; background:var(--pink-soft); color:#ac4c79; font-size:10px; font-weight:700; }
     .citation { margin:0 5px 0 0; padding:3px 6px; border:0; border-radius:5px; background:var(--accent-soft); color:var(--accent); font-size:10px; font-weight:750; }
-    .source-content { padding:8px 18px 25px; }
-    .source-item { display:grid; grid-template-columns:30px minmax(0,1fr); gap:10px; padding:14px 6px; border-bottom:1px solid var(--line); scroll-margin-top:16px; }
-    .source-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:8px; background:var(--accent-soft); color:var(--accent); font-size:14px; font-weight:800; }
-    .source-item:nth-child(2) .source-icon { background:var(--pink-soft); color:var(--pink); }
-    .source-item:nth-child(3) .source-icon { background:#edf3ff; color:var(--blue); }
-    .source-item strong { display:block; font-size:12px; }
-    .source-item p { margin:2px 0 0; color:var(--muted); font-size:11px; }
     .floating { position:fixed; right:28px; bottom:24px; z-index:10; display:flex; align-items:center; gap:7px; padding:11px 16px; border:0; border-radius:999px; background:var(--accent); color:#fff; box-shadow:0 8px 22px #44417e36; font-size:12px; font-weight:750; }
     .floating svg { width:17px; height:17px; }
     .chat { position:fixed; right:28px; bottom:24px; z-index:10; display:none; flex-direction:column; width:min(370px,calc(100vw - 24px)); max-height:min(560px,calc(100vh - 48px)); overflow:hidden; border:1px solid var(--line); border-radius:15px; background:#fff; box-shadow:0 15px 45px #27325f29; }

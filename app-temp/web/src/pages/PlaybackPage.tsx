@@ -8,7 +8,7 @@ import { PlaybackOverlay } from "./PlaybackOverlay";
 
 export function PlaybackPage() {
   const model = usePlaybackController();
-  const { view, setView, session, capture, audio } = model;
+  const { view, setView, session, capture, audio, audioEnded } = model;
   return (
     <div
       className="app-shell"
@@ -41,7 +41,7 @@ export function PlaybackPage() {
         <NotesPanel model={model} />
         <TranscriptPanel model={model} />
       </Workspace>
-      <audio ref={audio} hidden />
+      <audio ref={audio} hidden onEnded={audioEnded} />
       <PlaybackOverlay model={model} />
     </div>
   );

@@ -221,10 +221,16 @@ async function main() {
       const health = await (
         await fetch("http://127.0.0.1:5078/api/health")
       ).json();
-      if (!health.automaticAsr)
+      if (!health.consentFreeAsr)
         throw new Error(
           "An older Playback API is running. Stop it with Ctrl+C, then run pnpm.cmd dev again.",
         );
+      if (health.asrPaused)
+        console.warn("Playback is running with external ASR paused; saved audio will resume after a normal restart.");
+      if (process.env.GOOGLE_AI_STUDIO_API_KEY && !health.gemini)
+        throw new Error("Playback API was started without the Gemini key. Stop the existing API, then run pnpm.cmd dev again to load .env.");
+      if (process.env.JEV_API_KEY && !health.jev)
+        throw new Error("Playback API was started without the Jev key. Stop the existing API, then run pnpm.cmd dev again to load .env.");
       await ensureMongo(health);
       console.log(
         "Playback is already running at http://127.0.0.1:5173/. Open it in your browser.",

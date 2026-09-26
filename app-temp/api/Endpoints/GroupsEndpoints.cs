@@ -11,5 +11,10 @@ public static class GroupsEndpoints
             await store.CreateGroup(input.Name));
         app.MapPut("/api/groups/{id}", async (string id, GroupInput input, PlaybackStore store) =>
             await store.RenameGroup(id, input.Name));
+        app.MapDelete("/api/groups/{id}", async (string id, PlaybackStore store) =>
+        {
+            await store.DeleteGroup(id);
+            return Results.NoContent();
+        });
     }
 }

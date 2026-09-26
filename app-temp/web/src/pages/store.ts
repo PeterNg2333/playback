@@ -9,7 +9,7 @@ import type {
   SessionSummary,
 } from "../types/api";
 
-export type View = "notes" | "transcript" | "sources";
+export type View = "notes" | "transcript";
 export type NoteMode = "preview" | "markdown";
 export type Selection = {
   transcriptId: string;

@@ -18,13 +18,6 @@ public static class ChunksEndpoints
             var chunk = await store.SaveChunk(form, file, ct);
             if (chunk.Status is "transcribed" or "asr-empty" or "silent")
                 return Results.Ok(new { chunk.Id, chunk.Status });
-            if (!await store.HasExternalConsent(chunk.SessionId))
-            {
-                await store.SetChunkStatus(chunk.Id, "awaiting-consent");
-                return Results.Accepted(
-                    $"/api/sessions/{chunk.SessionId}",
-                    new { chunk.Id, status = "awaiting-consent" });
-            }
             asr.Enqueue(chunk.Id);
             return Results.Accepted(
                 $"/api/sessions/{chunk.SessionId}",

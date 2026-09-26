@@ -103,8 +103,31 @@ try {
   const groups = await (await fetch(`${api}/groups`)).json();
   groupId = groups.find((item) => item.name === groupName)?.id;
   assert.match(groupId, /^[a-f0-9]{32}$/);
-  await page.getByLabel(`Move ${title} to group`).selectOption(groupId);
-  await page.getByRole("button", { name: `Rename ${groupName}` }).click();
+  const groupFolder = page.locator(".session-group").filter({
+    has: page.getByRole("button", {
+      name: `Collapse ${groupName}`,
+      exact: true,
+    }),
+  });
+  await page
+    .getByRole("button", { name: title, exact: true })
+    .dragTo(groupFolder.locator(".folder-row"));
+  await groupFolder.getByRole("button", { name: title, exact: true }).waitFor();
+  await groupFolder
+    .getByRole("button", { name: title, exact: true })
+    .dragTo(page.locator(".sessions-section .sidebar-heading"));
+  await page
+    .locator(".sessions-section")
+    .getByRole("button", { name: title, exact: true })
+    .waitFor();
+  await page
+    .locator(".sessions-section")
+    .getByRole("button", { name: title, exact: true })
+    .dragTo(groupFolder.locator(".folder-row"));
+  await page
+    .locator(`summary[aria-label="Group options for ${groupName}"]`)
+    .click();
+  await page.getByRole("button", { name: "Rename group" }).click();
   await page
     .getByRole("dialog")
     .getByRole("textbox", { name: "Group name" })
@@ -133,7 +156,7 @@ try {
     groupId,
   );
   await page.getByRole("button", { name: title, exact: true }).click();
-  await page.getByRole("button", { name: "Sources" }).click();
+  await page.locator("#session-materials > summary").click();
   const fileChooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Attach text material" }).click();
   await (
@@ -159,12 +182,9 @@ try {
     .waitFor();
   await page.getByRole("button", { name: "Preview" }).click();
   await page.getByRole("heading", { name: "Demo notes" }).waitFor();
-  await page.getByRole("button", { name: "Sources" }).click();
+  await page.locator("#session-materials > summary").click();
   await page.getByText(materialText).waitFor();
-
-  await page.getByRole("button", { name: "Back to transcript" }).click();
   await page.getByRole("button", { name: "Transcript settings" }).click();
-  await page.getByLabel(/I confirm lecturer/).check();
   await page.getByLabel("啟用翻譯").check();
   await page.getByLabel("目標語言").selectOption("en");
   await page.waitForFunction(async (id) => {
@@ -238,8 +258,39 @@ try {
     savedSession.materials.map((material) => material.text),
     [materialText],
   );
-  await page.getByRole("button", { name: "Sources" }).click();
-  await page.getByText(/Exact digital silence/).waitFor({ timeout: 10_000 });
+  await page
+    .locator(".silence-section > summary")
+    .first()
+    .waitFor({ timeout: 10_000 });
+  await page.getByText("No sound section").first().waitFor();
+  await page
+    .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
+    .click();
+  await page.getByRole("button", { name: "Delete group" }).click();
+  await page
+    .getByRole("dialog", { name: `Delete ${groupName} renamed?` })
+    .getByRole("button", { name: "Delete group" })
+    .click();
+  await page
+    .locator(".sessions-section")
+    .getByRole("button", { name: title, exact: true })
+    .waitFor();
+  await page
+    .locator(".sessions-section")
+    .getByRole("button", { name: nestedTitle, exact: true })
+    .waitFor();
+  const retained = await (await fetch(`${api}/sessions/${sessionId}`)).json();
+  assert.equal(retained.groupId, null);
+  assert.equal(retained.noteMarkdown, markdown);
+  assert.deepEqual(
+    retained.materials.map((material) => material.text),
+    [materialText],
+  );
+  assert.equal(
+    (await (await fetch(`${api}/sessions/${nestedSessionId}`)).json()).groupId,
+    null,
+  );
+  groupId = null;
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
     const path = join(tmpdir(), "playback-desktop-check.png");
     await page.screenshot({ path, fullPage: true });
@@ -263,7 +314,6 @@ try {
     "Narrow layout must not overflow horizontally",
   );
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
-    await page.getByRole("button", { name: "Back to transcript" }).click();
     await page.getByRole("button", { name: "Transcript settings" }).click();
     const path = join(tmpdir(), "playback-narrow-check.png");
     await page.screenshot({ path, fullPage: true });

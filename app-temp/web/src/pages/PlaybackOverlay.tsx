@@ -72,12 +72,6 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             </button>
           </div>
           <div className="chat-scroll">
-            {!session?.externalProcessingConsent && (
-              <p className="chat-hint">
-                Confirm external processing consent in Transcript settings
-                before sending a question.
-              </p>
-            )}
             {!health?.gemini && (
               <p className="chat-hint">
                 Gemini is unavailable; questions and translations can be retried
@@ -91,6 +85,14 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
                   <p>
                     <strong>Public web:</strong> {answer.webAnswer}
                   </p>
+                )}
+                {answer.webSuggestions && (
+                  <iframe
+                    className="search-suggestions"
+                    title="Google Search suggestions"
+                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    srcDoc={answer.webSuggestions}
+                  />
                 )}
                 {answer.inference && (
                   <small>Model inference · verify against sources</small>
@@ -154,17 +156,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
               placeholder="Ask a question…"
             />
             <button
-              disabled={
-                !session ||
-                !!busy ||
-                !health?.gemini ||
-                !session.externalProcessingConsent
-              }
-              title={
-                !session?.externalProcessingConsent
-                  ? "Confirm external processing consent in Transcript settings"
-                  : undefined
-              }
+              disabled={!session || !!busy}
             >
               Send
             </button>

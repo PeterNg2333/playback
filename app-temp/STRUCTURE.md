@@ -18,6 +18,10 @@ session and group names. `Component/Icon.tsx` and `Component/Markdown.tsx`
 have no session-specific requests. `types/api.ts` holds Zod response and input
 schemas; `pages/api.ts` applies them at the fetch boundary. Browser session
 data is refreshed from the local API and is not persisted by Zustand.
+The sidebar lists groups as folders and ungrouped items in Sessions. Sessions
+can be moved by dragging to a group or back to Sessions; each session also has
+a keyboard-accessible move menu. Deleting a group keeps its sessions and moves
+them to Sessions through `DELETE /api/groups/{id}`.
 
 ## .NET API
 
@@ -76,3 +80,6 @@ assets left by another Windows account or sandbox. For an offline browser E2E
 that avoids recording from the local microphone, start the local API with
 `PLAYBACK_OFFLINE_TEST=yes` and the web server on port `5174`, then set
 `PLAYBACK_E2E_SKIP_CAPTURE=yes` when running `web/src/test/e2e-check.mjs`.
+For a sidebar-only check without MongoDB, run the web server on port `5174`
+and then `node app-temp/web/src/test/sidebar-check.mjs`; it intercepts API
+requests in the browser and uses disposable fixture data.

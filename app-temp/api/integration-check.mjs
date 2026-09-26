@@ -23,9 +23,6 @@ assert.equal((await call(`/sessions/${second.id}`)).data.groupId, groupId)
 await call(`/sessions/${second.id}/group`, 'PUT', { groupId: null })
 assert.equal((await call(`/sessions/${second.id}`)).data.groupId, null)
 await call(`/groups/${groupId}`, 'PUT', { name: 'E2E group renamed' })
-const unconsentedCapture = await call('/capture/start', 'POST', { sessionId: first.id })
-assert.equal(unconsentedCapture.status, 409)
-assert.match(unconsentedCapture.data.error, /Confirm recording consent/)
 await call(`/sessions/${first.id}/materials`, 'POST', { name: 'A.txt', text: 'A-only synthetic source' })
 await call(`/sessions/${second.id}/materials`, 'POST', { name: 'B.txt', text: 'B-only synthetic source' })
 const one = (await call(`/sessions/${first.id}`)).data
@@ -62,7 +59,7 @@ async function waitForChunk(sessionId, chunkId, status) {
 }
 const sent = await upload(first.id, 'system', 0, 0, 1000, wav, hash)
 assert.equal(sent.status, 202)
-assert.equal(sent.data.status, 'awaiting-consent')
+assert.equal(sent.data.status, 'pending-asr')
 const replay = await upload(first.id, 'system', 0, 0, 1000, wav, hash)
 assert.equal(replay.data.id, sent.data.id)
 const secondSource = await upload(first.id, 'microphone', 0, 100, 1100, wav, hash)
@@ -72,16 +69,10 @@ assert.notEqual(secondSession.data.id, sent.data.id)
 const range = (await call(`/sessions/${first.id}`)).data.chunks
 assert.deepEqual(range.map(x => [x.sourceId, x.startMs, x.endMs]), [['system', 0, 1000], ['microphone', 100, 1100]])
 assert.equal((await call(`/sessions/${second.id}`)).data.chunks.length, 1)
-const invalid = await call('/explain', 'POST', { term: 'x'.repeat(1001) })
-assert.equal(invalid.status, 409)
-assert.match(invalid.data.error, /Confirm public web search/)
 if (process.env.PLAYBACK_OFFLINE_TEST === 'yes') {
   const fixture = await call(`/testing/sessions/${first.id}/transcripts`, 'POST', { chunkId: sent.data.id, text: 'Synthetic lecture uses Fourier Transform and FFT bins.' })
   assert.equal(fixture.status, 200)
-  const beforeConsent = await call(`/sessions/${first.id}/translation`, 'PUT', { enabled: true, language: 'zh-Hant', consentConfirmed: true })
-  assert.equal(beforeConsent.status, 409)
-  await call(`/sessions/${first.id}/consent`, 'PUT', { confirmed: true })
-  await call(`/sessions/${first.id}/translation`, 'PUT', { enabled: true, language: 'zh-Hant', consentConfirmed: true })
+  await call(`/sessions/${first.id}/translation`, 'PUT', { enabled: true, language: 'zh-Hant' })
   const translated = (await call(`/sessions/${first.id}`)).data
   assert.equal(translated.translationEnabled, true)
   assert.equal(translated.transcripts[0].translationStatus, 'pending', 'Existing transcript must be queued for translation')
@@ -116,7 +107,7 @@ if (process.env.PLAYBACK_OFFLINE_TEST === 'yes') {
   await call(`/sessions/${first.id}/translation`, 'PUT', { enabled: false, language: 'zh-Hant' })
   assert.equal((await call(`/sessions/${first.id}`)).data.translationEnabled, false)
 }
-console.log('Integration check passed: source isolation, note versions, chunk replay, time ranges, consent gate')
+console.log('Integration check passed: source isolation, note versions, automatic ASR queue, time ranges')
 } finally {
   for (const id of created) {
     const response = await fetch(`${base}/testing/sessions/${id}`, { method: 'DELETE' })

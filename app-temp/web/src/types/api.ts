@@ -38,6 +38,7 @@ export const ChunkSchema = z.object({
   startMs: z.number(),
   endMs: z.number(),
   status: z.string(),
+  recordedAt: z.string().nullish(),
   error: z.string().nullish(),
 });
 export const SessionSummarySchema = z.object({
@@ -52,7 +53,6 @@ export const SessionSchema = SessionSummarySchema.extend({
   noteVersion: z.number(),
   translationEnabled: z.boolean(),
   translationLanguage: z.string(),
-  externalProcessingConsent: z.boolean(),
   materials: z.array(MaterialSchema),
   transcripts: z.array(TranscriptSchema),
   chunks: z.array(ChunkSchema),
@@ -81,6 +81,7 @@ export const EvidenceSchema = z.object({
 export const AnswerSchema = z.object({
   answer: z.string(),
   webAnswer: z.string().nullish(),
+  webSuggestions: z.string().nullish(),
   evidence: z.array(EvidenceSchema),
   inference: z.boolean(),
 });
@@ -89,6 +90,7 @@ export const HealthSchema = z.object({
   gemini: z.boolean(),
   jev: z.boolean(),
   automaticAsr: z.boolean().optional(),
+  asrPaused: z.boolean().optional(),
 });
 export const CaptureStatusSchema = z.object({
   state: z.enum(["idle", "recording", "paused"]),

@@ -13,12 +13,12 @@ public sealed record SessionView(
     long NoteProcessedThroughMs,
     bool TranslationEnabled,
     string TranslationLanguage,
-    bool ExternalProcessingConsent,
     List<Material> Materials,
     List<Transcript> Transcripts,
     List<ChunkRecord> Chunks,
     List<TermCandidate> Terms,
     Note? CurrentNote);
+[BsonIgnoreExtraElements]
 public sealed class SessionRecord
 {
     [BsonId] public string Id { get; set; } = "";
@@ -27,8 +27,6 @@ public sealed class SessionRecord
     public DateTime CreatedAt { get; set; }
     public bool TranslationEnabled { get; set; }
     public string TranslationLanguage { get; set; } = "zh-Hant";
-    public DateTime? TranslationConsentAt { get; set; }
-    public DateTime? ExternalConsentAt { get; set; }
 }
 public sealed class GroupRecord
 {

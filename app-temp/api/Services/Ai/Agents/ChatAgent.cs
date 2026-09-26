@@ -15,10 +15,6 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini)
     {
         var session = await store.Session(id)
             ?? throw new InvalidOperationException("Session not found");
-        if (!session.ExternalProcessingConsent)
-            throw new InvalidOperationException("Confirm external processing consent before asking Playback");
-        if (input.UseWeb && !input.WebConsentConfirmed)
-            throw new InvalidOperationException("Confirm public web search for this question");
         if (input.Question.Length is < 1 or > 1000)
             throw new InvalidOperationException("Question must be 1?1000 characters");
         if (session.Transcripts.Count == 0 && session.Materials.Count == 0)
@@ -47,6 +43,7 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini)
             answer,
             evidence = evidence.Concat(web?.Evidence.Cast<object>() ?? []),
             webAnswer = web?.Answer,
+            webSuggestions = web?.SearchSuggestions,
             inference = true,
             privacy = "private"
         };

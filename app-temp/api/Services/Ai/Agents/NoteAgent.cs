@@ -29,7 +29,7 @@ public sealed class NoteAgent : IAsyncDisposable
     async Task ScanPending()
     {
         if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") return;
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(2));
         try
         {
             do
@@ -56,10 +56,9 @@ public sealed class NoteAgent : IAsyncDisposable
 
     async Task RetryPending(CancellationToken ct)
     {
-        if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_NOTES") != "yes") return;
+        if (!gemini.IsConfigured || Environment.GetEnvironmentVariable("PLAYBACK_AUTO_NOTES") == "no") return;
         foreach (var sessionId in await store.SessionsWithPendingNotes())
         {
-            if (!await store.HasExternalConsent(sessionId)) continue;
             if (!automatic.Wait(0)) break;
             try { await Generate(sessionId, ct); }
             catch (Exception ex) when (!ct.IsCancellationRequested)
@@ -68,18 +67,6 @@ public sealed class NoteAgent : IAsyncDisposable
             }
             finally { automatic.Release(); }
         }
-    }
-
-    public async Task AfterTranscription(string sessionId, CancellationToken ct)
-    {
-        if (!gemini.IsConfigured || Environment.GetEnvironmentVariable("PLAYBACK_AUTO_NOTES") != "yes") return;
-        await automatic.WaitAsync(ct);
-        try { await Generate(sessionId, ct); }
-        catch (Exception ex) when (!ct.IsCancellationRequested)
-        {
-            logger.LogWarning(ex, "Automatic note update failed for {SessionId}", sessionId);
-        }
-        finally { automatic.Release(); }
     }
 
     public static List<Transcript> Pending(IEnumerable<Transcript> transcripts) => transcripts

@@ -13,7 +13,6 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
     setMarkdown,
     savedMarkdown,
     busy,
-    health,
     jump,
     action,
     refresh,
@@ -51,8 +50,8 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                 <details className="note-sources">
                   <summary>
                     {session.currentNote.author === "user"
-                      ? "Source lineage from earlier notes"
-                      : "Sources used for this note version"}{" "}
+                      ? "Linked passages from earlier notes"
+                      : "Linked transcript and materials"}{" "}
                     · {session.currentNote.transcriptIds.length} audio ·{" "}
                     {session.currentNote.materialIds.length} materials
                   </summary>
@@ -139,22 +138,13 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
         </button>
         <button
           className="secondary-action"
-          disabled={
-            !session ||
-            !!busy ||
-            !health?.gemini ||
-            !session.externalProcessingConsent ||
-            markdown !== savedMarkdown.current
-          }
-          title={
-            !session?.externalProcessingConsent
-              ? "Confirm external processing consent in Transcript settings"
-              : markdown !== savedMarkdown.current
-                ? "Save your edits before revising with AI"
-                : undefined
-          }
+          disabled={!session || !!busy}
           onClick={() =>
             action("generate", async () => {
+              if (markdown !== savedMarkdown.current) {
+                await api(`/sessions/${session!.id}/notes`, "POST", { markdown });
+                await refresh(session!.id);
+              }
               await api(`/sessions/${session!.id}/notes/generate`, "POST");
               await refresh(session!.id);
             })

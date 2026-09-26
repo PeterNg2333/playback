@@ -13,8 +13,6 @@ public static class NotesEndpoints
         app.MapPost("/api/sessions/{id}/notes/generate", async (
             string id, PlaybackStore store, NoteAgent notes, CancellationToken ct) =>
         {
-            if (!await store.HasExternalConsent(id))
-                throw new InvalidOperationException("Confirm external processing consent before generating notes");
             return await notes.Generate(id, ct, allowRevision: true);
         });
     }

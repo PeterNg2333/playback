@@ -86,11 +86,12 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
 
     async Task Pump(Recording recording)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
         try
         {
             while (await timer.WaitForNextTickAsync(recording.Cancel.Token))
-                if (!recording.Paused) await FinalizeChunks(recording);
+                if (!recording.Paused && recording.OffsetMs + recording.Clock.ElapsedMilliseconds - recording.LastFinalizeAtMs >= 30_000)
+                    await FinalizeChunks(recording);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -116,6 +117,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 }
             }
             await ReplayPending(recording.SessionId, recording);
+            recording.LastFinalizeAtMs = endMs;
         }
         finally { recording.FinalizeGate.Release(); }
     }
@@ -249,7 +251,8 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
     {
         public string SessionId { get; } = sessionId;
         public long OffsetMs { get; } = offsetMs;
-        public bool AutoAsr => true;
+        public long LastFinalizeAtMs { get; set; } = offsetMs;
+        public bool AutoAsr => Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes";
         public Stopwatch Clock { get; } = Stopwatch.StartNew();
         public bool Paused { get; set; }
         public DateTime LastSoundAt { get; set; } = DateTime.UtcNow;

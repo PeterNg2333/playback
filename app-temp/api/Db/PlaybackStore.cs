@@ -74,6 +74,15 @@ public sealed class PlaybackStore
             new FindOneAndUpdateOptions<GroupRecord> { ReturnDocument = ReturnDocument.After })
             ?? throw new InvalidOperationException("Group not found");
     }
+    public async Task DeleteGroup(string id)
+    {
+        var deleted = await Collection<GroupRecord>("groups").DeleteOneAsync(x => x.Id == id);
+        var moved = await Collection<SessionRecord>("sessions").UpdateManyAsync(
+            x => x.GroupId == id,
+            Builders<SessionRecord>.Update.Set(x => x.GroupId, null));
+        if (deleted.DeletedCount == 0 && moved.MatchedCount == 0)
+            throw new InvalidOperationException("Group not found");
+    }
     public async Task<object> MoveSession(string id, string? groupId)
     {
         if (groupId is not null && await Collection<GroupRecord>("groups").CountDocumentsAsync(x => x.Id == groupId) == 0)
@@ -83,18 +92,13 @@ public sealed class PlaybackStore
         if (result.MatchedCount == 0) throw new InvalidOperationException("Session not found");
         return new { id, groupId };
     }
-    public async Task<SessionRecord> SetTranslation(string id, bool enabled, string language, bool consentConfirmed)
+    public async Task<SessionRecord> SetTranslation(string id, bool enabled, string language)
     {
         if (language is not ("zh-Hant" or "en" or "ja" or "ko")) throw new InvalidOperationException("Unsupported translation language");
         var session = await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstOrDefaultAsync()
             ?? throw new InvalidOperationException("Session not found");
-        if (enabled && session.ExternalConsentAt is null)
-            throw new InvalidOperationException("Confirm external processing consent before enabling translation");
-        if (enabled && !consentConfirmed && session.TranslationConsentAt is null)
-            throw new InvalidOperationException("Confirm recording consent before sending transcript to Gemini");
         var changedLanguage = session.TranslationLanguage != language;
         var update = Builders<SessionRecord>.Update.Set(x => x.TranslationEnabled, enabled).Set(x => x.TranslationLanguage, language);
-        if (enabled && consentConfirmed) update = update.Set(x => x.TranslationConsentAt, DateTime.UtcNow);
         await Collection<SessionRecord>("sessions").UpdateOneAsync(x => x.Id == id, update);
         if (changedLanguage)
             await Collection<Transcript>("transcripts").UpdateManyAsync(x => x.SessionId == id,
@@ -104,25 +108,10 @@ public sealed class PlaybackStore
                     .Set(x => x.TranslationError, null));
         return (await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstAsync());
     }
-    public async Task<SessionRecord> SetExternalConsent(string id, bool confirmed)
-    {
-        var update = Builders<SessionRecord>.Update.Set(x => x.ExternalConsentAt, confirmed ? DateTime.UtcNow : null);
-        if (!confirmed) update = update.Set(x => x.TranslationEnabled, false);
-        var session = await Collection<SessionRecord>("sessions").FindOneAndUpdateAsync(x => x.Id == id, update,
-            new FindOneAndUpdateOptions<SessionRecord> { ReturnDocument = ReturnDocument.After })
-            ?? throw new InvalidOperationException("Session not found");
-        if (confirmed)
-            await Collection<ChunkRecord>("chunks").UpdateManyAsync(x => x.SessionId == id && x.Status == "awaiting-consent",
-                Builders<ChunkRecord>.Update.Set(x => x.Status, "pending-asr"));
-        return session;
-    }
-    public async Task<bool> HasExternalConsent(string id) =>
-        await Collection<SessionRecord>("sessions").CountDocumentsAsync(x => x.Id == id && x.ExternalConsentAt != null) > 0;
     public async Task<List<Transcript>> PendingTranslations(int limit = 30, string? sessionId = null)
     {
         var sessions = await Collection<SessionRecord>("sessions")
-            .Find(x => x.TranslationEnabled && x.TranslationConsentAt != null &&
-                x.ExternalConsentAt != null && (sessionId == null || x.Id == sessionId))
+            .Find(x => x.TranslationEnabled && (sessionId == null || x.Id == sessionId))
             .ToListAsync();
         var result = new List<Transcript>();
         foreach (var session in sessions)
@@ -290,7 +279,6 @@ public sealed class PlaybackStore
             note?.ProcessedThroughMs ?? 0,
             session.TranslationEnabled,
             session.TranslationLanguage ?? "zh-Hant",
-            session.ExternalConsentAt is not null,
             materials,
             transcripts,
             chunks,
@@ -435,7 +423,7 @@ public sealed class PlaybackStore
         return File.Exists(path) ? path : null;
     }
     public async Task<List<ChunkRecord>> PendingAsrChunks() => await Collection<ChunkRecord>("chunks")
-        .Find(x => x.Status != "transcribed" && x.Status != "asr-empty" && x.Status != "silent" && x.Status != "awaiting-consent").ToListAsync();
+        .Find(x => x.Status != "transcribed" && x.Status != "asr-empty" && x.Status != "silent").ToListAsync();
     public async Task SaveTranscript(ChunkRecord chunk, string original)
     {
         if (await Collection<Transcript>("transcripts").CountDocumentsAsync(x => x.Id == chunk.Id) == 0)
