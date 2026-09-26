@@ -24,7 +24,7 @@ try {
     else if (path === "/api/capture/status") data = capture;
     else if (path === "/api/capture/start") {
       captureStartedWithConsent = route.request().headers()["x-playback-external-consent"] === "yes";
-      capture = { state: "recording", bytes: {}, autoAsr: captureStartedWithConsent };
+      capture = { state: "recording", bytes: {}, autoAsr: true };
       data = capture;
     }
     else if (path === "/api/sessions") data = [{ id, title: "Test" }];
@@ -32,7 +32,7 @@ try {
       data = { id, title: "Test", noteMarkdown: "", noteVersion: 0,
         materials: [], transcripts: [], chunks };
     else if (path === `/api/sessions/${id}/asr/queue`) {
-      assert.equal(route.request().headers()["x-playback-external-consent"], "yes");
+      assert.equal(route.request().headers()["x-playback-external-consent"], undefined);
       queued += chunks.length;
       data = { queued: chunks.length };
     } else throw new Error(`Unexpected API request: ${path}`);
@@ -49,15 +49,15 @@ try {
   automaticAsr = true;
   await page.reload();
   await page.getByRole("button", { name: /Sources/ }).click();
-  await page.getByText("Confirm external processing consent below before sending saved audio.").waitFor();
-  await page.getByRole("checkbox").check();
+  await page.getByText("New recordings transcribe automatically. Queue earlier audio below.").waitFor();
+  assert.equal(await page.getByText(/I have confirmed lecturer/).count(), 0);
   await all.click();
   assert.equal(queued, 2);
   await page.getByRole("button", { name: "Transcript", exact: true }).click();
   await page.getByRole("button", { name: "Start Recording" }).click();
-  assert.equal(captureStartedWithConsent, true);
+  assert.equal(captureStartedWithConsent, false);
   await page.getByText(/automatic ASR on/).first().waitFor();
-  console.log("ASR UI check passed: old API warning, consent, backlog queue, capture consent");
+  console.log("ASR UI check passed: no consent gate, backlog queue, direct capture");
 } finally {
   await browser.close();
 }

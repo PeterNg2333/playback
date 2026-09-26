@@ -60,8 +60,6 @@ type CaptureStatus = {
   autoAsr?: boolean;
   error?: string;
 };
-let externalConsent = false;
-
 async function api<T>(
   path: string,
   method = "GET",
@@ -71,7 +69,6 @@ async function api<T>(
     method,
     headers: {
       ...(body ? { "Content-Type": "application/json" } : {}),
-      ...(externalConsent ? { "X-Playback-External-Consent": "yes" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -208,7 +205,6 @@ function App() {
     [term, setTerm] = useState(""),
     [busy, setBusy] = useState(""),
     [error, setError] = useState("");
-  const [consent, setConsent] = useState(false);
   const [useWeb, setUseWeb] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
   const savedMarkdown = useRef("");
@@ -348,7 +344,7 @@ function App() {
     });
   }
   async function retryPendingAsr() {
-    if (!session || !consent || !health?.automaticAsr) return;
+    if (!session || !health?.automaticAsr) return;
     await action("retry-all", async () => {
       await api(`/sessions/${session.id}/asr/queue`, "POST");
       await refresh(session.id);
@@ -552,12 +548,10 @@ function App() {
                   <p className="asr-help">
                     {!health?.automaticAsr
                       ? "Restart the older server with pnpm.cmd dev to enable automatic ASR."
-                      : !consent
-                        ? "Confirm external processing consent below before sending saved audio."
-                        : "New recordings transcribe automatically. Queue earlier audio below."}
+                      : "New recordings transcribe automatically. Queue earlier audio below."}
                   </p>
                   <button
-                    disabled={!consent || !health?.automaticAsr || !!busy}
+                    disabled={!health?.automaticAsr || !!busy}
                     onClick={retryPendingAsr}
                   >
                     {busy === "retry-all" ? "Queueing…" : "Transcribe all pending audio"}
@@ -584,7 +578,7 @@ function App() {
                     {c.error && <p className="capture-error" role="alert">{c.error}</p>}
                     {c.status !== "transcribed" && (
                       <button
-                        disabled={!consent || !health?.automaticAsr || c.status === "transcribing" || !!busy}
+                        disabled={!health?.automaticAsr || c.status === "transcribing" || !!busy}
                         onClick={() =>
                           action("retry", async () => {
                             await api(`/chunks/${c.id}/retry`, "POST");
@@ -618,7 +612,7 @@ function App() {
                 <span>
                   {capture?.state === "recording"
                     ? `Recording locally · ${Object.entries(capture.bytes).map(([source, bytes]) => `${source} ${Math.round(bytes / 1024)} KB`).join(" · ")} · ${capture.autoAsr ? "automatic ASR on" : "audio saved locally"}`
-                    : `Record on this Windows computer · microphone first, system audio if available${consent ? " · automatic ASR on" : ""}`}
+                    : "Record on this Windows computer · microphone first, system audio if available · automatic ASR on"}
                 </span>
                 {capture?.state === "recording" ? (
                   <button disabled={!!busy} onClick={() => record("stop")}>Stop Recording</button>
@@ -661,7 +655,7 @@ function App() {
                         {!t.translation && (
                           <button
                             className="term"
-                            disabled={!consent || !health?.gemini || !!busy}
+                            disabled={!health?.gemini || !!busy}
                             onClick={() =>
                               action("translate", async () => {
                                 await api(
@@ -687,8 +681,7 @@ function App() {
                   ))
                 ) : (
                   <p className="empty">
-                    No transcript yet. Saved audio appears under Sources;
-                    confirm external processing consent before recording for automatic ASR.
+                    No transcript yet. Saved audio appears under Sources and transcribes automatically.
                   </p>
                 )}
               </div>
@@ -697,18 +690,6 @@ function App() {
         </section>
       </main>
       <audio ref={audio} hidden />
-      <label className="consent">
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => {
-            setConsent(e.target.checked);
-            externalConsent = e.target.checked;
-          }}
-        />{" "}
-        I have confirmed lecturer, student and school consent, privacy and
-        retention rules for external AI/audio processing.
-      </label>
       {error && (
         <div className="global-error" role="alert">
           {error}
