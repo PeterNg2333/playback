@@ -425,3 +425,24 @@ body {
   .record-actions[data-state="recording"] .record-indicator svg { animation: none; }
   .sidebar { transition: none; }
 }
+
+.text-dialog {
+  width: min(420px, calc(100vw - 32px));
+  max-width: none;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 20px 60px #25243c35;
+}
+.text-dialog::backdrop { background: #25243c80; }
+.text-dialog form { display: grid; gap: 12px; padding: 22px; }
+.text-dialog h2 { margin: 0 0 4px; font-size: 17px; }
+.text-dialog label { font-size: 12px; font-weight: 700; }
+.text-dialog input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+.text-dialog [role="alert"] { margin: 0; color: #a13232; font-size: 12px; }
+.text-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.text-dialog-actions button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-weight: 700; }
+.text-dialog-actions button[type="submit"] { border-color: var(--accent); background: var(--accent); color: #fff; }
+.text-dialog-actions button:disabled { opacity: .55; cursor: wait; }
