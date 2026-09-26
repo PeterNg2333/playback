@@ -1,12 +1,17 @@
+using Playback.Api.Db;
 using System.Text.RegularExpressions;
+
+namespace Playback.Api.Terms;
 
 public sealed record TermCandidate(string Text, List<string> TranscriptIds, List<string> MaterialIds);
 
-public static class TermFinder
+public static class TermCandidateExtractor
 {
     // Only label terms whose exact wording appears in a session source. Emphasis/headings in
     // materials and acronyms/compound names in recognized speech provide conservative candidates.
-    static readonly Regex MarkedMaterial = new(@"(?:\*\*|__)([^\r\n*]{3,80})(?:\*\*|__)|^#{1,4}\s+([^\r\n]{3,80})", RegexOptions.Multiline | RegexOptions.Compiled);
+    static readonly Regex MarkedMaterial = new(
+        @"(?:\*\*|__)([^\r\n*]{3,80})(?:\*\*|__)|^#{1,4}\s+([^\r\n]{3,80})",
+        RegexOptions.Multiline | RegexOptions.Compiled);
     static readonly Regex SpeechTerm = new(@"\b[A-Z]{2,8}\b|\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", RegexOptions.Compiled);
 
     public static List<TermCandidate> Find(IEnumerable<Material> materials, IEnumerable<Transcript> transcripts)

@@ -1,5 +1,7 @@
 # Playback 本機 prototype
 
+Code layout: [STRUCTURE.md](STRUCTURE.md).
+
 此目錄是 .NET 10 + React/Vite 的本機驗證版。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**此版本沒有登入或分享權限，不可當作已可部署的產品。**
 
 ## 介面與錄音狀態
