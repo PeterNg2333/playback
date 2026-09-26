@@ -5,6 +5,7 @@
     "setup": "npm --prefix app-temp/web ci && dotnet restore app-temp/api/Playback.Api.csproj",
     "db:up": "docker compose -f app-temp/compose.yaml up -d",
     "db:stop": "docker compose -f app-temp/compose.yaml stop",
-    "dev": "node app-temp/dev.mjs"
+    "dev": "node app-temp/dev.mjs",
+    "test:e2e": "node app-temp/web/e2e-check.mjs"
   }
 }

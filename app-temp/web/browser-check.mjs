@@ -1,5 +1,8 @@
 import { chromium } from "playwright-core";
 import assert from "node:assert/strict";
+import { mkdirSync } from "node:fs";
+
+mkdirSync("app-temp/.artifacts", { recursive: true });
 
 const browser = await chromium.launch({
   headless: true,
@@ -47,14 +50,14 @@ try {
   await page
     .locator(".chat-head strong", { hasText: "Ask Playback" })
     .waitFor();
-  await page.screenshot({ path: "../browser-desktop.png" });
+  await page.screenshot({ path: "app-temp/.artifacts/browser-desktop.png" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page
     .getByRole("navigation", { name: "Workspace views" })
     .getByRole("button", { name: "Notes" })
     .click();
   assert.equal(await page.locator("body").getAttribute("data-view"), "notes");
-  await page.screenshot({ path: "../browser-mobile.png" });
+  await page.screenshot({ path: "app-temp/.artifacts/browser-mobile.png" });
   assert.deepEqual(errors, []);
   console.log(
     "Browser check passed: desktop columns, theme, Markdown diagram, chat, mobile tabs, no page errors",

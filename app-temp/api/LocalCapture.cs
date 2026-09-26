@@ -22,7 +22,7 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
             recording?.Error ?? lastError);
     }
 
-    public async Task<CaptureStatus> Start(string sessionId, bool autoAsr)
+    public async Task<CaptureStatus> Start(string sessionId)
     {
         if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Local capture currently requires Windows");
         if (!Regex.IsMatch(sessionId, "^[a-f0-9]{32}$")) throw new InvalidOperationException("Invalid session ID");
@@ -35,7 +35,7 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
             var session = await store.Session(sessionId) ?? throw new InvalidOperationException("Session not found");
             var offset = session.Chunks.Select(chunk => chunk.EndMs)
                 .Concat(Pending(sessionId).Select(chunk => chunk.EndMs)).DefaultIfEmpty().Max();
-            var recording = new Recording(sessionId, offset, autoAsr);
+            var recording = new Recording(sessionId, offset);
 
             // A working microphone is the minimum viable source; loopback can fail independently.
             try
@@ -171,7 +171,7 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
             {
                 var saved = await store.SaveLocalChunk(chunk.SessionId, chunk.SourceId, chunk.Sequence,
                     chunk.StartMs, chunk.EndMs, chunk.Path, CancellationToken.None);
-                if (recording?.AutoAsr == true) asr.Enqueue(saved.Id);
+                asr.Enqueue(saved.Id);
                 File.Delete(chunk.Path);
             }
             catch (Exception ex)
@@ -192,11 +192,11 @@ public sealed class LocalCapture(PlaybackStore store, AsrProcessor asr, ILogger<
 
     sealed record PendingChunk(string SessionId, string SourceId, long Sequence, long StartMs, long EndMs, string Path);
 
-    sealed class Recording(string sessionId, long offsetMs, bool autoAsr)
+    sealed class Recording(string sessionId, long offsetMs)
     {
         public string SessionId { get; } = sessionId;
         public long OffsetMs { get; } = offsetMs;
-        public bool AutoAsr { get; } = autoAsr;
+        public bool AutoAsr => true;
         public Stopwatch Clock { get; } = Stopwatch.StartNew();
         public CancellationTokenSource Cancel { get; } = new();
         public List<CaptureSource> Sources { get; } = [];

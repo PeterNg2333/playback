@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Google.GenAI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -19,7 +20,7 @@ public sealed class Providers
         return response.ToString();
     }
 
-    public async Task<string> Transcribe(string path, CancellationToken ct)
+    public async Task<AsrResult> Transcribe(string path, CancellationToken ct)
     {
         var endpoint = Environment.GetEnvironmentVariable("PLAYBACK_ASR_ENDPOINT") ?? "https://dev-aks.setsailapi.com/stt/infer/upload";
         if (endpoint != "https://dev-aks.setsailapi.com/stt/infer/upload") throw new InvalidOperationException("ASR endpoint is not allowlisted");
@@ -34,12 +35,22 @@ public sealed class Providers
         var bytes = await ReadBounded(response, 512_000, ct);
         return ParseAsr(bytes);
     }
-    public static string ParseAsr(byte[] bytes)
+    public static AsrResult ParseAsr(byte[] bytes)
     {
         using var json = JsonDocument.Parse(bytes);
         var root = json.RootElement;
-        if (root.TryGetProperty("raw", out var raw) && raw.ValueKind == JsonValueKind.String) return raw.GetString()!;
-        if (root.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String) return text.GetString()!;
+        double? duration = root.TryGetProperty("duration_seconds", out var durationField) && durationField.ValueKind == JsonValueKind.Number
+            ? durationField.GetDouble() : null;
+        double? inference = root.TryGetProperty("inference_time_seconds", out var inferenceField) && inferenceField.ValueKind == JsonValueKind.Number
+            ? inferenceField.GetDouble() : null;
+        double? rtf = root.TryGetProperty("rtf", out var rtfField) && rtfField.ValueKind == JsonValueKind.Number
+            ? rtfField.GetDouble() : null;
+        var language = root.TryGetProperty("language", out var languageField) && languageField.ValueKind == JsonValueKind.String
+            ? languageField.GetString() : null;
+        if (root.TryGetProperty("raw", out var raw) && raw.ValueKind == JsonValueKind.String)
+            return new(Regex.Replace(raw.GetString()!, @"<\|[^|>]*\|>", "").Trim(), duration, inference, language, rtf);
+        if (root.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
+            return new(text.GetString()!, duration, inference, language, rtf);
         throw new InvalidOperationException("SenseVoice response schema is unrecognized");
     }
 
@@ -136,6 +147,13 @@ public sealed class Providers
         }
     }
 }
+
+public sealed record AsrResult(
+    string Text,
+    double? DurationSeconds,
+    double? InferenceSeconds,
+    string? Language,
+    double? RealTimeFactor);
 
 public sealed record WebEvidence(string Kind, string Url, string Title, int StartIndex, int EndIndex);
 public sealed record GroundedResult(string Answer, List<WebEvidence> Evidence, bool Inference);

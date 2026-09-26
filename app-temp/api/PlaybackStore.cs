@@ -6,13 +6,47 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using Microsoft.Extensions.Primitives;
 
-public sealed record SessionView(string Id, string Title, string NoteMarkdown, int NoteVersion, long NoteProcessedThroughMs, List<Material> Materials, List<Transcript> Transcripts, List<ChunkRecord> Chunks);
+public sealed record SessionView(
+    string Id,
+    string Title,
+    DateTime CreatedAt,
+    string NoteMarkdown,
+    int NoteVersion,
+    long NoteProcessedThroughMs,
+    List<Material> Materials,
+    List<Transcript> Transcripts,
+    List<ChunkRecord> Chunks);
 public sealed class SessionRecord { [BsonId] public string Id { get; set; } = ""; public string Title { get; set; } = ""; public DateTime CreatedAt { get; set; } }
 public sealed class Material { [BsonId] public string Id { get; set; } = ""; public string SessionId { get; set; } = ""; public string Name { get; set; } = ""; public string Text { get; set; } = ""; }
 public sealed class Note { [BsonId] public string Id { get; set; } = ""; public string SessionId { get; set; } = ""; public int Version { get; set; } public string Markdown { get; set; } = ""; public string Author { get; set; } = ""; public long ProcessedThroughMs { get; set; } public DateTime CreatedAt { get; set; } }
-public sealed class Transcript { [BsonId] public string Id { get; set; } = ""; public string SessionId { get; set; } = ""; public string SourceId { get; set; } = ""; public long StartMs { get; set; } public long EndMs { get; set; } public string Original { get; set; } = ""; public string? Translation { get; set; } public string? Revision { get; set; } public bool Uncertain { get; set; } }
+public sealed class Transcript
+{
+    [BsonId] public string Id { get; set; } = "";
+    public string SessionId { get; set; } = "";
+    public string SourceId { get; set; } = "";
+    public long StartMs { get; set; }
+    public long EndMs { get; set; }
+    public DateTime? RecordedAt { get; set; }
+    public string Original { get; set; } = "";
+    public string? Translation { get; set; }
+    public string? Revision { get; set; }
+    public bool Uncertain { get; set; }
+}
 public sealed class CitationRecord { [BsonId] public string Id { get; set; } = ""; public string SessionId { get; set; } = ""; public string QuestionId { get; set; } = ""; public string Kind { get; set; } = "web"; public string Url { get; set; } = ""; public string Title { get; set; } = ""; public int StartIndex { get; set; } public int EndIndex { get; set; } public bool Private { get; set; } = true; }
-public sealed class ChunkRecord { [BsonId] public string Id { get; set; } = ""; public string SessionId { get; set; } = ""; public string SourceId { get; set; } = ""; public long Sequence { get; set; } public long StartMs { get; set; } public long EndMs { get; set; } public string Hash { get; set; } = ""; public string Status { get; set; } = "pending-asr"; public string? Error { get; set; } [BsonIgnore] public string Path { get; set; } = ""; }
+public sealed class ChunkRecord
+{
+    [BsonId] public string Id { get; set; } = "";
+    public string SessionId { get; set; } = "";
+    public string SourceId { get; set; } = "";
+    public long Sequence { get; set; }
+    public long StartMs { get; set; }
+    public long EndMs { get; set; }
+    public DateTime? RecordedAt { get; set; }
+    public string Hash { get; set; } = "";
+    public string Status { get; set; } = "pending-asr";
+    public string? Error { get; set; }
+    [BsonIgnore] public string Path { get; set; } = "";
+}
 
 public sealed class PlaybackStore
 {
@@ -42,7 +76,7 @@ public sealed class PlaybackStore
         var transcripts = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
         var chunks = await Collection<ChunkRecord>("chunks").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
         var note = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
-        return new(session.Id, session.Title, note?.Markdown ?? "", note?.Version ?? 0, note?.ProcessedThroughMs ?? 0, materials, transcripts, chunks);
+        return new(session.Id, session.Title, session.CreatedAt, note?.Markdown ?? "", note?.Version ?? 0, note?.ProcessedThroughMs ?? 0, materials, transcripts, chunks);
     }
     public async Task<object> AddMaterial(string id, MaterialInput input)
     {
@@ -70,7 +104,8 @@ public sealed class PlaybackStore
         var form = new FormCollection(new Dictionary<string, StringValues>
         {
             ["sessionId"] = sessionId, ["sourceId"] = sourceId, ["sequence"] = sequence.ToString(CultureInfo.InvariantCulture),
-            ["startMs"] = startMs.ToString(CultureInfo.InvariantCulture), ["endMs"] = endMs.ToString(CultureInfo.InvariantCulture), ["sha256"] = hash
+            ["startMs"] = startMs.ToString(CultureInfo.InvariantCulture), ["endMs"] = endMs.ToString(CultureInfo.InvariantCulture), ["sha256"] = hash,
+            ["recordedAt"] = File.GetLastWriteTimeUtc(path).AddMilliseconds(-(endMs - startMs)).ToString("O", CultureInfo.InvariantCulture)
         });
         var file = new FormFile(stream, 0, stream.Length, "file", "capture.wav");
         return await SaveChunk(form, file, ct);
@@ -106,7 +141,9 @@ public sealed class PlaybackStore
         }
         catch (IOException) when (File.Exists(path)) { File.Delete(temporary); }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
-        var chunk = existing ?? new ChunkRecord { Id = id, SessionId = session, SourceId = source, Sequence = sequence, StartMs = start, EndMs = end, Hash = hash };
+        var recordedAt = DateTime.TryParse(form["recordedAt"].ToString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
+            ? parsed.ToUniversalTime() : DateTime.UtcNow.AddMilliseconds(-(end - start));
+        var chunk = existing ?? new ChunkRecord { Id = id, SessionId = session, SourceId = source, Sequence = sequence, StartMs = start, EndMs = end, RecordedAt = recordedAt, Hash = hash };
         chunk.Path = path;
         await Collection<ChunkRecord>("chunks").ReplaceOneAsync(x => x.Id == id, chunk, new ReplaceOptions { IsUpsert = true }, ct);
         return chunk;
@@ -124,10 +161,12 @@ public sealed class PlaybackStore
         var path = Path.Combine(audioRoot, parts[0], parts[1], $"{parts[2]}-{parts[3]}.wav");
         return File.Exists(path) ? path : null;
     }
+    public async Task<List<ChunkRecord>> PendingAsrChunks() => await Collection<ChunkRecord>("chunks")
+        .Find(x => x.Status != "transcribed" && x.Status != "silent").ToListAsync();
     public async Task SaveTranscript(ChunkRecord chunk, string original)
     {
         if (await Collection<Transcript>("transcripts").CountDocumentsAsync(x => x.Id == chunk.Id) == 0)
-            await Collection<Transcript>("transcripts").InsertOneAsync(new Transcript { Id = chunk.Id, SessionId = chunk.SessionId, SourceId = chunk.SourceId, StartMs = chunk.StartMs, EndMs = chunk.EndMs, Original = original, Uncertain = string.IsNullOrWhiteSpace(original) });
+            await Collection<Transcript>("transcripts").InsertOneAsync(new Transcript { Id = chunk.Id, SessionId = chunk.SessionId, SourceId = chunk.SourceId, StartMs = chunk.StartMs, EndMs = chunk.EndMs, RecordedAt = chunk.RecordedAt, Original = original, Uncertain = string.IsNullOrWhiteSpace(original) });
         await Collection<ChunkRecord>("chunks").UpdateOneAsync(x => x.Id == chunk.Id,
             Builders<ChunkRecord>.Update.Set(x => x.Status, "transcribed").Set(x => x.Error, null));
     }

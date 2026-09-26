@@ -13,6 +13,7 @@ type Transcript = {
   sourceId: string;
   startMs: number;
   endMs: number;
+  recordedAt?: string;
   original: string;
   translation?: string;
   revision?: string;
@@ -31,6 +32,7 @@ type Chunk = {
 type Session = {
   id: string;
   title: string;
+  createdAt: string;
   noteMarkdown: string;
   noteVersion: number;
   materials: Material[];
@@ -184,6 +186,25 @@ function Icon({ name }: { name: string }) {
 }
 const time = (ms: number) =>
   `${String(Math.floor(ms / 60000)).padStart(2, "0")}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
+
+function transcriptDays(session: Session) {
+  const days = new Map<string, Map<string, Transcript[]>>();
+  const ordered = session.transcripts.map((entry) => ({
+    entry,
+    at: entry.recordedAt
+      ? new Date(entry.recordedAt)
+      : new Date(new Date(session.createdAt).getTime() + entry.startMs),
+  })).sort((first, second) => first.at.getTime() - second.at.getTime());
+  for (const { entry, at } of ordered) {
+    const day = new Intl.DateTimeFormat(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(at);
+    const hour = String(at.getHours()).padStart(2, "0") + ":00";
+    if (!days.has(day)) days.set(day, new Map());
+    const hours = days.get(day)!;
+    if (!hours.has(hour)) hours.set(hour, []);
+    hours.get(hour)!.push(entry);
+  }
+  return days;
+}
 
 function App() {
   const [theme, setTheme] = useState("pulse"),
@@ -343,12 +364,49 @@ function App() {
       await refresh(session?.id);
     });
   }
-  async function retryPendingAsr() {
-    if (!session || !health?.automaticAsr) return;
-    await action("retry-all", async () => {
-      await api(`/sessions/${session.id}/asr/queue`, "POST");
-      await refresh(session.id);
-    });
+  function transcriptRow(transcript: Transcript) {
+    return (
+      <article className="transcript-row" id={transcript.id} key={transcript.id}>
+        <button
+          className="time-range"
+          onClick={() => seek(transcript)}
+          aria-label={`Play audio from ${time(transcript.startMs)} to ${time(transcript.endMs)}`}
+        >
+          {time(transcript.startMs)}–{time(transcript.endMs)}
+        </button>
+        <div>
+          <span className="speaker">{transcript.sourceId}</span>
+          <p className="original">{transcript.original}</p>
+          {transcript.uncertain && <span className="uncertain">Unclear · review audio</span>}
+          {bilingual && transcript.translation && <p className="translation">Translation: {transcript.translation}</p>}
+          {transcript.revision && <p className="translation">Suggested revision: {transcript.revision}</p>}
+          {!transcript.translation && (
+            <button
+              className="term"
+              disabled={!health?.gemini || !!busy}
+              onClick={() => action("translate", async () => {
+                await api(`/sessions/${session!.id}/transcripts/${transcript.id}/translate`, "POST");
+                await refresh(session!.id);
+                setBilingual(true);
+              })}
+            >
+              Translate
+            </button>
+          )}
+          <button
+            className="term"
+            disabled={!health?.gemini || !!busy}
+            onClick={() => {
+              const selected = window.getSelection()?.toString().trim();
+              const candidate = selected || prompt("Term to explain");
+              if (candidate) explain(candidate);
+            }}
+          >
+            Explain selected term
+          </button>
+        </div>
+      </article>
+    );
   }
   return (
     <div
@@ -543,20 +601,8 @@ function App() {
               <button onClick={attach} disabled={!session || !!busy}>
                 Attach text material
               </button>
-              {session?.chunks.some((chunk) => chunk.status !== "transcribed") && (
-                <>
-                  <p className="asr-help">
-                    {!health?.automaticAsr
-                      ? "Restart the older server with pnpm.cmd dev to enable automatic ASR."
-                      : "New recordings transcribe automatically. Queue earlier audio below."}
-                  </p>
-                  <button
-                    disabled={!health?.automaticAsr || !!busy}
-                    onClick={retryPendingAsr}
-                  >
-                    {busy === "retry-all" ? "Queueing…" : "Transcribe all pending audio"}
-                  </button>
-                </>
+              {session?.chunks.some((chunk) => !["transcribed", "silent"].includes(chunk.status)) && (
+                <p className="asr-help">Saved audio is queued for ASR automatically. Failed chunks retry in the background.</p>
               )}
               {session?.materials.map((m) => (
                 <article className="source-item" id={m.id} key={m.id}>
@@ -576,19 +622,6 @@ function App() {
                     </strong>
                     <p>{c.status}</p>
                     {c.error && <p className="capture-error" role="alert">{c.error}</p>}
-                    {c.status !== "transcribed" && (
-                      <button
-                        disabled={!health?.automaticAsr || c.status === "transcribing" || !!busy}
-                        onClick={() =>
-                          action("retry", async () => {
-                            await api(`/chunks/${c.id}/retry`, "POST");
-                            await refresh(session!.id);
-                          })
-                        }
-                      >
-                        Retry ASR
-                      </button>
-                    )}
                     <audio
                       controls
                       preload="none"
@@ -603,7 +636,7 @@ function App() {
               <div className="content-meta">
                 <strong>Lecture audio</strong>
                 <span>
-                  {session?.chunks.filter((c) => c.status !== "transcribed")
+                  {session?.chunks.filter((c) => !["transcribed", "silent"].includes(c.status))
                     .length || 0}{" "}
                   pending
                 </span>
@@ -625,59 +658,16 @@ function App() {
               {capture?.error && <p className="capture-error" role="alert">{capture.error}</p>}
               <div className="rows">
                 {session?.transcripts.length ? (
-                  session.transcripts.map((t) => (
-                    <article className="transcript-row" id={t.id} key={t.id}>
-                      <button
-                        className="time-range"
-                        onClick={() => seek(t)}
-                        aria-label={`Play audio from ${time(t.startMs)} to ${time(t.endMs)}`}
-                      >
-                        {time(t.startMs)}–{time(t.endMs)}
-                      </button>
-                      <div>
-                        <span className="speaker">{t.sourceId}</span>
-                        <p className="original">{t.original}</p>
-                        {t.uncertain && (
-                          <span className="uncertain">
-                            Unclear · review audio
-                          </span>
-                        )}
-                        {bilingual && t.translation && (
-                          <p className="translation">
-                            Translation: {t.translation}
-                          </p>
-                        )}
-                        {t.revision && (
-                          <p className="translation">
-                            Suggested revision: {t.revision}
-                          </p>
-                        )}
-                        {!t.translation && (
-                          <button
-                            className="term"
-                            disabled={!health?.gemini || !!busy}
-                            onClick={() =>
-                              action("translate", async () => {
-                                await api(
-                                  `/sessions/${session!.id}/transcripts/${t.id}/translate`,
-                                  "POST",
-                                );
-                                await refresh(session!.id);
-                                setBilingual(true);
-                              })
-                            }
-                          >
-                            Translate
-                          </button>
-                        )}
-                        <button
-                          className="term"
-                          onClick={() => { const selected = window.getSelection()?.toString().trim(); const candidate = selected || prompt("Term to explain"); if (candidate) explain(candidate) }}
-                        >
-                          Explain selected term
-                        </button>
-                      </div>
-                    </article>
+                  Array.from(transcriptDays(session).entries()).map(([day, hours]) => (
+                    <details className="timeline-day" key={day} open>
+                      <summary>{day}</summary>
+                      {Array.from(hours.entries()).map(([hour, entries]) => (
+                        <details className="timeline-hour" key={hour} open>
+                          <summary>{hour} · {entries.length} entries</summary>
+                          {entries.map(transcriptRow)}
+                        </details>
+                      ))}
+                    </details>
                   ))
                 ) : (
                   <p className="empty">
