@@ -78,6 +78,28 @@ var identified = TermCandidateExtractor.Find(
 Check(identified.Any(x => x.Text == "Fourier Transform" && x.MaterialIds.Contains("material-a") && x.TranscriptIds.Contains("speech-a")), "Terms must retain transcript and material evidence");
 Check(identified.Any(x => x.Text == "FFT" && x.TranscriptIds.Contains("speech-a")), "Recognized acronyms should be labeled");
 Check(identified.All(x => x.Text != "NEUTRAL"), "SenseVoice markers must not become term labels");
+var noteEdits = NoteChangeLog.Build("Alpha [old]\nKeep", "Alpha [old]\nInserted [new]\nKeep", ["old", "new"], []);
+Check(noteEdits.Count == 1 && noteEdits[0].Kind == "insert" && noteEdits[0].Line == 2 &&
+      noteEdits[0].Text == "Inserted [new]" && noteEdits[0].TranscriptIds.SequenceEqual(["new"]),
+    "Note edit log must locate an inserted line and its cited transcript");
+var removedEdits = NoteChangeLog.Build("Remove [old]\nKeep", "Keep", ["old"], []);
+Check(removedEdits.Count == 1 && removedEdits[0].Kind == "remove" && removedEdits[0].TranscriptIds.SequenceEqual(["old"]),
+    "Removed note lines must keep their former source citation");
+var bulkEdits = NoteChangeLog.Build("", string.Join('\n', Enumerable.Repeat("Line [new]", 3_100)), ["new"], []);
+Check(bulkEdits.Count == 1 && bulkEdits[0].Kind == "insert" && bulkEdits[0].TranscriptIds.SequenceEqual(["new"]),
+    "Large notes must keep a bounded edit log with its cited source");
+var termRank = new JevRankResult("Spectrogram", true, "demo", 1, 0.92, "high", 0.87, default, false);
+Check(JevTermClassifier.ShouldHighlight(termRank) &&
+      !JevTermClassifier.ShouldHighlight(termRank with { JevProbability = 0.3 }) &&
+      !JevTermClassifier.ShouldHighlight(termRank with { JevConfidence = 0.3 }) &&
+      !JevTermClassifier.ShouldHighlight(termRank with { JevRank = "low" }),
+    "Only Jev-selected terms should be highlighted");
+Check(PlaybackStore.TermInsightId("session", " Spectrogram ") == PlaybackStore.TermInsightId("session", "spectrogram"),
+    "Term reference IDs must be stable across case and whitespace");
+var allowedTerm = new TermInsight { Id = "a".PadRight(64, 'a') };
+NoteAgent.ValidateReferences($"A term [ref:{allowedTerm.Id}]", [allowedTerm]);
+try { NoteAgent.ValidateReferences("Invented [ref:missing]", [allowedTerm]); throw new Exception("Invented note reference was accepted"); }
+catch (InvalidOperationException) { }
 var contextEntries = new[] {
     new Transcript { Id = "before", Original = "Fourier Transform", Translation = "傅立葉變換", TranslationLanguage = "zh-Hant" },
     new Transcript { Id = "target", Original = "FFT bins" },
@@ -119,7 +141,7 @@ var longTranscripts = Enumerable.Range(0, 360).Select(i => new Transcript
         i == 355 ? "The kernel handles a system call." : $"Lecture segment number {i}."
 }).ToList();
 var longSession = new SessionView("synthetic", "Three hours", null, DateTime.UtcNow,
-    "", 0, 0, false, "zh-Hant", [], longTranscripts, [], [], null);
+    "", 0, 0, false, "zh-Hant", [], longTranscripts, [], [], [], null);
 var sparseTranslation = TranslationContext.BuildBatch(longTranscripts, [longTranscripts[4], longTranscripts[355]], "zh-Hant");
 Check(sparseTranslation.Contains("[long-4]") && sparseTranslation.Contains("[long-355]") &&
       !sparseTranslation.Contains("[long-180]"),
@@ -131,6 +153,62 @@ Check(earlyAnswer.RelevantTranscripts[0].Id == "long-4" &&
       earlyAnswer.Prompt.Contains("[long-4, 120000-150000 ms]") &&
       lateAnswer.Prompt.Contains("[long-355, 10650000-10680000 ms]"),
     "Three-hour questions must retrieve early and late transcript sources with exact audio times");
+var citedEarly = ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [long-4].");
+Check(citedEarly.Length == 1 && citedEarly[0].Id == "long-4" &&
+      citedEarly[0].Kind == "lecture" && citedEarly[0].Label == "120000-150000 ms",
+    "Q&A evidence must link an actual cited transcript to its audio time");
+var uncertainEvidence = ChatAgent.CitedEvidence(earlyAnswer, "The speaker said [unclear] about frequency [long-4].");
+Check(uncertainEvidence.Length == 1 && uncertainEvidence[0].Id == "long-4",
+    "ASR uncertainty markers must remain distinct from source citations");
+var focusedEarly = ChatContextBuilder.Build(longSession, new QuestionInput("What does it show?", TranscriptId: "long-4"));
+try { ChatAgent.CitedEvidence(focusedEarly, "A spectrogram shows frequency over time."); throw new Exception("Uncited focused source was accepted"); }
+catch (InvalidOperationException) { }
+try { ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [invented]."); throw new Exception("Invented source was accepted"); }
+catch (InvalidOperationException) { }
+try { ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [long-4] [invented]."); throw new Exception("Invented extra source was accepted"); }
+catch (InvalidOperationException) { }
+var materialSession = longSession with { Materials = [new Material { Id = "material-one", Name = "Handout", Text = "FFT means fast Fourier transform." }], Transcripts = [] };
+var materialContext = ChatContextBuilder.Build(materialSession, new QuestionInput("What does FFT mean?"));
+var citedMaterial = ChatAgent.CitedEvidence(materialContext, "FFT means fast Fourier transform [material-one].");
+Check(citedMaterial.Length == 1 && citedMaterial[0].Kind == "material" && citedMaterial[0].Label == "Handout",
+    "Material-only Q&A must link the cited handout");
+var manyMaterials = Enumerable.Range(0, 7).Select(i => new Material
+{
+    Id = $"handout-{i}", Name = $"Handout {i}",
+    Text = i == 6 ? new string('x', 3_200) + " Convolution combines two signals." : "Unrelated practice questions."
+}).ToList();
+var materialSearchSession = materialSession with { Materials = manyMaterials };
+var foundLateMaterial = ChatContextBuilder.Build(materialSearchSession, new QuestionInput("What does convolution combine?"));
+Check(foundLateMaterial.Materials.Any(x => x.Id == "handout-6") &&
+      foundLateMaterial.Prompt.Contains("Convolution combines two signals."),
+    "Q&A must retrieve a relevant later handout and include the matching passage");
+var focusedMaterial = ChatContextBuilder.Build(materialSearchSession,
+    new QuestionInput("What does convolution combine?", MaterialId: "handout-1"));
+Check(focusedMaterial.Materials[0].Id == "handout-1",
+    "An explicitly selected handout must remain first in the Q&A source set");
+var oversizedTranscript = materialSession with
+{
+    Materials = [],
+    Transcripts = [new Transcript { Id = "long-source", StartMs = 10_000, EndMs = 40_000,
+        Original = new string('x', 10_000) + " Plasma oscillations depend on electron density." }]
+};
+var longSourceContext = ChatContextBuilder.Build(oversizedTranscript, new QuestionInput("What affects plasma oscillations?", TranscriptId: "long-source"));
+Check(longSourceContext.Prompt.Contains("Plasma oscillations depend on electron density.") &&
+      longSourceContext.Prompt.Length < 5_000,
+    "Long transcript questions must include the matching passage in a bounded prompt");
+var chineseTimeline = Enumerable.Range(0, 360).Select(i => new Transcript
+{
+    Id = $"zh-{i}", StartMs = i * 30_000, EndMs = (i + 1) * 30_000,
+    Original = i == 5 ? "傅立葉變換把訊號分解成頻率成分，FFT 是快速計算法。" : $"第{i}段的課堂練習。"
+}).ToList();
+var chineseSession = longSession with { Transcripts = chineseTimeline };
+var chineseAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("傅立葉變換是甚麼？"));
+Check(chineseAnswer.RelevantTranscripts[0].Id == "zh-5" &&
+      chineseAnswer.Prompt.Contains("[zh-5, 150000-180000 ms]"),
+    "Chinese questions must retrieve an early matching source from a long lecture");
+var mixedAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("FFT是甚麼？"));
+Check(mixedAnswer.RelevantTranscripts[0].Id == "zh-5",
+    "Mixed English and Chinese questions must preserve the English term");
 var floatFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 1);
 var quiet = new byte[480 * 4];
 var voice = new byte[480 * 4];
@@ -202,7 +280,7 @@ finally
     Environment.SetEnvironmentVariable("JEV_API_KEY", previousJevKey);
     Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", previousOffline);
 }
-Console.WriteLine("Protocol checks passed: ASR original, silence, Vertex citations, Jev ranking cache, batched translation, three-hour source lookup");
+Console.WriteLine("Protocol checks passed: ASR original, silence, Vertex citations, Jev ranking cache, batched translation, source-backed Q&A and bounded long-lecture lookup");
 
 sealed class DemoJevHandler : HttpMessageHandler
 {

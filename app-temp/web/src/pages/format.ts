@@ -53,7 +53,7 @@ export function transcriptDays(session: Session) {
         const previous = silence?.chunks.at(-1);
         if (
           previous &&
-          chunk.sequence > previous.sequence &&
+          chunk.sequence === previous.sequence + 1 &&
           chunk.startMs >= previous.startMs &&
           chunk.startMs <= previous.endMs + 1000 &&
           at.getHours() === silence!.at.getHours() &&
@@ -73,10 +73,9 @@ export function transcriptDays(session: Session) {
           !audio.transcript &&
           previous &&
           chunk.status === previous.status &&
-          chunk.sequence > previous.sequence &&
+          chunk.sequence === previous.sequence + 1 &&
           chunk.startMs >= previous.startMs &&
           chunk.startMs <= previous.endMs + 1000 &&
-          chunk.endMs - audio.chunks[0].startMs <= 30_000 &&
           at.getHours() === audio.at.getHours() &&
           at.toDateString() === audio.at.toDateString()
         ) {

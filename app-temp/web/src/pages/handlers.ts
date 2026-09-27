@@ -12,7 +12,7 @@ import {
 } from "../types/api";
 import type { Chunk, Evidence, TermCandidate } from "../types/api";
 import { api } from "./api";
-import { usePlaybackField } from "./store";
+import { usePlaybackField, usePlaybackStore } from "./store";
 
 export function usePlaybackController() {
   const [settingsOpen, setSettingsOpen] = usePlaybackField("settingsOpen");
@@ -89,9 +89,15 @@ export function usePlaybackController() {
         undefined,
         SessionSchema,
       );
+      const previousSessionId = usePlaybackStore.getState().session?.id;
+      const previousSavedMarkdown = savedMarkdown.current;
       setSession(item);
       savedMarkdown.current = item.noteMarkdown;
-      setMarkdown(item.noteMarkdown);
+      setMarkdown((current) =>
+        previousSessionId !== item.id || current === previousSavedMarkdown
+          ? item.noteMarkdown
+          : current,
+      );
       localStorage.setItem("playback-session", chosen);
     }
   }

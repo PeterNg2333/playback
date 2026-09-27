@@ -120,38 +120,46 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
                         className="record-row transcript-row audio-row"
                         key={chunk.id}
                       >
-                        <span className="record-time" title={`${time(chunk.startMs)}–${time(entry.chunks.at(-1)!.endMs)}`}>
+                        <span
+                          className="record-time"
+                          title={`${time(chunk.startMs)}–${time(entry.chunks.at(-1)!.endMs)}`}
+                        >
                           {time(chunk.startMs)}
                         </span>
-                        <details className="record-copy">
-                          <summary className="record-summary">
-                            {health?.asrPaused && chunk.status === "asr-error"
-                              ? "ASR failed · paused"
-                              : chunkStatus(chunk.status)}
-                          </summary>
-                          <div className="record-extra">
-                            <span>{time(chunk.startMs)}–{time(entry.chunks.at(-1)!.endMs)}</span>
-                            <span className="speaker">{chunk.sourceId}</span>
-                            {entry.chunks.length > 1 && (
-                              <p>
-                                {entry.chunks.length} consecutive audio parts
-                              </p>
-                            )}
-                            {chunk.error && (
-                              <p className="capture-error" role="alert">
-                                {chunk.error}
-                              </p>
-                            )}
-                          </div>
-                        </details>
-                        <RecordPlay
-                          id={chunk.id}
-                          chunks={entry.chunks}
-                          startMs={chunk.startMs}
-                          endMs={entry.chunks.at(-1)!.endMs}
-                          playingKey={playingKey}
-                          onToggle={togglePlayback}
-                        />
+                        <div className="record-main">
+                          <details className="record-copy">
+                            <summary className="record-summary">
+                              {health?.asrPaused && chunk.status === "asr-error"
+                                ? "ASR failed · paused"
+                                : chunkStatus(chunk.status)}
+                            </summary>
+                            <div className="record-extra">
+                              <span>
+                                {time(chunk.startMs)}–
+                                {time(entry.chunks.at(-1)!.endMs)}
+                              </span>
+                              <span className="speaker">{chunk.sourceId}</span>
+                              {entry.chunks.length > 1 && (
+                                <p>
+                                  {entry.chunks.length} consecutive audio parts
+                                </p>
+                              )}
+                              {chunk.error && (
+                                <p className="capture-error" role="alert">
+                                  {chunk.error}
+                                </p>
+                              )}
+                              <RecordPlay
+                                id={chunk.id}
+                                chunks={entry.chunks}
+                                startMs={chunk.startMs}
+                                endMs={entry.chunks.at(-1)!.endMs}
+                                playingKey={playingKey}
+                                onToggle={togglePlayback}
+                              />
+                            </div>
+                          </details>
+                        </div>
                       </article>
                     );
                   })}

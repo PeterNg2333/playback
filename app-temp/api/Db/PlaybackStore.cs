@@ -1,6 +1,7 @@
 using Playback.Api.Terms;
 using Playback.Api.Services.Ai.Providers;
 using Playback.Api.Endpoints;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Globalization;
 using System.Text;
@@ -14,6 +15,7 @@ public sealed class PlaybackStore
 {
     public static bool NeedsReview(string original) => Regex.IsMatch(original, @"\[(?:unclear|inaudible|unintelligible)\]", RegexOptions.IgnoreCase);
     readonly IMongoDatabase db;
+    readonly ConcurrentDictionary<string, SemaphoreSlim> noteGates = new();
     readonly string audioRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "data", "audio"));
     public PlaybackStore()
     {
@@ -184,12 +186,19 @@ public sealed class PlaybackStore
              (x.NoteStatus == "processing" && x.NoteRetryAt <= DateTime.UtcNow))).ToListAsync();
         return transcripts.Select(x => x.SessionId).Distinct().ToList();
     }
-    public async Task<object> SaveGeneratedNote(string id, string markdown, List<Transcript> transcripts, List<Material> materials, string inputHash)
+    public async Task<object> SaveGeneratedNote(string id, string markdown, List<Transcript> transcripts, List<Material> materials, string inputHash, int basedOnVersion)
     {
         if (markdown.Length is < 1 or > 250_000) throw new InvalidOperationException("Generated note size is invalid");
-        var existing = await Collection<Note>("notes").Find(x => x.SessionId == id && x.InputHash == inputHash).FirstOrDefaultAsync();
-        if (existing is not null) return new { existing.Version, existing.Markdown, existing.Author };
+        var gate = noteGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try
+        {
         var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
+        var existing = await Collection<Note>("notes").Find(x => x.SessionId == id && x.InputHash == inputHash).FirstOrDefaultAsync();
+        if (existing is not null && previous?.Version == existing.Version)
+            return new { existing.Version, existing.Markdown, existing.Author };
+        if ((previous?.Version ?? 0) != basedOnVersion)
+            throw new InvalidOperationException("Note changed while AI was generating; retry with the latest version");
         var times = transcripts.Select(x => x.RecordedAt ?? DateTime.MinValue).Where(x => x != DateTime.MinValue).ToArray();
         var note = new Note
         {
@@ -203,6 +212,11 @@ public sealed class PlaybackStore
             CreatedAt = DateTime.UtcNow,
             TranscriptIds = (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)).Distinct().ToList(),
             MaterialIds = (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id)).Distinct().ToList(),
+            InputTranscriptIds = transcripts.Select(x => x.Id).ToList(),
+            InputMaterialIds = materials.Select(x => x.Id).ToList(),
+            Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
+                (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)),
+                (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id))),
             InputHash = inputHash,
             SourceFrom = times.Length > 0
                 ? new[] { previous?.SourceFrom ?? times.Min(), times.Min() }.Min()
@@ -218,6 +232,8 @@ public sealed class PlaybackStore
             return new { saved.Version, saved.Markdown, saved.Author };
         }
         return new { note.Version, note.Markdown, note.Author };
+        }
+        finally { gate.Release(); }
     }
     public async Task DeleteTestSession(string id)
     {
@@ -237,6 +253,7 @@ public sealed class PlaybackStore
         await Collection<Transcript>("transcripts").DeleteManyAsync(x => x.SessionId == id);
         await Collection<TranslationVersion>("translation_versions").DeleteManyAsync(x => x.SessionId == id);
         await Collection<Note>("notes").DeleteManyAsync(x => x.SessionId == id);
+        await Collection<TermInsight>("term_insights").DeleteManyAsync(x => x.SessionId == id);
         await Collection<Material>("materials").DeleteManyAsync(x => x.SessionId == id);
         await Collection<CitationRecord>("citations").DeleteManyAsync(x => x.SessionId == id);
         await Collection<ChunkRecord>("chunks").DeleteManyAsync(x => x.SessionId == id);
@@ -269,6 +286,15 @@ public sealed class PlaybackStore
         var transcripts = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
         var chunks = await Collection<ChunkRecord>("chunks").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
         var note = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
+        var insights = await Collection<TermInsight>("term_insights").Find(x => x.SessionId == id).ToListAsync();
+        var terms = TermCandidateExtractor.Find(materials, transcripts);
+        foreach (var insight in insights)
+        {
+            var candidate = terms.FirstOrDefault(x => TermInsightId(id, x.Text) == insight.Id);
+            if (candidate is null) continue;
+            insight.TranscriptIds = insight.TranscriptIds.Concat(candidate.TranscriptIds).Distinct().ToList();
+            insight.MaterialIds = insight.MaterialIds.Concat(candidate.MaterialIds).Distinct().ToList();
+        }
         return new SessionView(
             session.Id,
             session.Title,
@@ -282,7 +308,8 @@ public sealed class PlaybackStore
             materials,
             transcripts,
             chunks,
-            TermCandidateExtractor.Find(materials, transcripts),
+            terms,
+            insights,
             note);
     }
     public async Task<object> AddMaterial(string id, MaterialInput input)
@@ -298,6 +325,10 @@ public sealed class PlaybackStore
     public async Task<object> SaveNote(string id, string markdown, string author, long processedThroughMs = 0)
     {
         if (markdown.Length > 250_000) throw new InvalidOperationException("Note is too large");
+        var gate = noteGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try
+        {
         if (await Collection<SessionRecord>("sessions").CountDocumentsAsync(x => x.Id == id) == 0)
             throw new InvalidOperationException("Session not found");
         var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
@@ -315,17 +346,64 @@ public sealed class PlaybackStore
             CreatedAt = DateTime.UtcNow,
             TranscriptIds = previous?.TranscriptIds.ToList() ?? [],
             MaterialIds = previous?.MaterialIds.ToList() ?? [],
+            Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
+                previous?.TranscriptIds ?? [], previous?.MaterialIds ?? []),
             SourceFrom = previous?.SourceFrom,
             SourceThrough = previous?.SourceThrough
         };
         await Collection<Note>("notes").InsertOneAsync(note);
         return new { note.Version, note.Markdown, note.Author };
+        }
+        finally { gate.Release(); }
     }
     public async Task<List<Note>> NoteHistory(string id)
     {
         var latest = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).Limit(100).ToListAsync();
         latest.Reverse();
         return latest;
+    }
+    public async Task<TermInsight?> TermInsight(string sessionId, string insightId) =>
+        await Collection<TermInsight>("term_insights")
+            .Find(x => x.SessionId == sessionId && x.Id == insightId).FirstOrDefaultAsync();
+    public static string TermInsightId(string sessionId, string term) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{sessionId}\n{term.Trim().ToLowerInvariant()}"))).ToLowerInvariant();
+    public async Task<TermInsight> SaveTermRanking(string sessionId, TermCandidate candidate, JevRankResult rank)
+    {
+        var insight = new TermInsight
+        {
+            Id = TermInsightId(sessionId, candidate.Text),
+            SessionId = sessionId,
+            Term = candidate.Text,
+            Highlight = JevTermClassifier.ShouldHighlight(rank),
+            JevProbability = rank.JevProbability,
+            JevRank = rank.JevRank,
+            JevConfidence = rank.JevConfidence,
+            RankedAt = DateTime.UtcNow,
+            TranscriptIds = candidate.TranscriptIds,
+            MaterialIds = candidate.MaterialIds
+        };
+        var existing = await TermInsight(sessionId, insight.Id);
+        if (existing is not null) return existing;
+        try { await Collection<TermInsight>("term_insights").InsertOneAsync(insight); }
+        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return (await TermInsight(sessionId, insight.Id))!;
+        }
+        return insight;
+    }
+    public async Task<TermInsight> SaveTermExplanation(string sessionId, string insightId, GroundedResult result)
+    {
+        var update = Builders<TermInsight>.Update
+            .Set(x => x.Explanation, result.Answer)
+            .Set(x => x.Evidence, result.Evidence.Select(x => new TermEvidence { Url = x.Url, Title = x.Title }).ToList())
+            .Set(x => x.ExplainedAt, DateTime.UtcNow);
+        return await Collection<TermInsight>("term_insights").FindOneAndUpdateAsync(
+            x => x.SessionId == sessionId && x.Id == insightId && x.Explanation == null,
+            update,
+            new FindOneAndUpdateOptions<TermInsight> { ReturnDocument = ReturnDocument.After })
+            ?? await TermInsight(sessionId, insightId)
+            ?? throw new InvalidOperationException("Term insight not found");
     }
     public async Task<ChunkRecord> SaveLocalChunk(
         string sessionId, string sourceId, long sequence, long startMs, long endMs,

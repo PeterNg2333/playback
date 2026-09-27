@@ -45,7 +45,7 @@ internal static class Week3OfflineCheck
 
         var material = new Material { Id = "tutorial", Name = "Tutorial", Text = File.ReadAllText(Path.Combine(folder, "Tutorial.txt")) };
         var session = new SessionView("week3-offline", "Week 3", null, DateTime.UtcNow,
-            "", 0, 0, false, "zh-Hant", [material], transcripts, [], [], null);
+            "", 0, 0, false, "zh-Hant", [material], transcripts, [], [], [], null);
         var covered = 0;
         foreach (var index in new[] { 50, transcripts.Count / 2, transcripts.Count - 50 })
         {

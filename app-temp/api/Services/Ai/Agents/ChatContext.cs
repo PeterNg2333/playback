@@ -14,6 +14,7 @@ public sealed record ChatContext(
 public static class ChatContextBuilder
 {
     static readonly Regex Word = new(@"[\p{L}\p{N}]+", RegexOptions.Compiled);
+    static readonly Regex HanRun = new(@"[\u3400-\u9FFF]+", RegexOptions.Compiled);
     static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "about", "after", "before", "class", "could", "does", "from", "have", "lecture", "please",
@@ -22,9 +23,13 @@ public static class ChatContextBuilder
     };
     public static ChatContext Build(SessionView session, QuestionInput input)
     {
-        var terms = Word.Matches(input.Question)
+        var words = Word.Matches(HanRun.Replace(input.Question, " "))
             .Select(x => x.Value)
-            .Where(x => x.Length > 2 && !StopWords.Contains(x))
+            .Where(x => x.Length > 2 && !StopWords.Contains(x));
+        var hanPairs = HanRun.Matches(input.Question)
+            .SelectMany(run => Enumerable.Range(0, Math.Max(0, run.Length - 1))
+                .Select(index => run.Value.Substring(index, 2)));
+        var terms = words.Concat(hanPairs)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(15).ToArray();
         var focused = input.TranscriptId is null
@@ -48,24 +53,35 @@ public static class ChatContextBuilder
             .Select(x => x.item)
             .ToArray();
         var lecture = string.Join("\n", relevant.Select(x =>
-            $"[{x.Id}, {x.StartMs}-{x.EndMs} ms] {x.Original}"));
+            $"[{x.Id}, {x.StartMs}-{x.EndMs} ms] {SourceExcerpt(x.Original, terms, 1600)}"));
 
         var focusedMaterial = input.MaterialId is null
             ? null
             : session.Materials.SingleOrDefault(x => x.Id == input.MaterialId)
                 ?? throw new InvalidOperationException("Selected material is not in this session");
         var materials = session.Materials
-            .OrderByDescending(x => x.Id == focusedMaterial?.Id)
+            .OrderByDescending(x => (x.Id == focusedMaterial?.Id ? 100 : 0) +
+                terms.Count(term => x.Text.Contains(term, StringComparison.OrdinalIgnoreCase)))
             .Take(5)
             .ToArray();
         var material = string.Join("\n", materials.Select(x =>
-            $"[{x.Id}] {x.Text[..Math.Min(x.Text.Length, 3000)]}"));
+            $"[{x.Id}] {SourceExcerpt(x.Text, terms, 3000)}"));
         var selected = focused is null
             ? ""
             : $"Selected source [{focused.Id}, {focused.StartMs}-{focused.EndMs} ms]: " +
-              $"{input.SelectedText ?? focused.Original}\n";
+              $"{input.SelectedText ?? SourceExcerpt(focused.Original, terms, 1600)}\n";
         var prompt = $"Selected transcript:\n{selected}Lecture:\n{lecture}\nMaterials:\n{material}\nQuestion: {input.Question}";
 
         return new ChatContext(prompt, relevant, materials, focused, focusedMaterial);
+    }
+
+    static string SourceExcerpt(string text, string[] terms, int limit)
+    {
+        if (text.Length <= limit) return text;
+        var matchAt = terms.Select(term => text.IndexOf(term, StringComparison.OrdinalIgnoreCase))
+            .Where(index => index >= 0).DefaultIfEmpty(0).Min();
+        var start = Math.Min(Math.Max(0, matchAt - 300), text.Length - limit);
+        return (start > 0 ? "…" : "") + text.Substring(start, limit) +
+            (start + limit < text.Length ? "…" : "");
     }
 }

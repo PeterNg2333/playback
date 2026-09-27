@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { chromium } from "playwright-core";
 
 const id = "a".repeat(32);
+const insightId = "b".repeat(64);
 const wav = Buffer.alloc(44 + 32_000);
 wav.write("RIFF", 0);
 wav.writeUInt32LE(wav.length - 8, 4);
@@ -21,8 +22,8 @@ const chunks = ["one", "two"].map((name, index) => ({
   id: name,
   sourceId: "microphone",
   sequence: index,
-  startMs: index * 1000,
-  endMs: (index + 1) * 1000,
+  startMs: index * 30_000,
+  endMs: (index + 1) * 30_000,
   status: "pending-asr",
 }));
 chunks.push(
@@ -61,7 +62,8 @@ const session = {
   translationEnabled: false,
   translationLanguage: "zh-Hant",
   materials: [],
-  terms: [],
+  terms: [{ text: "Fourier Transform", transcriptIds: ["first"], materialIds: [] }],
+  termInsights: [],
   chunks,
   transcripts: [
     {
@@ -81,6 +83,9 @@ const session = {
       recordedAt: "2026-09-26T09:10:00Z",
       original: "Second line",
       uncertain: false,
+      translation: "第二句",
+      translationStatus: "completed",
+      translationLanguage: "zh-Hant",
     },
     {
       id: "first",
@@ -88,7 +93,7 @@ const session = {
       startMs: 0,
       endMs: 1000,
       recordedAt: "2026-09-26T08:10:00Z",
-      original: "First line",
+      original: "First line about Fourier Transform",
       uncertain: false,
     },
   ],
@@ -98,6 +103,7 @@ let captureRequest;
 let translationRequest;
 let asrPaused = false;
 let questionRequest;
+let explanationRequests = 0;
 const noteActions = [];
 const audioRequests = [];
 const browser = await chromium.launch({
@@ -130,7 +136,7 @@ try {
       return;
     }
     if (path === "/api/health")
-      data = { mongo: true, gemini: false, jev: false, automaticAsr: !asrPaused, asrPaused };
+      data = { mongo: true, gemini: false, jev: true, automaticAsr: !asrPaused, asrPaused };
     else if (path === "/api/capture/status") data = capture;
     else if (path === "/api/capture/start") {
       captureRequest = request.postDataJSON();
@@ -147,6 +153,13 @@ try {
       noteActions.push("generate");
       await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Google AI Studio key is unavailable" }) });
       return;
+    } else if (path === `/api/sessions/${id}/terms/review`) {
+      session.termInsights = [{ id: insightId, term: "Fourier Transform", highlight: true, transcriptIds: ["first"], materialIds: [], explanation: null, evidence: [] }];
+      data = session.termInsights;
+    } else if (path === `/api/sessions/${id}/terms/${insightId}/explain`) {
+      explanationRequests++;
+      session.termInsights[0].explanation = "A transform that represents a signal by frequency.";
+      data = session.termInsights[0];
     } else if (path === `/api/sessions/${id}/ask`) {
       questionRequest = request.postDataJSON();
       await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Google AI Studio key is unavailable" }) });
@@ -171,6 +184,8 @@ try {
       : "http://127.0.0.1:5173";
   await page.goto(web);
   await page.locator(".audio-row").first().waitFor();
+  if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
+    await page.screenshot({ path: join(tmpdir(), "playback-transcript-default-1280.png") });
   assert.equal(await page.getByRole("button", { name: "Sources" }).count(), 0);
   assert.equal(
     await page.locator(".audio-row").count(),
@@ -178,6 +193,9 @@ try {
     "Adjacent queued audio should share one row while errors stay visible",
   );
   const play = page.locator(".audio-row .record-play").first();
+  assert.equal(await play.isVisible(), false, "Audio controls should start collapsed");
+  await page.locator(".audio-row .record-copy > summary").first().click();
+  assert.match(await page.locator(".audio-row .record-extra").first().textContent(), /2 consecutive audio parts/);
   await play.click();
   assert.equal(await play.getAttribute("aria-pressed"), "true");
   await play.click();
@@ -275,6 +293,26 @@ try {
     language: "zh-Hant",
   });
   assert.equal(await page.getByText("First line").count(), 1);
+  const pendingTranslation = page.locator("#first .translation-pending");
+  await pendingTranslation.waitFor();
+  assert.equal(await pendingTranslation.isVisible(), true);
+  assert.ok(Number(await pendingTranslation.evaluate((element) => getComputedStyle(element).opacity)) < 1);
+  assert.equal(await page.locator("#second .translation-completed").textContent(), "第二句");
+  await page.getByRole("button", { name: "Review next key terms" }).click();
+  const highlight = page.locator("#first .term-highlight");
+  await highlight.waitFor();
+  await highlight.click();
+  assert.equal(await page.getByRole("dialog", { name: "Fourier Transform explanation" }).count(), 0);
+  const bounds = await highlight.boundingBox();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(550);
+  await page.mouse.up();
+  await page.getByText("A transform that represents a signal by frequency.").waitFor();
+  if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
+    await page.screenshot({ path: join(tmpdir(), "playback-term-explanation-320.png") });
+  assert.equal(explanationRequests, 1);
+  await page.getByRole("button", { name: "Close explanation" }).click();
   await page.getByRole("button", { name: "Start recording" }).click();
   assert.deepEqual(captureRequest, { sessionId: id });
   assert.equal(dialogs, 0);
@@ -282,7 +320,16 @@ try {
   session.noteMarkdown = Array.from(
     { length: 80 },
     (_, index) => `Note paragraph ${index + 1}.`,
-  ).join("\n\n");
+  ).join("\n\n") + `\n\nFourier Transform [ref:${insightId}]`;
+  session.noteVersion = 1;
+  session.currentNote = {
+    author: "agent",
+    transcriptIds: ["first"],
+    materialIds: [],
+    inputTranscriptIds: ["first"],
+    inputMaterialIds: [],
+    edits: [{ kind: "insert", line: 1, text: "Note paragraph 1. [first]", transcriptIds: ["first"], materialIds: [] }],
+  };
   session.chunks.push(
     ...Array.from({ length: 50 }, (_, index) => ({
       id: `long-${index}`,
@@ -307,6 +354,12 @@ try {
   await page.setViewportSize({ width: 1440, height: 720 });
   await page.reload();
   await page.getByText("Note paragraph 80.").waitFor();
+  await page.getByText("Changes in v1 · 1").click();
+  await page.getByText("Added · line 1").waitFor();
+  await page.getByRole("button", { name: "Open saved explanation" }).click();
+  await page.getByRole("dialog", { name: "Fourier Transform explanation" }).waitFor();
+  assert.equal(explanationRequests, 1, "Saved explanations should not call the model twice");
+  await page.getByRole("button", { name: "Close explanation" }).click();
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollHeight <= innerHeight,
@@ -346,6 +399,8 @@ try {
   await page.getByText("ASR paused · audio saved locally").waitFor();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByRole("textbox", { name: "Editable Markdown" }).fill("Unsaved note");
+  assert.equal(await page.getByRole("textbox", { name: "Editable Markdown" }).inputValue(), "Unsaved note");
+  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).isEnabled(), true);
   await page.getByRole("button", { name: "Revise with AI" }).click();
   await page.locator(".global-error").waitFor();
   assert.match(await page.locator(".global-error").textContent(), /Google AI Studio key is unavailable/);

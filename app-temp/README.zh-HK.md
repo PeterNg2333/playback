@@ -6,7 +6,7 @@ Code layout: [STRUCTURE.md](STRUCTURE.md).
 
 ## 介面與錄音狀態
 
-左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。音訊直接出現在 Transcript，按時間、逐字稿或 ASR 狀態、播放／停止鍵排成精簡列表；點開某段才顯示詳細資料。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
+左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。音訊一保存就出現在 Transcript；連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
 
 錄音狀態由本機 API 保持。暫停會封存目前音訊 chunk；繼續後使用新的收音來源，錄音時間不計暫停時段。麥克風連續一分鐘沒有偵測到足夠音量時，UI 會提示檢查裝置。這是簡單的 energy VAD 診斷：噪音可能被視為聲音，較遠或細聲的語音也可能被漏掉，並不判斷是否有人說話。
 
@@ -18,7 +18,7 @@ Code layout: [STRUCTURE.md](STRUCTURE.md).
 | Gemini model ID | Vertex Express live 測試通過 | `gemini-3.5-flash-lite` 經 [Vertex Express API](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 和 .NET Agent Framework 產生含來源 ID 的合成逐字稿摘要與筆記。現有環境變數名稱仍是 `GOOGLE_AI_STUDIO_API_KEY`，但 key 實際用於 Vertex Express；project/location 在此路徑不參與請求。 |
 | Google Search grounding | Vertex Express live 測試通過 | `generateContent` 配 `googleSearch` 回傳 FFT 公開來源連結與 search suggestions；後者在 Ask Playback 的沙盒 frame 顯示。[Vertex grounding 文件](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/grounding/grounding-with-google-search)。 |
 | SenseVoice | 靜音合成 WAV live probe 通過 | `POST /stt/infer/upload` 的 `file` 欄位收到 HTTP 200；本機 API 亦成功保存一條標示不確定的空白 transcript。真實語音準確度及長時間負載未驗證。 |
-| Jev | 離線 HTTP fixture 通過，live 認證受阻 | [TypeSafe OpenAPI](https://api.typesafe.ai/docs) 要求先 `GET /v1/models`，再用 `model/state/questions` 呼叫 `POST /v1/systemone`。現有 key 的 `GET /v1/models` 回 `401 authentication_error`，沒有 live ranking；fixture 驗證模型發現與重複術語快取。 |
+| Jev | 合成術語 live 測試通過 | Playback 以 .NET HTTP 按 [TypeSafe OpenAPI](https://api.typesafe.ai/openapi.json) 的 Bearer 認證呼叫 `GET /v1/models` 及 `POST /v1/systemone`，不依賴 JS SDK。更新 key 後，`spectrogram` 返回排名、probability、confidence、usage，重複查詢命中本機快取；真實課堂術語品質未驗證。 |
 | MongoDB | 本機合成資料整合檢查通過 | 2026-09-25 API 回報 `mongo:true`；session 隔離、note versions、chunk retry 與時間範圍已用合成資料實測。 |
 | Windows system + mic | 已在本機保存音訊，可靠性尚未驗證 | 使用者已成功播放保存的錄音；咪高峰必須成功開始，system loopback 若失敗會顯示原因而保留咪高峰錄音。兩個來源獨立保存，長時間及不同裝置尚未測試。[NAudio WASAPI 文件](https://github.com/naudio/NAudio/blob/main/Docs/WasapiRecorder.md)；[Microsoft loopback 說明](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording)。 |
 
@@ -62,13 +62,13 @@ pnpm.cmd dev
 - `dotnet build app-temp/api/Playback.Api.csproj`、`npm.cmd run build`（web、當時的 desktop 候選）已通過；本機 WASAPI capture 尚未做實機測試。
 - 獨立測試 API 端口的 `/api/capture/status` 回報 `idle`、無效 session 的 Start 回 HTTP 409、閒置 Stop 安全返回；沒有在測試中開咪。
 - `dotnet run --project app-temp/checks/Playback.Checks.csproj`：驗證 ASR 原文優先、靜音與未知 provider schema、web citation 映射與不安全 URL 拒絕。
-- 真實 Gemini 檢查使用 `pnpm.cmd test:gemini-live`，從程序環境或根目錄 `.env` 載入 `GOOGLE_AI_STUDIO_API_KEY`。測試只傳虛構 Fourier/FFT 逐字稿，要求 Vertex Gemini 3.5 Flash-Lite 產生含來源 ID 的 Markdown 摘要和筆記，亦檢查 Google Search 的公開 citation 與 suggestions；2026-09-27 已通過。`pnpm.cmd dev` 也會載入可選的根目錄 `.env`，程序環境已有的值優先；不會輸出或提交密鑰。Vertex Express key 請求不使用 `GOOGLE_AI_STUDIO_PROJECT_ID` 或 `GOOGLE_AI_STUDIO_LOCATION`。
+- 真實 Gemini 檢查使用 `pnpm.cmd test:gemini-live`，從程序環境或根目錄 `.env` 載入 `GOOGLE_AI_STUDIO_API_KEY`。2026-09-27 以虛構 Fourier/FFT 逐字稿通過含來源 ID 的 Markdown 筆記、Google Search 公開 citation 與 suggestions、兩段批次翻譯 ID 核對，以及經實際來源搜尋及引用核對的問答。這是合成檢查，沒有驗證 Week 3 內容品質或資料庫中的翻譯版本。`pnpm.cmd dev` 也會載入可選的根目錄 `.env`，程序環境已有的值優先；不會輸出或提交密鑰。Vertex Express key 請求不使用 `GOOGLE_AI_STUDIO_PROJECT_ID` 或 `GOOGLE_AI_STUDIO_LOCATION`。
 - [Vertex Express REST](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 目前沒有顯式 context cache 端點；[隱式 cache](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/context-cache/context-cache-overview) 由 Google 自動處理。程式用 transcript ID/輸入 hash 避免重做筆記，用有上限的來源片段組 prompt，Jev 模型發現及同一術語排名在本機短期快取；沒有聲稱量到實際 cache hit 或費用。
 - `node app-temp/archive/desktop/queue-check.mjs`：封存候選曾用合成 1,080 段、每段十秒的三小時時間線測試 queue。這**沒有證實**真實 48 kHz 連續三小時擷取、權限、CPU／磁碟吞吐或系統音源。
 - `node app-temp/web/src/test/browser-check.mjs`：在本機 Edge 測等寬雙欄、主題、Markdown 的**有標籤實際 SVG 圖表**、Ask Playback、手機 tabs、Start Recording 按鈕，無頁面錯誤；測試沒有開咪。
 - `node app-temp/dev-check.mjs`：不啟動 container，以替身函式測現有 DB、自訂連接字串、啟動及等待、Docker 失敗訊息。
 - `node app-temp/web/src/test/asr-ui-check.mjs`：以攔截 API 測音訊時間線、靜音收合、不同螢幕寬度與獨立捲動、session 翻譯設定及本機錄音請求；不會啟動咪高峰或上傳音訊。
-- SenseVoice 靜音 fixture 在 2026-09-26 直接呼叫回 HTTP 200；此前版本的本機 API 單段 retry 曾保存一條空白但標示不確定的 transcript。新版本跳過完全數位靜音，並已用短篇真實語音完成端到端測試。Gemini 的合成筆記及公開搜尋已 live 通過。Jev key 的 live 授權仍失敗，排名／confidence／usage 尚未取得；可在 key 修復後以 `POST /api/terms/evaluate-synthetic` 測四個合成詞。
+- SenseVoice 靜音 fixture 在 2026-09-26 直接呼叫回 HTTP 200；此前版本的本機 API 單段 retry 曾保存一條空白但標示不確定的 transcript。新版本跳過完全數位靜音，並已用短篇真實語音完成端到端測試。Gemini 的合成筆記、公開搜尋、批次翻譯和問答已 live 通過。Jev 在更新 key 後於 2026-09-27 通過合成術語的模型發現、排名及快取測試；`POST /api/terms/evaluate-synthetic` 的四詞 API 路徑仍未 live 測試。
 - 本機收音的硬件權限、Windows loopback 無聲情況、較長真實語音及連續三小時穩定性仍需實測。流暢的即時筆記取決於 chunk 完成及 ASR latency；不是 streaming ASR。
 - `node app-temp/api/integration-check.mjs` 已通過 session 隔離、note versions、chunk retry 與時間範圍測試；測試建立兩個合成 session，並在結束時刪除本次資料。
 - 目前只可附上文字教材。PDF 頁碼擷取、講者辨識、長時間磁碟配額、分享權限及部署未實作。
@@ -122,6 +122,16 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 
 離線 API 整合測試可在獨立的 5079 端口執行，設定 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_PAUSE_EXTERNAL_ASR=yes`、`PLAYBACK_AUTO_NOTES=no`，再執行 `node app-temp/api/integration-check.mjs`。此模式會確認新合成音訊維持待處理，不會因背景佇列送往 SenseVoice；測試僅清理自己建立的合成 session、group 與音訊。測試前先查核現有 5078 API 程序，勿重啟舊程序觸發舊資料重試。
 
-翻譯若啟用，1,266 段在沒有失敗重試時約需 127 次十段批次請求，原逐段流程會有 1,266 次。批次回應必須包含每個 transcript ID 且不可重複；解析失敗會標記該批次失敗並按原有退避規則重試。Jev 的 `Bearer` header、`GET /v1/models` 及回應 schema 已按 [TypeSafe OpenAPI](https://api.typesafe.ai/docs) 核對；既有 401 仍須有效且獲授權的 key 才能排除。`pnpm.cmd test:jev-live` 只用虛構術語測模型發現、排名和快取；fixture 通過不等於 live 通過。[Vertex Express REST 資源](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 仍沒有建立顯式 context cache 的端點，故此流程沒有使用顯式 cache。
+翻譯若啟用，1,266 段在沒有失敗重試時約需 127 次十段批次請求，原逐段流程會有 1,266 次。批次回應必須包含每個 transcript ID 且不可重複；解析失敗會標記該批次失敗並按原有退避規則重試。Jev 的 `Bearer` header、`GET /v1/models` 及回應 schema 已按 [TypeSafe OpenAPI](https://api.typesafe.ai/openapi.json) 核對。2026-09-27 更新 key 後，`pnpm.cmd test:jev-live` 以虛構 `spectrogram` 完成模型發現、排名及快取：`high`、probability `0.84`、confidence `0.53`，並收到 usage 物件；這不代表真實課堂術語品質已驗證。[Vertex Express REST 資源](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 仍沒有建立顯式 context cache 的端點，故此流程沒有使用顯式 cache。
+
+問答現在按問題詞語選取最多五份教材，中文連續字詞會拆成相鄰雙字供長課堂搜尋；長教材截取含匹配詞的最多 3,000 字，逐字稿每段及選中來源各截取最多 1,600 字。模型回答必須以方括號引用本次提供的來源 ID，否則回報失敗；原有的 `[unclear]` 等 ASR 標記不作引用。evidence 只列實際引用的來源及其音訊時間或教材名稱。這能防止缺失或虛構 ID 被當成來源，但不能證明引用內容的語義正確。離線協定檢查、Week 3 開頭／中段／末段唯讀搜尋、合成中文三小時搜尋，以及虛構資料 Gemini live 問答均已通過。
 
 在把 Week 3 音訊、逐字稿或教材交給 SenseVoice、Gemini 或 Jev 前，須先確認講師、同學、學校的同意及相關私隱與保留規則；外部 live 檢查只可用虛構內容。
+
+## 2026-09-27：筆記編輯紀錄與補充解釋
+
+每個新筆記版本保存與前一版本逐行比較的新增／移除紀錄、行號及該行實際引用的 transcript/material ID；agent 版本另存本輪納入的 transcript/material ID。`GET /api/sessions/{id}/notes/edits` 返回最近 100 個版本的編輯紀錄；筆記預覽可展開最新版本的變更。長篇大量改動時，後端以整段移除／新增紀錄代替高成本逐行配對。若 AI 生成時有人手版本先儲存，舊基底的 AI 結果會被拒絕並待下次重試；無效 `[ref:ID]` 同樣拒絕。這是可審核的文字差異與輸入清單，不能證明 AI 對每一個未引用的句子有正確歸因。
+
+Transcript 設定中的「Review next key terms」每次最多向 Jev 提交三個尚未評估的候選詞。亦可在確認課堂資料可傳送後，於 **process environment** 設 `PLAYBACK_AUTO_TERMS=yes`，讓背景程序每兩分鐘在所有 session 合計最多評估三詞；預設關閉。只有 Jev 的 `explain` 機率至少 0.75、類別為 `high`／`medium` 且類別信心至少 0.50 的詞會在有來源的逐字稿中高亮。短按不彈出視窗，長按約半秒才顯示補充解釋；鍵盤 Enter／Space 也可開啟。此門檻屬試驗規則，真實課堂的 precision/recall 尚未評估。
+
+首次開啟高亮詞會向 Vertex Google Search 請求公開來源解釋，然後把解釋及 HTTPS 來源獨立保存在 `term_insights`，再次開啟使用已保存版本。筆記生成只可放已提供的 `[ref:ID]` 標記，不把補充解釋文字放入 Markdown；預覽把標記顯示為可開啟保存解釋的 `ref`。現有舊筆記與 MongoDB 紀錄可讀取，新增欄位預設為空。此流程已通過合成資料的 .NET protocol checks、web build、Playwright 1280／1024／768／375／320 像素 UI fixture；新的資料庫寫入路徑和真實課堂 Jev 決策仍未做 live 端到端驗證。

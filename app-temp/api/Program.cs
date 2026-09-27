@@ -23,6 +23,7 @@ builder.Services.AddSingleton<JevTermClassifier>();
 builder.Services.AddSingleton<SyntheticTermComparison>();
 builder.Services.AddSingleton<ChatAgent>();
 builder.Services.AddSingleton<NoteAgent>();
+builder.Services.AddSingleton<TermReviewAgent>();
 builder.Services.AddSingleton<TranslationAgent>();
 builder.Services.AddSingleton<SenseVoiceClient>();
 builder.Services.AddSingleton<AsrProcessor>();
@@ -45,4 +46,5 @@ app.MapChunks();
 
 app.Services.GetRequiredService<AsrQueue>();
 app.Services.GetRequiredService<TranslationAgent>();
+app.Services.GetRequiredService<TermReviewAgent>();
 app.Run();

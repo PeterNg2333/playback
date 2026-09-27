@@ -17,6 +17,7 @@ public sealed record SessionView(
     List<Transcript> Transcripts,
     List<ChunkRecord> Chunks,
     List<TermCandidate> Terms,
+    List<TermInsight> TermInsights,
     Note? CurrentNote);
 [BsonIgnoreExtraElements]
 public sealed class SessionRecord
@@ -53,6 +54,9 @@ public sealed class Note
     public DateTime CreatedAt { get; set; }
     public List<string> TranscriptIds { get; set; } = [];
     public List<string> MaterialIds { get; set; } = [];
+    public List<string> InputTranscriptIds { get; set; } = [];
+    public List<string> InputMaterialIds { get; set; } = [];
+    public List<NoteEdit> Edits { get; set; } = [];
     public string? InputHash { get; set; }
     public DateTime? SourceFrom { get; set; }
     public DateTime? SourceThrough { get; set; }
@@ -101,6 +105,27 @@ public sealed class TranslationVersion
     public string Text { get; set; } = "";
     public string OriginalHash { get; set; } = "";
     public DateTime CreatedAt { get; set; }
+}
+public sealed class TermInsight
+{
+    [BsonId] public string Id { get; set; } = "";
+    public string SessionId { get; set; } = "";
+    public string Term { get; set; } = "";
+    public bool Highlight { get; set; }
+    public double JevProbability { get; set; }
+    public string JevRank { get; set; } = "";
+    public double JevConfidence { get; set; }
+    public DateTime RankedAt { get; set; }
+    public List<string> TranscriptIds { get; set; } = [];
+    public List<string> MaterialIds { get; set; } = [];
+    public string? Explanation { get; set; }
+    public List<TermEvidence> Evidence { get; set; } = [];
+    public DateTime? ExplainedAt { get; set; }
+}
+public sealed class TermEvidence
+{
+    public string Url { get; set; } = "";
+    public string Title { get; set; } = "";
 }
 public sealed class ChunkRecord
 {

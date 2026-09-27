@@ -1,6 +1,7 @@
 using Playback.Api.Services.Ai.Providers;
 using Playback.Api.Services.Ai.Agents;
 using Playback.Api.Db;
+using Playback.Api.Endpoints;
 
 internal static class GeminiLiveCheck
 {
@@ -62,12 +63,20 @@ internal static class GeminiLiveCheck
         if (translations.Count != 2 || translations.Values.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Vertex translation did not map both synthetic transcript IDs");
 
+        var qaSession = new SessionView("synthetic-qa", "Synthetic Fourier lecture", null, DateTime.UtcNow,
+            "", 0, 0, false, "zh-Hant", [],
+            [new Transcript { Id = transcriptId, StartMs = 0, EndMs = 120_000, Original = transcript }],
+            [], [], [], null);
+        var qaContext = ChatContextBuilder.Build(qaSession,
+            new QuestionInput("What can happen if a signal is sampled below twice its highest frequency?"));
         var answer = await gemini.Generate("PlaybackSyntheticQuestionAnswerer",
             "Answer only from the supplied synthetic lecture source. Cite its ID in square brackets.",
-            $"[{transcriptId}, 0-120000 ms] {transcript}\nQuestion: What can happen if a signal is sampled below twice its highest frequency?",
+            qaContext.Prompt,
             timeout.Token);
+        var qaEvidence = ChatAgent.CitedEvidence(qaContext, answer);
         if (!answer.Contains("alias", StringComparison.OrdinalIgnoreCase) ||
-            !answer.Contains($"[{transcriptId}]", StringComparison.Ordinal))
+            qaEvidence.Length != 1 || qaEvidence[0].Id != transcriptId ||
+            qaEvidence[0].Label != "0-120000 ms")
             throw new InvalidOperationException("Vertex question answer omitted the synthetic fact or source ID");
 
         Console.WriteLine("Gemini live demo passed: synthetic transcript produced cited summary and notes.");

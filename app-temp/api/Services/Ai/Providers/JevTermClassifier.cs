@@ -8,6 +8,9 @@ namespace Playback.Api.Services.Ai.Providers;
 
 public sealed class JevTermClassifier
 {
+    public static bool ShouldHighlight(JevRankResult result) =>
+        result.JevProbability >= 0.75 && result.JevConfidence >= 0.50 &&
+        (result.JevRank is "high" or "medium");
     readonly HttpClient http;
     readonly SemaphoreSlim rankGate = new(1, 1);
     readonly ConcurrentDictionary<string, (DateTimeOffset Expires, JevRankResult Result)> cache = new();

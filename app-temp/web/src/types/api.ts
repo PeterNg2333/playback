@@ -31,6 +31,22 @@ export const TermCandidateSchema = z.object({
   transcriptIds: z.array(z.string()),
   materialIds: z.array(z.string()),
 });
+export const NoteEditSchema = z.object({
+  kind: z.enum(["insert", "remove"]),
+  line: z.number(),
+  text: z.string(),
+  transcriptIds: z.array(z.string()),
+  materialIds: z.array(z.string()),
+});
+export const TermInsightSchema = z.object({
+  id: z.string(),
+  term: z.string(),
+  highlight: z.boolean(),
+  transcriptIds: z.array(z.string()),
+  materialIds: z.array(z.string()),
+  explanation: z.string().nullish(),
+  evidence: z.array(z.object({ url: z.string().url(), title: z.string() })),
+});
 export const ChunkSchema = z.object({
   id: z.string(),
   sourceId: z.string(),
@@ -57,6 +73,7 @@ export const SessionSchema = SessionSummarySchema.extend({
   transcripts: z.array(TranscriptSchema),
   chunks: z.array(ChunkSchema),
   terms: z.array(TermCandidateSchema),
+  termInsights: z.array(TermInsightSchema).optional(),
   currentNote: z
     .object({
       author: z.string(),
@@ -66,6 +83,9 @@ export const SessionSchema = SessionSummarySchema.extend({
       materialIds: z.array(z.string()),
       sourceFrom: z.string().nullish(),
       sourceThrough: z.string().nullish(),
+      inputTranscriptIds: z.array(z.string()).optional(),
+      inputMaterialIds: z.array(z.string()).optional(),
+      edits: z.array(NoteEditSchema).optional(),
     })
     .nullish(),
 });
@@ -104,6 +124,7 @@ export const CaptureStatusSchema = z.object({
 export type Transcript = z.infer<typeof TranscriptSchema>;
 export type Material = z.infer<typeof MaterialSchema>;
 export type TermCandidate = z.infer<typeof TermCandidateSchema>;
+export type TermInsight = z.infer<typeof TermInsightSchema>;
 export type Chunk = z.infer<typeof ChunkSchema>;
 export type SessionSummary = z.infer<typeof SessionSummarySchema>;
 export type Group = z.infer<typeof GroupSchema>;

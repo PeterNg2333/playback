@@ -49,7 +49,17 @@ function Diagram({ source }: { source: string }) {
   );
 }
 
-export function Markdown({ value }: { value: string }) {
+export function Markdown({
+  value,
+  onReference,
+}: {
+  value: string;
+  onReference?: (id: string) => void;
+}) {
+  const linkedReferences = value.replace(
+    /\[ref:([a-f0-9]{64})\]/gi,
+    (_, id: string) => `[ref](/term-ref/${id})`,
+  );
   return (
     <div className="markdown-preview">
       <ReactMarkdown
@@ -66,6 +76,20 @@ export function Markdown({ value }: { value: string }) {
             );
           },
           a(props) {
+            const reference = /^\/term-ref\/([a-f0-9]{64})$/i.exec(
+              props.href || "",
+            );
+            if (reference && onReference)
+              return (
+                <button
+                  type="button"
+                  className="note-ref"
+                  onClick={() => onReference(reference[1])}
+                  aria-label="Open saved explanation"
+                >
+                  ref
+                </button>
+              );
             return (
               <a href={props.href} target="_blank" rel="noopener noreferrer">
                 {props.children}
@@ -74,7 +98,7 @@ export function Markdown({ value }: { value: string }) {
           },
         }}
       >
-        {value}
+        {linkedReferences}
       </ReactMarkdown>
     </div>
   );

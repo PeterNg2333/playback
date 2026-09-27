@@ -1,8 +1,10 @@
+import { useRef, useState } from "react";
 import type { PlaybackController } from "./handlers";
 import { Panel } from "../Component/Layout/Panel";
 import { Markdown } from "../Component/Markdown";
 import { api } from "./api";
 import { time } from "./format";
+import { TermExplanation } from "./TermExplanation";
 
 export function NotesPanel({ model }: { model: PlaybackController }) {
   const {
@@ -17,6 +19,12 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
     action,
     refresh,
   } = model;
+  const editorValue = useRef(markdown);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  const reference = session?.termInsights?.find(
+    (insight) => insight.id === referenceId,
+  );
+  editorValue.current = markdown;
   return (
     <Panel className="notes-panel">
       <div className="panel-head">
@@ -45,49 +53,92 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
         {noteMode === "preview" ? (
           markdown ? (
             <>
-              <Markdown value={markdown} />
+              <Markdown value={markdown} onReference={setReferenceId} />
               {!!session?.currentNote && (
-                <details className="note-sources">
-                  <summary>
-                    {session.currentNote.author === "user"
-                      ? "Linked passages from earlier notes"
-                      : "Linked transcript and materials"}{" "}
-                    · {session.currentNote.transcriptIds.length} audio ·{" "}
-                    {session.currentNote.materialIds.length} materials
-                  </summary>
-                  {session.currentNote.transcriptIds.map((id) => {
-                    const source = session.transcripts.find(
-                      (entry) => entry.id === id,
-                    );
-                    return (
-                      source && (
-                        <button
-                          className="citation"
-                          key={id}
-                          onClick={() => jump({ kind: "lecture", id })}
-                        >
-                          {time(source.startMs)}–{time(source.endMs)}
-                        </button>
-                      )
-                    );
-                  })}
-                  {session.currentNote.materialIds.map((id) => {
-                    const source = session.materials.find(
-                      (entry) => entry.id === id,
-                    );
-                    return (
-                      source && (
-                        <button
-                          className="citation"
-                          key={id}
-                          onClick={() => jump({ kind: "material", id })}
-                        >
-                          {source.name}
-                        </button>
-                      )
-                    );
-                  })}
-                </details>
+                <>
+                  <details className="note-sources">
+                    <summary>
+                      {session.currentNote.author === "user"
+                        ? "Linked passages from earlier notes"
+                        : "Linked transcript and materials"}{" "}
+                      · {session.currentNote.transcriptIds.length} audio ·{" "}
+                      {session.currentNote.materialIds.length} materials
+                    </summary>
+                    {session.currentNote.transcriptIds.map((id) => {
+                      const source = session.transcripts.find(
+                        (entry) => entry.id === id,
+                      );
+                      return (
+                        source && (
+                          <button
+                            className="citation"
+                            key={id}
+                            onClick={() => jump({ kind: "lecture", id })}
+                          >
+                            {time(source.startMs)}–{time(source.endMs)}
+                          </button>
+                        )
+                      );
+                    })}
+                    {session.currentNote.materialIds.map((id) => {
+                      const source = session.materials.find(
+                        (entry) => entry.id === id,
+                      );
+                      return (
+                        source && (
+                          <button
+                            className="citation"
+                            key={id}
+                            onClick={() => jump({ kind: "material", id })}
+                          >
+                            {source.name}
+                          </button>
+                        )
+                      );
+                    })}
+                  </details>
+                  <details className="note-changes">
+                    <summary>
+                      Changes in v{session.noteVersion} ·{" "}
+                      {session.currentNote.edits?.length || 0}
+                    </summary>
+                    {session.currentNote.edits?.length ? (
+                      <ol>
+                        {session.currentNote.edits.map((edit, index) => (
+                          <li key={`${edit.kind}-${edit.line}-${index}`}>
+                            <small>
+                              {edit.kind === "insert" ? "Added" : "Removed"} ·
+                              line {edit.line}
+                            </small>
+                            <p>{edit.text || "(blank line)"}</p>
+                            {edit.transcriptIds.map((id) => {
+                              const source = session.transcripts.find(
+                                (entry) => entry.id === id,
+                              );
+                              return (
+                                source && (
+                                  <button
+                                    className="citation"
+                                    key={id}
+                                    onClick={() =>
+                                      jump({ kind: "lecture", id })
+                                    }
+                                  >
+                                    {time(source.startMs)}
+                                  </button>
+                                )
+                              );
+                            })}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="empty">
+                        No recorded line changes in this version.
+                      </p>
+                    )}
+                  </details>
+                </>
               )}
             </>
           ) : (
@@ -104,7 +155,10 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
               id="note-editor"
               className="markdown-editor"
               value={markdown}
-              onChange={(e) => setMarkdown(e.target.value)}
+              onChange={(e) => {
+                editorValue.current = e.target.value;
+                setMarkdown(e.target.value);
+              }}
               placeholder="# Lecture notes&#10;&#10;```mermaid&#10;flowchart LR&#10;Audio --> Notes&#10;```"
             />
           </div>
@@ -128,7 +182,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           onClick={() =>
             action("save", async () => {
               await api(`/sessions/${session!.id}/notes`, "POST", {
-                markdown,
+                markdown: editorValue.current,
               });
               await refresh(session!.id);
             })
@@ -141,8 +195,11 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           disabled={!session || !!busy}
           onClick={() =>
             action("generate", async () => {
-              if (markdown !== savedMarkdown.current) {
-                await api(`/sessions/${session!.id}/notes`, "POST", { markdown });
+              const currentMarkdown = editorValue.current;
+              if (currentMarkdown !== savedMarkdown.current) {
+                await api(`/sessions/${session!.id}/notes`, "POST", {
+                  markdown: currentMarkdown,
+                });
                 await refresh(session!.id);
               }
               await api(`/sessions/${session!.id}/notes/generate`, "POST");
@@ -153,6 +210,14 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           Revise with AI
         </button>
       </footer>
+      {reference && session && (
+        <TermExplanation
+          key={reference.id}
+          sessionId={session.id}
+          insight={reference}
+          onClose={() => setReferenceId(null)}
+        />
+      )}
     </Panel>
   );
 }

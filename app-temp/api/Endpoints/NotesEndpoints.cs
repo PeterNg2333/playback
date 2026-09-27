@@ -10,6 +10,17 @@ public static class NotesEndpoints
             await store.SaveNote(id, input.Markdown, "user"));
         app.MapGet("/api/sessions/{id}/notes", async (string id, PlaybackStore store) =>
             await store.NoteHistory(id));
+        app.MapGet("/api/sessions/{id}/notes/edits", async (string id, PlaybackStore store) =>
+            (await store.NoteHistory(id)).Select(note => new
+            {
+                note.Version,
+                note.BasedOnVersion,
+                note.Author,
+                note.CreatedAt,
+                note.InputTranscriptIds,
+                note.InputMaterialIds,
+                note.Edits
+            }));
         app.MapPost("/api/sessions/{id}/notes/generate", async (
             string id, PlaybackStore store, NoteAgent notes, CancellationToken ct) =>
         {

@@ -19,20 +19,24 @@ export function TranscriptPanel({ model }: { model: PlaybackController }) {
   const asrStatus = health?.asrPaused
     ? "ASR paused · audio saved locally"
     : chunks.some((chunk) => chunk.status === "awaiting-consent")
-    ? "ASR waiting · restart API"
-    : chunks.some((chunk) => chunk.status === "asr-error")
-      ? "ASR failed · retrying"
-      : chunks.some((chunk) => chunk.status === "transcribing")
-        ? "Transcribing…"
-        : chunks.some((chunk) => chunk.status === "pending-asr")
-          ? "ASR queued"
-          : null;
+      ? "ASR waiting · restart API"
+      : chunks.some((chunk) => chunk.status === "asr-error")
+        ? "ASR failed · retrying"
+        : chunks.some((chunk) => chunk.status === "transcribing")
+          ? "Transcribing…"
+          : chunks.some((chunk) => chunk.status === "pending-asr")
+            ? "ASR queued"
+            : null;
   return (
     <Panel className="transcript-panel">
       <div className="panel-head">
         <h2>Transcript</h2>
         <div className="panel-actions">
-          {asrStatus && <span className="processing-status" role="status">{asrStatus}</span>}
+          {asrStatus && (
+            <span className="processing-status" role="status">
+              {asrStatus}
+            </span>
+          )}
           <div className="settings-wrap">
             <button
               className="icon-control"
@@ -95,6 +99,42 @@ export function TranscriptPanel({ model }: { model: PlaybackController }) {
                       Retry failed translations
                     </button>
                   )}
+                {!!session?.terms.length && (
+                  <div className="term-review-setting">
+                    <small>
+                      {session.termInsights?.filter((item) => item.highlight)
+                        .length || 0}{" "}
+                      key terms highlighted
+                    </small>
+                    <button
+                      className="text-control"
+                      disabled={
+                        !health?.jev ||
+                        !!busy ||
+                        session.terms.every((candidate) =>
+                          session.termInsights?.some(
+                            (item) =>
+                              item.term.toLocaleLowerCase() ===
+                              candidate.text.toLocaleLowerCase(),
+                          ),
+                        )
+                      }
+                      onClick={() =>
+                        action("terms", async () => {
+                          await api(
+                            `/sessions/${session.id}/terms/review`,
+                            "POST",
+                          );
+                          await refresh(session.id);
+                          setSettingsOpen(false);
+                        })
+                      }
+                    >
+                      Review next key terms
+                    </button>
+                    <small>Sends up to 3 candidate terms to Jev.</small>
+                  </div>
+                )}
               </div>
             )}
           </div>
