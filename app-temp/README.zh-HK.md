@@ -114,11 +114,11 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 
 ## 2026-09-27：Week 3 唯讀長時段檢查
 
-`python app-temp/checks/long-lecture-check.py "app-temp\data\test-audio\Week 3"` 只讀取保留的 `lecture_first_20min.m4a` MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊為首 1,200.01 秒（14,607,746 bytes）；完整逐字稿有 1,266 段、97,717 字元，延伸至約 2:44:49，最後一句無時間戳，離線檢查暫估 14 秒。20 分鐘後的逐字稿沒有保留的對應音訊；長時段來源檢查只驗證文字及時間資料。此檢查不解碼或上傳音訊。
+`python app-temp/checks/long-lecture-check.py "app-temp\data\test-audio\sampleAudio"` 只讀取 repo 內的 Week 3 素材 `sampleAudio.m4a` MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊為首 1,200.01 秒（14,607,746 bytes）；完整逐字稿有 1,266 段、97,717 字元，延伸至約 2:44:49，最後一句無時間戳，離線檢查暫估 14 秒。20 分鐘後的逐字稿沒有保留的對應音訊；長時段來源檢查只驗證文字及時間資料。此檢查不解碼或上傳音訊。
 
 依每兩分鐘更新及每次最多 40 段模擬，該逐字稿會有 82 次定時筆記請求；原本每次重送 3,000 字元教材時，來源輸入約 432,337 字元，其中 243,000 字元是第二次起重複的教材。自動筆記現在只在初次或新增教材時發送未處理教材；估算來源輸入降至約 189,337 字元。這些數字不含前版筆記、指示詞、模型輸出或 token 計費，也不是已發生的外部呼叫。每次實際請求現會記錄段落數與 UTF-8 輸入大小，不記錄原文。
 
-`dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/ -- --week3 "app-temp\data\test-audio\Week 3"` 用真實逐字稿在記憶體驗證 40 段 backlog、無重複來源 ID、開頭／中段／末段問答的來源挑選及音訊時間。若整批離線處理，需要 32 個最多 40 段的 batch；這與上面 82 次定時更新是兩種不同情境。另以 360 段合成三小時時間線測早／晚來源問答；web fixture 以 1,266 段跨約三小時驗證視窗高度、面板捲動、Save 可見、精簡逐字稿及無聲收合。這些檢查不代表真實三小時 ASR、筆記內容品質或課堂問答準確度已通過。
+`dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/ -- --sample-audio "app-temp\data\test-audio\sampleAudio"` 用真實逐字稿在記憶體驗證 40 段 backlog、無重複來源 ID、開頭／中段／末段問答的來源挑選及逐字稿時間。若整批離線處理，需要 32 個最多 40 段的 batch；這與上面 82 次定時更新是兩種不同情境。另以 360 段合成三小時時間線測早／晚來源問答；web fixture 以 1,266 段跨約三小時驗證視窗高度、面板捲動、Save 可見、精簡逐字稿及無聲收合。這些檢查不代表真實三小時 ASR、筆記內容品質或課堂問答準確度已通過。
 
 離線 API 整合測試可在獨立的 5079 端口執行，設定 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_PAUSE_EXTERNAL_ASR=yes`、`PLAYBACK_AUTO_NOTES=no`，再執行 `node app-temp/api/integration-check.mjs`。此模式會確認新合成音訊維持待處理，不會因背景佇列送往 SenseVoice；測試僅清理自己建立的合成 session、group 與音訊。測試前先查核現有 5078 API 程序，勿重啟舊程序觸發舊資料重試。
 
@@ -152,10 +152,10 @@ Transcript 設定中的「Review next key terms」每次最多向 Jev 提交三�
 
 SenseVoice 網絡錯誤會保留錄音，最多自動嘗試三次，之後標成 `asr-manual` 並停止背景重試。舊版沒有重試次數的 `asr-error` 在正常 API 啟動時轉成手動重試，保留音訊與原錯誤，不會重新排入大量背景請求。連續失敗段落合併顯示，使用者可按「Retry ASR」重試同組已保存音訊。`asr-empty`（有音訊但沒有辨識到字）及真正數碼靜音均收進每小時一條「No audio」分隔列；展開後會區分 ASR 無字、來源、播放與重試。咪高峰及系統聲音獨立處理，所以同一時段可能一邊成功、另一邊無字或失敗。Ask Playback 的輸入來源現以 `[source-id]` 明確標示引用格式；如 AI 首次回覆的引用不合格，會要求重寫一次並重新驗證，仍不合格則顯示真實錯誤，不產生假引用。未設定 Vertex key 時，聊天視窗保留問題並顯示缺少憑證的錯誤。
 
-離線驗證已通過 .NET 協定檢查、web build、Playwright UI fixture、真實 API/MongoDB 整合檢查及合成 WAV 的瀏覽器端到端檢查。`--week3-audio-preview "app-temp\data\test-audio\Week 3"` 會唯讀解碼首 20 分鐘為 40 段 30 秒、16 kHz mono WAV（記憶體內處理，不保存或上傳），40 段均驗出音量。真實課堂首 20 分鐘的 SenseVoice／Gemini live 結果見下文；provider 費用並未量測。
+離線驗證已通過 .NET 協定檢查、web build、Playwright UI fixture、真實 API/MongoDB 整合檢查及合成 WAV 的瀏覽器端到端檢查。`--sample-audio-preview "app-temp\data\test-audio\sampleAudio"` 會唯讀解碼首 20 分鐘為 40 段 30 秒、16 kHz mono WAV（記憶體內處理，不保存或上傳），40 段均驗出音量。真實課堂首 20 分鐘的 SenseVoice／Gemini live 結果見下文；provider 費用並未量測。
 
 端到端測試可用 process environment 的 `PLAYBACK_MONGO_DATABASE=playback_e2e` 指向獨立測試資料庫；只接受 `playback_prototype` 或 `playback_e2e`，health endpoint 會回報目前名稱。離線 API/MongoDB 測試已在此獨立資料庫再通過一次，測試會刪除自己建立的 `E2E demo` session、group 和音訊，原有 `playback_prototype` 不受影響。啟動 live API 前應先查 health 的 `database`，以免背景佇列處理既有 session 的錄音。
 
-`--week3-live "app-temp\data\test-audio\Week 3"` 是真實 provider 端到端檢查：把保留的 20 分鐘音訊加速送成 40 個本機 API WAV chunk，等 SenseVoice 返回，再以一段已辨識來源驗證 Ask Playback 引用與 Gemini 筆記，最後清理自己建立的 test session／音訊。API health 須顯示 `database=playback_e2e`、Gemini／ASR 可用、`autoNotes=false`、`autoTerms=false`，否則檢查拒絕開始。程式可從根目錄 `.env` 載入金鑰到程序環境，代理不讀取或顯示檔案內容。2026-09-27 以原始第一段的首 20 分鐘測試：33 段成功轉錄、6 段 provider 回傳無文字、1 段重試後轉為手動處理；Ask Playback 回答有來源引用，Gemini 筆記成功保存。測試 session、MongoDB 紀錄與 API 音訊已清理。後來只保留單一 20 分鐘 M4A 作為 Git 測試素材；重新編碼後的 live 結果需獨立核對。
+`--sample-audio-live "app-temp\data\test-audio\sampleAudio"` 是真實 provider 端到端檢查：把保留的 20 分鐘音訊加速送成 40 個本機 API WAV chunk，等 SenseVoice 返回，再以一段已辨識來源驗證 Ask Playback 引用與 Gemini 筆記，最後清理自己建立的 test session／音訊。API health 須顯示 `database=playback_e2e`、Gemini／ASR 可用、`autoNotes=false`、`autoTerms=false`，否則檢查拒絕開始。程式可從根目錄 `.env` 載入金鑰到程序環境，代理不讀取或顯示檔案內容。2026-09-27 以保留的單一 `sampleAudio.m4a` 測試：33 段成功轉錄、6 段 provider 回傳無文字、1 段因 provider 提早斷線三次而轉為手動處理；Ask Playback 回答有來源引用，Gemini 筆記成功保存。測試 session、MongoDB 紀錄與 API 音訊已清理。
 
-先在 repo 根目錄執行 `dotnet build app-temp/checks/Playback.Checks.csproj`，再執行 `npm.cmd run test:week3-live`。後者會自動載入 `.env` 到子程序、用已編譯 DLL 啟動只連接 `playback_e2e` 的本機 API、執行 Week 3 檢查，再停止該測試 API。若 5078 端口已有 API，腳本會拒絕開始，避免誤用原有 session。
+先在 repo 根目錄執行 `dotnet build app-temp/checks/Playback.Checks.csproj`，再執行 `npm.cmd run test:sample-audio-live`。後者會自動載入 `.env` 到子程序、用已編譯 DLL 啟動只連接 `playback_e2e` 的本機 API、執行 sample audio 檢查，再停止該測試 API。若 5078 端口已有 API，腳本會拒絕開始，避免誤用原有 session。

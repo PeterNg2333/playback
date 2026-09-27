@@ -4,12 +4,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const audioFolder = path.join(root, "app-temp", "data", "test-audio", "Week 3");
+const audioFolder = path.join(root, "app-temp", "data", "test-audio", "sampleAudio");
 const apiDll = path.join(root, "app-temp", "api", "bin", "Debug", "net10.0", "Playback.Api.dll");
 const checksDll = path.join(root, "app-temp", "checks", "bin", "Debug", "net10.0", "Playback.Checks.dll");
 
-if (!existsSync(path.join(audioFolder, "lecture_first_20min.m4a")))
-  throw new Error(`Week 3 test audio is missing from ${audioFolder}`);
+if (!existsSync(path.join(audioFolder, "sampleAudio.m4a")))
+  throw new Error(`Sample audio is missing from ${audioFolder}`);
 if (!process.env.GOOGLE_AI_STUDIO_API_KEY)
   throw new Error("Gemini credential is unavailable in the process environment");
 if (!existsSync(apiDll) || !existsSync(checksDll))
@@ -71,8 +71,8 @@ try {
   if (state.database !== "playback_e2e" || !state.gemini || !state.automaticAsr ||
       state.autoNotes || state.autoTerms)
     throw new Error("Live test API failed isolated database and provider preflight");
-  console.log("Week 3 live API ready on isolated playback_e2e database.");
-  const check = spawn("dotnet", [checksDll, "--week3-live", audioFolder],
+  console.log("Sample audio live API ready on isolated playback_e2e database.");
+  const check = spawn("dotnet", [checksDll, "--sample-audio-live", audioFolder],
     { cwd: root, env, stdio: "inherit" });
   const code = await new Promise((resolve, reject) => {
     check.once("error", reject);

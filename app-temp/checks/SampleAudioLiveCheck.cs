@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-internal static class Week3LiveCheck
+internal static class SampleAudioLiveCheck
 {
     public static async Task Run(string folder)
     {
@@ -26,13 +26,13 @@ internal static class Week3LiveCheck
         string? sessionId = null;
         try
         {
-            using var create = await http.PostAsJsonAsync("sessions", new { title = $"E2E demo Week3 {Guid.NewGuid():N}" });
+            using var create = await http.PostAsJsonAsync("sessions", new { title = $"E2E demo Sample audio {Guid.NewGuid():N}" });
             create.EnsureSuccessStatusCode();
             using (var created = JsonDocument.Parse(await create.Content.ReadAsStreamAsync()))
                 sessionId = created.RootElement.GetProperty("id").GetString();
             if (sessionId is null || sessionId.Length != 32) throw new InvalidOperationException("Test session was not created");
 
-            foreach (var (sequence, wav, _) in Week3AudioPreview.Chunks(folder))
+            foreach (var (sequence, wav, _) in SampleAudioPreview.Chunks(folder))
             {
                 using var form = new MultipartFormDataContent();
                 form.Add(new StringContent(sessionId), "sessionId");
@@ -49,7 +49,7 @@ internal static class Week3LiveCheck
                 if (uploaded.StatusCode != System.Net.HttpStatusCode.Accepted)
                     throw new InvalidOperationException($"Chunk {sequence} upload returned HTTP {(int)uploaded.StatusCode}");
             }
-            Console.WriteLine("Week 3 live: 40 WAV chunks saved locally; waiting for SenseVoice results.");
+            Console.WriteLine("Sample audio live: 40 WAV chunks saved locally; waiting for SenseVoice results.");
 
             var deadline = DateTime.UtcNow.AddMinutes(15);
             var lastReport = DateTime.MinValue;
@@ -66,7 +66,7 @@ internal static class Week3LiveCheck
                     if (done == 40) break;
                     if (DateTime.UtcNow - lastReport > TimeSpan.FromSeconds(30))
                     {
-                        Console.WriteLine($"Week 3 live: {done}/40 ASR chunks finished.");
+                        Console.WriteLine($"Sample audio live: {done}/40 ASR chunks finished.");
                         lastReport = DateTime.UtcNow;
                     }
                     await Task.Delay(5_000);
@@ -78,7 +78,7 @@ internal static class Week3LiveCheck
                     throw new TimeoutException("ASR did not finish all 40 saved chunks in 15 minutes");
                 var recognized = saved.Count(chunk => chunk.GetProperty("status").GetString() == "transcribed");
                 var manual = saved.Count(chunk => chunk.GetProperty("status").GetString() == "asr-manual");
-                Console.WriteLine($"Week 3 live ASR: {recognized} transcribed, {manual} require manual retry, {40 - recognized - manual} empty or silent.");
+                Console.WriteLine($"Sample audio live ASR: {recognized} transcribed, {manual} require manual retry, {40 - recognized - manual} empty or silent.");
                 var source = snapshot.RootElement.GetProperty("transcripts").EnumerateArray()
                     .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.GetProperty("original").GetString()));
                 if (source.ValueKind == JsonValueKind.Undefined)
@@ -104,7 +104,7 @@ internal static class Week3LiveCheck
                 using var final = await ReadJson(http, $"sessions/{sessionId}");
                 if (string.IsNullOrWhiteSpace(final.RootElement.GetProperty("noteMarkdown").GetString()))
                     throw new InvalidOperationException("AI notes returned no saved Markdown");
-                Console.WriteLine("Week 3 live AI: source-backed Ask Playback answer and saved notes passed; no lecture text printed.");
+                Console.WriteLine("Sample audio live AI: source-backed Ask Playback answer and saved notes passed; no lecture text printed.");
             }
             finally { snapshot?.Dispose(); }
         }
@@ -114,7 +114,7 @@ internal static class Week3LiveCheck
             {
                 using var cleanup = await http.DeleteAsync($"testing/sessions/{sessionId}");
                 if (cleanup.StatusCode != System.Net.HttpStatusCode.NoContent)
-                    Console.Error.WriteLine($"Week 3 test cleanup returned HTTP {(int)cleanup.StatusCode}; inspect test session {sessionId}");
+                    Console.Error.WriteLine($"Sample audio test cleanup returned HTTP {(int)cleanup.StatusCode}; inspect test session {sessionId}");
             }
         }
     }

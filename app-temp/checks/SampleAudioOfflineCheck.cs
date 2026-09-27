@@ -3,7 +3,7 @@ using Playback.Api.Db;
 using Playback.Api.Endpoints;
 using Playback.Api.Services.Ai.Agents;
 
-internal static class Week3OfflineCheck
+internal static class SampleAudioOfflineCheck
 {
     static readonly Regex Timestamp = new(@"^(?:\d+:)?\d{1,2}:\d{2}$", RegexOptions.Compiled);
     static readonly Regex Word = new(@"[A-Za-z]{6,}", RegexOptions.Compiled);
@@ -25,7 +25,7 @@ internal static class Week3OfflineCheck
                 if (endMs <= previousMs || words.Count == 0) throw new InvalidOperationException("Invalid transcript time sequence");
                 transcripts.Add(new Transcript
                 {
-                    Id = $"week3-{transcripts.Count:0000}", StartMs = previousMs,
+                    Id = $"sample-audio-{transcripts.Count:0000}", StartMs = previousMs,
                     EndMs = endMs, Original = string.Join(" ", words)
                 });
                 previousMs = endMs;
@@ -37,14 +37,14 @@ internal static class Week3OfflineCheck
         if (words.Count > 0)
             transcripts.Add(new Transcript
             {
-                Id = $"week3-{transcripts.Count:0000}", StartMs = previousMs,
+                Id = $"sample-audio-{transcripts.Count:0000}", StartMs = previousMs,
                 EndMs = previousMs + 14_000, Original = string.Join(" ", words)
             });
         if (transcripts.Count < 1000 || transcripts[^1].EndMs < 9_800_000)
             throw new InvalidOperationException("Expected long transcript was not found");
 
         var material = new Material { Id = "tutorial", Name = "Tutorial", Text = File.ReadAllText(Path.Combine(folder, "Tutorial.txt")) };
-        var session = new SessionView("week3-offline", "Week 3", null, DateTime.UtcNow,
+        var session = new SessionView("sample-audio-offline", "Sample audio", null, DateTime.UtcNow,
             "", 0, 0, false, "zh-Hant", [material], transcripts, [], [], [], null);
         var covered = 0;
         foreach (var index in new[] { 50, transcripts.Count / 2, transcripts.Count - 50 })
@@ -62,7 +62,7 @@ internal static class Week3OfflineCheck
                 found = true;
                 break;
             }
-            if (!found) Console.WriteLine($"Week 3 source lookup missed index {index}");
+            if (!found) Console.WriteLine($"Sample audio source lookup missed index {index}");
         }
         if (covered != 3) throw new InvalidOperationException("Q&A failed to retrieve all three lecture windows");
 
@@ -80,6 +80,6 @@ internal static class Week3OfflineCheck
             }
             calls++;
         }
-        Console.WriteLine($"Week 3 offline: {transcripts.Count} source entries, {calls} bounded backlog batches, beginning/middle/end Q&A lookup and transcript times passed; no external calls");
+        Console.WriteLine($"Sample audio offline: {transcripts.Count} source entries, {calls} bounded backlog batches, beginning/middle/end Q&A lookup and transcript times passed; no external calls");
     }
 }

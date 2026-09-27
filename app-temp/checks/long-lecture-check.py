@@ -1,6 +1,6 @@
 """Read-only scale check for a full lecture transcript and 20-minute M4A clip.
 
-Run with: python app-temp/checks/long-lecture-check.py "C:/.../Week 3"
+Run with: python app-temp/checks/long-lecture-check.py "C:/.../sampleAudio"
 No source text or audio leaves the machine, and no input file is modified.
 """
 
@@ -70,7 +70,7 @@ def seconds(value):
 
 
 def main(folder):
-    parts = [folder / "lecture_first_20min.m4a"]
+    parts = [folder / "sampleAudio.m4a"]
     assert parts[0].is_file()
     durations = [m4a_duration(path) for path in parts]
     assert 1199 <= durations[0][1] <= 1202
@@ -116,7 +116,7 @@ def main(folder):
     material = (folder / "Tutorial.txt").read_text(encoding="utf-8-sig")[:3000]
     prompt_sizes = [len(material) + sum(len(text) + 70 for _, _, text in batch)
                     for batch in batches]
-    ids = [f"week3-{i:04d}" for i in range(len(entries))]
+    ids = [f"sample-audio-{i:04d}" for i in range(len(entries))]
     assert len(ids) == len(set(ids))
     # Source locations remain stable at the beginning, middle, and end.
     for index in (0, len(entries) // 2, len(entries) - 1):

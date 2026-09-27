@@ -28,19 +28,19 @@ if (args is ["--gemini-live"])
     }
     return;
 }
-if (args is ["--week3", var folder])
+if (args is ["--sample-audio", var folder])
 {
-    Week3OfflineCheck.Run(folder);
+    SampleAudioOfflineCheck.Run(folder);
     return;
 }
-if (args is ["--week3-audio-preview", var audioFolder])
+if (args is ["--sample-audio-preview", var audioFolder])
 {
-    Week3AudioPreview.Run(audioFolder);
+    SampleAudioPreview.Run(audioFolder);
     return;
 }
-if (args is ["--week3-live", var liveFolder])
+if (args is ["--sample-audio-live", var liveFolder])
 {
-    await Week3LiveCheck.Run(liveFolder);
+    await SampleAudioLiveCheck.Run(liveFolder);
     return;
 }
 if (args is ["--asr-synthetic-live"])

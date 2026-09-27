@@ -1,7 +1,7 @@
 using NAudio.Wave;
 using Playback.Api.Services.Audio;
 
-internal static class Week3AudioPreview
+internal static class SampleAudioPreview
 {
     public static void Run(string folder)
     {
@@ -16,18 +16,18 @@ internal static class Week3AudioPreview
             chunks++;
             if (hasSound) activeChunks++;
         }
-        Console.WriteLine($"Week 3 local audio preview: first 20 minutes decoded into {chunks} bounded 30-second, 16 kHz mono WAV chunks; " +
+        Console.WriteLine($"Sample audio preview: first 20 minutes decoded into {chunks} bounded 30-second, 16 kHz mono WAV chunks; " +
             $"{activeChunks} chunks contained audible samples. No audio was uploaded.");
     }
 
     public static IEnumerable<(int Sequence, byte[] Wav, bool HasSound)> Chunks(string folder)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("M4A preview requires Windows Media Foundation");
-        var path = Path.Combine(folder, "lecture_first_20min.m4a");
+        var path = Path.Combine(folder, "sampleAudio.m4a");
         using var reader = new MediaFoundationReader(path);
         using var resampler = new MediaFoundationResampler(reader, new WaveFormat(16_000, 16, 1));
         if (reader.TotalTime < TimeSpan.FromMinutes(20))
-            throw new InvalidOperationException("The Week 3 test clip is shorter than 20 minutes");
+            throw new InvalidOperationException("The sample audio clip is shorter than 20 minutes");
         var buffer = new byte[32_000];
         const int bytesPerChunk = 30 * 16_000 * 2;
         for (var sequence = 0; sequence < 40; sequence++)
