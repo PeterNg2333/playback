@@ -9,12 +9,16 @@ public static class HealthEndpoints
         app.MapGet("/api/health", async (PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev) => new
         {
             mongo = await store.IsReady(),
+            database = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_DATABASE") ?? "playback_prototype",
             gemini = gemini.IsConfigured,
             jev = jev.IsConfigured,
             automaticAsr = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") != "yes"
                 && Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes",
             asrPaused = Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") == "yes",
-            consentFreeAsr = true
+            autoNotes = Environment.GetEnvironmentVariable("PLAYBACK_AUTO_NOTES") != "no",
+            autoTerms = Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TERMS") == "yes",
+            manualAsrRetry = true,
+            sessionAudioMix = true
         });
     }
 }

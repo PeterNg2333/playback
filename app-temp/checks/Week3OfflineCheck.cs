@@ -56,7 +56,7 @@ internal static class Week3OfflineCheck
             {
                 var context = ChatContextBuilder.Build(session, new QuestionInput($"What was said about {word}?"));
                 if (!context.RelevantTranscripts.Any(x => x.Id == transcripts[index].Id)) continue;
-                if (!context.Prompt.Contains($"[{transcripts[index].Id}, {transcripts[index].StartMs}-{transcripts[index].EndMs} ms]"))
+                if (!context.Prompt.Contains($"Source [{transcripts[index].Id}] ({transcripts[index].StartMs}-{transcripts[index].EndMs} ms)"))
                     throw new InvalidOperationException("Q&A lost the cited audio time");
                 covered++;
                 found = true;
@@ -80,6 +80,6 @@ internal static class Week3OfflineCheck
             }
             calls++;
         }
-        Console.WriteLine($"Week 3 offline: {transcripts.Count} source entries, {calls} bounded backlog batches, beginning/middle/end Q&A lookup and audio times passed; no external calls");
+        Console.WriteLine($"Week 3 offline: {transcripts.Count} source entries, {calls} bounded backlog batches, beginning/middle/end Q&A lookup and transcript times passed; no external calls");
     }
 }

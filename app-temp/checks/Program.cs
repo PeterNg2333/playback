@@ -8,6 +8,8 @@ using Playback.Api.Endpoints;
 using System.Text;
 using NAudio.Wave;
 
+
+
 if (args is ["--gemini-live"])
 {
     try { await GeminiLiveCheck.Run(); }
@@ -29,6 +31,42 @@ if (args is ["--gemini-live"])
 if (args is ["--week3", var folder])
 {
     Week3OfflineCheck.Run(folder);
+    return;
+}
+if (args is ["--week3-audio-preview", var audioFolder])
+{
+    Week3AudioPreview.Run(audioFolder);
+    return;
+}
+if (args is ["--week3-live", var liveFolder])
+{
+    await Week3LiveCheck.Run(liveFolder);
+    return;
+}
+if (args is ["--asr-synthetic-live"])
+{
+    if (Environment.GetEnvironmentVariable("PLAYBACK_ASR_LIVE_CHECK") != "yes")
+        throw new InvalidOperationException("Set PLAYBACK_ASR_LIVE_CHECK=yes for the synthetic live ASR check");
+    var wav = Path.Combine(Path.GetTempPath(), $"playback-synthetic-asr-{Guid.NewGuid():N}.wav");
+    try
+    {
+        using (var writer = new WaveFileWriter(wav, WaveFormat.CreateIeeeFloatWaveFormat(48_000, 2)))
+        {
+            var samples = new float[48_000 * 2];
+            var bytes = new byte[samples.Length * sizeof(float)];
+            for (var second = 0; second < 30; second++)
+            {
+                for (var i = 0; i < 48_000; i++)
+                    samples[i * 2] = samples[i * 2 + 1] = 0.1f * MathF.Sin(2 * MathF.PI * 440 * i / 48_000);
+                Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+                writer.Write(bytes, 0, bytes.Length);
+            }
+        }
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var result = await new SenseVoiceClient().Transcribe(wav, timeout.Token);
+        Console.WriteLine($"Synthetic stereo ASR upload passed: {result.Text.Length} text characters, provider inference {result.InferenceSeconds:F2} s");
+    }
+    finally { File.Delete(wav); }
     return;
 }
 if (args is ["--jev-live"])
@@ -68,6 +106,30 @@ var asr = SenseVoiceClient.ParseResponse(Json("{\"duration_seconds\":10,\"infere
 Check(asr.Text == "Hello class.", "SenseVoice control tokens must not appear in transcript text");
 Check(asr.DurationSeconds == 10 && asr.InferenceSeconds == 1.5 && asr.RealTimeFactor == 0.15 && asr.Language == "en_US", "SenseVoice timing and language metadata must be mapped");
 Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"<|en|><|NEUTRAL|><|Speech|><|withitn|>\"}")).Text == "", "Metadata-only responses must not become transcript text");
+var stereoPath = Path.Combine(Path.GetTempPath(), $"playback-asr-{Guid.NewGuid():N}.wav");
+try
+{
+    using (var writer = new WaveFileWriter(stereoPath, WaveFormat.CreateIeeeFloatWaveFormat(48_000, 2)))
+    {
+        var stereo = new float[48_000 * 2];
+        Array.Fill(stereo, 0.5f);
+        var bytes = new byte[stereo.Length * sizeof(float)];
+        Buffer.BlockCopy(stereo, 0, bytes, 0, bytes.Length);
+        writer.Write(bytes, 0, bytes.Length);
+    }
+    var originalLength = new FileInfo(stereoPath).Length;
+    var prepared = AsrAudioPreparer.Prepare(stereoPath, CancellationToken.None);
+    using var normalized = new WaveFileReader(new MemoryStream(prepared));
+    var sample = new byte[2];
+    normalized.CurrentTime = TimeSpan.FromMilliseconds(500);
+    normalized.ReadExactly(sample);
+    Check(normalized.WaveFormat.SampleRate == 16_000 && normalized.WaveFormat.Channels == 1 &&
+          normalized.WaveFormat.BitsPerSample == 16 && prepared.Length < originalLength / 4 &&
+          Math.Abs(BitConverter.ToInt16(sample) - 16384) < 250,
+        $"48 kHz stereo system audio must become compact 16 kHz mono PCM for ASR: {normalized.WaveFormat}, {prepared.Length}/{originalLength} bytes, sample {BitConverter.ToInt16(sample)}");
+    Check(new FileInfo(stereoPath).Length == originalLength, "ASR preparation must preserve the original recording");
+}
+finally { File.Delete(stereoPath); }
 Check(PlaybackStore.NeedsReview("The term was [unclear].") && !PlaybackStore.NeedsReview("") && !PlaybackStore.NeedsReview("This is unclear but audible."),
     "Only explicit uncertainty markers should trigger human review; empty ASR must not masquerade as confidence");
 var identified = TermCandidateExtractor.Find(
@@ -150,8 +212,8 @@ var earlyAnswer = ChatContextBuilder.Build(longSession, new QuestionInput("What 
 var lateAnswer = ChatContextBuilder.Build(longSession, new QuestionInput("Explain the kernel?"));
 Check(earlyAnswer.RelevantTranscripts[0].Id == "long-4" &&
       lateAnswer.RelevantTranscripts[0].Id == "long-355" &&
-      earlyAnswer.Prompt.Contains("[long-4, 120000-150000 ms]") &&
-      lateAnswer.Prompt.Contains("[long-355, 10650000-10680000 ms]"),
+      earlyAnswer.Prompt.Contains("Source [long-4] (120000-150000 ms)") &&
+      lateAnswer.Prompt.Contains("Source [long-355] (10650000-10680000 ms)"),
     "Three-hour questions must retrieve early and late transcript sources with exact audio times");
 var citedEarly = ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [long-4].");
 Check(citedEarly.Length == 1 && citedEarly[0].Id == "long-4" &&
@@ -204,7 +266,7 @@ var chineseTimeline = Enumerable.Range(0, 360).Select(i => new Transcript
 var chineseSession = longSession with { Transcripts = chineseTimeline };
 var chineseAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("傅立葉變換是甚麼？"));
 Check(chineseAnswer.RelevantTranscripts[0].Id == "zh-5" &&
-      chineseAnswer.Prompt.Contains("[zh-5, 150000-180000 ms]"),
+      chineseAnswer.Prompt.Contains("Source [zh-5] (150000-180000 ms)"),
     "Chinese questions must retrieve an early matching source from a long lecture");
 var mixedAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("FFT是甚麼？"));
 Check(mixedAnswer.RelevantTranscripts[0].Id == "zh-5",
@@ -215,6 +277,13 @@ var voice = new byte[480 * 4];
 for (var i = 0; i < 480; i++) BitConverter.GetBytes(0.08f).CopyTo(voice, i * 4);
 Check(!AudioActivity.HasSound(quiet, floatFormat), "Quiet microphone data must not reset the no-sound warning");
 Check(AudioActivity.HasSound(voice, floatFormat), "Audible microphone data must reset the no-sound warning");
+Check(AudioActivity.Level(quiet, floatFormat) == 0 && AudioActivity.Level(voice, floatFormat) > 0,
+    "Live waveform level must reflect captured microphone samples");
+var stereoFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
+var rightOnly = new byte[480 * 2 * 4];
+for (var i = 0; i < 480; i++) BitConverter.GetBytes(0.08f).CopyTo(rightOnly, i * 8 + 4);
+Check(AudioActivity.HasSound(rightOnly, stereoFormat) && AudioActivity.Level(rightOnly, stereoFormat) > 0,
+    "System audio on the right channel must trigger immediate visual feedback");
 try { SenseVoiceClient.ParseResponse(Json("{\"status\":\"ok\"}")); throw new Exception("Unknown ASR schema was accepted"); }
 catch (InvalidOperationException) { }
 

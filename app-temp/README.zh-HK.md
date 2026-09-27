@@ -6,7 +6,7 @@ Code layout: [STRUCTURE.md](STRUCTURE.md).
 
 ## 介面與錄音狀態
 
-左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。音訊一保存就出現在 Transcript；連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
+左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。偵測到音量活動時，Transcript 先顯示淡色待完成列；音訊保存後以原文或音訊狀態取代。列上顯示「Microphone」或「System audio」來源，目前沒有真人講者分離。連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
 
 錄音狀態由本機 API 保持。暫停會封存目前音訊 chunk；繼續後使用新的收音來源，錄音時間不計暫停時段。麥克風連續一分鐘沒有偵測到足夠音量時，UI 會提示檢查裝置。這是簡單的 energy VAD 診斷：噪音可能被視為聲音，較遠或細聲的語音也可能被漏掉，並不判斷是否有人說話。
 
@@ -20,7 +20,7 @@ Code layout: [STRUCTURE.md](STRUCTURE.md).
 | SenseVoice | 靜音合成 WAV live probe 通過 | `POST /stt/infer/upload` 的 `file` 欄位收到 HTTP 200；本機 API 亦成功保存一條標示不確定的空白 transcript。真實語音準確度及長時間負載未驗證。 |
 | Jev | 合成術語 live 測試通過 | Playback 以 .NET HTTP 按 [TypeSafe OpenAPI](https://api.typesafe.ai/openapi.json) 的 Bearer 認證呼叫 `GET /v1/models` 及 `POST /v1/systemone`，不依賴 JS SDK。更新 key 後，`spectrogram` 返回排名、probability、confidence、usage，重複查詢命中本機快取；真實課堂術語品質未驗證。 |
 | MongoDB | 本機合成資料整合檢查通過 | 2026-09-25 API 回報 `mongo:true`；session 隔離、note versions、chunk retry 與時間範圍已用合成資料實測。 |
-| Windows system + mic | 已在本機保存音訊，可靠性尚未驗證 | 使用者已成功播放保存的錄音；咪高峰必須成功開始，system loopback 若失敗會顯示原因而保留咪高峰錄音。兩個來源獨立保存，長時間及不同裝置尚未測試。[NAudio WASAPI 文件](https://github.com/naudio/NAudio/blob/main/Docs/WasapiRecorder.md)；[Microsoft loopback 說明](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording)。 |
+| Windows system + mic | 已在本機保存音訊，可靠性尚未驗證 | 使用者已成功播放保存的錄音；咪高峰與 system loopback 分別嘗試啟動，任何一個可用便繼續錄音並顯示另一個的錯誤。本機瀏覽器檢查已驗證咪高峰回報 Core Audio `0x80070057` 時可用 system loopback 開始、暫停、繼續和停止。長時間及不同裝置尚未測試。[NAudio WASAPI 文件](https://github.com/naudio/NAudio/blob/main/Docs/WasapiRecorder.md)；[Microsoft loopback 說明](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording)。 |
 
 ## 架構
 
@@ -43,13 +43,13 @@ Windows mic + system output ── .NET API process ── 約 30s WAV ── lo
 pnpm.cmd dev
 ```
 
-`pnpm.cmd dev` 首次會自動安裝缺少的 web 套件及還原 .NET 套件（可能連網），不必先執行 `setup`。啟動時檢查 MongoDB；若未連上且沒有指定 `PLAYBACK_MONGO_URI`，會提示並嘗試以現有本機 image 啟動 Playback 的 MongoDB container，然後等待資料庫就緒。此步不會下載 image 或重建現有 container。若 Docker Desktop 未開或本機沒有 image，網頁仍會起動，但不能建立或讀取 session；先開 Docker Desktop，再明確執行 `pnpm.cmd db:up`（首次可能下載 image）。若用 process environment `PLAYBACK_MONGO_URI` 指定其他 MongoDB，`dev` 不會啟動 bundled container；不要把連接字串放進 `.env` 或提交。
+`pnpm.cmd dev` 首次會自動安裝缺少的 web 套件及還原 .NET 套件（可能連網），不必先執行 `setup`。啟動時檢查 MongoDB；若未連上且沒有指定 `PLAYBACK_MONGO_URI`，會提示並嘗試以現有本機 image 啟動 Playback 的 MongoDB container，然後等待資料庫就緒。此步不會下載 image 或重建現有 container。若 Docker Desktop 未開或本機沒有 image，網頁仍會起動，但不能建立或讀取 session；先開 Docker Desktop，再明確執行 `pnpm.cmd db:up`（首次可能下載 image）。若用 process environment 或 `.env` 的 `PLAYBACK_MONGO_URI` 指定其他 MongoDB，`dev` 不會啟動 bundled container；不要輸出或提交連接字串。
 
-開始錄音就代表把保存好的非靜音音訊自動送往公司 SenseVoice，毋須逐段同意或 Retry。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存，只有完全數位靜音才跳過上傳；這個簡單檢查不是可靠的語音 VAD。連續靜音或 ASR 沒有回傳文字的片段預設收合為「No sound section」，可展開播放。逐字稿按日期、時段及音訊時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
+開始錄音後，保存好的非靜音音訊會自動送往公司 SenseVoice。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存；送往 ASR 前統一轉成 16 kHz 單聲道 PCM，以減少系統聲的上傳大小，原始 WAV 保留作播放。只有完全數位靜音才跳過 ASR；目前即時顯示用的是音量活動偵測，並非語音分類 VAD。靜音或 ASR 沒有回傳文字的片段在每個小時合併為一條可展開的「No audio」分隔列，展開後可檢查每段來源、播放及重試。逐字稿按日期、小時及每筆 `HH:mm:ss` 時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
 
 `dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
 
-先建立 session，再在 Transcript 頁按 Start Recording。API 會先開預設咪高峰，再嘗試錄預設播放裝置的聲音；兩者分開保存。一般錄音每約三十秒完成一段 WAV，暫停及停止時會封存剩餘片段；Transcript 時間線可查看和播放，舊錄音中相鄰而尚未轉錄的短片段會合併顯示並連續播放。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成實機權限、靜音 stream 或連續三小時驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
+先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每約三十秒完成一段 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
 
 錄音音訊會自動上傳 SenseVoice。介面與 API 不設同意勾選或同意 header；AI 筆記、提問和翻譯直接觸發 Gemini，術語評估直接觸發 Jev。憑證只從 process environment 讀 `GOOGLE_AI_STUDIO_API_KEY`、`JEV_API_KEY`；沒有 key 時顯示實際錯誤，不會回傳假成功。
 
@@ -92,7 +92,7 @@ pnpm.cmd test:e2e
 
 測試使用本機 Edge 和真實 UI/API/MongoDB：在 UI 建立獨立 demo session 與 group、附加文字教材、儲存筆記並重載驗證，再上傳一秒數位靜音 WAV，確認背景佇列自動標記為 `silent`、沒有產生假逐字稿。預設測試離線且不會把音訊送往 SenseVoice；測試結束時只刪除本次建立的 `E2E demo` session、group 和 WAV。改動 UI、API、儲存或 ASR 流程後，應重新執行此測試。
 
-如已另行取得真實語音上傳授權，並有已完成轉寫的 session，可額外檢查真實逐字稿及日期／小時時間樹：
+如已有完成轉寫的 session，可額外檢查真實逐字稿及日期／小時時間樹：
 
 ```powershell
 $env:PLAYBACK_E2E_REAL_SESSION_ID = '<session-id>'
@@ -114,11 +114,11 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 
 ## 2026-09-27：Week 3 唯讀長時段檢查
 
-`python app-temp/checks/long-lecture-check.py "C:\Users\a1831\Downloads\Week 3"` 只讀取五段 M4A 的 MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊合計 9,889.29 秒（2:44:49），前四段各約 40 分鐘，最後一段 289.27 秒；逐字稿有 1,266 段、97,717 字元，最後一句無時間戳，離線檢查暫以音訊尾段定位。此舉不改動原始檔案，也沒有解碼或上傳音訊。
+`python app-temp/checks/long-lecture-check.py "app-temp\data\test-audio\Week 3"` 只讀取保留的 `lecture_first_20min.m4a` MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊為首 1,200.01 秒（14,607,746 bytes）；完整逐字稿有 1,266 段、97,717 字元，延伸至約 2:44:49，最後一句無時間戳，離線檢查暫估 14 秒。20 分鐘後的逐字稿沒有保留的對應音訊；長時段來源檢查只驗證文字及時間資料。此檢查不解碼或上傳音訊。
 
 依每兩分鐘更新及每次最多 40 段模擬，該逐字稿會有 82 次定時筆記請求；原本每次重送 3,000 字元教材時，來源輸入約 432,337 字元，其中 243,000 字元是第二次起重複的教材。自動筆記現在只在初次或新增教材時發送未處理教材；估算來源輸入降至約 189,337 字元。這些數字不含前版筆記、指示詞、模型輸出或 token 計費，也不是已發生的外部呼叫。每次實際請求現會記錄段落數與 UTF-8 輸入大小，不記錄原文。
 
-`dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/ -- --week3 "C:\Users\a1831\Downloads\Week 3"` 用真實逐字稿在記憶體驗證 40 段 backlog、無重複來源 ID、開頭／中段／末段問答的來源挑選及音訊時間。若整批離線處理，需要 32 個最多 40 段的 batch；這與上面 82 次定時更新是兩種不同情境。另以 360 段合成三小時時間線測早／晚來源問答；web fixture 以 1,266 段跨約三小時驗證視窗高度、面板捲動、Save 可見、精簡逐字稿及無聲收合。這些檢查不代表真實三小時 ASR、筆記內容品質或課堂問答準確度已通過。
+`dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/ -- --week3 "app-temp\data\test-audio\Week 3"` 用真實逐字稿在記憶體驗證 40 段 backlog、無重複來源 ID、開頭／中段／末段問答的來源挑選及音訊時間。若整批離線處理，需要 32 個最多 40 段的 batch；這與上面 82 次定時更新是兩種不同情境。另以 360 段合成三小時時間線測早／晚來源問答；web fixture 以 1,266 段跨約三小時驗證視窗高度、面板捲動、Save 可見、精簡逐字稿及無聲收合。這些檢查不代表真實三小時 ASR、筆記內容品質或課堂問答準確度已通過。
 
 離線 API 整合測試可在獨立的 5079 端口執行，設定 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_PAUSE_EXTERNAL_ASR=yes`、`PLAYBACK_AUTO_NOTES=no`，再執行 `node app-temp/api/integration-check.mjs`。此模式會確認新合成音訊維持待處理，不會因背景佇列送往 SenseVoice；測試僅清理自己建立的合成 session、group 與音訊。測試前先查核現有 5078 API 程序，勿重啟舊程序觸發舊資料重試。
 
@@ -126,7 +126,7 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 
 問答現在按問題詞語選取最多五份教材，中文連續字詞會拆成相鄰雙字供長課堂搜尋；長教材截取含匹配詞的最多 3,000 字，逐字稿每段及選中來源各截取最多 1,600 字。模型回答必須以方括號引用本次提供的來源 ID，否則回報失敗；原有的 `[unclear]` 等 ASR 標記不作引用。evidence 只列實際引用的來源及其音訊時間或教材名稱。這能防止缺失或虛構 ID 被當成來源，但不能證明引用內容的語義正確。離線協定檢查、Week 3 開頭／中段／末段唯讀搜尋、合成中文三小時搜尋，以及虛構資料 Gemini live 問答均已通過。
 
-在把 Week 3 音訊、逐字稿或教材交給 SenseVoice、Gemini 或 Jev 前，須先確認講師、同學、學校的同意及相關私隱與保留規則；外部 live 檢查只可用虛構內容。
+Week 3 音訊的 live 檢查會把測試片段送到 SenseVoice，並把辨識出的部分文字送到 Gemini 驗證問答及筆記；測試程式不在終端輸出音訊、逐字稿或金鑰。
 
 ## 2026-09-27：筆記編輯紀錄與補充解釋
 
@@ -135,3 +135,27 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 Transcript 設定中的「Review next key terms」每次最多向 Jev 提交三個尚未評估的候選詞。亦可在確認課堂資料可傳送後，於 **process environment** 設 `PLAYBACK_AUTO_TERMS=yes`，讓背景程序每兩分鐘在所有 session 合計最多評估三詞；預設關閉。只有 Jev 的 `explain` 機率至少 0.75、類別為 `high`／`medium` 且類別信心至少 0.50 的詞會在有來源的逐字稿中高亮。短按不彈出視窗，長按約半秒才顯示補充解釋；鍵盤 Enter／Space 也可開啟。此門檻屬試驗規則，真實課堂的 precision/recall 尚未評估。
 
 首次開啟高亮詞會向 Vertex Google Search 請求公開來源解釋，然後把解釋及 HTTPS 來源獨立保存在 `term_insights`，再次開啟使用已保存版本。筆記生成只可放已提供的 `[ref:ID]` 標記，不把補充解釋文字放入 Markdown；預覽把標記顯示為可開啟保存解釋的 `ref`。現有舊筆記與 MongoDB 紀錄可讀取，新增欄位預設為空。此流程已通過合成資料的 .NET protocol checks、web build、Playwright 1280／1024／768／375／320 像素 UI fixture；新的資料庫寫入路徑和真實課堂 Jev 決策仍未做 live 端到端驗證。
+
+## 2026-09-27：系統聲 ASR 與共用播放器複核
+
+現場 `playback_e2e` 的 `Test` session 在檢查時仍正在錄音。當時 419 個 chunk 中有 38 個成功轉錄、231 個 ASR 無字、48 個停止自動重試、100 個等待重試、2 個正在處理；失敗 148 個全屬系統聲，錯誤同為 `Error while copying content to a stream.`。系統聲原檔為 48 kHz 雙聲道 float WAV，咪高峰為 16 kHz 單聲道 float WAV。ASR 現在只在上傳前把兩種來源統一轉成 16 kHz 單聲道 PCM；播放仍讀原始 WAV。合成 48 kHz 雙聲道轉碼的格式、音量及原檔保留檢查通過；一段合成 30 秒雙聲道音訊亦成功到達 SenseVoice，回傳空字而非上傳中斷。這尚不能證明現場失敗的系統音訊重試必定成功。
+
+另從現場 WAV 逐組抽樣：咪高峰成功轉錄的 12 段平均 RMS 0.0093，ASR 無字的 12 段平均 RMS 0.0051，兩組峰值範圍有重疊；一段成功轉錄的峰值僅 0.0124。故沒有用固定音量門檻將低聲音訊直接丟棄。畫面上的即時活動提示是能量檢測，不是可保證辨識人聲的 VAD；近乎無字的音訊仍可能進 ASR，之後在「No audio」分隔列收合。
+
+底部播放器只有一個 `<audio>`。逐字稿列只播該列；「Full session」按 30 秒窗口連播同一 session，可選咪高峰、系統聲或同步混合，亦可拖曳、跳五秒及改速度。測試 API 的真實 WAV 與合成重疊聲道通過取樣值核對，Playwright 使用真實 API/MongoDB 驗證整段混音及切換來源；桌面與 320–1024 像素介面 fixture 均通過。真實長時間連播及現場系統聲重試仍待新 API 啟動後驗證；目前 5078 正在錄音，未被測試重啟。
+
+若瀏覽器已載入新版 UI 而 5078 仍是舊 API，底部播放器會顯示「Restart API for session audio」並停用整段播放；逐字稿單列仍可播放。`pnpm.cmd dev` 亦會識別舊 API 並提示重啟，避免把未提供的混音端點當成可用。
+
+## 2026-09-27：錄音狀態與逐字稿時間線
+
+錄音時頂部顯示由本機擷取樣本計算的最近 10 秒音量波形（每 0.5 秒更新）。錄音狀態每 0.5 秒檢查一次；任一來源首次通過聲音能量檢測，Transcript 就在本地日期 → 小時 → 每筆 `HH:mm:ss` 樹內加入半透明的未完成音訊列，不必等約 30 秒 WAV 輪轉。WAV 完成並保存後立即刷新為可播放列。未檢出聲音時只顯示「Listening for sound」；此能量檢測不是可靠的語音分類。列上的時間是本地時鐘，而非從 00:00 開始的錄音位移。
+
+SenseVoice 網絡錯誤會保留錄音，最多自動嘗試三次，之後標成 `asr-manual` 並停止背景重試。舊版沒有重試次數的 `asr-error` 在正常 API 啟動時轉成手動重試，保留音訊與原錯誤，不會重新排入大量背景請求。連續失敗段落合併顯示，使用者可按「Retry ASR」重試同組已保存音訊。`asr-empty`（有音訊但沒有辨識到字）及真正數碼靜音均收進每小時一條「No audio」分隔列；展開後會區分 ASR 無字、來源、播放與重試。咪高峰及系統聲音獨立處理，所以同一時段可能一邊成功、另一邊無字或失敗。Ask Playback 的輸入來源現以 `[source-id]` 明確標示引用格式；如 AI 首次回覆的引用不合格，會要求重寫一次並重新驗證，仍不合格則顯示真實錯誤，不產生假引用。未設定 Vertex key 時，聊天視窗保留問題並顯示缺少憑證的錯誤。
+
+離線驗證已通過 .NET 協定檢查、web build、Playwright UI fixture、真實 API/MongoDB 整合檢查及合成 WAV 的瀏覽器端到端檢查。`--week3-audio-preview "app-temp\data\test-audio\Week 3"` 會唯讀解碼首 20 分鐘為 40 段 30 秒、16 kHz mono WAV（記憶體內處理，不保存或上傳），40 段均驗出音量。真實課堂首 20 分鐘的 SenseVoice／Gemini live 結果見下文；provider 費用並未量測。
+
+端到端測試可用 process environment 的 `PLAYBACK_MONGO_DATABASE=playback_e2e` 指向獨立測試資料庫；只接受 `playback_prototype` 或 `playback_e2e`，health endpoint 會回報目前名稱。離線 API/MongoDB 測試已在此獨立資料庫再通過一次，測試會刪除自己建立的 `E2E demo` session、group 和音訊，原有 `playback_prototype` 不受影響。啟動 live API 前應先查 health 的 `database`，以免背景佇列處理既有 session 的錄音。
+
+`--week3-live "app-temp\data\test-audio\Week 3"` 是真實 provider 端到端檢查：把保留的 20 分鐘音訊加速送成 40 個本機 API WAV chunk，等 SenseVoice 返回，再以一段已辨識來源驗證 Ask Playback 引用與 Gemini 筆記，最後清理自己建立的 test session／音訊。API health 須顯示 `database=playback_e2e`、Gemini／ASR 可用、`autoNotes=false`、`autoTerms=false`，否則檢查拒絕開始。程式可從根目錄 `.env` 載入金鑰到程序環境，代理不讀取或顯示檔案內容。2026-09-27 以原始第一段的首 20 分鐘測試：33 段成功轉錄、6 段 provider 回傳無文字、1 段重試後轉為手動處理；Ask Playback 回答有來源引用，Gemini 筆記成功保存。測試 session、MongoDB 紀錄與 API 音訊已清理。後來只保留單一 20 分鐘 M4A 作為 Git 測試素材；重新編碼後的 live 結果需獨立核對。
+
+先在 repo 根目錄執行 `dotnet build app-temp/checks/Playback.Checks.csproj`，再執行 `npm.cmd run test:week3-live`。後者會自動載入 `.env` 到子程序、用已編譯 DLL 啟動只連接 `playback_e2e` 的本機 API、執行 Week 3 檢查，再停止該測試 API。若 5078 端口已有 API，腳本會拒絕開始，避免誤用原有 session。

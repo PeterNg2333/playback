@@ -56,6 +56,7 @@ export const ChunkSchema = z.object({
   status: z.string(),
   recordedAt: z.string().nullish(),
   error: z.string().nullish(),
+  asrAttempts: z.number().optional(),
 });
 export const SessionSummarySchema = z.object({
   id: z.string(),
@@ -111,6 +112,7 @@ export const HealthSchema = z.object({
   jev: z.boolean(),
   automaticAsr: z.boolean().optional(),
   asrPaused: z.boolean().optional(),
+  sessionAudioMix: z.boolean().optional(),
 });
 export const CaptureStatusSchema = z.object({
   state: z.enum(["idle", "recording", "paused"]),
@@ -119,6 +121,15 @@ export const CaptureStatusSchema = z.object({
   autoAsr: z.boolean().optional(),
   noSoundWarning: z.boolean().optional(),
   error: z.string().nullish(),
+  levels: z.record(z.string(), z.number()).optional(),
+  capturedThroughMs: z.number().optional(),
+  lastFinalizedAtMs: z.number().optional(),
+  activeSegments: z.array(z.object({
+    sourceId: z.string(),
+    startMs: z.number(),
+    endMs: z.number(),
+    recordedAt: z.string(),
+  })).optional(),
 });
 
 export type Transcript = z.infer<typeof TranscriptSchema>;

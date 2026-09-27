@@ -1,0 +1,345 @@
+Okay. This is the recording of my last evening.
+0:00
+Um, on discussion of the query file or MP3 file.
+0:06
+Um, how it translates into the from the user mode to the kernel mode through the um says enter or interrupt to then checking
+0:13
+the SSD to find the final absolute address of the MNT query file code residing in a binary called nt os kernel x.
+0:29
+Okay, this slide we have already discussed, um, the first of the, um, command x,
+0:56
+and the gray file is intended to show you, uh, what is the symbol of creation?
+1:06
+Can be identified in the entity LDL. You will see that this is, uh, there are two empty two query files.
+1:15
+One is called empty grave file. Another is called set w grave file.
+1:25
+Both of them lies in the same address. The empty is facing user code.
+1:30
+The z w is facing the kernel. Now next command is uh.
+1:36
+We do the, uh, un um, um function of the entity LTL.
+1:43
+Um, to find the nth query file.
+1:51
+You will see a couple of commands right here. The first one is we need to pay attention.
+1:55
+Is moving, uh, the content of the register in LK to the register are ten.
+2:02
+The next one is quite important. You will see. Uh, we are having a, uh, five five moving to register.
+2:10
+We are calling this five five is called the index or the SSN system surface number.
+2:22
+This is important to allow the kernel flag, uh, in identify, uh, where to find, um,
+2:31
+the absolute address from the SST system surface description table by checking this number.
+2:40
+And then we come to another, uh, opcode for comparing or testing a byte pointer from the share user data past 308,
+2:49
+so you will be able to locate the 00000 x0 and then 740308.
+3:02
+Compare the content in this memory location for the pipe size with one.
+3:13
+If one compared with one will get one if zero compared with one, we got zero.
+3:20
+So if we find if one not zero, the next opcode is jump, not zero.
+3:27
+If this is not zero and then it will.
+3:35
+Not join zero, it will go to a function to either score or interrupt to yield.
+3:42
+Actually the test is for some kind of calculation.
+3:52
+Uh, we can actually show you the, um, shared data location.
+3:58
+Let me try to go to the, um, when debugger here.
+4:04
+I call it the kernel debugging, local kernel debugging. And I make sure my network is connected to the internet for this time.
+4:17
+Actually, I restart, um, to, uh, we go back to this original snapshot before playing with any sample so that I should be okay for,
+4:27
+uh, using the internet connection. Uh, as they used to respond, I make sure that it works.
+4:39
+I need to type below so you will see the kernel trying to load in symbol and the user symbol, and there are no modules if nothing right there.
+4:50
+Now let me try to show you the type. Let me dictate display type NT exclamation mark K user.
+5:03
+Data. Symbol for the type that is typeof.
+5:18
+Empty k user shared data.
+5:28
+Now you see the kernel structure. If I provide that with an address, if the address right here you will see that that is 7F0308.
+5:34
+But this is plus. So if I want to find the share user data I should find just removing this fee.
+5:51
+Zero eight. So I type. 7FFE0000.
+5:59
+Now we do have the full content of the shared user data.
+6:10
+Then I go to 308. We see this is zero system call.
+6:15
+Now let us go to the next slide.
+6:24
+After this going to the system call we are having a moving a value of uh if that is create file, it moves the five five to the X register.
+6:29
+Uh this is for the XP version. Uh, in the XP version, the create file is 2.5055.
+6:45
+Don't forget this is a decimal number. So if we need to change to check in the number of index.
+6:56
+If need to be changed in the decimal five five change to decimal I think is eight five.
+7:05
+Later May. Later on, we may show you the five index of the SST to find the creative file.
+7:13
+But I want to do the hard way by using the debugger,
+7:22
+so that I can explain how the algorithm has been used by the window kernel to connect to the actual file code in the kernel.
+7:27
+OS and os x. Now we come to a part of the slide.
+7:41
+Difficult to understand. Let me explain that a little bit in details.
+7:50
+So we come to actually we have two system call.
+7:54
+One is called um uh, in the lecture I answer, one of your class may ask a question.
+8:00
+Are there any difference between system call and enter. And I just mentioned this uh says enter is windows usage and the system core is Linux user.
+8:09
+Actually that that is not quite correct. I will explain more detail.
+8:23
+Now first of all I need to explain straight from from transition from the user mode to the kernel mode.
+8:27
+We are having two options. That accuracy option is the internet the interrupt to E.
+8:36
+The other version is um uh cis enter the legacy version, because why that is predominant in the windows 2000 or earlier version.
+8:46
+Um, how it works. Basically, it triggers an interrupt vector to you through the interrupt description table.
+9:02
+The CPU save the ring transition state onto the stack and try to find out the it the interrupt
+9:11
+description table to moving from a transition from the user code to the kernel code.
+9:21
+So it incurs quite a lot of high CPU cycle calls.
+9:29
+Um, so Intel uh, CPU actually, um, embedded the system, enter um, into the modern version of Intel CPU architecture.
+9:33
+Um, they call it this is called fast System core instruction.
+9:46
+How it works. Basically, instead of query the memory table like the it, it delegates some kind of register the CPU,
+9:51
+which is called model specific register to fetch the target segment and stack pointer and
+10:02
+everything so that in eliminate the memory access overhead execution transition in a fast time.
+10:11
+Now let me explain a little bit. Uh, incorrect explanation in the class about the Cisco and Center.
+10:21
+Basically, they are different in the OS kernel context.
+10:29
+Architect. In this center, we do have six exit Cisco.
+10:35
+We have the six return. Um, basically six enter is implemented first implemented by the Intel Are a fast system called.
+10:39
+Both 32 bit and 64 bit uh Cisco and return is implemented by another CPU chipset manufacturer called AMD.
+10:50
+That is, AMD implemented implementation inside the AMD.
+11:03
+That is some CPU opcode core score and return.
+11:07
+Um, but later on uh, including Intel using the syscall in the later update version of Intel CPU.
+11:13
+Uh, so it becoming the default naming, uh, for standard file system core um, set for the 64 bit long mode.
+11:23
+Uh, for both AMD and Intel processor. So basically they are the same.
+11:34
+Uh, but the function is um, uh, implemented by Cisco, implemented by AMD um, um,
+11:40
+both the fifth course or the six end, uh, are the opcode or instruction code, uh, embedded inside the in CPU.
+11:49
+So, uh, don't mix up this Sis and or Cisco with the any code inside the kernel of windows environment.
+12:02
+Now you will see uh, either in interrupt or sis enter in windows.
+12:14
+Uh, environment will go through transition from the um user mode to the kernel mode.
+12:22
+The basic, uh, arrangement, as we illustrate before in the file example and in Nptel, drl uh, when we try to disassemble the code,
+12:30
+we will find the NT whatever enclave file and that WPA file both point to the same location and all.
+12:43
+And all the API call will be implemented, and we need to consider.
+12:56
+Now, actually, both the, um, enter um, and the core.
+13:05
+Uh, as I said previously, um, both of them are, uh, CPUs, opcode instruction code embedded in the electronic, uh, inside the CPU.
+13:12
+But actually, when the trans transition from the, um, user mode to the kernel mode, uh,
+13:27
+typically the in user mode will make a send a SSN system surface number to the EAX register uh, in the user mode environment.
+13:35
+That number uh, in uh query file example is five five.
+13:48
+So um, after the transition. Uh, into the kernel, um, you will find that actually, um, the um, one of the thread will create inside the kernel, um,
+13:54
+to access this number, the, uh, 055 for Antiqua, uh, file example to using this number to find out the anti OS kernel, uh, actual location.
+14:13
+So, um, this diagram is trying to show you the, um, the contents of the, uh, native.
+14:31
+Psst. And the.
+14:39
+When we talk about the GUI, uh, such as the, um, GDI 32 and, uh, DRL or user 32, DRL will assess, uh, another table inside the kernel, uh,
+14:41
+called GUI, SST, and and and finally, the actual code about the GUI, um, user interface scope lies in the Win32 K boxes for the native SSD.
+14:55
+Uh, it will go through the, uh, the SS.
+15:12
+The six entry track will be triggered by NDL doc DL so that is one of the basic things we need to consider.
+15:16
+Now we come to the SST. Uh, description table location, how we find this information.
+15:27
+As I said, um.
+15:35
+Um, this information can be identified through the, um, checking the, um, key surface table, um, retained inside the kernel in 64 bit environment.
+15:37
+The SSD key surface table no longer store full 64 bit absolute address.
+15:54
+They just said in order to save the space in the kernel.
+16:03
+So instead it store four bytes of relative offsets inside the lower four bit of these four by for each entry code argument, uh,
+16:07
+including two part one part is um four bit for some argument, uh control uh Bit the remaining part four by means 32 bit 32 minus four.
+16:22
+That is 28 bit uh will be used to um to be as the um.
+16:39
+Um functions of relative offset counting from the beginning of the um surface table.
+16:48
+For example, in this in this slide you will see that here you will find it by, um, this page, one column of the key surface table la means list eight.
+16:59
+Uh, record. From here you will find the first size, first location of the key.
+17:14
+The base address of key surface table lies in 234050560.
+17:21
+If we want to find out the content of the actual code, we need to take out a number inside the offset.
+17:30
+If the offset number is equal to two, we will be able to find this number.
+17:42
+The content inside this address and making use of this number.
+17:47
+We need to change this number because this is a 32 bit number.
+17:53
+As I said in the function offset um, that is the algorithm of the street searching from relative address to the absolute address.
+17:58
+We need to cut off the last four bits here.
+18:15
+Four bits in computer. Record four equal to a half byte, which is a word.
+18:20
+So if we need to move four bit from this, from this number, that means we chop off this two and then put back another zero in front of it.
+18:32
+So that is the mechanism how it finds the information.
+18:41
+By checking this we will be able to find out the details of the actual location of the SST.
+18:47
+Uh, based on the, um, this number two shows the, um, the function called NT except port.
+18:58
+So you, uh, we usually just type in this command to find them out.
+19:09
+Um, now, let me show you the file example in the wind debugger.
+19:15
+So in the debugger, first we need to do one thing we need to understand the Antigua file,
+19:24
+and you will see that the moving from the LC register to L10 and the moving number five five will remember this.
+19:37
+And then either it goes to the Cisco Cisco or the interrupt to E.
+19:48
+Now let us go to check the. Description table.
+20:01
+Here you can go through details to find out the description table.
+20:08
+But I save my time. I just try to find the address.
+20:12
+Try to display in one column of key surface table.
+20:17
+That is the surface table we need To identify.
+20:24
+At least I just need to show the base address so that equal to the um anti anti exclamation mark key surface table right here.
+20:29
+So you will be provided with an address of the CAA 5060.
+20:48
+The address is important for this scenario. Now let us try to find how the five five related to the um table.
+20:56
+So the five five if we using the way to find, uh, to display the first column of the key surface table plus if three times five.
+21:10
+Five. With four.
+21:28
+Then this is the first row you will be provided with 202182007.
+21:34
+If we shift this four four bit, we shall be able to find the um.
+21:45
+Plus the key. Surface table we will be able to provide to find out the actual location of the Antigua file.
+21:54
+Now let me. And in an assembly, the key surface table.
+22:04
+Plus. Um, this number this number is 0182007.
+22:16
+We need to shift for bed. Now you will see the anti creep file.
+22:28
+The same for anti-rape file. I led you to do the exercise by your own self.
+22:40
+Um, in last evening's lecture I tried to provide a solution that you just type type one command in the, um,
+22:49
+wind debugger so that you can get everything instead of checking everything in, uh, in the proper arrangement.
+22:59
+So I already found out the, um, the command should be an assembly.
+23:06
+The empty exclamation mark, key surface table.
+23:13
+Plus, using d w the typo in my slide.
+23:17
+Previous, uh, A demonstration that means that the d word data to show just show.
+23:22
+The content here is using two. Two is pointing to the exact connect point.
+23:32
+Now what I have to do is to using the same and um and.
+23:38
+And and assembly and function this or disassembly of NT kernel surface.
+23:49
+Let me try to copy it from another screen.
+23:58
+It's more easier for me to show you in the video.
+24:03
+Now if I type two it will show you the, uh.
+24:16
+And he accept Connecticut. We see.
+24:23
+But if I replace two with five, five. The formula will also give you the final antiquary file.
+24:31
+So that part is, um, important for us to understand.
+24:40
+Um, here in the Streetview tool that I showed you in the class, it just shows you the number two.
+24:48
+It shows the empty connect point. If.
+24:55
+Can we do this on the quick way instead of using wind debugger?
+24:59
+So let me turn on this. And because five five is converted to decimal is eight five.
+25:04
+So I move to eight five. You see Nicky file at the just for free.
+25:14
+A c b d to zero. Which is exactly like this.
+25:22
+So this is the major reason why I want to show you to prepare this video,
+25:30
+to show you the relationship of how Antiqua file transit from user mode by
+25:37
+triggering the transition to the CPU opcode either into interop 2D or center,
+25:48
+or the modern windows environment or modern CPU environment.
+25:58
+Intel CPU environment called syscall. We go into the kernel checking the SSD table by finding the index referencing by the SSN system surface number.
+26:03
+Uh, in antiquity, for example, use five five, and then by adding the five five to the base with the base of the key surface table by after shifting,
+26:22
+dropping the last, uh, last word by adding zero in front of the, um, number five in the uh, five five reference location.
+26:39
+And then you can get the final absolute address in the nt os kernel dot xa.
+26:53
+So this is the slide called align with the demonstration that I showed you in the class.
+27:03
+So this is the end of this recording.

@@ -90,20 +90,11 @@ export function SessionNav({ model }: { model: PlaybackController }) {
           ×
         </button>
       </div>
-      <button
-        className="new-session"
-        aria-label="New session"
-        onClick={() => create()}
-        disabled={disabled}
-      >
-        <Icon name="plus" /> New session
-      </button>
-
       <section className="sidebar-section" aria-labelledby="groups-heading">
         <div className="sidebar-heading">
           <h2 id="groups-heading">Groups</h2>
           <button
-            className="nav-icon-button"
+            className="nav-icon-button sidebar-create"
             aria-label="New group"
             title="New group"
             onClick={createGroup}
@@ -206,6 +197,15 @@ export function SessionNav({ model }: { model: PlaybackController }) {
       >
         <div className="sidebar-heading">
           <h2 id="sessions-heading"><Icon name="folder" /> Sessions</h2>
+          <button
+            className="nav-icon-button sidebar-create"
+            aria-label="New session"
+            title="New session"
+            onClick={() => create()}
+            disabled={disabled}
+          >
+            <Icon name="plus" />
+          </button>
         </div>
         {ungrouped.map((item) => (
           <SessionItem key={item.id} item={item} {...sessionProps} />

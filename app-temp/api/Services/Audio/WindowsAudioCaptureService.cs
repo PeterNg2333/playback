@@ -7,7 +7,10 @@ using NAudio.Wave;
 
 namespace Playback.Api.Services.Audio;
 
-public sealed record CaptureStatus(string State, string? SessionId, Dictionary<string, long> Bytes, bool AutoAsr, bool NoSoundWarning, string? Error);
+public sealed record ActiveCaptureSegment(string SourceId, long StartMs, long EndMs, DateTime RecordedAt);
+
+public sealed record CaptureStatus(string State, string? SessionId, Dictionary<string, long> Bytes, bool AutoAsr, bool NoSoundWarning, string? Error,
+    Dictionary<string, int> Levels, long CapturedThroughMs, long LastFinalizedAtMs, ActiveCaptureSegment[] ActiveSegments);
 
 public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger) : IAsyncDisposable
 {
@@ -19,11 +22,21 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
     public CaptureStatus Status()
     {
         var recording = active;
+        CaptureSource[] sources;
+        if (recording is null) sources = [];
+        else lock (recording.Sources) sources = recording.Sources.ToArray();
+        var capturedThroughMs = recording is null ? 0 : recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
         return new(recording is null ? "idle" : recording.Paused ? "paused" : "recording", recording?.SessionId,
-            recording?.Sources.ToDictionary(source => source.Name, source => source.Bytes) ?? [],
+            sources.ToDictionary(source => source.Name, source => source.Bytes),
             recording?.AutoAsr ?? false,
             recording is { Paused: false } && DateTime.UtcNow - recording.LastSoundAt > TimeSpan.FromMinutes(1),
-            recording?.Error ?? lastError);
+            recording?.Error ?? lastError,
+            sources.ToDictionary(source => source.Name, source => source.Level),
+            capturedThroughMs,
+            recording?.LastFinalizeAtMs ?? 0,
+            recording is { Paused: false }
+                ? sources.Select(source => source.ActiveSegment(capturedThroughMs)).OfType<ActiveCaptureSegment>().ToArray()
+                : []);
     }
 
     public async Task<CaptureStatus> Start(string sessionId)
@@ -41,11 +54,9 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 .Concat(Pending(sessionId).Select(chunk => chunk.EndMs)).DefaultIfEmpty().Max();
             var recording = new Recording(sessionId, offset);
 
-            // A working microphone is the minimum viable source; loopback can fail independently.
             try
             {
-                await StartSource(recording, "microphone", new WasapiRecorderBuilder(), required: true);
-                await StartSource(recording, "system", new WasapiRecorderBuilder().WithLoopbackCapture(), required: false);
+                await StartSources(recording);
             }
             catch
             {
@@ -61,7 +72,20 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
     }
 
     [SupportedOSPlatform("windows")]
-    async Task StartSource(Recording recording, string name, WasapiRecorderBuilder builder, bool required)
+    async Task StartSources(Recording recording)
+    {
+        var microphoneError = await TryStartSource(recording, "microphone", new WasapiRecorderBuilder());
+        var systemError = await TryStartSource(recording, "system", new WasapiRecorderBuilder().WithLoopbackCapture());
+        int sourceCount;
+        lock (recording.Sources) sourceCount = recording.Sources.Count;
+        if (sourceCount == 0)
+            throw new InvalidOperationException(
+                $"No audio source could start. Microphone: {microphoneError}; system audio: {systemError}");
+        recording.Error = null;
+    }
+
+    [SupportedOSPlatform("windows")]
+    async Task<string?> TryStartSource(Recording recording, string name, WasapiRecorderBuilder builder)
     {
         WasapiRecorder? recorder = null;
         try
@@ -69,7 +93,8 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             recorder = builder.Build();
             var source = new CaptureSource(name, recorder, Path.Combine(root, recording.SessionId, name), recording);
             recorder.StartRecording();
-            recording.Sources.Add(source);
+            lock (recording.Sources) recording.Sources.Add(source);
+            return null;
         }
         catch (Exception ex)
         {
@@ -78,9 +103,8 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 try { await recorder.DisposeAsync(); }
                 catch (Exception closeError) { logger.LogWarning(closeError, "Capture device cleanup failed"); }
             }
-            if (required) throw new InvalidOperationException($"Microphone could not start: {ex.Message}", ex);
-            recording.Error = $"System audio unavailable; microphone is recording. {ex.Message}";
-            logger.LogWarning(ex, "System audio capture unavailable");
+            logger.LogWarning(ex, "{Source} audio capture unavailable", name);
+            return ex.Message;
         }
     }
 
@@ -168,7 +192,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             active.Clock.Stop();
             await CloseSources(active);
             await FinalizeChunks(active);
-            active.Sources.Clear();
+            lock (active.Sources) active.Sources.Clear();
             return Status();
         }
         finally { transition.Release(); }
@@ -185,13 +209,12 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             active.LastSoundAt = DateTime.UtcNow;
             try
             {
-                await StartSource(active, "microphone", new WasapiRecorderBuilder(), required: true);
-                await StartSource(active, "system", new WasapiRecorderBuilder().WithLoopbackCapture(), required: false);
+                await StartSources(active);
             }
             catch
             {
                 await CloseSources(active);
-                active.Sources.Clear();
+                lock (active.Sources) active.Sources.Clear();
                 active.Clock.Stop();
                 throw;
             }
@@ -273,10 +296,21 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         long sequence;
         long startMs;
         long bytes;
+        int level;
+        bool hasSound;
 
         public string Name { get; }
         public WasapiRecorder Recorder { get; }
         public long Bytes => Interlocked.Read(ref bytes);
+        public int Level => Volatile.Read(ref level);
+
+        public ActiveCaptureSegment? ActiveSegment(long endMs)
+        {
+            lock (gate)
+                return hasSound && endMs > startMs
+                    ? new(Name, startMs, endMs, DateTime.UtcNow.AddMilliseconds(startMs - endMs))
+                    : null;
+        }
 
         public CaptureSource(string name, WasapiRecorder recorder, string directory, Recording recording)
         {
@@ -289,12 +323,15 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             var format = recorder.WaveFormat;
             recorder.DataAvailable += (buffer, _, _, _) =>
             {
-                if (name == "microphone" && AudioActivity.HasSound(buffer, format))
+                Volatile.Write(ref level, AudioActivity.Level(buffer, format));
+                var soundDetected = AudioActivity.HasSound(buffer, format);
+                if (soundDetected)
                     recording.LastSoundAt = DateTime.UtcNow;
                 lock (gate)
                 {
                     try
                     {
+                        if (soundDetected) hasSound = true;
                         if (writer is null)
                         {
                             Directory.CreateDirectory(directory);
@@ -328,6 +365,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                     partPath = null;
                 }
                 startMs = endMs;
+                hasSound = false;
             }
         }
     }

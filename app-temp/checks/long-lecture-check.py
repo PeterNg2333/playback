@@ -1,4 +1,4 @@
-"""Read-only scale check for a timestamped lecture transcript and M4A parts.
+"""Read-only scale check for a full lecture transcript and 20-minute M4A clip.
 
 Run with: python app-temp/checks/long-lecture-check.py "C:/.../Week 3"
 No source text or audio leaves the machine, and no input file is modified.
@@ -70,10 +70,10 @@ def seconds(value):
 
 
 def main(folder):
-    parts = sorted(folder.glob("lecture_part*_of_5.m4a"))
-    assert [p.name for p in parts] == [f"lecture_part{i}_of_5.m4a" for i in range(1, 6)]
+    parts = [folder / "lecture_first_20min.m4a"]
+    assert parts[0].is_file()
     durations = [m4a_duration(path) for path in parts]
-    assert all(0 < duration < 4 * 3600 for _, duration in durations)
+    assert 1199 <= durations[0][1] <= 1202
     print("audio:", [(p.name, brand, round(duration, 2)) for p, (brand, duration) in zip(parts, durations)])
     print("audio total seconds:", round(sum(duration for _, duration in durations), 2))
 
@@ -92,11 +92,11 @@ def main(folder):
         elif line.strip():
             words.append(line.strip())
     if words:
-        final_end = round(sum(duration for _, duration in durations))
-        assert final_end > previous, "Untimed closing text has no remaining audio"
+        final_end = previous + 14
         entries.append((previous, final_end, " ".join(words)))
-        print("transcript: untimed closing text assigned to remaining audio")
-    assert entries and entries[-1][1] <= sum(duration for _, duration in durations) + 60
+        print("transcript: untimed closing text assigned an estimated 14 seconds")
+    assert entries and entries[-1][1] > 9_800
+    print("transcript: full lecture text; only its first 20 minutes have retained audio")
     print("transcript: entries", len(entries), "last second", entries[-1][1],
           "characters", sum(len(text) for _, _, text in entries),
           "longest entry", max(len(text) for _, _, text in entries))
@@ -125,8 +125,8 @@ def main(folder):
     optimized = sum(prompt_sizes) - len(material) * (len(batches) - 1)
     print("rolling notes: calls", len(batches), "source-only characters before/after", sum(prompt_sizes), optimized,
           "largest call", max(prompt_sizes), "avoided repeated material characters", len(material) * (len(batches) - 1))
-    print("source locations: beginning/middle/end present; duplicate transcript IDs: 0")
-    print("offline QA inputs: source IDs and time ranges available for all", len(entries), "entries")
+    print("transcript locations: beginning/middle/end present; duplicate transcript IDs: 0")
+    print("offline QA inputs: source IDs and transcript time ranges available for all", len(entries), "entries")
 
 
 if __name__ == "__main__":

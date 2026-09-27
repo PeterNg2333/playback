@@ -139,5 +139,6 @@ public sealed class ChunkRecord
     public string Hash { get; set; } = "";
     public string Status { get; set; } = "pending-asr";
     public string? Error { get; set; }
+    public int AsrAttempts { get; set; }
     [BsonIgnore] public string Path { get; set; } = "";
 }

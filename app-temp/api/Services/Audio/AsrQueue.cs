@@ -32,7 +32,7 @@ public sealed class AsrQueue : IAsyncDisposable
     public int EnqueuePending(IEnumerable<ChunkRecord> chunks)
     {
         var count = 0;
-        foreach (var chunk in chunks.Where(x => x.Status is not ("transcribed" or "asr-empty" or "silent"))
+        foreach (var chunk in chunks.Where(x => x.Status is "pending-asr" or "transcribing" or "asr-error")
             .OrderByDescending(x => x.RecordedAt ?? DateTime.MinValue))
             if (Enqueue(chunk.Id, recovery: true)) count++;
         return count;
@@ -53,6 +53,20 @@ public sealed class AsrQueue : IAsyncDisposable
         }
     }
 
+    public async Task Retry(string sessionId, IEnumerable<string>? ids)
+    {
+        if (paused) throw new InvalidOperationException("External ASR is paused");
+        if (ids is null) throw new InvalidOperationException("Choose audio chunks to retry");
+        var unique = ids.Distinct().Take(101).ToArray();
+        if (unique.Length is 0 or > 100) throw new InvalidOperationException("Choose 1–100 audio chunks to retry");
+        foreach (var id in unique)
+        {
+            await store.RetryAsr(sessionId, id);
+            lock (queued) retries.Remove(id);
+            Enqueue(id);
+        }
+    }
+
     async Task ScanPending()
     {
         if (paused || Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") return;
@@ -69,6 +83,9 @@ public sealed class AsrQueue : IAsyncDisposable
     {
         try
         {
+            var migrated = await store.MigrateLegacyAsrStatuses();
+            if (migrated.Awaiting > 0) logger.LogInformation("Queued {Count} legacy saved audio chunks", migrated.Awaiting);
+            if (migrated.Failed > 0) logger.LogInformation("Marked {Count} legacy ASR failures for manual retry", migrated.Failed);
             var restored = EnqueuePending(await store.PendingAsrChunks());
             if (restored > 0) logger.LogInformation("Queued {Count} saved audio chunks for ASR", restored);
             databaseUnavailable = false;
@@ -111,6 +128,17 @@ public sealed class AsrQueue : IAsyncDisposable
         catch (OperationCanceledException) when (stopping.IsCancellationRequested) { return false; }
         catch (Exception ex)
         {
+            ChunkRecord? chunk = null;
+            try { chunk = await store.Chunk(id); }
+            catch (Exception lookupError)
+            {
+                logger.LogWarning(lookupError, "Could not check saved ASR status for {ChunkId}", id);
+            }
+            if (chunk?.Status == "asr-manual")
+            {
+                logger.LogWarning("ASR stopped after {Attempts} attempts for saved chunk {ChunkId}; manual retry available", chunk.AsrAttempts, id);
+                return true;
+            }
             lock (queued)
             {
                 var failures = retries.GetValueOrDefault(id).Failures + 1;

@@ -1,6 +1,6 @@
 import type { PlaybackController } from "./handlers";
 import { TextInputDialog } from "../Component/Dialog/TextInputDialog";
-import { time } from "./format";
+import { recordedRange } from "./format";
 
 export function PlaybackOverlay({ model }: { model: PlaybackController }) {
   const {
@@ -27,6 +27,8 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
     closeTextDialog,
     submitTextDialog,
   } = model;
+  const selectedTranscript = session?.transcripts.find((entry) => entry.id === selection?.transcriptId);
+  const selectedTime = selection && recordedRange(selectedTranscript?.recordedAt, session?.createdAt, selection.startMs, selection.endMs);
   return (
     <>
       {selection && !chatOpen && (
@@ -40,11 +42,10 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             setChatOpen(true);
           }}
         >
-          Ask Playback about selection · {time(selection.startMs)}–
-          {time(selection.endMs)}
+          Ask Playback about selection · {selectedTime?.start}–{selectedTime?.end}
         </button>
       )}
-      {error && (
+      {error && !chatOpen && (
         <div className="global-error" role="alert">
           {error}
           <button aria-label="Dismiss error" onClick={() => setError("")}>
@@ -72,6 +73,11 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             </button>
           </div>
           <div className="chat-scroll">
+            {error && (
+              <p className="chat-error" role="alert">
+                {error}
+              </p>
+            )}
             {!health?.gemini && (
               <p className="chat-hint">
                 Gemini is unavailable; questions and translations can be retried
@@ -117,7 +123,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             <div className="selected-source">
               <span>
                 {selection
-                  ? `Selected transcript · ${time(selection.startMs)}–${time(selection.endMs)} · “${selection.text}”`
+                  ? `Selected transcript · ${selectedTime?.start}–${selectedTime?.end} · “${selection.text}”`
                   : `Selected material · ${session?.materials.find((item) => item.id === focusMaterialId)?.name}`}
               </span>
               <button
@@ -155,11 +161,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="Ask a question…"
             />
-            <button
-              disabled={!session || !!busy}
-            >
-              Send
-            </button>
+            <button disabled={!session || !!busy}>Send</button>
           </form>
         </section>
       )}

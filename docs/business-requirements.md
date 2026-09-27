@@ -19,7 +19,7 @@ Help students and meeting participants retain roughly three hours of audio, foll
 
 ## Privacy and data handling
 
-- Before recording, sharing, or sending material to a third party, confirm the lecturer's, classmates', and institution's consent and the applicable privacy and retention rules.
+- The prototype may process locally supplied audio and transcripts through configured providers when the user starts a live workflow. It does not add a separate consent confirmation step.
 - Original audio and ASR text remain available for verification. Model guesses must not silently replace uncertain content.
 - A local development database can be cleared or destructively restructured after the user's explicit approval. This is not the product's data retention policy.
 

@@ -67,7 +67,7 @@ $env:GOOGLE_AI_STUDIO_API_KEY = '你的 key'
 & .\scripts\06-postgres-compose\study.ps1 -Action Start
 ```
 
-不要把 API key 寫進 `.cs`、`.ps1`、HTML 或 git。Lecture audio/transcript 在送往公司 ASR 或 Gemini 前，也應先確認 lecturer、同學及校方的錄音與第三方處理規則。
+不要把 API key 寫進 `.cs`、`.ps1`、HTML、git 或 agent 對話。程式可從 `.env` 載入金鑰到程序環境；不要輸出檔案內容。
 
 ## 這次刻意沒有做
 

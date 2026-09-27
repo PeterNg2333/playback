@@ -90,7 +90,7 @@ Energy VAD 適合證明 pipeline，但它不知道聲音是不是人聲。冷氣
 
 ## 私隱與課堂使用
 
-錄音前要取得 lecturer／參與者同意，UI 要清楚顯示錄音狀態。Audio、transcript 和 note 都可能含個人資料；預設 loopback-only、設定 retention，並讓使用者能刪除整個 session。
+UI 要清楚顯示錄音狀態。Audio、transcript 和 note 都可能含個人資料；預設 loopback-only，並讓使用者能刪除整個 session。
 
 ## 延伸閱讀
 

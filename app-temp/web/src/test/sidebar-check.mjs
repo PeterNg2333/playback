@@ -49,7 +49,7 @@ try {
       data = {
         ...session, createdAt: "2026-09-27T00:00:00Z", noteMarkdown: "",
         noteVersion: 0, translationEnabled: false, translationLanguage: "zh-Hant",
-        externalProcessingConsent: false, materials: [], transcripts: [], chunks: [],
+        materials: [], transcripts: [], chunks: [],
         terms: [], currentNote: null,
       };
     } else throw new Error(`Unexpected API request: ${method} ${path}`);
@@ -60,6 +60,11 @@ try {
   await page.getByRole("heading", { name: "Sessions", exact: true }).waitFor();
   const group = page.locator(".session-group").filter({ hasText: "Research" });
   const sessionsSection = page.locator(".sessions-section");
+  const newSession = sessionsSection.locator(".sidebar-heading").getByRole("button", { name: "New session" });
+  const newGroup = page.locator("#groups-heading").locator("..").getByRole("button", { name: "New group" });
+  assert.equal(await newSession.count(), 1, "New session belongs beside the Sessions heading");
+  for (const button of [newSession, newGroup])
+    assert.notEqual(await button.evaluate((element) => getComputedStyle(element).backgroundColor), "rgba(0, 0, 0, 0)");
   await sessionsSection.getByRole("button", { name: "Lecture 12" }).dragTo(group.locator(".folder-row"));
   await group.getByRole("button", { name: "Lecture 12" }).waitFor();
   assert.equal(sessions.find((item) => item.id === "session-1").groupId, "group-1");

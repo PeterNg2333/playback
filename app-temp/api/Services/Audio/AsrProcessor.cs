@@ -46,8 +46,8 @@ public sealed class AsrProcessor(
     {
         try
         {
-            await store.SetChunkStatus(id, ct.IsCancellationRequested ? "pending-asr" : "asr-error",
-                ct.IsCancellationRequested ? null : failure.Message);
+            if (ct.IsCancellationRequested) await store.SetChunkStatus(id, "pending-asr");
+            else await store.RecordAsrFailure(id, failure.Message);
         }
         catch (Exception saveError)
         {

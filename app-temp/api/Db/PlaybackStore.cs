@@ -23,7 +23,10 @@ public sealed class PlaybackStore
             ?? "mongodb://127.0.0.1:27017";
         var settings = MongoClientSettings.FromConnectionString(uri);
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
-        db = new MongoClient(settings).GetDatabase("playback_prototype");
+        var database = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_DATABASE") ?? "playback_prototype";
+        if (database is not ("playback_prototype" or "playback_e2e"))
+            throw new InvalidOperationException("MongoDB database is not allowlisted");
+        db = new MongoClient(settings).GetDatabase(database);
     }
     IMongoCollection<T> Collection<T>(string name) => db.GetCollection<T>(name);
     public async Task<bool> IsReady()
@@ -500,8 +503,53 @@ public sealed class PlaybackStore
         var path = Path.Combine(audioRoot, parts[0], parts[1], $"{parts[2]}-{parts[3]}.wav");
         return File.Exists(path) ? path : null;
     }
+    public async Task<(long Awaiting, long Failed)> MigrateLegacyAsrStatuses()
+    {
+        var waiting = await Collection<ChunkRecord>("chunks").UpdateManyAsync(
+            x => x.Status == "awaiting-consent",
+            Builders<ChunkRecord>.Update.Set(x => x.Status, "pending-asr"));
+        var filter = Builders<ChunkRecord>.Filter.Eq(x => x.Status, "asr-error") &
+            Builders<ChunkRecord>.Filter.Exists(x => x.AsrAttempts, false);
+        var result = await Collection<ChunkRecord>("chunks").UpdateManyAsync(filter,
+            Builders<ChunkRecord>.Update.Set(x => x.Status, "asr-manual"));
+        return (waiting.ModifiedCount, result.ModifiedCount);
+    }
     public async Task<List<ChunkRecord>> PendingAsrChunks() => await Collection<ChunkRecord>("chunks")
-        .Find(x => x.Status != "transcribed" && x.Status != "asr-empty" && x.Status != "silent").ToListAsync();
+        .Find(x => x.Status == "pending-asr" || x.Status == "transcribing" || x.Status == "asr-error").ToListAsync();
+    public async Task<List<ChunkRecord>> AudioWindowChunks(string sessionId, long startMs, long endMs, string? sourceId)
+    {
+        var filter = Builders<ChunkRecord>.Filter.Eq(x => x.SessionId, sessionId) &
+            Builders<ChunkRecord>.Filter.Lt(x => x.StartMs, endMs) &
+            Builders<ChunkRecord>.Filter.Gt(x => x.EndMs, startMs);
+        if (sourceId is not null) filter &= Builders<ChunkRecord>.Filter.Eq(x => x.SourceId, sourceId);
+        return await Collection<ChunkRecord>("chunks").Find(filter).SortBy(x => x.StartMs).ToListAsync();
+    }
+    public async Task<bool> RecordAsrFailure(string id, string error)
+    {
+        var chunk = await Chunk(id) ?? throw new InvalidOperationException("Chunk not found");
+        var attempts = chunk.AsrAttempts + 1;
+        await Collection<ChunkRecord>("chunks").UpdateOneAsync(x => x.Id == id,
+            Builders<ChunkRecord>.Update
+                .Set(x => x.Status, attempts >= 3 ? "asr-manual" : "asr-error")
+                .Set(x => x.Error, error)
+                .Set(x => x.AsrAttempts, attempts));
+        return attempts < 3;
+    }
+    public async Task<ChunkRecord> RetryAsr(string sessionId, string id)
+    {
+        var chunk = await Collection<ChunkRecord>("chunks")
+            .Find(x => x.Id == id && x.SessionId == sessionId).FirstOrDefaultAsync()
+            ?? throw new InvalidOperationException("Audio chunk is not in this session");
+        if (chunk.Status is not ("asr-error" or "asr-manual" or "asr-empty"))
+            throw new InvalidOperationException("Only failed or empty ASR chunks can be retried");
+        if (chunk.Status == "asr-empty")
+            await Collection<Transcript>("transcripts").DeleteOneAsync(x => x.Id == id && x.SessionId == sessionId);
+        await Collection<ChunkRecord>("chunks").UpdateOneAsync(x => x.Id == id,
+            Builders<ChunkRecord>.Update.Set(x => x.Status, "pending-asr")
+                .Set(x => x.Error, null)
+                .Set(x => x.AsrAttempts, chunk.Status == "asr-manual" ? 0 : chunk.AsrAttempts));
+        return chunk;
+    }
     public async Task SaveTranscript(ChunkRecord chunk, string original)
     {
         if (await Collection<Transcript>("transcripts").CountDocumentsAsync(x => x.Id == chunk.Id) == 0)

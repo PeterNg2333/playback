@@ -3,7 +3,7 @@ import type { PlaybackController } from "./handlers";
 import { Panel } from "../Component/Layout/Panel";
 import { Markdown } from "../Component/Markdown";
 import { api } from "./api";
-import { time } from "./format";
+import { recordedRange } from "./format";
 import { TermExplanation } from "./TermExplanation";
 
 export function NotesPanel({ model }: { model: PlaybackController }) {
@@ -53,7 +53,18 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
         {noteMode === "preview" ? (
           markdown ? (
             <>
-              <Markdown value={markdown} onReference={setReferenceId} />
+              <Markdown
+                value={markdown}
+                onReference={setReferenceId}
+                sources={[
+                  ...(session?.transcripts || []).map((entry) => ({
+                    id: entry.id,
+                    label: recordedRange(entry.recordedAt, session?.createdAt, entry.startMs, entry.endMs).start,
+                  })),
+                  ...(session?.materials || []).map((entry) => ({ id: entry.id, label: entry.name })),
+                ]}
+                onSource={(id) => jump({ kind: session?.materials.some((entry) => entry.id === id) ? "material" : "lecture", id })}
+              />
               {!!session?.currentNote && (
                 <>
                   <details className="note-sources">
@@ -75,7 +86,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                             key={id}
                             onClick={() => jump({ kind: "lecture", id })}
                           >
-                            {time(source.startMs)}–{time(source.endMs)}
+                            {recordedRange(source.recordedAt, session.createdAt, source.startMs, source.endMs).start}
                           </button>
                         )
                       );
@@ -124,7 +135,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                                       jump({ kind: "lecture", id })
                                     }
                                   >
-                                    {time(source.startMs)}
+                                    {recordedRange(source.recordedAt, session.createdAt, source.startMs, source.endMs).start}
                                   </button>
                                 )
                               );

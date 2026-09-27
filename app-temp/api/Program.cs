@@ -27,6 +27,7 @@ builder.Services.AddSingleton<TermReviewAgent>();
 builder.Services.AddSingleton<TranslationAgent>();
 builder.Services.AddSingleton<SenseVoiceClient>();
 builder.Services.AddSingleton<AsrProcessor>();
+builder.Services.AddSingleton<SessionAudioRenderer>();
 builder.Services.AddSingleton<AsrQueue>();
 builder.Services.AddSingleton<WindowsAudioCaptureService>();
 
@@ -45,6 +46,7 @@ app.MapTerms();
 app.MapChunks();
 
 app.Services.GetRequiredService<AsrQueue>();
+app.Services.GetRequiredService<NoteAgent>();
 app.Services.GetRequiredService<TranslationAgent>();
 app.Services.GetRequiredService<TermReviewAgent>();
 app.Run();

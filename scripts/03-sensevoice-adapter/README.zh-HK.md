@@ -45,7 +45,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   .\scripts\03-sensevoice-adapter\test.ps1
 ```
 
-## 2. 經同意後才送出
+## 2. 明確送出請求
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
@@ -55,7 +55,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   -Send
 ```
 
-`-Send` 是刻意的 safety gate。Lecture audio 可能包含 lecturer、同學姓名、提問或其他個人資料；先確認有錄音及第三方處理的同意。
+`-Send` 明確控制是否送出網絡請求。Lecture audio 可能包含 lecturer、同學姓名、提問或其他個人資料；測試輸出只顯示請求狀態與處理結果。
 
 Response body 會原樣保存到 `.artifacts/last-response.body`，metadata 則在 `last-response-metadata.json`。Script **不會假設** response 一定有 `raw`、`text`、`language` 或任何其他 field。External response 是不可信資料；先觀察實際 JSON，才為它寫 parser 和 contract test。
 

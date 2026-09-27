@@ -27,8 +27,21 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini)
             throw new InvalidOperationException("No processed session source is available for this question");
 
         var context = ChatContextBuilder.Build(session, input);
+        if (context.RelevantTranscripts.Length == 0 && context.Materials.Length == 0)
+            throw new InvalidOperationException("No transcript text or material is available for this question");
         var answer = await gemini.Generate("PlaybackQuestionAnswerer", Instructions, context.Prompt, ct);
-        var evidence = CitedEvidence(context, answer);
+        SessionEvidence[] evidence;
+        try { evidence = CitedEvidence(context, answer); }
+        catch (InvalidOperationException)
+        {
+            var ids = string.Join(", ", context.RelevantTranscripts.Select(x => x.Id)
+                .Concat(context.Materials.Select(x => x.Id)));
+            answer = await gemini.Generate("PlaybackQuestionAnswerer", Instructions,
+                context.Prompt + "\nRewrite the answer with at least one exact source ID citation in square brackets. " +
+                $"Allowed IDs: {ids}. Do not cite any other bracketed label.\nPrevious answer: " +
+                answer[..Math.Min(answer.Length, 4000)], ct);
+            evidence = CitedEvidence(context, answer);
+        }
         var web = input.UseWeb
             ? await gemini.GroundedSearch(input.Question, ct)
             : null;

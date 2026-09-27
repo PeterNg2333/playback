@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   AnswerSchema,
   CaptureStatusSchema,
@@ -10,9 +10,10 @@ import {
   SessionSummarySchema,
   SessionTitleSchema,
 } from "../types/api";
-import type { Chunk, Evidence, TermCandidate } from "../types/api";
+import type { Evidence, TermCandidate } from "../types/api";
 import { api } from "./api";
 import { usePlaybackField, usePlaybackStore } from "./store";
+import { useAudioPlayback } from "./useAudioPlayback";
 
 export function usePlaybackController() {
   const [settingsOpen, setSettingsOpen] = usePlaybackField("settingsOpen");
@@ -37,11 +38,7 @@ export function usePlaybackController() {
   const [textDialog, setTextDialog] = usePlaybackField("textDialog");
   const [textDialogError, setTextDialogError] =
     usePlaybackField("textDialogError");
-  const audio = useRef<HTMLAudioElement>(null);
-  const playback = useRef<{ key: string; ids: string[]; index: number } | null>(
-    null,
-  );
-  const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const player = useAudioPlayback(session, setError);
   const savedMarkdown = useRef("");
   const textDialogSubmitting = useRef(false);
   useEffect(() => {
@@ -53,9 +50,7 @@ export function usePlaybackController() {
   useEffect(() => {
     setSelection(null);
     setFocusMaterialId(null);
-    audio.current?.pause();
-    playback.current = null;
-    setPlayingKey(null);
+    setAnswer(null);
   }, [session?.id]);
   async function refresh(id?: string) {
     const h = await api("/health", "GET", undefined, HealthSchema);
@@ -101,26 +96,53 @@ export function usePlaybackController() {
       localStorage.setItem("playback-session", chosen);
     }
   }
+  async function refreshSessionSnapshot(id: string) {
+    const item = await api("/sessions/" + id, "GET", undefined, SessionSchema);
+    if (usePlaybackStore.getState().session?.id !== id) return;
+    const previous = savedMarkdown.current;
+    savedMarkdown.current = item.noteMarkdown;
+    setMarkdown((current) =>
+      current === previous ? item.noteMarkdown : current,
+    );
+    setSession(item);
+  }
   useEffect(() => {
     refresh().catch((e) => setError(e.message));
     const timer = setInterval(() => {
       if (session)
-        api("/sessions/" + session.id, "GET", undefined, SessionSchema)
-          .then((item) => {
-            const previous = savedMarkdown.current;
-            savedMarkdown.current = item.noteMarkdown;
-            setMarkdown((current) =>
-              current === previous ? item.noteMarkdown : current,
-            );
-            setSession(item);
-          })
-          .catch((e) => setError(e.message));
-      api("/capture/status", "GET", undefined, CaptureStatusSchema)
-        .then(setCapture)
-        .catch((e) => setError(e.message));
+        refreshSessionSnapshot(session.id).catch((e) => setError(e.message));
     }, 4000);
     return () => clearInterval(timer);
   }, [session?.id]);
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+    const poll = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const status = await api("/capture/status", "GET", undefined, CaptureStatusSchema);
+        if (!active) return;
+        const previous = usePlaybackStore.getState().capture;
+        const segmentKeys = (value: typeof status | null) =>
+          (value?.activeSegments || []).map((segment) => `${segment.sourceId}:${segment.startMs}`).join("|");
+        if (!previous || status.state !== previous.state ||
+            status.sessionId !== previous.sessionId ||
+            status.error !== previous.error ||
+            status.noSoundWarning !== previous.noSoundWarning ||
+            status.lastFinalizedAtMs !== previous.lastFinalizedAtMs ||
+            segmentKeys(status) !== segmentKeys(previous))
+          setCapture(status);
+        if (status.sessionId && status.lastFinalizedAtMs &&
+            status.lastFinalizedAtMs > (previous?.lastFinalizedAtMs || 0))
+          await refreshSessionSnapshot(status.sessionId);
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : String(e));
+      } finally { inFlight = false; }
+    };
+    const timer = setInterval(() => { void poll(); }, 500);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
   async function action(name: string, work: () => Promise<void>) {
     setBusy(name);
     setError("");
@@ -131,45 +153,6 @@ export function usePlaybackController() {
     } finally {
       setBusy("");
     }
-  }
-  function togglePlayback(key: string, chunks: Pick<Chunk, "id">[]) {
-    const player = audio.current;
-    if (!player) return;
-    if (playingKey === key) {
-      player.pause();
-      player.currentTime = 0;
-      playback.current = null;
-      setPlayingKey(null);
-      return;
-    }
-    player.pause();
-    const queue = { key, ids: chunks.map((chunk) => chunk.id), index: 0 };
-    playback.current = queue;
-    player.src = `/api/chunks/${chunks[0].id}/audio`;
-    setPlayingKey(key);
-    player.play().catch((error) => {
-      if (playback.current !== queue) return;
-      playback.current = null;
-      setPlayingKey(null);
-      setError(`Audio playback failed: ${error.message}`);
-    });
-  }
-  function audioEnded() {
-    const queue = playback.current;
-    if (!queue || !audio.current) return;
-    queue.index += 1;
-    if (queue.index >= queue.ids.length) {
-      playback.current = null;
-      setPlayingKey(null);
-      return;
-    }
-    audio.current.src = `/api/chunks/${queue.ids[queue.index]}/audio`;
-    audio.current.play().catch((error) => {
-      if (playback.current !== queue) return;
-      playback.current = null;
-      setPlayingKey(null);
-      setError(`Audio playback failed: ${error.message}`);
-    });
   }
   function jump(evidence: Evidence) {
     if (evidence.url) {
@@ -183,10 +166,12 @@ export function usePlaybackController() {
         ?.setAttribute("open", "");
     }
     setTimeout(
-      () =>
-        document
-          .getElementById(evidence.id || "")
-          ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      () => {
+        const target = document.getElementById(evidence.id || "");
+        target?.closest<HTMLDetailsElement>(".timeline-day")?.setAttribute("open", "");
+        target?.closest<HTMLDetailsElement>(".timeline-hour")?.setAttribute("open", "");
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
       30,
     );
   }
@@ -214,6 +199,7 @@ export function usePlaybackController() {
   }
   async function ask() {
     if (!session) return;
+    setAnswer(null);
     const parsed = QuestionSchema.safeParse(question);
     if (!parsed.success) {
       setError("Question must be 1–1000 characters.");
@@ -237,6 +223,16 @@ export function usePlaybackController() {
       setQuestion("");
       setSelection(null);
       setFocusMaterialId(null);
+    });
+  }
+  async function retryAsr(ids: string[]) {
+    if (!session) return;
+    await action("retry-asr", async () => {
+      for (let index = 0; index < ids.length; index += 100)
+        await api(`/sessions/${session.id}/chunks/retry`, "POST", {
+          chunkIds: ids.slice(index, index + 100),
+        });
+      await refresh(session.id);
     });
   }
   async function setTranslation(
@@ -424,17 +420,15 @@ export function usePlaybackController() {
     setUseWeb,
     textDialog,
     textDialogError,
-    audio,
     savedMarkdown,
     refresh,
     action,
-    playingKey,
-    togglePlayback,
-    audioEnded,
+    ...player,
     jump,
     create,
     attach,
     ask,
+    retryAsr,
     setTranslation,
     captureSelection,
     askTerm,

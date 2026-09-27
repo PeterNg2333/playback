@@ -1,32 +1,31 @@
 import type { Chunk } from "../types/api";
 import { Icon } from "../Component/Icon";
-import { time } from "./format";
 
 export function RecordPlay({
   id,
   chunks,
-  startMs,
-  endMs,
+  startTime,
+  endTime,
   playingKey,
   onToggle,
 }: {
   id: string;
-  chunks: Pick<Chunk, "id">[];
-  startMs: number;
-  endMs: number;
+  chunks: Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">[];
+  startTime: string;
+  endTime: string;
   playingKey: string | null;
-  onToggle: (key: string, chunks: Pick<Chunk, "id">[]) => void;
+  onToggle: (key: string, chunks: Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">[]) => void;
 }) {
   const playing = playingKey === id;
   return (
     <button
       className="record-play"
-      aria-label={`${playing ? "Stop" : "Play"} audio from ${time(startMs)} to ${time(endMs)}`}
+      aria-label={`${playing ? "Pause" : "Play"} audio from ${startTime} to ${endTime}`}
       aria-pressed={playing}
-      title={playing ? "Stop" : "Play"}
+      title={playing ? "Pause" : "Play"}
       onClick={() => onToggle(id, chunks)}
     >
-      <Icon name={playing ? "stop" : "play"} />
+      <Icon name={playing ? "pause" : "play"} />
     </button>
   );
 }

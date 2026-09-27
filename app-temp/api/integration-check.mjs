@@ -57,6 +57,15 @@ async function waitForChunk(sessionId, chunkId, status) {
   }
   throw new Error(`Chunk ${chunkId} never reached ${status}`)
 }
+async function waitForAttempt(sessionId, chunkId, attempts, status) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const session = (await call(`/sessions/${sessionId}`)).data
+    const chunk = session.chunks.find(x => x.id === chunkId)
+    if (chunk?.asrAttempts === attempts && chunk.status === status) return
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  throw new Error(`Chunk ${chunkId} never reached ASR attempt ${attempts} / ${status}`)
+}
 const sent = await upload(first.id, 'system', 0, 0, 1000, wav, hash)
 assert.equal(sent.status, 202)
 assert.equal(sent.data.status, 'pending-asr')
@@ -94,6 +103,45 @@ if (process.env.PLAYBACK_OFFLINE_TEST === 'yes') {
   assert.equal(emptySession.chunks.find(x => x.id === emptyChunk.data.id).status, 'asr-empty')
   assert.equal(emptySession.transcripts.find(x => x.id === emptyChunk.data.id).uncertain, false)
   assert.equal(emptySession.transcripts.find(x => x.id === emptyChunk.data.id).noteStatus, 'skipped')
+  if (process.env.PLAYBACK_PAUSE_EXTERNAL_ASR !== 'yes') {
+    const retriedEmpty = await call(`/sessions/${first.id}/chunks/retry`, 'POST', { chunkIds: [emptyChunk.data.id] })
+    assert.equal(retriedEmpty.status, 202)
+    await waitForChunk(first.id, emptyChunk.data.id, 'silent')
+    assert.equal((await call(`/sessions/${first.id}`)).data.transcripts.some(x => x.id === emptyChunk.data.id), false)
+    const speech = Buffer.from(wav)
+    for (let offset = 44; offset < speech.length; offset += 2) speech.writeInt16LE(2500, offset)
+    const failed = await upload(first.id, 'failure', 0, 4500, 5500, speech, createHash('sha256').update(speech).digest('hex'))
+    await waitForAttempt(first.id, failed.data.id, 1, 'asr-error')
+    for (const attempts of [2, 3]) {
+      assert.equal((await call(`/sessions/${first.id}/chunks/retry`, 'POST', { chunkIds: [failed.data.id] })).status, 202)
+      await waitForAttempt(first.id, failed.data.id, attempts, attempts === 3 ? 'asr-manual' : 'asr-error')
+    }
+    const duplicate = await upload(first.id, 'failure', 0, 4500, 5500, speech, createHash('sha256').update(speech).digest('hex'))
+    assert.equal(duplicate.status, 200)
+    assert.equal(duplicate.data.status, 'asr-manual')
+    assert.equal((await call(`/sessions/${first.id}/chunks/retry`, 'POST', { chunkIds: [failed.data.id] })).status, 202)
+    await waitForAttempt(first.id, failed.data.id, 1, 'asr-error')
+  }
+  const left = Buffer.from(wav)
+  const right = Buffer.from(wav)
+  for (let offset = 44; offset < wav.length; offset += 2) {
+    left.writeInt16LE(8192, offset)
+    right.writeInt16LE(16384, offset)
+  }
+  await upload(first.id, 'mixleft', 0, 6000, 7000, left, createHash('sha256').update(left).digest('hex'))
+  await upload(first.id, 'mixright', 0, 6000, 7000, right, createHash('sha256').update(right).digest('hex'))
+  async function playbackSample(source) {
+    const url = `${base}/sessions/${first.id}/audio/segments/0${source ? `?source=${source}` : ''}`
+    const response = await fetch(url)
+    assert.equal(response.status, 200)
+    const bytes = Buffer.from(await response.arrayBuffer())
+    const dataAt = bytes.indexOf('data') + 8
+    assert.ok(dataAt >= 8)
+    return bytes.readInt16LE(dataAt + 6000 * 16 * 2)
+  }
+  assert.ok(Math.abs(await playbackSample('mixleft') - 8192) < 250)
+  assert.ok(Math.abs(await playbackSample('mixright') - 16384) < 250)
+  assert.ok(Math.abs(await playbackSample(null) - 12288) < 250)
   const reviewChunk = await upload(first.id, 'review', 0, 3400, 4400, wav, hash)
   await expectSafeChunk(first.id, reviewChunk.data.id)
   await call(`/testing/sessions/${first.id}/transcripts`, 'POST', { chunkId: reviewChunk.data.id, text: 'Synthetic speech was [unclear].' })
@@ -114,7 +162,7 @@ if (process.env.PLAYBACK_OFFLINE_TEST === 'yes') {
   await call(`/sessions/${first.id}/translation`, 'PUT', { enabled: false, language: 'zh-Hant' })
   assert.equal((await call(`/sessions/${first.id}`)).data.translationEnabled, false)
 }
-console.log(`Integration check passed: source isolation, note versions, ${process.env.PLAYBACK_PAUSE_EXTERNAL_ASR === 'yes' ? 'paused ASR queue' : 'automatic ASR queue'}, time ranges`)
+console.log(`Integration check passed: source isolation, note versions, ${process.env.PLAYBACK_PAUSE_EXTERNAL_ASR === 'yes' ? 'paused ASR queue' : 'bounded ASR retries and manual recovery'}, time ranges`)
 } finally {
   for (const id of created) {
     const response = await fetch(`${base}/testing/sessions/${id}`, { method: 'DELETE' })

@@ -25,4 +25,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\ui-design-demo\stu
 
 ## 限制與下一步
 
-頁面無真實錄音、ASR、Gemini、Jev、檢索、保存或共享。Markdown 支援標題、段落、清單、粗體、inline code、引用塊及有限的 `flowchart LR` 圖表語法（`A[Label] --> B[Label]`；最多 8 個節點、10 條邊，不接受循環）。不支援完整 Mermaid；無法解析時會保留原始圖表文字。編輯只留在目前頁面記憶體，重新整理便重置。預設問題及若干關鍵字的回答都是固定文案，不代表模型已生成；其他問題只會顯示來源不足。真正 UI 必須由 server snapshot 恢復、清楚顯示 recorder/上傳/ASR 狀態，並保留原始逐字稿、修訂及來源版本。分享真實音訊或教材前，須確認 lecturer、同學與校方同意、私隱及 retention 規則。
+頁面無真實錄音、ASR、Gemini、Jev、檢索、保存或共享。Markdown 支援標題、段落、清單、粗體、inline code、引用塊及有限的 `flowchart LR` 圖表語法（`A[Label] --> B[Label]`；最多 8 個節點、10 條邊，不接受循環）。不支援完整 Mermaid；無法解析時會保留原始圖表文字。編輯只留在目前頁面記憶體，重新整理便重置。預設問題及若干關鍵字的回答都是固定文案，不代表模型已生成；其他問題只會顯示來源不足。真正 UI 必須由 server snapshot 恢復、清楚顯示 recorder/上傳/ASR 狀態，並保留原始逐字稿、修訂及來源版本。

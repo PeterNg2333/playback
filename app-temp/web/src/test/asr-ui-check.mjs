@@ -21,16 +21,24 @@ wav.writeUInt32LE(32_000, 40);
 const chunks = ["one", "two"].map((name, index) => ({
   id: name,
   sourceId: "microphone",
-  sequence: index,
+  sequence: (index + 1) * 100000,
   startMs: index * 30_000,
   endMs: (index + 1) * 30_000,
   status: "pending-asr",
 }));
 chunks.push(
   {
+    id: "system-quiet",
+    sourceId: "system",
+    sequence: 100000,
+    startMs: 0,
+    endMs: 1000,
+    status: "asr-empty",
+  },
+  {
     id: "silence-one",
     sourceId: "microphone",
-    sequence: 2,
+    sequence: 300000,
     startMs: 2000,
     endMs: 3000,
     status: "asr-empty",
@@ -38,7 +46,7 @@ chunks.push(
   {
     id: "silence-two",
     sourceId: "microphone",
-    sequence: 3,
+    sequence: 400000,
     startMs: 3000,
     endMs: 4000,
     status: "silent",
@@ -46,10 +54,10 @@ chunks.push(
   {
     id: "failed",
     sourceId: "microphone",
-    sequence: 4,
+    sequence: 500000,
     startMs: 4000,
     endMs: 5000,
-    status: "asr-error",
+    status: "asr-manual",
     error: "SenseVoice HTTP 503",
   },
 );
@@ -103,9 +111,11 @@ let captureRequest;
 let translationRequest;
 let asrPaused = false;
 let questionRequest;
+let askFailure = true;
+let retryRequest;
 let explanationRequests = 0;
 const noteActions = [];
-const audioRequests = [];
+  const audioRequests = [];
 const browser = await chromium.launch({
   headless: true,
   executablePath:
@@ -131,16 +141,17 @@ try {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     let data;
-    if (path.startsWith("/api/chunks/") && path.endsWith("/audio")) {
+    if ((path.startsWith("/api/chunks/") && path.endsWith("/audio")) ||
+      path.startsWith(`/api/sessions/${id}/audio/segments/`)) {
       await route.fulfill({ status: 200, contentType: "audio/wav", body: wav });
       return;
     }
     if (path === "/api/health")
-      data = { mongo: true, gemini: false, jev: true, automaticAsr: !asrPaused, asrPaused };
+      data = { mongo: true, gemini: false, jev: true, automaticAsr: !asrPaused, asrPaused, sessionAudioMix: true };
     else if (path === "/api/capture/status") data = capture;
     else if (path === "/api/capture/start") {
       captureRequest = request.postDataJSON();
-      capture = { state: "recording", bytes: {}, autoAsr: true };
+      capture = { state: "recording", sessionId: id, bytes: { microphone: 32000 }, levels: { microphone: 80 }, capturedThroughMs: 1000, lastFinalizedAtMs: 0, activeSegments: [], autoAsr: true };
       data = capture;
     } else if (path === "/api/sessions") data = [{ id, title: "Test" }];
     else if (path === "/api/groups") data = [];
@@ -162,8 +173,15 @@ try {
       data = session.termInsights[0];
     } else if (path === `/api/sessions/${id}/ask`) {
       questionRequest = request.postDataJSON();
-      await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Google AI Studio key is unavailable" }) });
-      return;
+      if (askFailure) {
+        await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Vertex AI key is unavailable" }) });
+        return;
+      }
+      data = { answer: "The lecture introduced Fourier Transform [first].", evidence: [{ kind: "lecture", id: "first", label: "00:00–00:01" }], inference: true };
+    } else if (path === `/api/sessions/${id}/chunks/retry`) {
+      retryRequest = request.postDataJSON();
+      session.chunks.find((chunk) => chunk.id === "failed").status = "pending-asr";
+      data = {};
     }
     else if (path === `/api/sessions/${id}/translation`) {
       translationRequest = request.postDataJSON();
@@ -187,16 +205,17 @@ try {
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
     await page.screenshot({ path: join(tmpdir(), "playback-transcript-default-1280.png") });
   assert.equal(await page.getByRole("button", { name: "Sources" }).count(), 0);
-  assert.equal(
-    await page.locator(".audio-row").count(),
-    2,
-    "Adjacent queued audio should share one row while errors stay visible",
-  );
+  assert.equal(await page.locator(".audio-row").count(), 2,
+    "Queued and failed audio should remain separate from collapsed quiet audio");
+  assert.equal(await page.locator(".quiet-section").count(), 1);
+  assert.equal(await page.locator(".quiet-section").first().getAttribute("open"), null);
+  assert.equal(await page.locator("#first .record-time").textContent(), "08:10:00");
   const play = page.locator(".audio-row .record-play").first();
-  assert.equal(await play.isVisible(), false, "Audio controls should start collapsed");
+  assert.equal(await play.isVisible(), true, "Saved audio should be playable without expanding a row");
   await page.locator(".audio-row .record-copy > summary").first().click();
-  assert.match(await page.locator(".audio-row .record-extra").first().textContent(), /2 consecutive audio parts/);
+  assert.match(await page.locator(".audio-row .record-extra").first().textContent(), /2 audio parts grouped/);
   await play.click();
+  await page.waitForFunction(() => document.querySelector(".audio-row .record-play")?.getAttribute("aria-pressed") === "true");
   assert.equal(await play.getAttribute("aria-pressed"), "true");
   await play.click();
   assert.equal(await play.getAttribute("aria-pressed"), "false");
@@ -204,29 +223,31 @@ try {
   await play.click();
   await secondAudio;
   assert.ok(audioRequests.some((url) => url.includes("/api/chunks/two/audio")));
-  assert.equal(await page.locator(".silence-section").count(), 1);
+  assert.equal(await page.locator("audio").count(), 1, "The footer and rows must share one player");
+  const mixedAudio = page.waitForRequest((request) => request.url().endsWith(`/api/sessions/${id}/audio/segments/0`));
+  await page.getByRole("button", { name: "Full session" }).click();
+  await mixedAudio;
+  const systemAudio = page.waitForRequest((request) => request.url().includes(`/api/sessions/${id}/audio/segments/0?source=system`));
+  await page.getByRole("combobox", { name: "Audio sources" }).selectOption("system");
+  await systemAudio;
+  assert.equal(await page.locator(".playback-footer").getByText("Session audio").count(), 1);
+  const selectedAudio = page.waitForRequest("**/api/chunks/one/audio");
+  await play.click();
+  await selectedAudio;
+  await page.locator(".playback-footer").getByText("Selected audio").waitFor();
+  assert.equal(await page.locator(".playback-footer").getByText("Selected audio").count(), 1);
+  assert.equal(await page.locator(".quiet-section > summary").filter({ hasText: "No audio" }).count(), 1);
   assert.equal(await page.getByText("No words returned by ASR").count(), 0);
-  assert.equal(
-    await page.locator(".silence-section").getAttribute("open"),
-    null,
-  );
-  await page.locator(".silence-section > summary").click();
-  await page
-    .locator(".silence-section")
-    .getByRole("button", { name: /Play audio/ })
-    .waitFor();
+  await page.locator(".quiet-section > summary").click();
+  await page.locator(".quiet-section").getByRole("button", { name: /Play audio/ }).first().waitFor();
   await page
     .locator(".audio-row")
-    .filter({ hasText: "ASR failed" })
+    .filter({ hasText: "ASR stopped" })
     .locator("summary")
     .click();
   await page.getByText("SenseVoice HTTP 503").waitFor();
-  assert.equal(
-    await page
-      .getByRole("button", { name: /Retry ASR|Transcribe all pending audio/ })
-      .count(),
-    0,
-  );
+  await page.locator(".asr-manual-row .retry-asr").click();
+  assert.deepEqual(retryRequest, { chunkIds: ["failed"] });
   await page.getByText("First line").waitFor();
   assert.equal(
     await page.getByRole("button", { name: "Translate", exact: true }).count(),
@@ -238,6 +259,8 @@ try {
   );
   assert.equal(await page.locator(".timeline-day > summary").count(), 1);
   assert.equal(await page.locator(".timeline-hour > summary").count(), 2);
+  assert.equal(await page.locator(".timeline-minute").count(), 0);
+  assert.equal(await page.locator(".timeline-entries").count(), 2);
   assert.match(
     await page.locator(".timeline-hour > summary").first().textContent(),
     /08:00/,
@@ -317,10 +340,22 @@ try {
   assert.deepEqual(captureRequest, { sessionId: id });
   assert.equal(dialogs, 0);
   await page.getByText("Recording", { exact: true }).waitFor();
+  await page.getByRole("img", { name: "Audio signal received" }).waitFor();
+  await page.getByText("Listening for sound").waitFor();
+  capture = { ...capture, capturedThroughMs: 2000, activeSegments: [{ sourceId: "microphone", startMs: 1000, endMs: 2000, recordedAt: "2026-09-26T08:11:00Z" }] };
+  await page.locator(".live-segment").waitFor();
+  assert.match(await page.locator(".live-segment").textContent(), /08:11:00/);
+  assert.ok(Number(await page.locator(".live-segment").evaluate((element) => getComputedStyle(element).opacity)) < 1);
+  session.chunks.push({ id: "saved-live", sourceId: "microphone", sequence: 900000, startMs: 1000, endMs: 2000, recordedAt: "2026-09-26T08:11:00Z", status: "pending-asr" });
+  capture = { ...capture, activeSegments: [], lastFinalizedAtMs: 2000 };
+  await page.locator(".live-segment").waitFor({ state: "detached" });
+  await page.locator(".audio-row").filter({ hasText: "08:11:00" }).waitFor();
+  await page.setViewportSize({ width: 320, height: 720 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   session.noteMarkdown = Array.from(
     { length: 80 },
     (_, index) => `Note paragraph ${index + 1}.`,
-  ).join("\n\n") + `\n\nFourier Transform [ref:${insightId}]`;
+  ).join("\n\n") + `\n\nFourier Transform [ref:${insightId}]\n\nLegacy citation [${"c".repeat(32)}, 5000-6000 ms; ${"c".repeat(32)}, 5000-6000 ms]`;
   session.noteVersion = 1;
   session.currentNote = {
     author: "agent",
@@ -341,6 +376,8 @@ try {
     })),
   );
   session.transcripts.push(
+    { id: "c".repeat(32), sourceId: "microphone", startMs: 5000, endMs: 6000,
+      original: "Legacy source", uncertain: false, recognitionStatus: "recognized" },
     ...Array.from({ length: 1266 }, (_, index) => ({
       id: `scale-${index}`,
       sourceId: "microphone",
@@ -354,6 +391,8 @@ try {
   await page.setViewportSize({ width: 1440, height: 720 });
   await page.reload();
   await page.getByText("Note paragraph 80.").waitFor();
+  await page.getByRole("button", { name: "Jump to source at 08:00:05" }).waitFor();
+  assert.equal(await page.locator(".markdown-preview").getByText("c".repeat(32)).count(), 0);
   await page.getByText("Changes in v1 · 1").click();
   await page.getByText("Added · line 1").waitFor();
   await page.getByRole("button", { name: "Open saved explanation" }).click();
@@ -383,8 +422,7 @@ try {
     true,
   );
   assert.equal(await page.locator(".record-row").count() >= 1266, true);
-  assert.equal(await page.getByText("02:59:54", { exact: true }).count() > 0, true);
-  assert.equal(await page.locator(".silence-section:not([open])").count() > 0, true);
+  assert.equal(await page.locator(".quiet-section").count() > 0, true);
   await page.setViewportSize({ width: 375, height: 720 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), true);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -409,9 +447,15 @@ try {
   await page.getByRole("textbox", { name: "Your question" }).fill("What happened?");
   await page.getByRole("button", { name: "Send" }).click();
   assert.equal(questionRequest.question, "What happened?");
+  await page.locator(".chat-error").getByText("Vertex AI key is unavailable").waitFor();
+  assert.equal(await page.getByRole("textbox", { name: "Your question" }).inputValue(), "What happened?");
+  askFailure = false;
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.getByText("The lecture introduced Fourier Transform [first].").waitFor();
+  assert.equal(await page.locator(".chat-error").count(), 0);
   assert.equal(dialogs, 0);
   console.log(
-    "ASR UI fixture passed: unified audio timeline, silence collapse, responsive viewport, independent scrolling, translation settings, local capture request",
+    "ASR UI fixture passed: date/hour/time timeline, grouped quiet audio, manual retry, live meter, Ask Playback states, responsive viewport",
   );
 } finally {
   await browser.close();

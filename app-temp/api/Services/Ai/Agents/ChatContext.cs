@@ -53,7 +53,7 @@ public static class ChatContextBuilder
             .Select(x => x.item)
             .ToArray();
         var lecture = string.Join("\n", relevant.Select(x =>
-            $"[{x.Id}, {x.StartMs}-{x.EndMs} ms] {SourceExcerpt(x.Original, terms, 1600)}"));
+            $"Source [{x.Id}] ({x.StartMs}-{x.EndMs} ms): {SourceExcerpt(x.Original, terms, 1600)}"));
 
         var focusedMaterial = input.MaterialId is null
             ? null
@@ -68,7 +68,7 @@ public static class ChatContextBuilder
             $"[{x.Id}] {SourceExcerpt(x.Text, terms, 3000)}"));
         var selected = focused is null
             ? ""
-            : $"Selected source [{focused.Id}, {focused.StartMs}-{focused.EndMs} ms]: " +
+            : $"Selected source [{focused.Id}] ({focused.StartMs}-{focused.EndMs} ms): " +
               $"{input.SelectedText ?? SourceExcerpt(focused.Original, terms, 1600)}\n";
         var prompt = $"Selected transcript:\n{selected}Lecture:\n{lecture}\nMaterials:\n{material}\nQuestion: {input.Question}";
 

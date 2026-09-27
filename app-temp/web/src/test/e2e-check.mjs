@@ -42,7 +42,7 @@ try {
 
   await page.goto(web);
   await page.getByRole("heading", { name: "Transcript" }).waitFor();
-  await page.getByRole("button", { name: "New session" }).click();
+  await page.getByRole("button", { name: "New session", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("textbox", { name: "Session title" })
@@ -84,7 +84,7 @@ try {
       );
     } else {
       captureError = await page.locator(".global-error").textContent();
-      assert.match(captureError, /Microphone could not start/);
+      assert.match(captureError, /No audio source could start/);
       assert.equal(
         (await (await fetch(`${api}/capture/status`)).json()).state,
         "idle",
@@ -100,6 +100,7 @@ try {
     .getByRole("textbox", { name: "Group name" })
     .fill(groupName);
   await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: `Collapse ${groupName}` }).waitFor();
   const groups = await (await fetch(`${api}/groups`)).json();
   groupId = groups.find((item) => item.name === groupName)?.id;
   assert.match(groupId, /^[a-f0-9]{32}$/);
@@ -258,11 +259,37 @@ try {
     savedSession.materials.map((material) => material.text),
     [materialText],
   );
-  await page
-    .locator(".silence-section > summary")
-    .first()
-    .waitFor({ timeout: 10_000 });
-  await page.getByText("No sound section").first().waitFor();
+  const quietAudio = page.locator(".quiet-section").filter({ hasText: "No audio" }).first();
+  await quietAudio.locator("summary").waitFor({ timeout: 10_000 });
+  await quietAudio.locator("summary").click();
+  const savedAudio = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/chunks/${chunkId}/audio`));
+  await quietAudio.locator(".record-play").click();
+  assert.ok([200, 206].includes((await savedAudio).status()), "Saved chunk must play from the real API");
+  const tone = Buffer.from(wav);
+  for (let offset = 44; offset < tone.length; offset += 2)
+    tone.writeInt16LE(5000, offset);
+  for (const sourceId of ["microphone", "system"]) {
+    const toneForm = new FormData();
+    for (const [key, value] of Object.entries({
+      sessionId,
+      sourceId,
+      sequence: 0,
+      startMs: 2000,
+      endMs: 3000,
+      sha256: createHash("sha256").update(tone).digest("hex"),
+    })) toneForm.set(key, String(value));
+    toneForm.set("file", new Blob([tone], { type: "audio/wav" }), "synthetic-tone.wav");
+    assert.equal((await fetch(`${api}/chunks`, { method: "POST", body: toneForm })).status, 202);
+  }
+  await page.getByRole("combobox", { name: "Audio sources" }).locator('option[value="system"]').waitFor({ state: "attached" });
+  const mixedAudio = page.waitForResponse((response) => response.url().endsWith(`/api/sessions/${sessionId}/audio/segments/0`));
+  await page.getByRole("button", { name: "Full session" }).click();
+  assert.equal((await mixedAudio).status(), 200, "Full-session playback must load synchronized audio");
+  const systemAudio = page.waitForResponse((response) => response.url().includes(`/api/sessions/${sessionId}/audio/segments/0?source=system`));
+  await page.getByRole("combobox", { name: "Audio sources" }).selectOption("system");
+  assert.equal((await systemAudio).status(), 200, "Source selection must use the same footer player");
+  assert.equal(await page.locator("audio").count(), 1);
   await page
     .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
     .click();

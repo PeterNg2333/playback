@@ -15,9 +15,9 @@ public sealed class SenseVoiceClient
         var endpoint = Environment.GetEnvironmentVariable("PLAYBACK_ASR_ENDPOINT") ?? "https://dev-aks.setsailapi.com/stt/infer/upload";
         if (endpoint != "https://dev-aks.setsailapi.com/stt/infer/upload") throw new InvalidOperationException("ASR endpoint is not allowlisted");
         if (new FileInfo(path).Length is < 44 or > 25_000_000) throw new InvalidOperationException("ASR WAV must be 44 bytes to 25 MB");
+        var wav = AsrAudioPreparer.Prepare(path, ct);
         using var body = new MultipartFormDataContent();
-        await using var file = File.OpenRead(path);
-        using var content = new StreamContent(file);
+        using var content = new ByteArrayContent(wav);
         content.Headers.ContentType = new("audio/wav");
         body.Add(content, "file", "audio.wav");
         using var response = await http.PostAsync(endpoint, body, ct);

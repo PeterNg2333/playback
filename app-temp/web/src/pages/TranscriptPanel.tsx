@@ -20,13 +20,15 @@ export function TranscriptPanel({ model }: { model: PlaybackController }) {
     ? "ASR paused · audio saved locally"
     : chunks.some((chunk) => chunk.status === "awaiting-consent")
       ? "ASR waiting · restart API"
-      : chunks.some((chunk) => chunk.status === "asr-error")
-        ? "ASR failed · retrying"
-        : chunks.some((chunk) => chunk.status === "transcribing")
-          ? "Transcribing…"
-          : chunks.some((chunk) => chunk.status === "pending-asr")
-            ? "ASR queued"
-            : null;
+      : chunks.some((chunk) => chunk.status === "asr-manual")
+        ? "ASR stopped · manual retry available"
+        : chunks.some((chunk) => chunk.status === "asr-error")
+          ? "ASR failed · retrying"
+          : chunks.some((chunk) => chunk.status === "transcribing")
+            ? "Transcribing…"
+            : chunks.some((chunk) => chunk.status === "pending-asr")
+              ? "ASR queued"
+              : null;
   return (
     <Panel className="transcript-panel">
       <div className="panel-head">
