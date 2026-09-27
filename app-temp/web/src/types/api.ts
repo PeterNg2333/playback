@@ -129,6 +129,7 @@ export const CaptureStatusSchema = z.object({
     startMs: z.number(),
     endMs: z.number(),
     recordedAt: z.string(),
+    streaming: z.boolean().optional(),
   })).optional(),
 });
 

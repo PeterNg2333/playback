@@ -35,6 +35,25 @@ public static class AudioActivity
             }
         return (int)(Math.Clamp(peak, 0, 1) * 1000);
     }
+
+    public static float[] Mono(ReadOnlySpan<byte> buffer, WaveFormat format)
+    {
+        var encoding = format.AsStandardWaveFormat().Encoding;
+        var bits = format.BitsPerSample;
+        if (!Supported(encoding, bits)) throw new NotSupportedException($"VAD cannot decode {encoding} {bits}-bit audio");
+        var sampleBytes = bits / 8;
+        var channels = Math.Max(1, format.Channels);
+        var frameBytes = sampleBytes * channels;
+        var mono = new float[buffer.Length / frameBytes];
+        for (var frame = 0; frame < mono.Length; frame++)
+        {
+            var sum = 0f;
+            for (var channel = 0; channel < channels; channel++)
+                sum += Sample(buffer, frame * frameBytes + channel * sampleBytes, encoding, bits);
+            mono[frame] = float.IsFinite(sum) ? Math.Clamp(sum / channels, -1, 1) : 0;
+        }
+        return mono;
+    }
     // An energy gate for immediate UI feedback, not a speech classifier.
     public static bool HasSound(ReadOnlySpan<byte> buffer, WaveFormat format)
     {

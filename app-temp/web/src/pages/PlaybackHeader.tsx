@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import type { PlaybackController } from "./handlers";
 import { Header } from "../Component/Layout/Header";
 import { Icon } from "../Component/Icon";
-import { CaptureStatusSchema } from "../types/api";
-import { api } from "./api";
 
 export function PlaybackHeader({ model }: { model: PlaybackController }) {
   const {
@@ -20,25 +18,20 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
   useEffect(() => {
     if (capture?.state !== "recording") {
       setWave(Array(20).fill(0));
-      return;
     }
-    let active = true;
-    let inFlight = false;
-    const sample = async () => {
-      if (inFlight) return;
-      inFlight = true;
-      try {
-        const status = await api("/capture/status", "GET", undefined, CaptureStatusSchema);
-        if (active) {
-          const level = Math.max(0, ...Object.values(status.levels || {}));
-          setWave((previous) => [...previous.slice(1), level]);
-        }
-      } finally { inFlight = false; }
-    };
-    void sample().catch(() => {});
-    const timer = setInterval(() => { void sample().catch(() => {}); }, 500);
-    return () => { active = false; clearInterval(timer); };
   }, [capture?.state]);
+  useEffect(() => {
+    const sample = (event: Event) => {
+      const { level, streaming } = (event as CustomEvent<{ level: number; streaming: boolean }>).detail;
+      setWave((previous) => [...previous.slice(1), streaming ? level : 0]);
+    };
+    window.addEventListener("playback-capture-level", sample);
+    return () => window.removeEventListener("playback-capture-level", sample);
+  }, []);
+  const streaming = capture?.activeSegments?.some((segment) => segment.streaming) ?? false;
+  const remaining = capture?.state === "idle" ? 30 : Math.max(0,
+    Math.ceil((30_000 - Math.max(0, (capture?.capturedThroughMs || 0) - (capture?.lastFinalizedAtMs || 0))) / 1000));
+  const countdown = `00:${String(remaining).padStart(2, "0")}`;
   return (
     <Header>
       <div className="brand">
@@ -76,11 +69,13 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
               <span className="record-indicator" role="status">
                 <Icon name="record" />
                 {capture?.state === "paused" ? "Paused" : "Recording"}
+                <span className="record-countdown" aria-label={`Next audio part in ${remaining} seconds`}>{countdown}</span>
               </span>
               <span
                 className="capture-wave"
+                data-active={streaming}
                 role="img"
-                aria-label={`Audio signal ${capture?.state === "paused" ? "paused" : wave.at(-1)! > 15 ? "received" : "quiet"}`}
+                aria-label={`Audio signal ${capture?.state === "paused" ? "paused" : streaming ? "received" : "quiet"}`}
               >
                 {wave.map((level, index) => (
                   <i

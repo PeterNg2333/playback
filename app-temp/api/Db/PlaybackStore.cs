@@ -187,11 +187,14 @@ public sealed class PlaybackStore
         var transcripts = await Collection<Transcript>("transcripts").Find(x => x.Original != "" &&
             (x.NoteStatus == "pending" || (x.NoteStatus == "failed" && x.NoteRetryAt <= DateTime.UtcNow) ||
              (x.NoteStatus == "processing" && x.NoteRetryAt <= DateTime.UtcNow))).ToListAsync();
-        return transcripts.Select(x => x.SessionId).Distinct().ToList();
+        return transcripts.GroupBy(x => x.SessionId)
+            .Where(group => group.Sum(x => x.Original.Trim().Length) >= 40)
+            .Select(group => group.Key).ToList();
     }
     public async Task<object> SaveGeneratedNote(string id, string markdown, List<Transcript> transcripts, List<Material> materials, string inputHash, int basedOnVersion)
     {
-        if (markdown.Length is < 1 or > 250_000) throw new InvalidOperationException("Generated note size is invalid");
+        if (string.IsNullOrWhiteSpace(markdown) || markdown.Length > 250_000)
+            throw new InvalidOperationException("Generated note size is invalid");
         var gate = noteGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync();
         try
@@ -524,16 +527,16 @@ public sealed class PlaybackStore
         if (sourceId is not null) filter &= Builders<ChunkRecord>.Filter.Eq(x => x.SourceId, sourceId);
         return await Collection<ChunkRecord>("chunks").Find(filter).SortBy(x => x.StartMs).ToListAsync();
     }
-    public async Task<bool> RecordAsrFailure(string id, string error)
+    public async Task<bool> RecordAsrFailure(string id, string error, bool stopRetries = false)
     {
         var chunk = await Chunk(id) ?? throw new InvalidOperationException("Chunk not found");
         var attempts = chunk.AsrAttempts + 1;
         await Collection<ChunkRecord>("chunks").UpdateOneAsync(x => x.Id == id,
             Builders<ChunkRecord>.Update
-                .Set(x => x.Status, attempts >= 3 ? "asr-manual" : "asr-error")
+                .Set(x => x.Status, stopRetries || attempts >= 3 ? "asr-manual" : "asr-error")
                 .Set(x => x.Error, error)
                 .Set(x => x.AsrAttempts, attempts));
-        return attempts < 3;
+        return !stopRetries && attempts < 3;
     }
     public async Task<ChunkRecord> RetryAsr(string sessionId, string id)
     {

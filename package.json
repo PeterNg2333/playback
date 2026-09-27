@@ -7,6 +7,7 @@
     "db:stop": "docker compose -f app-temp/compose.yaml stop",
     "dev": "node --env-file-if-exists=.env app-temp/dev.mjs",
     "test:gemini-live": "node --env-file-if-exists=.env app-temp/checks/run-gemini-live.mjs",
+    "test:asr-live": "node --env-file-if-exists=.env app-temp/checks/run-asr-live.mjs",
     "test:jev-live": "node --env-file-if-exists=.env app-temp/checks/run-jev-live.mjs",
     "test:sample-audio-live": "node --env-file-if-exists=.env app-temp/checks/run-sample-audio-live.mjs",
     "test:e2e": "node app-temp/web/src/test/e2e-check.mjs",

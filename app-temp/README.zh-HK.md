@@ -45,7 +45,7 @@ pnpm.cmd dev
 
 `pnpm.cmd dev` 首次會自動安裝缺少的 web 套件及還原 .NET 套件（可能連網），不必先執行 `setup`。啟動時檢查 MongoDB；若未連上且沒有指定 `PLAYBACK_MONGO_URI`，會提示並嘗試以現有本機 image 啟動 Playback 的 MongoDB container，然後等待資料庫就緒。此步不會下載 image 或重建現有 container。若 Docker Desktop 未開或本機沒有 image，網頁仍會起動，但不能建立或讀取 session；先開 Docker Desktop，再明確執行 `pnpm.cmd db:up`（首次可能下載 image）。若用 process environment 或 `.env` 的 `PLAYBACK_MONGO_URI` 指定其他 MongoDB，`dev` 不會啟動 bundled container；不要輸出或提交連接字串。
 
-開始錄音後，保存好的非靜音音訊會自動送往公司 SenseVoice。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存；送往 ASR 前統一轉成 16 kHz 單聲道 PCM，以減少系統聲的上傳大小，原始 WAV 保留作播放。只有完全數位靜音才跳過 ASR；目前即時顯示用的是音量活動偵測，並非語音分類 VAD。靜音或 ASR 沒有回傳文字的片段在每個小時合併為一條可展開的「No audio」分隔列，展開後可檢查每段來源、播放及重試。逐字稿按日期、小時及每筆 `HH:mm:ss` 時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
+開始錄音後，保存好的非靜音音訊會自動送往公司 SenseVoice。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存；送往 ASR 前統一轉成 16 kHz 單聲道 PCM，以減少系統聲的上傳大小，原始 WAV 保留作播放。只有完全數位靜音才跳過 ASR；即時錄音提示用本機 Silero 模型判斷語音，與後續 ASR 分開。靜音或 ASR 沒有回傳文字的片段在每個小時合併為一條可展開的「No audio」分隔列，展開後可檢查每段來源、播放及重試。逐字稿按日期、小時及每筆 `HH:mm:ss` 時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
 
 `dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
 
@@ -55,7 +55,7 @@ pnpm.cmd dev
 
 若執行環境暫時禁止外部音訊傳送，可設定 process environment `PLAYBACK_PAUSE_EXTERNAL_ASR=yes` 再啟動 API。這只暫停 ASR 佇列，錄音仍保存在本機；Transcript 顯示暫停狀態。移除此設定並重啟後，待處理音訊會自動續傳。
 
-2026-09-26 用合成音訊量度 SenseVoice：0.25 秒靜音的端到端時間 1.08 秒；10 秒單音首次 10.04 秒、暖機後 3.98 秒；兩個同時上傳各為 5.15／5.96 秒，服務回報 inference 由單次 1.54 秒升到約 2.35／2.39 秒。回應包含 `duration_seconds`、`file`、`inference_time_seconds`、`language`、`raw`、`rtf`；`raw` 會包含 `<|en|>` 等控制 token。網絡及服務排隊時間佔了可見延遲；服務 CPU 配置無法由回應確認。這些數字不能代表真實演講語音。背景 ASR 暫設最多兩個並行；增加並行未證明可改善單段延遲。靜音檢查只能節省完全靜音片段的上傳，不能代替 WebRTC／模型 VAD。
+2026-09-26 用合成音訊量度 SenseVoice：0.25 秒靜音的端到端時間 1.08 秒；10 秒單音首次 10.04 秒、暖機後 3.98 秒；兩個同時上傳各為 5.15／5.96 秒，服務回報 inference 由單次 1.54 秒升到約 2.35／2.39 秒。回應包含 `duration_seconds`、`file`、`inference_time_seconds`、`language`、`raw`、`rtf`；`raw` 會包含 `<|en|>` 等控制 token。網絡及服務排隊時間佔了可見延遲；服務 CPU 配置無法由回應確認。這些數字不能代表真實演講語音。背景 ASR 暫設最多兩個並行；增加並行未證明可改善單段延遲。靜音檢查只能節省完全靜音片段的上傳；即時語音提示由另一本機 VAD 處理。
 
 ## 本次測試與確切限制
 
@@ -159,3 +159,9 @@ SenseVoice 網絡錯誤會保留錄音，最多自動嘗試三次，之後標成
 `--sample-audio-live "app-temp\data\test-audio\sampleAudio"` 是真實 provider 端到端檢查：把保留的 20 分鐘音訊加速送成 40 個本機 API WAV chunk，等 SenseVoice 返回，再以一段已辨識來源驗證 Ask Playback 引用與 Gemini 筆記，最後清理自己建立的 test session／音訊。API health 須顯示 `database=playback_e2e`、Gemini／ASR 可用、`autoNotes=false`、`autoTerms=false`，否則檢查拒絕開始。程式可從根目錄 `.env` 載入金鑰到程序環境，代理不讀取或顯示檔案內容。2026-09-27 以保留的單一 `sampleAudio.m4a` 測試：33 段成功轉錄、6 段 provider 回傳無文字、1 段因 provider 提早斷線三次而轉為手動處理；Ask Playback 回答有來源引用，Gemini 筆記成功保存。測試 session、MongoDB 紀錄與 API 音訊已清理。
 
 先在 repo 根目錄執行 `dotnet build app-temp/checks/Playback.Checks.csproj`，再執行 `npm.cmd run test:sample-audio-live`。後者會自動載入 `.env` 到子程序、用已編譯 DLL 啟動只連接 `playback_e2e` 的本機 API、執行 sample audio 檢查，再停止該測試 API。若 5078 端口已有 API，腳本會拒絕開始，避免誤用原有 session。
+
+即時聲音提示現在使用本機 Silero VAD 模型（`api/Resources/silero_vad.onnx`，MIT 授權見同目錄）：偵測到語音便顯示半透明錄音列，持續約一秒後才啟動聲波及呼吸效果。錄音欄的倒數顯示到下一段 30 秒音訊封存。網頁每 250 ms 讀取 capture status；每秒更新倒數及時間範圍。`dotnet app-temp/checks/bin/verification/net10.0/Playback.Checks.dll --vad-sample app-temp/data/test-audio/sampleAudio` 會在本機檢查 sampleAudio 首 30 秒及數碼靜音，不上傳音訊。
+
+`npm.cmd run test:asr-live` 會從 `.env` 載入程序環境，產生 30 秒合成音調並真正呼叫 SenseVoice HTTPS REST 端點，檢查回應的時長及推理數據；會有 provider 費用。這項檢查要在正常網絡權限下執行。作業系統拒絕 HTTPS 連線時，後端會立即把音訊保存並標記供手動重試，不會再作無效的自動重試。若 AI 筆記可用逐字稿少於 40 字元，畫面會顯示等待更多語音，暫不發出無內容的 Gemini 筆記請求。
+
+2026-09-28 再用 `sampleAudio` 首 20 分鐘作隔離的真實 API／provider 測試：40 段中 32 段成功轉錄、7 段無字、1 段因 provider 三次提早終止回應而保留為手動重試；Ask Playback 回答有來源引用，Gemini 筆記成功保存，測試 session 已清理。VAD 離線測試以同一音訊首 30 秒檢查 8／16／48 kHz 及數碼靜音，首次偵測語音在 200 ms。這些檢查不等同於實機 WASAPI 咪高峰和系統聲連續收音驗收。

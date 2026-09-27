@@ -24,11 +24,11 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
       const { segment } = entry;
       const range = recordedRange(segment.recordedAt, session?.createdAt, segment.startMs, segment.endMs);
       return (
-        <article className="record-row transcript-row audio-row live-segment" key={`live-${segment.sourceId}-${segment.startMs}`} role="status" aria-label={`${segment.sourceId} audio recording in progress`}>
+        <article className="record-row transcript-row audio-row live-segment" data-streaming={!!segment.streaming} key={`live-${segment.sourceId}-${segment.startMs}`} role="status" aria-label={`${segment.sourceId} audio recording in progress`}>
           <span className="record-time">{range.start}</span>
           <div className="record-main">
             <div className="record-meta"><SourceTag sourceId={segment.sourceId} /><span>Started {range.start}</span></div>
-            <div className="record-line"><span className="record-summary"><span className="live-dot" /> Sound detected · recording audio</span><span className="live-pending">Saving…</span></div>
+            <div className="record-line"><span className="record-summary"><span className="live-dot" /> {segment.streaming ? "Speech active · recording audio" : "Speech detected · recording audio"}</span><span className="live-pending">Saving…</span></div>
           </div>
         </article>
       );

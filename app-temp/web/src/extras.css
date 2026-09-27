@@ -247,9 +247,11 @@ body {
 .record-start svg, .record-indicator svg { width: 14px; height: 14px; }
 .record-start:disabled { opacity: .5; cursor: not-allowed; }
 .record-indicator { display: flex; align-items: center; gap: 6px; color: #a6456d; font-size: 12px; font-weight: 700; }
+.record-countdown { padding-left: 5px; font-variant-numeric: tabular-nums; font-size: 11px; }
 .record-actions[data-state="recording"] .record-indicator svg { animation: record-pulse 1.5s ease-in-out infinite; }
 .capture-wave { display:flex; align-items:center; justify-content:center; gap:2px; width:62px; height:25px; }
 .capture-wave i { display:block; width:2px; min-height:3px; border-radius:3px; background:#b44977; transition:height .35s ease; }
+.capture-wave[data-active="false"] i { opacity: .35; }
 .record-actions[data-state="paused"] .capture-wave i { background:var(--muted); }
 @keyframes record-pulse { 50% { opacity: .35; } }
 .settings-wrap { position: relative; }
@@ -430,7 +432,8 @@ body {
   .workspace { margin-left: 0; padding: 0 10px 84px; }
   .record-start { padding: 0 8px; }
   .record-start span { display: none; }
-  .record-indicator { width: 16px; overflow: hidden; font-size: 0; }
+  .record-indicator { width: auto; font-size: 0; }
+  .record-indicator .record-countdown { font-size: 11px; }
   .topbar:has(.record-actions:not([data-state="idle"])) .brand-title { display: none; }
   .mobile-nav { grid-template-columns: repeat(2, 1fr); }
   .panel { min-height: calc(100vh - 118px); }
@@ -516,6 +519,7 @@ html, body, #root { height: 100%; overflow: hidden; }
 .live-segment .record-main { background: #fff7fa; border-color: #eac9da; }
 .live-segment .record-summary { display: inline-flex; align-items: center; gap: 9px; color: #943e67; }
 .live-segment .live-dot { flex: none; }
+.live-segment[data-streaming="false"] .live-dot { animation: none; }
 .live-pending { color: #943e67; font-size: 11px; font-weight: 700; }
 .quiet-section { margin: 5px 0; color: var(--muted); }
 .quiet-section > summary { display: flex; align-items: center; gap: 9px; min-height: 32px; font-size: 11px; cursor: pointer; list-style: none; }

@@ -6,6 +6,7 @@ using Playback.Api.Db;
 using Playback.Api.Endpoints;
 
 using System.Text;
+using System.Net.Sockets;
 using NAudio.Wave;
 
 
@@ -38,6 +39,43 @@ if (args is ["--sample-audio-preview", var audioFolder])
     SampleAudioPreview.Run(audioFolder);
     return;
 }
+if (args is ["--vad-sample", var vadFolder])
+{
+    using var detector = new SpeechActivityDetector();
+    for (var ms = 100; ms <= 1_000; ms += 100)
+        Check(!detector.Process(new float[1_600], 16_000, ms), "Digital silence triggered VAD");
+    var (_, wav, _) = SampleAudioPreview.Chunks(vadFolder).First();
+    using var reader = new WaveFileReader(new MemoryStream(wav));
+    using var speechDetector = new SpeechActivityDetector();
+    using var lowRateDetector = new SpeechActivityDetector();
+    using var highRateDetector = new SpeechActivityDetector();
+    var buffer = new byte[3_200];
+    var elapsedMs = 0L;
+    var firstVoiceMs = -1L;
+    var voicedFrames = 0;
+    var lowRateVoicedFrames = 0;
+    var highRateVoicedFrames = 0;
+    int read;
+    while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+    {
+        elapsedMs += read * 1_000L / reader.WaveFormat.AverageBytesPerSecond;
+        var mono = AudioActivity.Mono(buffer.AsSpan(0, read), reader.WaveFormat);
+        if (lowRateDetector.Process(mono.Where((_, index) => index % 2 == 0).ToArray(), 8_000, elapsedMs))
+            lowRateVoicedFrames++;
+        var highRate = new float[mono.Length * 3];
+        for (var index = 0; index < mono.Length; index++)
+            highRate.AsSpan(index * 3, 3).Fill(mono[index]);
+        if (highRateDetector.Process(highRate, 48_000, elapsedMs))
+            highRateVoicedFrames++;
+        if (!speechDetector.Process(mono, reader.WaveFormat.SampleRate, elapsedMs)) continue;
+        if (firstVoiceMs < 0) firstVoiceMs = elapsedMs;
+        voicedFrames++;
+    }
+    Check(firstVoiceMs >= 0 && voicedFrames > 10 && lowRateVoicedFrames > 10 && highRateVoicedFrames > 10,
+        "VAD did not detect speech in sampleAudio");
+    Console.WriteLine($"Silero VAD sample passed: first speech at {firstVoiceMs} ms, 8/16/48 kHz voiced callbacks {lowRateVoicedFrames}/{voicedFrames}/{highRateVoicedFrames} of 300; digital silence stayed quiet");
+    return;
+}
 if (args is ["--sample-audio-live", var liveFolder])
 {
     await SampleAudioLiveCheck.Run(liveFolder);
@@ -64,6 +102,10 @@ if (args is ["--asr-synthetic-live"])
         }
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         var result = await new SenseVoiceClient().Transcribe(wav, timeout.Token);
+        Check(result.DurationSeconds is >= 29 and <= 31 &&
+              result.InferenceSeconds is >= 0 &&
+              result.RealTimeFactor is >= 0,
+            "SenseVoice live response did not include valid duration and inference metrics");
         Console.WriteLine($"Synthetic stereo ASR upload passed: {result.Text.Length} text characters, provider inference {result.InferenceSeconds:F2} s");
     }
     finally { File.Delete(wav); }
@@ -102,6 +144,10 @@ static void Check(bool condition, string message) { if (!condition) throw new Ex
 
 Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"exact [unclear]\",\"text\":\"model revision\"}")).Text == "exact [unclear]", "ASR original must win over a processed text field");
 Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"\"}")).Text == "", "Silent audio must stay uncertain, not become invented text");
+Check(AsrProcessor.NetworkPermissionDenied(new HttpRequestException("Connection failed", new SocketException((int)SocketError.AccessDenied))),
+    "A denied REST connection must stop automatic ASR retries");
+Check(!AsrProcessor.NetworkPermissionDenied(new HttpRequestException("Service unavailable")),
+    "Transient HTTP failures must remain retryable");
 var asr = SenseVoiceClient.ParseResponse(Json("{\"duration_seconds\":10,\"inference_time_seconds\":1.5,\"language\":\"en_US\",\"raw\":\"<|en|><|NEUTRAL|><|Speech|><|withitn|>Hello class.\",\"rtf\":0.15}"));
 Check(asr.Text == "Hello class.", "SenseVoice control tokens must not appear in transcript text");
 Check(asr.DurationSeconds == 10 && asr.InferenceSeconds == 1.5 && asr.RealTimeFactor == 0.15 && asr.Language == "en_US", "SenseVoice timing and language metadata must be mapped");

@@ -7,7 +7,7 @@ using NAudio.Wave;
 
 namespace Playback.Api.Services.Audio;
 
-public sealed record ActiveCaptureSegment(string SourceId, long StartMs, long EndMs, DateTime RecordedAt);
+public sealed record ActiveCaptureSegment(string SourceId, long StartMs, long EndMs, DateTime RecordedAt, bool Streaming);
 
 public sealed record CaptureStatus(string State, string? SessionId, Dictionary<string, long> Bytes, bool AutoAsr, bool NoSoundWarning, string? Error,
     Dictionary<string, int> Levels, long CapturedThroughMs, long LastFinalizedAtMs, ActiveCaptureSegment[] ActiveSegments);
@@ -88,10 +88,11 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
     async Task<string?> TryStartSource(Recording recording, string name, WasapiRecorderBuilder builder)
     {
         WasapiRecorder? recorder = null;
+        CaptureSource? source = null;
         try
         {
             recorder = builder.Build();
-            var source = new CaptureSource(name, recorder, Path.Combine(root, recording.SessionId, name), recording);
+            source = new CaptureSource(name, recorder, Path.Combine(root, recording.SessionId, name), recording);
             recorder.StartRecording();
             lock (recording.Sources) recording.Sources.Add(source);
             return null;
@@ -103,6 +104,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 try { await recorder.DisposeAsync(); }
                 catch (Exception closeError) { logger.LogWarning(closeError, "Capture device cleanup failed"); }
             }
+            source?.Detector.Dispose();
             logger.LogWarning(ex, "{Source} audio capture unavailable", name);
             return ex.Message;
         }
@@ -158,6 +160,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         {
             try { await source.Recorder.DisposeAsync(); }
             catch (Exception ex) { recording.Error = $"{source.Name} close: {ex.Message}"; }
+            source.Detector.Dispose();
         }
     }
 
@@ -291,6 +294,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         readonly object gate = new();
         readonly string directory;
         readonly Recording recording;
+        readonly SpeechActivityDetector detector = new();
         WaveFileWriter? writer;
         string? partPath;
         long sequence;
@@ -301,6 +305,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
 
         public string Name { get; }
         public WasapiRecorder Recorder { get; }
+        public SpeechActivityDetector Detector => detector;
         public long Bytes => Interlocked.Read(ref bytes);
         public int Level => Volatile.Read(ref level);
 
@@ -308,7 +313,8 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         {
             lock (gate)
                 return hasSound && endMs > startMs
-                    ? new(Name, startMs, endMs, DateTime.UtcNow.AddMilliseconds(startMs - endMs))
+                    ? new(Name, startMs, endMs, DateTime.UtcNow.AddMilliseconds(startMs - endMs),
+                        detector.VoicedMs >= 1_000 && detector.Speaking(endMs))
                     : null;
         }
 
@@ -324,7 +330,14 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             recorder.DataAvailable += (buffer, _, _, _) =>
             {
                 Volatile.Write(ref level, AudioActivity.Level(buffer, format));
-                var soundDetected = AudioActivity.HasSound(buffer, format);
+                var soundDetected = false;
+                try
+                {
+                    lock (gate)
+                        soundDetected = detector.Process(AudioActivity.Mono(buffer, format), format.SampleRate,
+                            recording.OffsetMs + recording.Clock.ElapsedMilliseconds);
+                }
+                catch (Exception ex) { recording.Error = $"{name} VAD stopped: {ex.Message}"; }
                 if (soundDetected)
                     recording.LastSoundAt = DateTime.UtcNow;
                 lock (gate)

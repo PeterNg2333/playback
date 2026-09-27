@@ -4,8 +4,11 @@ using Playback.Api.Services;
 
 namespace Playback.Api.Services.Audio;
 
-public sealed class SenseVoiceClient
+public sealed partial class SenseVoiceClient
 {
+    [GeneratedRegex(@"<\|[^|>]*\|>")]
+    private static partial Regex SpecialTokenRegex();
+
     readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
 
     public async Task<AsrResult> Transcribe(string path, CancellationToken ct)
@@ -29,21 +32,24 @@ public sealed class SenseVoiceClient
     {
         using var json = JsonDocument.Parse(bytes);
         var root = json.RootElement;
-        double? duration = root.TryGetProperty("duration_seconds", out var durationField) && durationField.ValueKind == JsonValueKind.Number
-            ? durationField.GetDouble() : null;
-        double? inference = root.TryGetProperty("inference_time_seconds", out var inferenceField) && inferenceField.ValueKind == JsonValueKind.Number
-            ? inferenceField.GetDouble() : null;
-        double? rtf = root.TryGetProperty("rtf", out var rtfField) && rtfField.ValueKind == JsonValueKind.Number
-            ? rtfField.GetDouble() : null;
-        var language = root.TryGetProperty("language", out var languageField) && languageField.ValueKind == JsonValueKind.String
-            ? languageField.GetString() : null;
-        if (root.TryGetProperty("raw", out var raw) && raw.ValueKind == JsonValueKind.String)
-            return new(Regex.Replace(raw.GetString()!, @"<\|[^|>]*\|>", "").Trim(), duration, inference, language, rtf);
-        if (root.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
-            return new(text.GetString()!, duration, inference, language, rtf);
-        throw new InvalidOperationException("SenseVoice response schema is unrecognized");
-    }
 
+        double? GetDouble(string name) => root.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.Number
+            ? field.GetDouble() : null;
+        string? GetString(string name) => root.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String
+            ? field.GetString() : null;
+
+        string? text = GetString("raw") is string raw
+            ? SpecialTokenRegex().Replace(raw, "").Trim()
+            : GetString("text");
+        if (text is null)
+            throw new InvalidOperationException("SenseVoice response schema is unrecognized");
+
+        return new AsrResult(text,
+            GetDouble("duration_seconds"),
+            GetDouble("inference_time_seconds"),
+            GetString("language"),
+            GetDouble("rtf"));
+    }
 }
 
 public sealed record AsrResult(

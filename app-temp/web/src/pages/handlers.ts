@@ -124,14 +124,20 @@ export function usePlaybackController() {
         const status = await api("/capture/status", "GET", undefined, CaptureStatusSchema);
         if (!active) return;
         const previous = usePlaybackStore.getState().capture;
+        if (status.state === "recording")
+          window.dispatchEvent(new CustomEvent("playback-capture-level", {
+            detail: {
+              level: Math.max(0, ...Object.values(status.levels || {})),
+              streaming: status.activeSegments?.some((segment) => segment.streaming) ?? false,
+            },
+          }));
         const segmentKeys = (value: typeof status | null) =>
-          (value?.activeSegments || []).map((segment) => `${segment.sourceId}:${segment.startMs}`).join("|");
-        if (!previous || status.state !== previous.state ||
-            status.sessionId !== previous.sessionId ||
-            status.error !== previous.error ||
-            status.noSoundWarning !== previous.noSoundWarning ||
+          (value?.activeSegments || []).map((segment) => `${segment.sourceId}:${segment.startMs}:${!!segment.streaming}`).join("|");
+        if (!previous || status.state !== previous.state || status.sessionId !== previous.sessionId ||
+            status.error !== previous.error || status.noSoundWarning !== previous.noSoundWarning ||
             status.lastFinalizedAtMs !== previous.lastFinalizedAtMs ||
-            segmentKeys(status) !== segmentKeys(previous))
+            segmentKeys(status) !== segmentKeys(previous) ||
+            Math.floor((status.capturedThroughMs || 0) / 1000) !== Math.floor((previous.capturedThroughMs || 0) / 1000))
           setCapture(status);
         if (status.sessionId && status.lastFinalizedAtMs &&
             status.lastFinalizedAtMs > (previous?.lastFinalizedAtMs || 0))
@@ -140,7 +146,7 @@ export function usePlaybackController() {
         if (active) setError(e instanceof Error ? e.message : String(e));
       } finally { inFlight = false; }
     };
-    const timer = setInterval(() => { void poll(); }, 500);
+    const timer = setInterval(() => { void poll(); }, 250);
     return () => { active = false; clearInterval(timer); };
   }, []);
   async function action(name: string, work: () => Promise<void>) {

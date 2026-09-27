@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Sockets;
 using Playback.Api.Db;
 
 namespace Playback.Api.Services.Audio;
@@ -47,11 +48,25 @@ public sealed class AsrProcessor(
         try
         {
             if (ct.IsCancellationRequested) await store.SetChunkStatus(id, "pending-asr");
-            else await store.RecordAsrFailure(id, failure.Message);
+            else
+            {
+                var blocked = NetworkPermissionDenied(failure);
+                await store.RecordAsrFailure(id,
+                    blocked ? "ASR connection blocked by local network permissions; audio saved for manual retry" : failure.Message,
+                    blocked);
+            }
         }
         catch (Exception saveError)
         {
             logger.LogError(saveError, "Could not save ASR error for {ChunkId}", id);
         }
+    }
+
+    public static bool NetworkPermissionDenied(Exception error)
+    {
+        for (Exception? current = error; current is not null; current = current.InnerException)
+            if (current is SocketException socket && socket.SocketErrorCode == SocketError.AccessDenied)
+                return true;
+        return false;
     }
 }

@@ -24,6 +24,11 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
   const reference = session?.termInsights?.find(
     (insight) => insight.id === referenceId,
   );
+  const transcriptChars = session?.transcripts.reduce(
+    (sum, entry) => sum + entry.original.trim().length, 0,
+  ) ?? 0;
+  const waitingForSpeech = transcriptChars > 0 && transcriptChars < 40 && !session?.noteMarkdown;
+  const failedNotes = session?.transcripts.filter((entry) => entry.noteStatus === "failed").length ?? 0;
   editorValue.current = markdown;
   return (
     <Panel className="notes-panel">
@@ -154,7 +159,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             </>
           ) : (
             <p className="empty">
-              Notes will appear after you edit or generate them.
+              Notes will appear after enough speech is transcribed, or when you write them.
             </p>
           )
         ) : (
@@ -175,14 +180,12 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           </div>
         )}
       </div>
-      {!!session?.transcripts.filter((entry) => entry.noteStatus === "failed")
-        .length && (
+      {waitingForSpeech ? (
+        <p className="note-status" role="status">Waiting for more recognized speech before generating AI notes.</p>
+      ) : failedNotes > 0 && (
         <p className="note-status" role="status">
           Notes update failed for{" "}
-          {
-            session.transcripts.filter((entry) => entry.noteStatus === "failed")
-              .length
-          }{" "}
+          {failedNotes}{" "}
           transcript entries. Retry with “Revise with AI”.
         </p>
       )}
