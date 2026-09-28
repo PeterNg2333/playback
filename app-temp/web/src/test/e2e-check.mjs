@@ -28,7 +28,7 @@ const browser = await chromium.launch({
 let sessionId;
 let groupId;
 let nestedSessionId;
-let captureError;
+const captureErrors = [];
 
 try {
   const context = await browser.newContext();
@@ -53,43 +53,78 @@ try {
   sessionId = sessions.find((item) => item.title === title)?.id;
   assert.match(sessionId, /^[a-f0-9]{32}$/);
   if (!skipCapture) {
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Start recording" }).click();
-    const started = await Promise.race([
-      page
-        .getByRole("button", { name: "Pause recording" })
-        .waitFor({ timeout: 10_000 })
-        .then(() => true),
-      page
-        .locator(".global-error")
-        .waitFor({ timeout: 10_000 })
-        .then(() => false),
-    ]);
-    if (started) {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      await page.getByRole("button", { name: "Pause recording" }).click();
-      await page.getByRole("button", { name: "Resume recording" }).waitFor();
-      assert.equal(
-        (await (await fetch(`${api}/capture/status`)).json()).state,
-        "paused",
-      );
-      await page.getByRole("button", { name: "Resume recording" }).click();
-      await page.getByRole("button", { name: "Pause recording" }).waitFor();
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      await page.getByRole("button", { name: "Stop recording" }).click();
-      await page.getByRole("button", { name: "Start recording" }).waitFor();
-      assert.equal(
-        (await (await fetch(`${api}/capture/status`)).json()).state,
-        "idle",
-      );
-    } else {
-      captureError = await page.locator(".global-error").textContent();
-      assert.match(captureError, /No audio source could start/);
-      assert.equal(
-        (await (await fetch(`${api}/capture/status`)).json()).state,
-        "idle",
-      );
-      await page.getByRole("button", { name: "Dismiss error" }).click();
+    for (const mode of ["microphone", "system", "both"]) {
+      await page
+        .getByRole("combobox", { name: "Recording source" })
+        .selectOption(mode);
+      page.once("dialog", (dialog) => dialog.accept());
+      await page.getByRole("button", { name: "Start recording" }).click();
+      const started = await Promise.race([
+        page
+          .getByRole("button", { name: "Pause recording" })
+          .waitFor({ timeout: 10_000 })
+          .then(() => true),
+        page
+          .locator(".global-error")
+          .waitFor({ timeout: 10_000 })
+          .then(() => false),
+      ]);
+      if (started) {
+        const running = await (await fetch(`${api}/capture/status`)).json();
+        assert.equal(running.sourceMode, mode);
+        const expectedSources =
+          mode === "both" ? ["microphone", "system"] : [mode];
+        assert.ok(Object.keys(running.bytes).length > 0);
+        assert.ok(
+          Object.keys(running.bytes).every((source) =>
+            expectedSources.includes(source),
+          ),
+          "Recording must not open an unselected source",
+        );
+        assert.equal(
+          await page
+            .getByRole("combobox", { name: "Recording source" })
+            .isDisabled(),
+          true,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await page.getByRole("button", { name: "Pause recording" }).click();
+        await page.getByRole("button", { name: "Resume recording" }).waitFor();
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).sourceMode,
+          mode,
+        );
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).state,
+          "paused",
+        );
+        await page.getByRole("button", { name: "Resume recording" }).click();
+        await page.getByRole("button", { name: "Pause recording" }).waitFor();
+        const resumed = await (await fetch(`${api}/capture/status`)).json();
+        assert.equal(resumed.sourceMode, mode);
+        assert.ok(
+          Object.keys(resumed.bytes).every((source) =>
+            expectedSources.includes(source),
+          ),
+          "Resume must keep the selected sources",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await page.getByRole("button", { name: "Stop recording" }).click();
+        await page.getByRole("button", { name: "Start recording" }).waitFor();
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).state,
+          "idle",
+        );
+      } else {
+        const captureError = await page.locator(".global-error").textContent();
+        captureErrors.push(`${mode}: ${captureError.trim()}`);
+        assert.match(captureError, /No audio source could start/);
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).state,
+          "idle",
+        );
+        await page.getByRole("button", { name: "Dismiss error" }).click();
+      }
     }
   }
 
@@ -259,13 +294,20 @@ try {
     savedSession.materials.map((material) => material.text),
     [materialText],
   );
-  const quietAudio = page.locator(".quiet-section").filter({ hasText: "No audio" }).first();
+  const quietAudio = page
+    .locator(".quiet-section")
+    .filter({ hasText: "No audio" })
+    .first();
   await quietAudio.locator("summary").waitFor({ timeout: 10_000 });
   await quietAudio.locator("summary").click();
   const savedAudio = page.waitForResponse((response) =>
-    response.url().endsWith(`/api/chunks/${chunkId}/audio`));
+    response.url().endsWith(`/api/chunks/${chunkId}/audio`),
+  );
   await quietAudio.locator(".record-play").click();
-  assert.ok([200, 206].includes((await savedAudio).status()), "Saved chunk must play from the real API");
+  assert.ok(
+    [200, 206].includes((await savedAudio).status()),
+    "Saved chunk must play from the real API",
+  );
   const tone = Buffer.from(wav);
   for (let offset = 44; offset < tone.length; offset += 2)
     tone.writeInt16LE(5000, offset);
@@ -278,18 +320,62 @@ try {
       startMs: 2000,
       endMs: 3000,
       sha256: createHash("sha256").update(tone).digest("hex"),
-    })) toneForm.set(key, String(value));
-    toneForm.set("file", new Blob([tone], { type: "audio/wav" }), "synthetic-tone.wav");
-    assert.equal((await fetch(`${api}/chunks`, { method: "POST", body: toneForm })).status, 202);
+    }))
+      toneForm.set(key, String(value));
+    toneForm.set(
+      "file",
+      new Blob([tone], { type: "audio/wav" }),
+      "synthetic-tone.wav",
+    );
+    assert.equal(
+      (await fetch(`${api}/chunks`, { method: "POST", body: toneForm })).status,
+      202,
+    );
   }
-  await page.getByRole("combobox", { name: "Audio sources" }).locator('option[value="system"]').waitFor({ state: "attached" });
-  const mixedAudio = page.waitForResponse((response) => response.url().endsWith(`/api/sessions/${sessionId}/audio/segments/0`));
+  await page.getByLabel("Playback mode").click();
+  await page
+    .getByRole("combobox", { name: "Audio sources" })
+    .locator('option[value="system"]')
+    .waitFor({ state: "attached" });
+  const mixedAudio = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/sessions/${sessionId}/audio/segments/0`),
+  );
   await page.getByRole("button", { name: "Full session" }).click();
-  assert.equal((await mixedAudio).status(), 200, "Full-session playback must load synchronized audio");
-  const systemAudio = page.waitForResponse((response) => response.url().includes(`/api/sessions/${sessionId}/audio/segments/0?source=system`));
-  await page.getByRole("combobox", { name: "Audio sources" }).selectOption("system");
-  assert.equal((await systemAudio).status(), 200, "Source selection must use the same footer player");
+  assert.equal(
+    (await mixedAudio).status(),
+    200,
+    "Full-session playback must load synchronized audio",
+  );
+  const systemAudio = page.waitForResponse((response) =>
+    response
+      .url()
+      .includes(`/api/sessions/${sessionId}/audio/segments/0?source=system`),
+  );
+  await page.getByLabel("Playback mode").click();
+  await page
+    .getByRole("combobox", { name: "Audio sources" })
+    .selectOption("system");
+  assert.equal(
+    (await systemAudio).status(),
+    200,
+    "Source selection must use the same footer player",
+  );
   assert.equal(await page.locator("audio").count(), 1);
+  await page.getByRole("tab", { name: "Activity", exact: true }).click();
+  await page.getByRole("heading", { name: "LLM edit log" }).waitFor();
+  await page.getByText("v1 · Manual edit", { exact: true }).click();
+  await page
+    .locator(".activity-edit pre")
+    .filter({ hasText: "# Demo notes" })
+    .waitFor();
+  assert.equal(
+    await page
+      .locator(".activity-content textarea, .activity-content input")
+      .count(),
+    0,
+    "Activity is read-only",
+  );
+  await page.getByRole("tab", { name: "Transcript", exact: true }).click();
   await page
     .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
     .click();
@@ -349,13 +435,13 @@ try {
   assert.deepEqual(errors, []);
 
   console.log(
-    "E2E passed: session groups, material, note persistence, MongoDB audio, automatic silence handling",
+    "E2E passed: recording source modes, session groups, material, note persistence and activity history, MongoDB audio, automatic silence handling",
   );
   if (skipCapture)
     console.log("Local microphone capture skipped for this E2E run");
-  if (captureError)
+  for (const captureError of captureErrors)
     console.log(
-      `Capture device unavailable; UI showed the real error: ${captureError.trim()}`,
+      `Capture device unavailable; UI showed the real error: ${captureError}`,
     );
 } finally {
   const cleanupFailures = [];

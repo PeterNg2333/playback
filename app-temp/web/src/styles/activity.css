@@ -1,0 +1,118 @@
+.activity-view {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.activity-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+  overscroll-behavior: contain;
+}
+.activity-intro,
+.activity-help {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.activity-content section + section {
+  margin-top: 24px;
+}
+.activity-content h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.activity-entry {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.activity-entry > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.activity-entry > summary::-webkit-details-marker {
+  display: none;
+}
+.activity-entry > summary strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.activity-entry > summary span {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 10px;
+  color: var(--muted);
+}
+.activity-entry > summary small {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  font-size: 10px;
+  color: var(--muted);
+}
+.activity-entry-body {
+  padding: 0 12px 12px;
+}
+.activity-label {
+  font-size: 11px;
+}
+.activity-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 5px 0;
+  font-size: 10px;
+  color: var(--muted);
+}
+.activity-edit {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-left: 2px solid #c55c6c;
+  background: #fff5f6;
+}
+.activity-edit[data-kind="insert"] {
+  border-left-color: #4c956d;
+  background: #f3faf5;
+}
+.activity-edit small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.activity-edit pre {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.decision-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 10px 0;
+}
+.decision-scores dt {
+  font-size: 10px;
+  color: var(--muted);
+}
+.decision-scores dd {
+  margin: 3px 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.decision-outcome[data-highlight="true"] {
+  color: var(--accent);
+}
+@media (max-width: 700px) {
+  .activity-content {
+    padding: 12px;
+  }
+}

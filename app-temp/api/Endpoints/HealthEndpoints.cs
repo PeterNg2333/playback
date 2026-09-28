@@ -18,7 +18,8 @@ public static class HealthEndpoints
             autoNotes = Environment.GetEnvironmentVariable("PLAYBACK_AUTO_NOTES") != "no",
             autoTerms = Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TERMS") == "yes",
             manualAsrRetry = true,
-            sessionAudioMix = true
+            sessionAudioMix = true,
+            recordingSourceSelection = true
         });
     }
 }

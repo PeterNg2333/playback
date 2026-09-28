@@ -115,6 +115,9 @@ public sealed class TermInsight
     public double JevProbability { get; set; }
     public string JevRank { get; set; } = "";
     public double JevConfidence { get; set; }
+    public string? JevModel { get; set; }
+    public bool? JevCached { get; set; }
+    public string? DecisionRule { get; set; }
     public DateTime RankedAt { get; set; }
     public List<string> TranscriptIds { get; set; } = [];
     public List<string> MaterialIds { get; set; } = [];

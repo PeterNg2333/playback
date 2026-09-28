@@ -4,7 +4,7 @@ public record CreateSession(string Title, string? GroupId = null);
 public record GroupInput(string Name);
 public record MoveSessionInput(string? GroupId);
 public record TranslationInput(bool Enabled, string Language);
-public record CaptureInput(string SessionId);
+public record CaptureInput(string SessionId, string SourceMode = "both");
 public record MaterialInput(string Name, string Text);
 public record NoteInput(string Markdown);
 public record QuestionInput(

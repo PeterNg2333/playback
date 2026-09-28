@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AnswerSchema,
   CaptureStatusSchema,
@@ -19,6 +19,9 @@ export function usePlaybackController() {
   const [settingsOpen, setSettingsOpen] = usePlaybackField("settingsOpen");
   const [navOpen, setNavOpen] = usePlaybackField("navOpen");
   const [view, setView] = usePlaybackField("view");
+  const [transcriptView, setTranscriptView] =
+    usePlaybackField("transcriptView");
+  const [recordingMode, setRecordingMode] = usePlaybackField("recordingMode");
   const [noteMode, setNoteMode] = usePlaybackField("noteMode");
   const [chatOpen, setChatOpen] = usePlaybackField("chatOpen");
   const [selection, setSelection] = usePlaybackField("selection");
@@ -39,6 +42,10 @@ export function usePlaybackController() {
   const [textDialogError, setTextDialogError] =
     usePlaybackField("textDialogError");
   const player = useAudioPlayback(session, setError);
+  const [sourceToReveal, setSourceToReveal] = useState<{
+    sessionId: string;
+    evidence: Evidence;
+  } | null>(null);
   const savedMarkdown = useRef("");
   const textDialogSubmitting = useRef(false);
   useEffect(() => {
@@ -121,33 +128,63 @@ export function usePlaybackController() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const status = await api("/capture/status", "GET", undefined, CaptureStatusSchema);
+        const status = await api(
+          "/capture/status",
+          "GET",
+          undefined,
+          CaptureStatusSchema,
+        );
         if (!active) return;
         const previous = usePlaybackStore.getState().capture;
         if (status.state === "recording")
-          window.dispatchEvent(new CustomEvent("playback-capture-level", {
-            detail: {
-              level: Math.max(0, ...Object.values(status.levels || {})),
-              streaming: status.activeSegments?.some((segment) => segment.streaming) ?? false,
-            },
-          }));
+          window.dispatchEvent(
+            new CustomEvent("playback-capture-level", {
+              detail: {
+                level: Math.max(0, ...Object.values(status.levels || {})),
+                streaming:
+                  status.activeSegments?.some((segment) => segment.streaming) ??
+                  false,
+              },
+            }),
+          );
         const segmentKeys = (value: typeof status | null) =>
-          (value?.activeSegments || []).map((segment) => `${segment.sourceId}:${segment.startMs}:${!!segment.streaming}`).join("|");
-        if (!previous || status.state !== previous.state || status.sessionId !== previous.sessionId ||
-            status.error !== previous.error || status.noSoundWarning !== previous.noSoundWarning ||
-            status.lastFinalizedAtMs !== previous.lastFinalizedAtMs ||
-            segmentKeys(status) !== segmentKeys(previous) ||
-            Math.floor((status.capturedThroughMs || 0) / 1000) !== Math.floor((previous.capturedThroughMs || 0) / 1000))
+          (value?.activeSegments || [])
+            .map(
+              (segment) =>
+                `${segment.sourceId}:${segment.startMs}:${!!segment.streaming}`,
+            )
+            .join("|");
+        if (
+          !previous ||
+          status.state !== previous.state ||
+          status.sessionId !== previous.sessionId ||
+          status.error !== previous.error ||
+          status.noSoundWarning !== previous.noSoundWarning ||
+          status.lastFinalizedAtMs !== previous.lastFinalizedAtMs ||
+          segmentKeys(status) !== segmentKeys(previous) ||
+          Math.floor((status.capturedThroughMs || 0) / 1000) !==
+            Math.floor((previous.capturedThroughMs || 0) / 1000)
+        )
           setCapture(status);
-        if (status.sessionId && status.lastFinalizedAtMs &&
-            status.lastFinalizedAtMs > (previous?.lastFinalizedAtMs || 0))
+        if (
+          status.sessionId &&
+          status.lastFinalizedAtMs &&
+          status.lastFinalizedAtMs > (previous?.lastFinalizedAtMs || 0)
+        )
           await refreshSessionSnapshot(status.sessionId);
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : String(e));
-      } finally { inFlight = false; }
+      } finally {
+        inFlight = false;
+      }
     };
-    const timer = setInterval(() => { void poll(); }, 250);
-    return () => { active = false; clearInterval(timer); };
+    const timer = setInterval(() => {
+      void poll();
+    }, 250);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
   }, []);
   async function action(name: string, work: () => Promise<void>) {
     setBusy(name);
@@ -160,26 +197,39 @@ export function usePlaybackController() {
       setBusy("");
     }
   }
-  function jump(evidence: Evidence) {
-    if (evidence.url) {
-      window.open(evidence.url, "_blank", "noopener,noreferrer");
+  useEffect(() => {
+    if (!sourceToReveal) return;
+    if (sourceToReveal.sessionId !== session?.id) {
+      setSourceToReveal(null);
       return;
     }
-    setView("transcript");
+    if (view !== "transcript" || transcriptView !== "transcript") return;
+    const { evidence } = sourceToReveal;
     if (evidence.kind === "material") {
       document
         .querySelector<HTMLDetailsElement>("#session-materials")
         ?.setAttribute("open", "");
     }
-    setTimeout(
-      () => {
-        const target = document.getElementById(evidence.id || "");
-        target?.closest<HTMLDetailsElement>(".timeline-day")?.setAttribute("open", "");
-        target?.closest<HTMLDetailsElement>(".timeline-hour")?.setAttribute("open", "");
-        target?.scrollIntoView({ behavior: "smooth", block: "center" });
-      },
-      30,
-    );
+    const target = document.getElementById(evidence.id || "");
+    target
+      ?.closest<HTMLDetailsElement>(".timeline-day")
+      ?.setAttribute("open", "");
+    target
+      ?.closest<HTMLDetailsElement>(".timeline-hour")
+      ?.setAttribute("open", "");
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setSourceToReveal(null);
+  }, [sourceToReveal, session?.id, view, transcriptView]);
+
+  function jump(evidence: Evidence) {
+    if (evidence.url) {
+      window.open(evidence.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!session) return;
+    setView("transcript");
+    setTranscriptView("transcript");
+    setSourceToReveal({ sessionId: session.id, evidence });
   }
   function create(groupId: string | null = null) {
     setTextDialogError("");
@@ -265,6 +315,21 @@ export function usePlaybackController() {
       }
     });
   }
+  async function retryTranslations() {
+    if (!session) return;
+    await action("translation", async () => {
+      await api(`/sessions/${session.id}/translation/retry`, "POST");
+      await refresh(session.id);
+    });
+  }
+  async function reviewTerms() {
+    if (!session) return;
+    await action("terms", async () => {
+      await api(`/sessions/${session.id}/terms/review`, "POST");
+      await refresh(session.id);
+      setSettingsOpen(false);
+    });
+  }
   function captureSelection() {
     const selected = window.getSelection();
     const text = selected?.toString().trim();
@@ -310,7 +375,14 @@ export function usePlaybackController() {
       const status = await api(
         `/capture/${command}`,
         "POST",
-        command === "start" ? { sessionId: session!.id } : undefined,
+        command === "start"
+          ? {
+              sessionId: session!.id,
+              sourceMode: health?.recordingSourceSelection
+                ? recordingMode
+                : "both",
+            }
+          : undefined,
         CaptureStatusSchema,
       );
       setCapture(status);
@@ -400,6 +472,10 @@ export function usePlaybackController() {
     setNavOpen,
     view,
     setView,
+    transcriptView,
+    setTranscriptView,
+    recordingMode,
+    setRecordingMode,
     noteMode,
     setNoteMode,
     chatOpen,
@@ -436,6 +512,8 @@ export function usePlaybackController() {
     ask,
     retryAsr,
     setTranslation,
+    retryTranslations,
+    reviewTerms,
     captureSelection,
     askTerm,
     record,

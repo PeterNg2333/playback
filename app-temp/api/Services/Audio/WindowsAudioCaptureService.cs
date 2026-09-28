@@ -10,7 +10,8 @@ namespace Playback.Api.Services.Audio;
 public sealed record ActiveCaptureSegment(string SourceId, long StartMs, long EndMs, DateTime RecordedAt, bool Streaming);
 
 public sealed record CaptureStatus(string State, string? SessionId, Dictionary<string, long> Bytes, bool AutoAsr, bool NoSoundWarning, string? Error,
-    Dictionary<string, int> Levels, long CapturedThroughMs, long LastFinalizedAtMs, ActiveCaptureSegment[] ActiveSegments);
+    Dictionary<string, int> Levels, long CapturedThroughMs, long LastFinalizedAtMs, ActiveCaptureSegment[] ActiveSegments,
+    string? SourceMode = null);
 
 public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger) : IAsyncDisposable
 {
@@ -36,13 +37,14 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             recording?.LastFinalizeAtMs ?? 0,
             recording is { Paused: false }
                 ? sources.Select(source => source.ActiveSegment(capturedThroughMs)).OfType<ActiveCaptureSegment>().ToArray()
-                : []);
+                : [], recording?.SourceMode);
     }
 
-    public async Task<CaptureStatus> Start(string sessionId)
+    public async Task<CaptureStatus> Start(string sessionId, string sourceMode = "both")
     {
         if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Local capture currently requires Windows");
         if (!Regex.IsMatch(sessionId, "^[a-f0-9]{32}$")) throw new InvalidOperationException("Invalid session ID");
+        _ = CaptureSourceModes.Sources(sourceMode);
         await transition.WaitAsync();
         try
         {
@@ -52,7 +54,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             var session = await store.Session(sessionId) ?? throw new InvalidOperationException("Session not found");
             var offset = session.Chunks.Select(chunk => chunk.EndMs)
                 .Concat(Pending(sessionId).Select(chunk => chunk.EndMs)).DefaultIfEmpty().Max();
-            var recording = new Recording(sessionId, offset);
+            var recording = new Recording(sessionId, offset, sourceMode);
 
             try
             {
@@ -74,14 +76,21 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
     [SupportedOSPlatform("windows")]
     async Task StartSources(Recording recording)
     {
-        var microphoneError = await TryStartSource(recording, "microphone", new WasapiRecorderBuilder());
-        var systemError = await TryStartSource(recording, "system", new WasapiRecorderBuilder().WithLoopbackCapture());
+        var failures = new List<string>();
+        foreach (var name in CaptureSourceModes.Sources(recording.SourceMode))
+        {
+            var builder = name == "system"
+                ? new WasapiRecorderBuilder().WithLoopbackCapture()
+                : new WasapiRecorderBuilder();
+            if (await TryStartSource(recording, name, builder) is { } error)
+                failures.Add($"{(name == "system" ? "System audio" : "Microphone")}: {error}");
+        }
         int sourceCount;
         lock (recording.Sources) sourceCount = recording.Sources.Count;
         if (sourceCount == 0)
             throw new InvalidOperationException(
-                $"No audio source could start. Microphone: {microphoneError}; system audio: {systemError}");
-        recording.Error = null;
+                $"No audio source could start. {string.Join("; ", failures)}");
+        recording.Error = failures.Count > 0 ? string.Join("; ", failures) : null;
     }
 
     [SupportedOSPlatform("windows")]
@@ -273,9 +282,10 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
 
     sealed record PendingChunk(string SessionId, string SourceId, long Sequence, long StartMs, long EndMs, string Path);
 
-    sealed class Recording(string sessionId, long offsetMs)
+    sealed class Recording(string sessionId, long offsetMs, string sourceMode)
     {
         public string SessionId { get; } = sessionId;
+        public string SourceMode { get; } = sourceMode;
         public long OffsetMs { get; } = offsetMs;
         public long LastFinalizeAtMs { get; set; } = offsetMs;
         public bool AutoAsr => Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes";

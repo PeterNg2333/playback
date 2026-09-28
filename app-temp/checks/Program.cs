@@ -142,6 +142,15 @@ if (args is ["--jev-live"])
 static byte[] Json(string value) => Encoding.UTF8.GetBytes(value);
 static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
 
+Check(CaptureSourceModes.Sources("microphone").SequenceEqual(["microphone"]) &&
+      CaptureSourceModes.Sources("system").SequenceEqual(["system"]) &&
+      CaptureSourceModes.Sources("both").SequenceEqual(["microphone", "system"]),
+    "Recording must open only the selected audio sources");
+var invalidCaptureModeRejected = false;
+try { CaptureSourceModes.Sources("unknown"); }
+catch (InvalidOperationException) { invalidCaptureModeRejected = true; }
+Check(invalidCaptureModeRejected, "Unknown recording modes must fail before starting capture");
+
 Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"exact [unclear]\",\"text\":\"model revision\"}")).Text == "exact [unclear]", "ASR original must win over a processed text field");
 Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"\"}")).Text == "", "Silent audio must stay uncertain, not become invented text");
 Check(AsrProcessor.NetworkPermissionDenied(new HttpRequestException("Connection failed", new SocketException((int)SocketError.AccessDenied))),

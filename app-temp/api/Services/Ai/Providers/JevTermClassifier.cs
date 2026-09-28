@@ -8,8 +8,12 @@ namespace Playback.Api.Services.Ai.Providers;
 
 public sealed class JevTermClassifier
 {
+    const double MinimumExplainProbability = 0.75;
+    const double MinimumCategoryConfidence = 0.50;
+    public static string HighlightRule => FormattableString.Invariant(
+        $"Explain probability >= {MinimumExplainProbability:0%}; rank high or medium; category confidence >= {MinimumCategoryConfidence:0%}.");
     public static bool ShouldHighlight(JevRankResult result) =>
-        result.JevProbability >= 0.75 && result.JevConfidence >= 0.50 &&
+        result.JevProbability >= MinimumExplainProbability && result.JevConfidence >= MinimumCategoryConfidence &&
         (result.JevRank is "high" or "medium");
     readonly HttpClient http;
     readonly SemaphoreSlim rankGate = new(1, 1);

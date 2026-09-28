@@ -38,10 +38,26 @@ export const NoteEditSchema = z.object({
   transcriptIds: z.array(z.string()),
   materialIds: z.array(z.string()),
 });
+export const NoteEditLogSchema = z.object({
+  version: z.number(),
+  basedOnVersion: z.number().nullish(),
+  author: z.string(),
+  createdAt: z.string(),
+  inputTranscriptIds: z.array(z.string()),
+  inputMaterialIds: z.array(z.string()),
+  edits: z.array(NoteEditSchema),
+});
 export const TermInsightSchema = z.object({
   id: z.string(),
   term: z.string(),
   highlight: z.boolean(),
+  jevProbability: z.number().optional(),
+  jevRank: z.string().optional(),
+  jevConfidence: z.number().optional(),
+  jevModel: z.string().nullish(),
+  jevCached: z.boolean().nullish(),
+  decisionRule: z.string().nullish(),
+  rankedAt: z.string().optional(),
   transcriptIds: z.array(z.string()),
   materialIds: z.array(z.string()),
   explanation: z.string().nullish(),
@@ -113,10 +129,13 @@ export const HealthSchema = z.object({
   automaticAsr: z.boolean().optional(),
   asrPaused: z.boolean().optional(),
   sessionAudioMix: z.boolean().optional(),
+  recordingSourceSelection: z.boolean().optional(),
 });
+export const RecordingModeSchema = z.enum(["microphone", "system", "both"]);
 export const CaptureStatusSchema = z.object({
   state: z.enum(["idle", "recording", "paused"]),
   sessionId: z.string().nullish(),
+  sourceMode: RecordingModeSchema.nullish(),
   bytes: z.record(z.string(), z.number()),
   autoAsr: z.boolean().optional(),
   noSoundWarning: z.boolean().optional(),
@@ -124,13 +143,17 @@ export const CaptureStatusSchema = z.object({
   levels: z.record(z.string(), z.number()).optional(),
   capturedThroughMs: z.number().optional(),
   lastFinalizedAtMs: z.number().optional(),
-  activeSegments: z.array(z.object({
-    sourceId: z.string(),
-    startMs: z.number(),
-    endMs: z.number(),
-    recordedAt: z.string(),
-    streaming: z.boolean().optional(),
-  })).optional(),
+  activeSegments: z
+    .array(
+      z.object({
+        sourceId: z.string(),
+        startMs: z.number(),
+        endMs: z.number(),
+        recordedAt: z.string(),
+        streaming: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export type Transcript = z.infer<typeof TranscriptSchema>;
@@ -145,3 +168,5 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 export type Answer = z.infer<typeof AnswerSchema>;
 export type Health = z.infer<typeof HealthSchema>;
 export type CaptureStatus = z.infer<typeof CaptureStatusSchema>;
+export type RecordingMode = z.infer<typeof RecordingModeSchema>;
+export type NoteEditLog = z.infer<typeof NoteEditLogSchema>;

@@ -23,6 +23,23 @@ can be moved by dragging to a group or back to Sessions; each session also has
 a keyboard-accessible move menu. Deleting a group keeps its sessions and moves
 them to Sessions through `DELETE /api/groups/{id}`.
 
+`TranscriptPanel.tsx` switches between Transcript and a read-only Activity tab.
+`ActivityContent.tsx` owns loading saved edits from `/notes/edits`.
+`NoteEditHistory.tsx` and `TermDecisionTrace.tsx` render the two histories;
+`SourceLinks.tsx` supplies their shared source links. Loading, loaded, and failed
+states carry the session ID, so a delayed response cannot replace another
+session's history. Source navigation runs after React renders the Transcript view.
+`TranscriptSettings.tsx` renders settings; API operations remain in `handlers.ts`.
+`PlaybackFooter.tsx` keeps the player in two rows. `PlaybackModeMenu.tsx` owns
+the scope/source menu and its outside-click and Escape behavior.
+`PlaybackHeader.tsx` chooses the recording source independently, using the API's
+`recordingSourceSelection` capability to avoid offering unsupported modes.
+
+`styles/` separates shared defaults, workspace/navigation layout, notes,
+transcript, recording/player controls, activity, and overlays. Responsive rules
+sit after the base rules in each file. `app.tsx` imports them in that order;
+feature styles can override shared controls without a separate override sheet.
+
 ## .NET API
 
 `api/Playback.Api.csproj` is the root of a single .NET web project. The .NET 10
@@ -50,6 +67,8 @@ project paths and study commands.
   schedules and retries saved chunks; `AsrProcessor` transcribes one chunk
   through `SenseVoiceClient`. `AudioSilence` and `AudioActivity` inspect WAV
   data without sending it to an external provider.
+  `CaptureSourceModes` allowlists microphone, system, and both; the capture service
+  retains the selected mode through pause/resume and opens only those devices.
 - `Terms/TermCandidateExtractor.cs`: deterministic regex extraction from
   transcripts and materials. It does not call AI; Jev ranking is separate.
 - `Db/`: MongoDB models and `PlaybackStore`.

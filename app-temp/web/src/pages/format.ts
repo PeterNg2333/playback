@@ -1,5 +1,9 @@
 import type { CaptureStatus, Chunk, Session, Transcript } from "../types/api";
 
+export function formatDateTime(value?: string) {
+  return value ? new Date(value).toLocaleString() : "Time not recorded";
+}
+
 export const time = (ms: number) => {
   const seconds = Math.floor(ms / 1000);
   const clock = `${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -37,13 +41,32 @@ export const chunkStatus = (status: string) =>
     }) as Record<string, string>
   )[status] || status;
 
+// Show the most actionable ASR state when a session has several pending parts.
+export function asrSummary(chunks: Chunk[], paused: boolean) {
+  if (paused) return "ASR paused · audio saved locally";
+  const statuses = new Set(chunks.map((chunk) => chunk.status));
+  if (statuses.has("awaiting-consent")) return "ASR waiting · restart API";
+  if (statuses.has("asr-manual")) return "ASR stopped · manual retry available";
+  if (statuses.has("asr-error")) return "ASR failed · retrying";
+  if (statuses.has("transcribing")) return "Transcribing…";
+  if (statuses.has("pending-asr")) return "ASR queued";
+  return null;
+}
+
 export type TimelineEntry =
   | { kind: "audio"; chunks: Chunk[]; transcript?: Transcript; at: Date }
   | { kind: "transcript"; transcript: Transcript; at: Date }
   | { kind: "silence"; chunks: Chunk[]; at: Date }
-  | { kind: "live"; segment: NonNullable<CaptureStatus["activeSegments"]>[number]; at: Date };
+  | {
+      kind: "live";
+      segment: NonNullable<CaptureStatus["activeSegments"]>[number];
+      at: Date;
+    };
 
-export function transcriptDays(session: Session, activeSegments: NonNullable<CaptureStatus["activeSegments"]> = []) {
+export function transcriptDays(
+  session: Session,
+  activeSegments: NonNullable<CaptureStatus["activeSegments"]> = [],
+) {
   const days = new Map<string, Map<string, TimelineEntry[]>>();
   const start = new Date(session.createdAt).getTime();
   const dateAt = (recordedAt: string | null | undefined, startMs: number) =>
@@ -115,7 +138,10 @@ export function transcriptDays(session: Session, activeSegments: NonNullable<Cap
   for (const segment of activeSegments)
     entries.push({ kind: "live", segment, at: new Date(segment.recordedAt) });
   entries.sort((a, b) => a.at.getTime() - b.at.getTime());
-  const quietByHour = new Map<string, Extract<TimelineEntry, { kind: "silence" }>>();
+  const quietByHour = new Map<
+    string,
+    Extract<TimelineEntry, { kind: "silence" }>
+  >();
   for (const entry of entries) {
     const at = entry.at;
     const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;

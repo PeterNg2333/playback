@@ -8,7 +8,7 @@ export function SourceTag({ sourceId }: { sourceId: string }) {
   return (
     <span className="source-tag">
       <span className="source-avatar" data-source={sourceId} aria-hidden="true">
-        {sourceId === "microphone" ? "M" : sourceId === "system" ? "S" : sourceId.slice(0, 1).toUpperCase()}
+        {sourceLabel(sourceId).slice(0, 1).toUpperCase()}
       </span>
       <strong>{sourceLabel(sourceId)}</strong>
     </span>

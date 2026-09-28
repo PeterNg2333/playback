@@ -199,45 +199,45 @@ public sealed class PlaybackStore
         await gate.WaitAsync();
         try
         {
-        var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
-        var existing = await Collection<Note>("notes").Find(x => x.SessionId == id && x.InputHash == inputHash).FirstOrDefaultAsync();
-        if (existing is not null && previous?.Version == existing.Version)
-            return new { existing.Version, existing.Markdown, existing.Author };
-        if ((previous?.Version ?? 0) != basedOnVersion)
-            throw new InvalidOperationException("Note changed while AI was generating; retry with the latest version");
-        var times = transcripts.Select(x => x.RecordedAt ?? DateTime.MinValue).Where(x => x != DateTime.MinValue).ToArray();
-        var note = new Note
-        {
-            Id = $"{id}-{inputHash}",
-            SessionId = id,
-            Version = (previous?.Version ?? 0) + 1,
-            BasedOnVersion = previous?.Version,
-            Markdown = markdown,
-            Author = "agent",
-            ProcessedThroughMs = Math.Max(previous?.ProcessedThroughMs ?? 0, transcripts.Max(x => x.EndMs)),
-            CreatedAt = DateTime.UtcNow,
-            TranscriptIds = (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)).Distinct().ToList(),
-            MaterialIds = (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id)).Distinct().ToList(),
-            InputTranscriptIds = transcripts.Select(x => x.Id).ToList(),
-            InputMaterialIds = materials.Select(x => x.Id).ToList(),
-            Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
-                (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)),
-                (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id))),
-            InputHash = inputHash,
-            SourceFrom = times.Length > 0
-                ? new[] { previous?.SourceFrom ?? times.Min(), times.Min() }.Min()
-                : previous?.SourceFrom,
-            SourceThrough = times.Length > 0
-                ? new[] { previous?.SourceThrough ?? times.Max(), times.Max() }.Max()
-                : previous?.SourceThrough
-        };
-        try { await Collection<Note>("notes").InsertOneAsync(note); }
-        catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-        {
-            var saved = await Collection<Note>("notes").Find(x => x.Id == note.Id).FirstAsync();
-            return new { saved.Version, saved.Markdown, saved.Author };
-        }
-        return new { note.Version, note.Markdown, note.Author };
+            var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
+            var existing = await Collection<Note>("notes").Find(x => x.SessionId == id && x.InputHash == inputHash).FirstOrDefaultAsync();
+            if (existing is not null && previous?.Version == existing.Version)
+                return new { existing.Version, existing.Markdown, existing.Author };
+            if ((previous?.Version ?? 0) != basedOnVersion)
+                throw new InvalidOperationException("Note changed while AI was generating; retry with the latest version");
+            var times = transcripts.Select(x => x.RecordedAt ?? DateTime.MinValue).Where(x => x != DateTime.MinValue).ToArray();
+            var note = new Note
+            {
+                Id = $"{id}-{inputHash}",
+                SessionId = id,
+                Version = (previous?.Version ?? 0) + 1,
+                BasedOnVersion = previous?.Version,
+                Markdown = markdown,
+                Author = "agent",
+                ProcessedThroughMs = Math.Max(previous?.ProcessedThroughMs ?? 0, transcripts.Max(x => x.EndMs)),
+                CreatedAt = DateTime.UtcNow,
+                TranscriptIds = (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)).Distinct().ToList(),
+                MaterialIds = (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id)).Distinct().ToList(),
+                InputTranscriptIds = transcripts.Select(x => x.Id).ToList(),
+                InputMaterialIds = materials.Select(x => x.Id).ToList(),
+                Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
+                    (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)),
+                    (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id))),
+                InputHash = inputHash,
+                SourceFrom = times.Length > 0
+                    ? new[] { previous?.SourceFrom ?? times.Min(), times.Min() }.Min()
+                    : previous?.SourceFrom,
+                SourceThrough = times.Length > 0
+                    ? new[] { previous?.SourceThrough ?? times.Max(), times.Max() }.Max()
+                    : previous?.SourceThrough
+            };
+            try { await Collection<Note>("notes").InsertOneAsync(note); }
+            catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
+            {
+                var saved = await Collection<Note>("notes").Find(x => x.Id == note.Id).FirstAsync();
+                return new { saved.Version, saved.Markdown, saved.Author };
+            }
+            return new { note.Version, note.Markdown, note.Author };
         }
         finally { gate.Release(); }
     }
@@ -335,30 +335,30 @@ public sealed class PlaybackStore
         await gate.WaitAsync();
         try
         {
-        if (await Collection<SessionRecord>("sessions").CountDocumentsAsync(x => x.Id == id) == 0)
-            throw new InvalidOperationException("Session not found");
-        var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
-        var userHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"user\n{previous?.Version ?? 0}\n{markdown}"))).ToLowerInvariant();
-        var note = new Note
-        {
-            Id = Guid.NewGuid().ToString("N"),
-            SessionId = id,
-            Version = (previous?.Version ?? 0) + 1,
-            BasedOnVersion = previous?.Version,
-            InputHash = userHash,
-            Markdown = markdown,
-            Author = author,
-            ProcessedThroughMs = Math.Max(processedThroughMs, previous?.ProcessedThroughMs ?? 0),
-            CreatedAt = DateTime.UtcNow,
-            TranscriptIds = previous?.TranscriptIds.ToList() ?? [],
-            MaterialIds = previous?.MaterialIds.ToList() ?? [],
-            Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
-                previous?.TranscriptIds ?? [], previous?.MaterialIds ?? []),
-            SourceFrom = previous?.SourceFrom,
-            SourceThrough = previous?.SourceThrough
-        };
-        await Collection<Note>("notes").InsertOneAsync(note);
-        return new { note.Version, note.Markdown, note.Author };
+            if (await Collection<SessionRecord>("sessions").CountDocumentsAsync(x => x.Id == id) == 0)
+                throw new InvalidOperationException("Session not found");
+            var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
+            var userHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"user\n{previous?.Version ?? 0}\n{markdown}"))).ToLowerInvariant();
+            var note = new Note
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                SessionId = id,
+                Version = (previous?.Version ?? 0) + 1,
+                BasedOnVersion = previous?.Version,
+                InputHash = userHash,
+                Markdown = markdown,
+                Author = author,
+                ProcessedThroughMs = Math.Max(processedThroughMs, previous?.ProcessedThroughMs ?? 0),
+                CreatedAt = DateTime.UtcNow,
+                TranscriptIds = previous?.TranscriptIds.ToList() ?? [],
+                MaterialIds = previous?.MaterialIds.ToList() ?? [],
+                Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
+                    previous?.TranscriptIds ?? [], previous?.MaterialIds ?? []),
+                SourceFrom = previous?.SourceFrom,
+                SourceThrough = previous?.SourceThrough
+            };
+            await Collection<Note>("notes").InsertOneAsync(note);
+            return new { note.Version, note.Markdown, note.Author };
         }
         finally { gate.Release(); }
     }
@@ -385,6 +385,9 @@ public sealed class PlaybackStore
             JevProbability = rank.JevProbability,
             JevRank = rank.JevRank,
             JevConfidence = rank.JevConfidence,
+            JevModel = rank.Model,
+            JevCached = rank.Cached,
+            DecisionRule = JevTermClassifier.HighlightRule,
             RankedAt = DateTime.UtcNow,
             TranscriptIds = candidate.TranscriptIds,
             MaterialIds = candidate.MaterialIds

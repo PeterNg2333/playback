@@ -5,6 +5,7 @@ import type {
   CaptureStatus,
   Group,
   Health,
+  RecordingMode,
   Session,
   SessionSummary,
 } from "../types/api";
@@ -26,6 +27,8 @@ type PlaybackState = {
   settingsOpen: boolean;
   navOpen: boolean;
   view: View;
+  transcriptView: "transcript" | "activity";
+  recordingMode: RecordingMode;
   noteMode: NoteMode;
   chatOpen: boolean;
   selection: Selection | null;
@@ -49,6 +52,8 @@ export const usePlaybackStore = create<PlaybackState>(() => ({
   settingsOpen: false,
   navOpen: false,
   view: "transcript",
+  transcriptView: "transcript",
+  recordingMode: "both",
   noteMode: "preview",
   chatOpen: false,
   selection: null,

@@ -1,148 +1,113 @@
+import type { KeyboardEvent } from "react";
 import type { PlaybackController } from "./handlers";
 import { Panel } from "../Component/Layout/Panel";
-import { Icon } from "../Component/Icon";
-import { api } from "./api";
 import { TranscriptContent } from "./TranscriptContent";
+import { TranscriptSettings } from "./TranscriptSettings";
+import { ActivityContent } from "./ActivityContent";
+import { asrSummary } from "./format";
 
 export function TranscriptPanel({ model }: { model: PlaybackController }) {
   const {
     session,
     health,
-    settingsOpen,
+    transcriptView,
+    setTranscriptView,
     setSettingsOpen,
-    busy,
-    setTranslation,
-    action,
-    refresh,
   } = model;
-  const chunks = session?.chunks || [];
-  const asrStatus = health?.asrPaused
-    ? "ASR paused · audio saved locally"
-    : chunks.some((chunk) => chunk.status === "awaiting-consent")
-      ? "ASR waiting · restart API"
-      : chunks.some((chunk) => chunk.status === "asr-manual")
-        ? "ASR stopped · manual retry available"
-        : chunks.some((chunk) => chunk.status === "asr-error")
-          ? "ASR failed · retrying"
-          : chunks.some((chunk) => chunk.status === "transcribing")
-            ? "Transcribing…"
-            : chunks.some((chunk) => chunk.status === "pending-asr")
-              ? "ASR queued"
-              : null;
+  const asrStatus = asrSummary(
+    session?.chunks ?? [],
+    health?.asrPaused ?? false,
+  );
+
+  function selectView(view: typeof transcriptView) {
+    setTranscriptView(view);
+    setSettingsOpen(false);
+  }
+
+  function moveTab(event: KeyboardEvent<HTMLDivElement>) {
+    let next: typeof transcriptView;
+    switch (event.key) {
+      case "Home":
+        next = "transcript";
+        break;
+      case "End":
+        next = "activity";
+        break;
+      case "ArrowLeft":
+      case "ArrowRight":
+        next = transcriptView === "transcript" ? "activity" : "transcript";
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    selectView(next);
+    event.currentTarget.querySelector<HTMLElement>(`#${next}-tab`)?.focus();
+  }
+
   return (
     <Panel className="transcript-panel">
       <div className="panel-head">
-        <h2>Transcript</h2>
+        <div
+          className="transcript-tabs"
+          role="tablist"
+          aria-label="Transcript views"
+          onKeyDown={moveTab}
+        >
+          <h2>
+            <button
+              type="button"
+              role="tab"
+              id="transcript-tab"
+              tabIndex={transcriptView === "transcript" ? 0 : -1}
+              aria-selected={transcriptView === "transcript"}
+              aria-controls="transcript-view"
+              onClick={() => selectView("transcript")}
+            >
+              Transcript
+            </button>
+          </h2>
+          <button
+            type="button"
+            role="tab"
+            id="activity-tab"
+            tabIndex={transcriptView === "activity" ? 0 : -1}
+            aria-selected={transcriptView === "activity"}
+            aria-controls="activity-view"
+            title="Read-only LLM edit log and Jev decisions"
+            onClick={() => selectView("activity")}
+          >
+            Activity
+          </button>
+        </div>
         <div className="panel-actions">
-          {asrStatus && (
+          {asrStatus && transcriptView === "transcript" && (
             <span className="processing-status" role="status">
               {asrStatus}
             </span>
           )}
-          <div className="settings-wrap">
-            <button
-              className="icon-control"
-              aria-label="Transcript settings"
-              aria-expanded={settingsOpen}
-              onClick={() => setSettingsOpen(!settingsOpen)}
-            >
-              <Icon name="settings" />
-            </button>
-            {settingsOpen && (
-              <div className="settings-menu">
-                <strong>Transcript settings</strong>
-                <label className="settings-check">
-                  <input
-                    type="checkbox"
-                    checked={!!session?.translationEnabled}
-                    disabled={!session || !!busy}
-                    onChange={(e) => setTranslation(e.target.checked)}
-                  />{" "}
-                  啟用翻譯
-                </label>
-                <label htmlFor="translation-language">目標語言</label>
-                <select
-                  id="translation-language"
-                  value={session?.translationLanguage || "zh-Hant"}
-                  disabled={!session || !!busy}
-                  onChange={(e) =>
-                    setTranslation(
-                      !!session?.translationEnabled,
-                      e.target.value,
-                    )
-                  }
-                >
-                  <option value="zh-Hant">繁體中文</option>
-                  <option value="en">English</option>
-                  <option value="ja">日本語</option>
-                  <option value="ko">한국어</option>
-                </select>
-                <small>
-                  Applies to this session. Existing entries are translated in
-                  the background; originals remain unchanged.
-                </small>
-                {session?.translationEnabled &&
-                  session.transcripts.some(
-                    (entry) => entry.translationStatus === "failed",
-                  ) && (
-                    <button
-                      className="text-control"
-                      disabled={!!busy}
-                      onClick={() =>
-                        action("translation", async () => {
-                          await api(
-                            `/sessions/${session!.id}/translation/retry`,
-                            "POST",
-                          );
-                          await refresh(session!.id);
-                        })
-                      }
-                    >
-                      Retry failed translations
-                    </button>
-                  )}
-                {!!session?.terms.length && (
-                  <div className="term-review-setting">
-                    <small>
-                      {session.termInsights?.filter((item) => item.highlight)
-                        .length || 0}{" "}
-                      key terms highlighted
-                    </small>
-                    <button
-                      className="text-control"
-                      disabled={
-                        !health?.jev ||
-                        !!busy ||
-                        session.terms.every((candidate) =>
-                          session.termInsights?.some(
-                            (item) =>
-                              item.term.toLocaleLowerCase() ===
-                              candidate.text.toLocaleLowerCase(),
-                          ),
-                        )
-                      }
-                      onClick={() =>
-                        action("terms", async () => {
-                          await api(
-                            `/sessions/${session.id}/terms/review`,
-                            "POST",
-                          );
-                          await refresh(session.id);
-                          setSettingsOpen(false);
-                        })
-                      }
-                    >
-                      Review next key terms
-                    </button>
-                    <small>Sends up to 3 candidate terms to Jev.</small>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <TranscriptSettings {...model} />
         </div>
       </div>
-      <TranscriptContent model={model} />
+      {transcriptView === "transcript" ? (
+        <div
+          className="transcript-view"
+          id="transcript-view"
+          role="tabpanel"
+          aria-labelledby="transcript-tab"
+        >
+          <TranscriptContent model={model} />
+        </div>
+      ) : (
+        <div
+          className="activity-view"
+          id="activity-view"
+          role="tabpanel"
+          aria-labelledby="activity-tab"
+        >
+          <ActivityContent session={session} onSource={model.jump} />
+        </div>
+      )}
     </Panel>
   );
 }
