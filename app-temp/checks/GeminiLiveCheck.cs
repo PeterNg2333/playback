@@ -58,8 +58,8 @@ internal static class GeminiLiveCheck
         var translationPrompt = TranslationContext.BuildBatch(syntheticEntries, syntheticEntries, "zh-Hant");
         var translated = await gemini.Generate("PlaybackSyntheticTranslator",
             TranslationAgent.Instructions("zh-Hant"),
-            translationPrompt, timeout.Token);
-        var translations = TranslationAgent.ParseBatch(translated, syntheticEntries.Select(x => x.Id).ToArray());
+            translationPrompt.Prompt, timeout.Token);
+        var translations = TranslationAgent.ParseBatch(translated, translationPrompt.TargetIds.Keys.ToArray());
         if (translations.Count != 2 || translations.Values.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Vertex translation did not map both synthetic transcript IDs");
 
@@ -73,7 +73,7 @@ internal static class GeminiLiveCheck
             "Answer only from the supplied synthetic lecture source. Cite its ID in square brackets.",
             qaContext.Prompt,
             timeout.Token);
-        var qaEvidence = ChatAgent.CitedEvidence(qaContext, answer);
+        var qaEvidence = ChatAgent.CitedEvidence(qaContext, qaContext.References!.Decode(answer));
         if (!answer.Contains("alias", StringComparison.OrdinalIgnoreCase) ||
             qaEvidence.Length != 1 || qaEvidence[0].Id != transcriptId ||
             qaEvidence[0].Label != "0-120000 ms")

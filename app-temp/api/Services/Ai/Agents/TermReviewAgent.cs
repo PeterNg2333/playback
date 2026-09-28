@@ -60,7 +60,7 @@ public sealed class TermReviewAgent : IAsyncDisposable
             if (insight.Highlight) await Explain(id, insight.Id, ct);
         }
         // A failed explanation can be retried without ranking or searching completed terms again.
-        foreach (var insight in session.TermInsights.Where(x => x.Highlight && x.AddedToNoteVersion is null).Take(limit))
+        foreach (var insight in session.TermInsights.Where(x => x.Highlight && x.Explanation is null && x.OutputLanguage == session.NoteLanguage).Take(limit))
             await Explain(id, insight.Id, ct);
         logger.LogInformation("Term review completed: {SessionId}, {Count} candidates", id, candidates.Count);
         return (await store.Session(id))!.TermInsights;
@@ -77,7 +77,7 @@ public sealed class TermReviewAgent : IAsyncDisposable
                 ?? throw new InvalidOperationException("Term insight not found");
             if (!insight.Highlight) throw new InvalidOperationException("This term was not selected for explanation");
             var call = await activity.Begin(sessionId, "Term explanation: " + insight.Term, "vertex / Google Search",
-                "gemini-3.5-flash-lite", insight.TranscriptIds.Concat(insight.MaterialIds));
+                gemini.Model, insight.TranscriptIds.Concat(insight.MaterialIds));
             await activity.Start(call);
             try
             {
@@ -88,8 +88,7 @@ public sealed class TermReviewAgent : IAsyncDisposable
                         $"Output language: {LanguageSettings.OutputDescription(insight.OutputLanguage)}", ct);
                     insight = await store.SaveTermExplanation(sessionId, insightId, explanation);
                 }
-                await store.AddSupplementToNote(sessionId, insightId);
-                await activity.End(call, cached ? "cache-hit" : "completed", $"{insight.Evidence.Count} sources; explanation added to notes");
+                await activity.End(call, cached ? "cache-hit" : "completed", $"{insight.Evidence.Count} sources; saved hover explanation");
                 return (await store.TermInsight(sessionId, insightId))!;
             }
             catch (Exception ex) { await activity.Fail(call, ex); throw; }
@@ -108,6 +107,7 @@ public sealed class TermReviewAgent : IAsyncDisposable
     {
         if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") return;
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        var seeded = false;
         try
         {
             do
@@ -116,6 +116,10 @@ public sealed class TermReviewAgent : IAsyncDisposable
                 {
                     try
                     {
+                        if (!seeded) {
+                            foreach (var id in await store.TermReviewSessionIds()) Queue(id);
+                            seeded = true;
+                        }
                         foreach (var item in pendingSessions.Where(x => x.Value <= DateTime.UtcNow).Take(1))
                         {
                             pendingSessions.TryRemove(item.Key, out _);
@@ -123,7 +127,8 @@ public sealed class TermReviewAgent : IAsyncDisposable
                                 await Review(item.Key, 3, stopping.Token);
                                 attempts.TryRemove(item.Key, out _);
                                 var view = await store.Session(item.Key);
-                                if (view is not null && Pending(view, 1).Count > 0) Queue(item.Key);
+                                if (view is not null && (Pending(view, 1).Count > 0 || view.TermInsights.Any(x =>
+                                    x.Highlight && x.Explanation is null && x.OutputLanguage == view.NoteLanguage))) Queue(item.Key);
                             }
                             catch {
                                 if (attempts.AddOrUpdate(item.Key, 1, (_, value) => value + 1) < 3)

@@ -61,18 +61,19 @@ public sealed class TranslationAgent : IAsyncDisposable
     {
         var session = await store.Session(targets[0].SessionId);
         if (session is null || !session.TranslationEnabled) return;
-        var call = await activity.Begin(session.Id, "Translation", "vertex", "gemini-3.5-flash-lite", targets.Select(x => x.Id));
+        var call = await activity.Begin(session.Id, "Translation", "vertex", gemini.Model, targets.Select(x => x.Id));
         await activity.Start(call);
         try
         {
-            var prompt = TranslationContext.BuildBatch(session.Transcripts, targets, session.TranslationLanguage);
+            var request = TranslationContext.BuildBatch(session.Transcripts, targets, session.TranslationLanguage);
             logger.LogInformation("Translation request input: {TranscriptCount} transcripts, {InputBytes} UTF-8 bytes",
-                targets.Length, Encoding.UTF8.GetByteCount(prompt));
+                targets.Length, Encoding.UTF8.GetByteCount(request.Prompt));
             var translated = await gemini.Generate("PlaybackTranslator",
                 Instructions(session.TranslationLanguage),
-                prompt,
-                stopping.Token, "gemini-3.5-flash-lite");
-            var values = ParseBatch(translated, targets.Select(x => x.Id).ToArray());
+                request.Prompt,
+                stopping.Token);
+            var values = ParseBatch(translated, request.TargetIds.Keys.ToArray())
+                .ToDictionary(x => request.TargetIds[x.Key], x => x.Value, StringComparer.Ordinal);
             foreach (var target in targets)
                 await store.SetTranslationResult(target, session.TranslationLanguage, values[target.Id], null);
             await activity.End(call, "completed", $"{targets.Length} translations saved");

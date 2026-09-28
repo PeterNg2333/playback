@@ -13,7 +13,7 @@ using Microsoft.Extensions.Primitives;
 
 namespace Playback.Api.Db;
 
-public sealed class PlaybackStore
+public sealed partial class PlaybackStore
 {
     public event Action<string>? SourceChanged;
     public static bool NeedsReview(string original) => Regex.IsMatch(original, @"\[(?:unclear|inaudible|unintelligible)\]", RegexOptions.IgnoreCase);
@@ -293,6 +293,8 @@ public sealed class PlaybackStore
         await Collection<Material>("materials").DeleteManyAsync(x => x.SessionId == id);
         await Collection<CitationRecord>("citations").DeleteManyAsync(x => x.SessionId == id);
         await Collection<ChunkRecord>("chunks").DeleteManyAsync(x => x.SessionId == id);
+        await Collection<ConversationTurn>("conversation_turns").DeleteManyAsync(x => x.SessionId == id);
+        await Collection<ConversationRecord>("conversations").DeleteManyAsync(x => x.SessionId == id);
         await Collection<SessionRecord>("sessions").DeleteOneAsync(x => x.Id == id);
     }
     public async Task DeleteTestGroup(string id)
@@ -456,37 +458,8 @@ public sealed class PlaybackStore
             ?? await TermInsight(sessionId, insightId)
             ?? throw new InvalidOperationException("Term insight not found");
     }
-    public async Task AddSupplementToNote(string sessionId, string insightId)
-    {
-        var gate = noteGates.GetOrAdd(sessionId, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync();
-        try
-        {
-            var insight = await TermInsight(sessionId, insightId) ?? throw new InvalidOperationException("Term not found");
-            if (insight.AddedToNoteVersion is not null || insight.Explanation is null || insight.Evidence.Count == 0) return;
-            if ((await SessionSettings(sessionId)).NoteLanguage != insight.OutputLanguage)
-                throw new InvalidOperationException("Explanation language changed; the old result was retained but not added to notes");
-            var previous = await Collection<Note>("notes").Find(x => x.SessionId == sessionId).SortByDescending(x => x.Version).FirstOrDefaultAsync();
-            var saved = await Collection<Note>("notes").Find(x => x.Id == sessionId + "-supplement-" + insightId).FirstOrDefaultAsync();
-            if (saved is null)
-            {
-                var summary = Regex.Split(insight.Explanation.Trim(), @"(?<=[。.!?])\s+|\r?\n").FirstOrDefault(x => x.Length > 15) ?? insight.Explanation;
-                if (summary.Length > 500) summary = summary[..500] + "…";
-                var markdown = (previous?.Markdown ?? "").TrimEnd() + $"\n\n**{insight.Term}** — AI／網絡補充：{summary} [ref:{insight.Id}]\n";
-                saved = new Note { Id = sessionId + "-supplement-" + insightId, SessionId = sessionId,
-                    Version = (previous?.Version ?? 0) + 1, BasedOnVersion = previous?.Version, Author = "AI/web supplement",
-                    Markdown = markdown, OutputLanguage = insight.OutputLanguage, CreatedAt = DateTime.UtcNow,
-                    TranscriptIds = previous?.TranscriptIds.ToList() ?? [], MaterialIds = previous?.MaterialIds.ToList() ?? [],
-                    ProcessedThroughMs = previous?.ProcessedThroughMs ?? 0,
-                    InputTranscriptIds = insight.TranscriptIds, InputMaterialIds = insight.MaterialIds,
-                    Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown, previous?.TranscriptIds ?? [], previous?.MaterialIds ?? []) };
-                await Collection<Note>("notes").InsertOneAsync(saved);
-            }
-            await Collection<TermInsight>("term_insights").UpdateOneAsync(x => x.Id == insightId && x.SessionId == sessionId,
-                Builders<TermInsight>.Update.Set(x => x.AddedToNoteVersion, saved.Version));
-        }
-        finally { gate.Release(); }
-    }
+    public Task<List<string>> TermReviewSessionIds() => Collection<SessionRecord>("sessions")
+        .Find(FilterDefinition<SessionRecord>.Empty).SortByDescending(x => x.CreatedAt).Limit(128).Project(x => x.Id).ToListAsync();
     public async Task<ChunkRecord> SaveLocalChunk(
         string sessionId, string sourceId, long sequence, long startMs, long endMs,
         string path, CancellationToken ct)

@@ -2,12 +2,17 @@ using Playback.Api.Services.Ai.Agents;
 using Playback.Api.Services.Ai;
 using System.Text.Json;
 using System.Threading.Channels;
+using Playback.Api.Db;
 namespace Playback.Api.Endpoints;
 
 public static class QuestionsEndpoints
 {
     public static void MapQuestions(this WebApplication app)
     {
+        app.MapGet("/api/sessions/{id}/conversations", async (string id, PlaybackStore store) => await store.Conversations(id));
+        app.MapPost("/api/sessions/{id}/conversations", async (string id, PlaybackStore store) => await store.CreateConversation(id));
+        app.MapGet("/api/sessions/{id}/conversations/{conversationId}", async (string id, string conversationId, PlaybackStore store) =>
+            await store.Conversation(id, conversationId));
         app.MapPost("/api/sessions/{id}/ask",
             async (string id, QuestionInput input, ChatAgent service, CancellationToken ct) =>
                 Results.Ok(await service.Ask(id, input, ct)));

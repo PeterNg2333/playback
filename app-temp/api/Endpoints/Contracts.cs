@@ -14,7 +14,8 @@ public record QuestionInput(
     string? TranscriptId = null,
     string? SelectedText = null,
     string? MaterialId = null,
-    string? RequestId = null);
+    string? RequestId = null,
+    string? ConversationId = null);
 public record ExplainInput(string Term);
 public record TermInput(string Term, string Context = "");
 public record SyntheticTranscriptInput(string ChunkId, string Text);

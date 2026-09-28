@@ -11,7 +11,7 @@ import type {
 } from "../types/api";
 
 export type View = "notes" | "transcript";
-export type NoteMode = "preview" | "markdown";
+export type NoteMode = "preview" | "markdown" | "draft";
 export type Selection = {
   transcriptId: string;
   text: string;

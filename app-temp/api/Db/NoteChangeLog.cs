@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Playback.Api.Services.Ai;
 
 namespace Playback.Api.Db;
 
@@ -11,11 +12,8 @@ public sealed class NoteEdit
     public List<string> MaterialIds { get; set; } = [];
 }
 
-public static partial class NoteChangeLog
+public static class NoteChangeLog
 {
-    [GeneratedRegex(@"\[([A-Za-z0-9_-]{1,100})\]")]
-    private static partial Regex CitationPattern();
-
     public static List<NoteEdit> Build(string before, string after,
         IEnumerable<string> transcriptIds, IEnumerable<string> materialIds)
     {
@@ -27,7 +25,10 @@ public static partial class NoteChangeLog
         var edits = new List<NoteEdit>();
         NoteEdit Edit(string kind, int line, string text)
         {
-            var citations = CitationPattern().Matches(text).Select(x => x.Groups[1].Value).Distinct().ToList();
+            var citations = SourceReferences.CitationBodies(text)
+                .Where(x => !x.StartsWith("ref:", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(x => Regex.Matches(x, @"[A-Za-z0-9_-]+").Select(token => token.Value))
+                .Distinct().ToList();
             return new NoteEdit
             {
                 Kind = kind,

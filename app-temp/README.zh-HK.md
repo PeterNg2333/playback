@@ -2,6 +2,8 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
+2026-09-28 筆記／聊天更新：短引用 `01`、合併音訊段落、Live draft 分頁、紫色 pen 進度、自動 Jev 詞語 hover 解釋，以及按講堂保存聊天。Routine Gemini 預設改為 3.1 Flash-Lite，自動筆記至少相隔 90 秒並限制輸出。詳見 [本輪行為與驗證](docs/notes-chat-update.zh-HK.md)；以下較早的 3.5 live 結果不能代替本輪新模型驗證。重啟 API／重載網頁後使用新功能；現有筆記按 Revise with AI 才套用新格式。另一個 session 可使用 [Docker Compose 交接 prompt](../docs/docker-compose-handoff.md)。
+
 2026-09-28 修復與驗收：最新行為以 [AI 實際流程](docs/ai-flow.zh-HK.md) 為準；真實 provider／實機測試、離線回歸、失敗及限制保存在本機 [validation 索引](data/validation/index.md)。下方 2026-09-26／27 的資料是歷史結果，不能代替本輪驗收。沒有原生串流 ASR 或三小時實機穩定性承諾。
 
 每個 session 的 Transcript settings 現有三組獨立語言設定：ASR（Auto／混合、廣東話、普通話、英文）；Notes output（TC／SC／EN）；Translation target（廣東話繁體、TC、SC、EN，及原有日／韓語）。ASR 設定用於之後的辨識請求，已完成逐字稿不會重新上傳；廣東話模式以本機 Windows 字形轉換作繁體顯示，原始 ASR 文字保留。筆記設定用於下一次 AI revision，改語言後可按 Revise with AI；翻譯目標更改會重新排入翻譯佇列。設定保存到 session，重載後保留，不需清空資料庫。詳見 [ASR 語言設定](docs/asr-adapters.zh-HK.md#語言設定)。

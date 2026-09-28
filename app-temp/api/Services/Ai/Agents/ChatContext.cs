@@ -1,6 +1,7 @@
 using Playback.Api.Db;
 using Playback.Api.Endpoints;
 using System.Text.RegularExpressions;
+using Playback.Api.Services.Ai;
 
 namespace Playback.Api.Services.Ai.Agents;
 
@@ -9,7 +10,8 @@ public sealed record ChatContext(
     Transcript[] RelevantTranscripts,
     Material[] Materials,
     Transcript? FocusedTranscript,
-    Material? FocusedMaterial);
+    Material? FocusedMaterial,
+    SourceReferences? References = null);
 
 public static class ChatContextBuilder
 {
@@ -21,12 +23,13 @@ public static class ChatContextBuilder
         "said", "that", "their", "there", "these", "this", "what", "when", "where", "which", "with", "would",
         "was", "were", "the", "and", "for", "you", "your", "are", "but", "not", "how", "why"
     };
-    public static ChatContext Build(SessionView session, QuestionInput input)
+    public static ChatContext Build(SessionView session, QuestionInput input, string retrievalContext = "")
     {
-        var words = Word.Matches(HanRun.Replace(input.Question, " "))
+        var searchText = input.Question + " " + retrievalContext;
+        var words = Word.Matches(HanRun.Replace(searchText, " "))
             .Select(x => x.Value)
             .Where(x => x.Length > 2 && !StopWords.Contains(x));
-        var hanPairs = HanRun.Matches(input.Question)
+        var hanPairs = HanRun.Matches(searchText)
             .SelectMany(run => Enumerable.Range(0, Math.Max(0, run.Length - 1))
                 .Select(index => run.Value.Substring(index, 2)));
         var terms = words.Concat(hanPairs)
@@ -42,19 +45,23 @@ public static class ChatContextBuilder
               !focused.Original.Contains(input.SelectedText, StringComparison.Ordinal))))
             throw new InvalidOperationException("Selected text must come from the selected transcript");
 
-        var relevant = session.Transcripts
-            .Where(x => !string.IsNullOrWhiteSpace(x.SourceText))
+        var references = new SourceReferences(session);
+        var groups = references.Groups
             .Select(x => (
                 item: x,
-                score: terms.Count(term => x.SourceText.Contains(term, StringComparison.OrdinalIgnoreCase))
-                    + (x.Id == focused?.Id ? 100 : 0)))
+                score: terms.Count(term => references.GroupText(x).Contains(term, StringComparison.OrdinalIgnoreCase))
+                    + (focused is not null && x.TranscriptIds.Contains(focused.Id) ? 100 : 0)))
             .OrderByDescending(x => x.score)
             .ThenByDescending(x => x.item.StartMs)
-            .Take(8)
+            .Take(5)
             .Select(x => x.item)
             .ToArray();
-        var lecture = string.Join("\n", relevant.Select(x =>
-            $"Source [{x.Id}] ({x.StartMs}-{x.EndMs} ms): {SourceExcerpt(x.SourceText, terms, 1600)}"));
+        var selectedIds = groups.SelectMany(group => group.TranscriptIds).ToHashSet(StringComparer.Ordinal);
+        var relevant = session.Transcripts.Where(x => selectedIds.Contains(x.Id))
+            .OrderByDescending(x => terms.Count(term => x.SourceText.Contains(term, StringComparison.OrdinalIgnoreCase)) + (x.Id == focused?.Id ? 100 : 0))
+            .ThenByDescending(x => x.StartMs).ToArray();
+        var lecture = string.Join("\n", groups.OrderBy(x => x.Id, StringComparer.Ordinal).Select(group =>
+            $"Source [{group.Id}] ({group.StartMs}-{group.EndMs} ms): {SourceExcerpt(references.GroupText(group), terms, 1600)}"));
 
         var focusedMaterial = input.MaterialId is null
             ? null
@@ -65,15 +72,15 @@ public static class ChatContextBuilder
                 terms.Count(term => x.Text.Contains(term, StringComparison.OrdinalIgnoreCase)))
             .Take(5)
             .ToArray();
-        var material = string.Join("\n", materials.Select(x =>
+        var material = string.Join("\n", materials.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x =>
             $"[{x.Id}] {SourceExcerpt(x.Text, terms, 3000)}"));
         var selected = focused is null
             ? ""
             : $"Selected source [{focused.Id}] ({focused.StartMs}-{focused.EndMs} ms): " +
               $"{input.SelectedText ?? SourceExcerpt(focused.SourceText, terms, 1600)}\n";
-        var prompt = $"Selected transcript:\n{selected}Lecture:\n{lecture}\nMaterials:\n{material}\nQuestion: {input.Question}";
+        var prompt = references.Encode($"Materials:\n{material}\nLecture:\n{lecture}\nSelected transcript:\n{selected}\nQuestion: {input.Question}");
 
-        return new ChatContext(prompt, relevant, materials, focused, focusedMaterial);
+        return new ChatContext(prompt, relevant, materials, focused, focusedMaterial, references);
     }
 
     static string SourceExcerpt(string text, string[] terms, int limit)

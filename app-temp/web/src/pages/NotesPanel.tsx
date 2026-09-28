@@ -7,6 +7,8 @@ import { recordedRange } from "./format";
 import { TermExplanation } from "./TermExplanation";
 import { ActivityPopover } from "./ActivityPopover";
 import { useActivity } from "./useActivity";
+import { Icon } from "../Component/Icon";
+import { TermHighlight } from "./TermHighlight";
 
 export function NotesPanel({ model }: { model: PlaybackController }) {
   const {
@@ -23,6 +25,13 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
   } = model;
   const editorValue = useRef(markdown);
   const body = useRef<HTMLDivElement>(null);
+  const [topics, setTopics] = useState<{ title: string; level: number }[]>([]);
+  useLayoutEffect(() => {
+    const headings = body.current?.querySelectorAll<HTMLElement>(".note-content h1, .note-content h2, .note-content h3");
+    setTopics(noteMode === "preview" && headings
+      ? Array.from(headings, heading => ({ title: heading.textContent ?? "", level: Number(heading.tagName.slice(1)) }))
+      : []);
+  }, [markdown, noteMode, session?.id]);
   const scroll = useRef({ sessionId: session?.id, top: 0, follow: false, text: "", offset: 0 });
   const rememberScroll = () => {
     const element = body.current;
@@ -51,7 +60,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
         : previous.top;
     }
     rememberScroll();
-  }, [markdown, runningNote?.draft, session?.id, noteMode]);
+  }, [markdown, runningNote?.draft, session?.id, noteMode, topics]);
   const queued = session?.transcripts.some(entry => entry.noteStatus === "pending" || entry.noteStatus === "processing");
   const [referenceId, setReferenceId] = useState<string | null>(null);
   const reference = session?.termInsights?.find(
@@ -62,6 +71,12 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
   ) ?? 0;
   const waitingForSpeech = transcriptChars > 0 && transcriptChars < 40 && !session?.noteMarkdown;
   const failedNotes = session?.transcripts.filter((entry) => entry.noteStatus === "failed").length ?? 0;
+  const keyTerms = session?.termInsights?.filter(insight => insight.highlight &&
+    (!insight.outputLanguage || insight.outputLanguage === session.noteLanguage)) ?? [];
+  const latestNote = activity.items.find(item => item.task === "Note revision" && item.basedOnVersion === session?.noteVersion);
+  const draftNote = runningNote ?? latestNote;
+  const noteStatus = runningNote ? (runningNote.draft ? "Editing…" : "Analyzing…")
+    : busy === "generate" || queued ? "Queued…" : null;
   editorValue.current = markdown;
   return (
     <Panel className="notes-panel">
@@ -70,6 +85,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           <h2>Lecture notes</h2>
           <span>v{session?.noteVersion || 0}</span>
           <ActivityPopover key={session?.id} session={session} items={activity.items} error={activity.error} onSource={jump} />
+          {noteStatus && <span className="note-ai-status" role="status"><Icon name="pen" />{noteStatus}</span>}
         </div>
         <div className="panel-actions">
           <div className="segmented">
@@ -85,18 +101,47 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             >
               Edit
             </button>
+            <button aria-pressed={noteMode === "draft"} onClick={() => setNoteMode("draft")}>
+              Live draft{runningNote && <span className="draft-dot" aria-hidden="true" />}
+            </button>
           </div>
         </div>
       </div>
-      {runningNote ? <div className="note-status" role="status">AI is generating a revision…</div>
-        : queued && <div className="note-status" role="status">Confirmed text queued for notes</div>}
       <div className="notes-body" ref={body} onScroll={rememberScroll}>
         {noteMode === "preview" ? (
           markdown ? (
             <>
+              {topics.length > 1 && <details className="note-outline" open>
+                <summary>Topic tree · {topics.length}</summary>
+                <nav aria-label="Note topics">
+                  <ol>
+                    {topics.map((topic, index) => <li key={`${index}-${topic.title}`}
+                      style={{ marginLeft: (topic.level - Math.min(...topics.map(item => item.level))) * 14 }}>
+                      <button type="button" onClick={() => {
+                        const element = body.current;
+                        const heading = element?.querySelectorAll<HTMLElement>(".note-content h1, .note-content h2, .note-content h3")[index];
+                        if (element && heading) {
+                          element.scrollTop += heading.getBoundingClientRect().top - element.getBoundingClientRect().top - 12;
+                          heading.tabIndex = -1;
+                          heading.focus({ preventScroll: true });
+                        }
+                      }}>{topic.title}</button>
+                    </li>)}
+                  </ol>
+                </nav>
+              </details>}
+              <div className="note-content">
               <Markdown
                 value={markdown}
                 onReference={setReferenceId}
+                groups={session?.sourceGroups}
+                onPlaySources={ids => model.togglePlayback("note-passage-" + ids.join("-"), (session?.transcripts ?? []).filter(entry => ids.includes(entry.id)))}
+                terms={keyTerms.map(insight => ({ id: insight.id, term: insight.term }))}
+                renderTerm={(id, text) => {
+                  const insight = keyTerms.find(item => item.id === id);
+                  return insight && session ? <TermHighlight sessionId={session.id} insight={insight} text={text}
+                    onAsk={() => model.askTerm({ text: insight.term, transcriptIds: insight.transcriptIds, materialIds: insight.materialIds })} /> : text;
+                }}
                 sources={[
                   ...(session?.transcripts || []).map((entry) => ({
                     id: entry.id,
@@ -106,6 +151,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                 ]}
                 onSource={(id) => jump({ kind: session?.materials.some((entry) => entry.id === id) ? "material" : "lecture", id })}
               />
+              </div>
               {!!session?.currentNote && (
                 <>
                   <details className="note-sources">
@@ -198,6 +244,15 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
               Notes will appear after enough speech is transcribed, or when you write them.
             </p>
           )
+        ) : noteMode === "draft" ? (
+          <section className="note-draft" aria-label="Live note draft">
+            <p className="draft-label">Live draft · unverified citations · not saved</p>
+            {draftNote?.draft ? <Markdown value={draftNote.draft} groups={session?.sourceGroups} sources={[
+              ...(session?.transcripts ?? []).map(entry => ({ id: entry.id, label: recordedRange(entry.recordedAt, session?.createdAt, entry.startMs, entry.endMs).start })),
+              ...(session?.materials ?? []).map(entry => ({ id: entry.id, label: entry.name })),
+            ]} /> : <p className="empty">{runningNote ? "Analyzing confirmed sources. The draft will appear as it is written." : "No live revision is running. Saved notes are available in Preview."}</p>}
+            {draftNote?.status === "failed" && <p role="alert">This revision failed. The draft was not saved.</p>}
+          </section>
         ) : (
           <div className="editor-wrap">
             <label htmlFor="note-editor" className="sr-only">
@@ -215,10 +270,6 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             />
           </div>
         )}
-        {runningNote?.draft && noteMode === "preview" && <details className="note-draft" open>
-          <summary>Live draft · citations pending validation · not saved</summary>
-          <pre>{runningNote.draft}</pre>
-        </details>}
       </div>
       {waitingForSpeech ? (
         <p className="note-status" role="status">Waiting for more recognized speech before generating AI notes.</p>
@@ -269,6 +320,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           key={reference.id}
           sessionId={session.id}
           insight={reference}
+          onAsk={() => { model.askTerm({ text: reference.term, transcriptIds: reference.transcriptIds, materialIds: reference.materialIds }); setReferenceId(null); }}
           onClose={() => setReferenceId(null)}
         />
       )}

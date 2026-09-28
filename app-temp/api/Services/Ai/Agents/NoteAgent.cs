@@ -16,16 +16,27 @@ public sealed class NoteAgent : IAsyncDisposable
         Edit one coherent set of presentation or lecture notes in Markdown, organized by topic.
         Integrate new source content into the existing notes without losing user edits or repeating earlier summaries.
         Use the lecture's language and preserve uncertainty; do not turn fragmented or unclear speech into confident claims.
-        Choose the simplest format that explains each topic clearly. Use short prose by default.
-        Lists are optional for distinct points or ordered steps, trees only for a meaningful hierarchy,
-        and Mermaid diagrams (flowchart, sequence, state, or other suitable type) only when a real process or relationship needs a visual explanation.
+        Make the notes easy to scan: start with a short takeaway list, then use clear topic headings and concise bullets.
+        Prefer 3-5 takeaways and 2-4 bullets per topic. Keep each bullet under about 30 words; remove repeated summaries.
+        Each bullet should cover one idea in one or two short sentences. Split dense paragraphs into points;
+        keep prose for brief explanations, not long narrative summaries. Use numbered lists for ordered steps.
+        Explain key terms and ideas when first introduced using definitions or examples supported by the supplied sources.
+        If the lecture mentions a term without explaining it, say its definition is not established by these sources;
+        use a supplied AI/web supplement when available. Do not invent a textbook explanation and attribute it to the lecture.
+        For a meaningful hierarchy use nested bullets; for comparisons use a compact table.
+        When sources establish a process or relationship, include a concise Mermaid diagram to make that connection visible.
+        Use simple flowchart syntax with quoted node labels, short labels and no citation markers inside diagrams;
+        cite the supporting sources in a short caption immediately below the diagram.
         Code blocks are optional and only appropriate for code or technical syntax actually relevant to the lecture.
-        No list, tree, diagram, table, or code block is mandatory. Do not add them merely to satisfy a template,
-        decorate the notes, or repeat information already explained in prose. Never invent connections to create a graph.
-        Cite each important fact with a supplied transcript or material ID as [ID]. Keep times outside brackets.
-        Preserve supplied AI/web supplements and their [ref:ID] markers. Label them AI/web supplement, never as lecture claims.
-        Keep one concise supplement per term and one reference marker per supplement. Consolidate duplicate AI/web
-        supplements already in the base note; do not repeat an explanation in multiple sections. Details remain in the reference.
+        Do not invent connections to create a graph or repeat the same detail in prose, bullets and diagrams.
+        Cite each important fact with a supplied short source ID such as [01] or [M01]. Keep times outside brackets.
+        Related audio chunks are already grouped into passages. Put one grouped citation at the end of a bullet or short
+        paragraph, usually no more than two sources. Do not repeat citations after every clause or cite the same passage twice in one point.
+        Copy IDs exactly. Repair or remove unknown citation IDs leaked into the base note; never guess their replacements.
+        Key-term explanations are displayed separately on hover. Bold the term where it belongs in the lecture notes.
+        Do not append AI/web explanation paragraphs or a repeated glossary. Remove earlier automatically appended
+        paragraphs explicitly labelled AI/web supplement or AI／網絡補充 from the base note, preserving lecture facts and user edits.
+        Preserve any remaining valid [ref:ID] markers; never present external explanation text as a lecture claim.
         Use only provided explanation text for supplements; never invent explanation references or lecture source IDs.
         Output only the complete revised note, without a surrounding Markdown code fence or editing commentary.
         Input labels and base-version metadata are internal context: never reproduce BASE VERSION, MATERIALS, TRANSCRIPTS,
@@ -35,9 +46,21 @@ public sealed class NoteAgent : IAsyncDisposable
     public static void ValidateReferences(string markdown, IEnumerable<TermInsight> allowed)
     {
         var ids = allowed.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (Match reference in Regex.Matches(markdown, @"\[ref:([^\]\r\n]{1,100})\]", RegexOptions.IgnoreCase))
-            if (!ids.Contains(reference.Groups[1].Value))
+        foreach (var body in SourceReferences.CitationBodies(markdown).Where(x => x.StartsWith("ref:", StringComparison.OrdinalIgnoreCase)))
+            if (!ids.Contains(body[4..]))
                 throw new InvalidOperationException("AI note contains an unknown term reference");
+    }
+    public static void ValidateSourceReferences(string markdown, IEnumerable<string> allowed)
+    {
+        var ids = allowed.ToHashSet(StringComparer.Ordinal);
+        foreach (var body in SourceReferences.CitationBodies(markdown))
+        {
+            if (body.StartsWith("ref:", StringComparison.OrdinalIgnoreCase)) continue;
+            foreach (Match token in Regex.Matches(body, @"[A-Za-z0-9_-]+"))
+                if (!ids.Contains(token.Value) && Regex.IsMatch(token.Value,
+                    @"^(?:[a-f0-9]{32,}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})(?:[-_][a-z0-9_-]+)?$", RegexOptions.IgnoreCase))
+                    throw new InvalidOperationException("AI note contains an unknown source reference");
+        }
     }
     public static string InstructionsFor(string language)
     {
@@ -47,6 +70,8 @@ public sealed class NoteAgent : IAsyncDisposable
             "while preserving user-authored facts and edits. Keep source IDs, [ref:ID] markers, proper names, and code unchanged.";
     }
     readonly ConcurrentDictionary<string, SemaphoreSlim> gates = new();
+    readonly ConcurrentDictionary<string, DateTime> nextAutomatic = new();
+    public static readonly TimeSpan AutomaticInterval = TimeSpan.FromSeconds(90);
     readonly PlaybackStore store;
     readonly GeminiLanguageModel gemini;
     readonly ILogger<NoteAgent> logger;
@@ -100,7 +125,10 @@ public sealed class NoteAgent : IAsyncDisposable
         {
             if (Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_PORT") == "5081" &&
                 Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_SESSION") != sessionId) continue;
+            var now = DateTime.UtcNow;
+            if (nextAutomatic.GetOrAdd(sessionId, now + AutomaticInterval) > now) continue;
             if (!automatic.Wait(0)) break;
+            nextAutomatic[sessionId] = now + AutomaticInterval;
             try { await Generate(sessionId, ct); }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
@@ -144,30 +172,36 @@ public sealed class NoteAgent : IAsyncDisposable
         var materials = MaterialsForPrompt(session.Materials, latest, revisionOnly);
         var materialText = string.Join("\n", materials.Select(x =>
             $"Source [{x.Id}]: {x.Text[..Math.Min(x.Text.Length, 3000)]}"));
-        var transcriptText = string.Join("\n", pending.Select(x =>
-            $"Source [{x.Id}] ({x.StartMs}-{x.EndMs} ms): {x.SourceText}"));
+        var references = new SourceReferences(session);
+        var promptTranscripts = references.Expand(pending);
+        var transcriptText = references.Prompt(pending);
         var termRefs = session.TermInsights
             .Where(x => x.Highlight && x.Explanation is not null && x.OutputLanguage == session.NoteLanguage).ToList();
         var termText = string.Join("\n", termRefs.TakeLast(12).Select(x => $"[ref:{x.Id}] {x.Term}: {x.Explanation![..Math.Min(x.Explanation!.Length, 500)]}"));
-        var input = $"OUTPUT LANGUAGE {session.NoteLanguage}\nBASE VERSION {session.NoteVersion}\n{session.NoteMarkdown}\n" +
-            $"MATERIALS\n{materialText}\nTRANSCRIPTS\n{transcriptText}\nTERM REFS\n{termText}";
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input))).ToLowerInvariant();
+        // Stable source context comes first; changing editor/version context comes last.
+        var input = references.Encode($"MATERIALS\n{materialText}\nTERM REFS\n{termText}\nTRANSCRIPTS\n{transcriptText}\n" +
+            $"OUTPUT LANGUAGE {session.NoteLanguage}\nBASE VERSION {session.NoteVersion}\n{session.NoteMarkdown}");
+        var instructions = InstructionsFor(session.NoteLanguage);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(gemini.Model + "\n" + instructions + "\n" + input))).ToLowerInvariant();
         logger.LogInformation("Note request input: {TranscriptCount} transcripts, {MaterialCount} materials, {InputBytes} UTF-8 bytes, {BaseNoteBytes} base-note bytes",
             pending.Count, materials.Count, Encoding.UTF8.GetByteCount(input), Encoding.UTF8.GetByteCount(session.NoteMarkdown));
         if (!revisionOnly) await store.MarkNotes(pending.Select(x => x.Id), "processing");
-        var call = await activity.Begin(id, "Note revision", "vertex", "gemini-3.5-flash-lite",
+        var call = await activity.Begin(id, "Note revision", "vertex", gemini.Model,
             pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)), session.NoteVersion);
         await activity.Start(call);
         try
         {
             var markdown = await gemini.Generate(
                 "RollingLectureNoteEditor",
-                InstructionsFor(session.NoteLanguage),
+                instructions,
                 input, ct, onUpdate: text => activity.Draft(call, text));
             if (string.IsNullOrWhiteSpace(markdown))
                 throw new InvalidOperationException("Gemini returned an empty note");
+            markdown = references.Decode(markdown);
             ValidateReferences(markdown, termRefs);
-            var result = await store.SaveGeneratedNote(id, markdown, pending, materials, hash, session.NoteVersion, session.NoteLanguage);
+            ValidateSourceReferences(markdown, promptTranscripts.Select(x => x.Id).Concat(materials.Select(x => x.Id))
+                .Concat(latest?.TranscriptIds ?? []).Concat(latest?.MaterialIds ?? []));
+            var result = await store.SaveGeneratedNote(id, markdown, promptTranscripts, materials, hash, session.NoteVersion, session.NoteLanguage);
             if (!revisionOnly) await store.MarkNotes(pending.Select(x => x.Id), "completed");
             await activity.End(call, "completed", "Validated and saved note revision");
             return result;

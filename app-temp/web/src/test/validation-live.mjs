@@ -25,24 +25,21 @@ try {
   if(phase==='notes'||phase==='notes-final') {
     const response=page.waitForResponse(r=>r.url().endsWith('/notes/generate')&&r.request().method()==='POST',{timeout:145000});
     await page.getByRole('button',{name:'Revise with AI',exact:true}).click();
-    await page.getByText('AI is generating a revision…',{exact:true}).waitFor({timeout:25000});
+    await page.locator('.note-ai-status').waitFor({timeout:25000});
     await screenshot('live-notes-running');
-    await page.locator('.note-draft pre').waitFor({timeout:80000});await screenshot('live-notes-stream');
+    await page.getByRole('button',{name:/^Live draft/}).click();
+    await page.locator('.note-draft .markdown-preview').waitFor({timeout:80000});await screenshot('live-notes-stream');
     assert.equal((await response).status(),200);
-    await page.getByText('AI is generating a revision…',{exact:true}).waitFor({state:'detached',timeout:10000});
+    await page.locator('.note-ai-status').waitFor({state:'detached',timeout:10000});
+    await page.getByRole('button',{name:'Preview',exact:true}).click();
     await page.waitForTimeout(4500);
     await screenshot('live-notes-saved');
   }
   if(phase==='terms') {
-    const response=page.waitForResponse(r=>r.url().endsWith('/terms/review'),{timeout:145000});
-    await page.getByRole('button',{name:'Transcript settings',exact:true}).click();
-    await page.getByRole('button',{name:'Review next key terms',exact:true}).click();
-    await page.getByRole('button',{name:'AI activity history',exact:true}).click();
-    await page.locator('#notes-activity [data-status="running"]').first().waitFor({timeout:25000});await screenshot('live-jev-running');
-    assert.equal((await response).status(),200);
-    await page.keyboard.press('Escape');
-    await page.locator('.notes-body').getByText('AI／網絡補充',{exact:false}).first().waitFor({timeout:10000});
-    await screenshot('live-supplement');
+    // Source events/background recovery trigger Jev; opening a saved explanation must remain read-only.
+    const term=page.locator('.term-highlight').first();await term.waitFor({timeout:145000});await term.hover();
+    await page.locator('.term-explanation .markdown-preview').waitFor({timeout:145000});
+    await screenshot('live-term-hover');await page.keyboard.press('Escape');
     await page.getByRole('button',{name:'AI activity history',exact:true}).hover();await screenshot('live-history');
     const box=await page.locator('#notes-activity').boundingBox();assert(box&&box.x>=0&&box.y>=0&&box.x+box.width<=1440);
     await page.locator('#notes-activity').hover();assert(await page.locator('#notes-activity').isVisible());

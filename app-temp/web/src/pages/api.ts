@@ -1,13 +1,29 @@
 import type { ZodType } from "zod";
 import { AnswerSchema } from "../types/api";
 
+async function fetchApi(path: string, options: RequestInit) {
+  try { return await fetch("/api" + path, options); }
+  catch (reason) {
+    if (reason instanceof TypeError)
+      throw new Error("Cannot reach the Playback backend. Start the server and retry. Your question is retained.");
+    throw reason;
+  }
+}
+
+async function responseError(response: Response) {
+  const error = await response.json().catch(() => ({}));
+  return new Error(error.error || (response.status >= 500
+    ? "The Playback backend is unavailable or did not respond. Start the server and retry. Your question is retained."
+    : `HTTP ${response.status}`));
+}
+
 export async function api<T = unknown>(
   path: string,
   method = "GET",
   body?: unknown,
   schema?: ZodType<T>,
 ): Promise<T> {
-  const response = await fetch("/api" + path, {
+  const response = await fetchApi(path, {
     signal: AbortSignal.timeout(150_000),
     method,
     headers: {
@@ -16,8 +32,7 @@ export async function api<T = unknown>(
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    throw await responseError(response);
   }
   const bodyText = await response.text();
   if (!bodyText) {
@@ -29,11 +44,12 @@ export async function api<T = unknown>(
 }
 
 export async function askStream(sessionId: string, body: unknown, signal: AbortSignal, update: (text: string) => void) {
-  const response = await fetch(`/api/sessions/${sessionId}/ask/stream`, {
+  const response = await fetchApi(`/sessions/${sessionId}/ask/stream`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     signal: AbortSignal.any([signal, AbortSignal.timeout(150_000)]),
   });
-  if (!response.ok || !response.body) throw new Error(`Ask Playback HTTP ${response.status}`);
+  if (!response.ok) throw await responseError(response);
+  if (!response.body) throw new Error("The answer stream is unavailable. Your question is retained; retry explicitly.");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "", answer, size = 0;

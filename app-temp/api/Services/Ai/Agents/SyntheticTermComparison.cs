@@ -42,7 +42,7 @@ public sealed class SyntheticTermComparison(JevTermClassifier jev, GeminiLanguag
                     var response = await gemini.Generate(
                         "SyntheticTermClassifier",
                         "Return only YES or NO: Would a concise explanation of this academic term help a general class audience?",
-                        example.term, ct, "gemini-3.5-flash-lite");
+                        example.term, ct);
                     geminiResult = new
                     {
                         response,

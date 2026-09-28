@@ -499,7 +499,7 @@ try {
   }
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
     await page.screenshot({ path: join(tmpdir(), "playback-language-settings-320.png") });
-  const translation = page.getByRole("checkbox", { name: "啟用翻譯" });
+  const translation = page.getByRole("checkbox", { name: "Enable translation" });
   await page.waitForFunction(() => !document.querySelector('input[type="checkbox"]')?.disabled);
   assert.equal(await translation.isDisabled(), false);
   assert.equal(
@@ -526,24 +526,16 @@ try {
     await page.locator("#second .translation-completed").textContent(),
     "第二句",
   );
-  await page.getByRole("button", { name: "Review next key terms" }).click();
+  // Simulate the background Jev/LLM result arriving in the session snapshot.
+  session.termInsights = [{ id: insightId, term: "Fourier Transform", highlight: true,
+    jevProbability: 0.84, jevRank: "high", jevConfidence: 0.53, jevModel: "test-model", jevCached: false,
+    decisionRule: "Explain probability >= 75%; rank high or medium; category confidence >= 50%.",
+    rankedAt: "2026-09-26T08:16:00Z", transcriptIds: ["first"], materialIds: [],
+    explanation: "A transform that represents a signal by frequency.", evidence: [] }];
   const highlight = page.locator("#first .term-highlight");
   await highlight.waitFor();
-  await highlight.click();
-  assert.equal(
-    await page
-      .getByRole("dialog", { name: "Fourier Transform explanation" })
-      .count(),
-    0,
-  );
-  const bounds = await highlight.boundingBox();
-  await page.mouse.move(
-    bounds.x + bounds.width / 2,
-    bounds.y + bounds.height / 2,
-  );
-  await page.mouse.down();
-  await page.waitForTimeout(550);
-  await page.mouse.up();
+  await page.getByRole("button", { name: "Transcript settings" }).click();
+  await highlight.hover();
   await page
     .getByText("A transform that represents a signal by frequency.")
     .waitFor();
@@ -551,7 +543,7 @@ try {
     await page.screenshot({
       path: join(tmpdir(), "playback-term-explanation-320.png"),
     });
-  assert.equal(explanationRequests, 1);
+  assert.equal(explanationRequests, 0, "Hover must only read the automatically saved explanation");
   await page.getByRole("button", { name: "Close explanation" }).click();
   await page.getByRole("navigation", { name: "Workspace views" }).getByRole("button", { name: "Notes", exact: true }).click();
   await page.getByRole("button", { name: "AI activity history", exact: true }).click();
@@ -753,7 +745,7 @@ try {
     .waitFor();
   assert.equal(
     explanationRequests,
-    1,
+    0,
     "Saved explanations should not call the model twice",
   );
   await page.getByRole("button", { name: "Close explanation" }).click();

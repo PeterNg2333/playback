@@ -91,6 +91,8 @@ export const SessionSummarySchema = z.object({
 });
 export const GroupSchema = z.object({ id: z.string(), name: z.string() });
 export const SessionSchema = SessionSummarySchema.extend({
+  sourceGroups: z.array(z.object({ id: z.string(), sourceId: z.string(), transcriptIds: z.array(z.string()),
+    startMs: z.number(), endMs: z.number(), recordedAt: z.string().nullish() })).optional(),
   createdAt: z.string(),
   noteMarkdown: z.string(),
   noteVersion: z.number(),
@@ -129,6 +131,7 @@ export const EvidenceSchema = z.object({
   endIndex: z.number().nullish(),
 });
 export const AnswerSchema = z.object({
+  questionId: z.string().optional(),
   answer: z.string(),
   webAnswer: z.string().nullish(),
   webSuggestions: z.string().nullish(),
@@ -138,6 +141,14 @@ export const AnswerSchema = z.object({
   lectureError: z.string().nullish(),
   webError: z.string().nullish(),
 });
+export const ConversationSummarySchema = z.object({
+  id: z.string(), sessionId: z.string(), title: z.string(), createdAt: z.string(), updatedAt: z.string(),
+});
+export const ConversationSchema = ConversationSummarySchema.extend({
+  turns: z.array(z.object({ id: z.string(), question: z.string(), createdAt: z.string(), answer: AnswerSchema })),
+});
+export type ConversationSummary = z.infer<typeof ConversationSummarySchema>;
+export type Conversation = z.infer<typeof ConversationSchema>;
 export const ActivitySchema = z.object({
   id: z.string(), sessionId: z.string(), task: z.string(), provider: z.string(), model: z.string(),
   status: z.string(), startedAt: z.string(), endedAt: z.string().nullish(), durationMs: z.number().nullish(),
@@ -157,6 +168,7 @@ export const HealthSchema = z.object({
   elapsedRecordingClock: z.boolean().optional(),
   aiActivity: z.boolean().optional(),
   groundedChatFallback: z.boolean().optional(),
+  chatConversations: z.boolean().optional(),
   build: z.string().optional(),
   asrStreaming: z.boolean().optional(),
   asrModels: z.array(z.string()).optional(),

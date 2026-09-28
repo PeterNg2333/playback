@@ -34,7 +34,10 @@ try {
      const interim=page.locator('.interim-text').first();
      if(await interim.isVisible()) { await interim.scrollIntoViewIfNeeded();await shot('hardware-interim-visible'); }
    }
-   if(await page.locator('.note-draft pre').count())await shot('hardware-note-stream');
+   if(await page.locator('.note-ai-status').count()) {
+     await page.getByRole('button',{name:/^Live draft/}).click();
+     if(await page.locator('.note-draft .markdown-preview').count())await shot('hardware-note-stream');
+   }
  }finally{pollBusy=false;}},250);
  const audio=path.resolve('app-temp/data/validation/fixtures/mixed.wav').replaceAll("'","''");
  await new Promise((resolve,reject)=>{const child=spawn('powershell.exe',['-NoProfile','-Command',`$player=New-Object System.Media.SoundPlayer '${audio}'; $player.PlaySync(); $player.Dispose()`],{windowsHide:true,stdio:'ignore'});child.on('exit',code=>code===0?resolve():reject(Error('Audio playback failed '+code)));});
@@ -53,7 +56,10 @@ try {
  const deadline=Date.now()+(previewOnly?25000:160000);let view,activity;
  do {
    view=await get('/sessions/'+session.id);activity=await get('/sessions/'+session.id+'/activity');
-   if(await page.locator('.note-draft pre').count())await shot('hardware-note-stream');
+   if(await page.locator('.note-ai-status').count()) {
+     await page.getByRole('button',{name:/^Live draft/}).click();
+     if(await page.locator('.note-draft .markdown-preview').count())await shot('hardware-note-stream');
+   }
    if(view.transcripts.length>before.transcripts.length&&(previewOnly || view.noteVersion>before.noteVersion&&
      activity.some(x=>x.task.startsWith('Term explanation:')&&new Date(x.startedAt).getTime()>start)&&
      !activity.some(x=>['running','queued'].includes(x.status))))break;
@@ -63,7 +69,7 @@ try {
  assert(view.transcripts.length>before.transcripts.length,'Real captured audio must produce a final transcript');
  assert(samples.some(x=>x.capture.activeSegments?.some(y=>y.interimText)),'Real provider preview must be observed');
  if(!previewOnly)assert(view.noteVersion>before.noteVersion,'Automatic note must be saved');
- await shot('hardware-final');
+ await page.getByRole('button',{name:'Preview',exact:true}).click();await shot('hardware-final');
  await page.getByRole('button',{name:'AI activity history',exact:true}).click();await shot('hardware-activity');
  await writeFile(path.join(out,'hardware-session.json'),JSON.stringify(view,null,2));
  await writeFile(path.join(out,'hardware-activity.json'),JSON.stringify(activity,null,2));

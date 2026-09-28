@@ -1,7 +1,8 @@
 import type { PlaybackController } from "./handlers";
 import { TextInputDialog } from "../Component/Dialog/TextInputDialog";
 import { recordedRange } from "./format";
-import { Markdown } from "../Component/Markdown";
+import { ChatAnswer } from "./ChatAnswer";
+import { ChatConversationMenu } from "./ChatConversationMenu";
 
 export function PlaybackOverlay({ model }: { model: PlaybackController }) {
   const {
@@ -63,8 +64,8 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
         <section className="chat open" aria-label="Ask Playback">
           <div className="chat-head">
             <div>
-              <strong>Ask Playback</strong>
-              <small>Private · processed session content</small>
+              <div className="chat-title"><strong>Ask Playback</strong><ChatConversationMenu model={model} /></div>
+              <small>{session?.title ?? "Select a lecture session"} · {model.chatHistory.current?.title ?? "New conversation"}</small>
             </div>
             <button
               className="icon-button"
@@ -84,46 +85,22 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
                 {error}
               </p>
             )}
-            {!health?.gemini && (
+            {!health ? <p className="chat-hint" role="status">
+              Backend connection is unavailable. Start the Playback server, then reload to reconnect. Your question stays here.
+            </p> : !health.gemini && (
               <p className="chat-hint">
                 Gemini is unavailable; questions and translations can be retried
                 when configured.
               </p>
             )}
-            {answer ? (
-              <div className="answer">
-                <Markdown value={answer.answer} sources={answer.evidence.filter(ev => !!ev.id).map(ev => ({ id: ev.id!, label: ev.label || ev.title || ev.kind }))}
-                  onSource={id => { const ev = answer.evidence.find(item => item.id === id); if (ev) jump(ev); }} />
-                {answer.webError && <p className="chat-error" role="alert">Public web search failed: {answer.webError}</p>}
-                {answer.webAnswer && (
-                  <section><strong>Public web:</strong><Markdown value={answer.webAnswer} /></section>
-                )}
-                {answer.webSuggestions && (
-                  <iframe
-                    className="search-suggestions"
-                    title="Google Search suggestions"
-                    sandbox="allow-popups allow-popups-to-escape-sandbox"
-                    srcDoc={answer.webSuggestions}
-                  />
-                )}
-                {answer.inference && (
-                  <small>Model inference · verify against sources</small>
-                )}
-                <div>
-                  {answer.evidence?.map((ev, i) => (
-                    <button
-                      className="citation"
-                      key={i}
-                      onClick={() => jump(ev)}
-                    >
-                      {ev.title || ev.label || ev.kind}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="chat-hint">Ask about processed lecture content.</p>
-            )}
+            {model.chatHistory.error && <p className="chat-error" role="alert">{model.chatHistory.error}</p>}
+            {model.chatHistory.current?.turns.map(turn => <article className="chat-turn" key={turn.id}>
+              <p className="chat-question">{turn.question}</p>
+              <ChatAnswer answer={turn.answer} jump={jump} sourceGroups={session?.sourceGroups} />
+            </article>)}
+            {answer && !model.chatHistory.current?.turns.some(turn => !!answer.questionId && turn.answer.questionId === answer.questionId)
+              ? <ChatAnswer answer={answer} jump={jump} sourceGroups={session?.sourceGroups} />
+              : !model.chatHistory.current?.turns.length && !answer && <p className="chat-hint">Ask about processed lecture content.</p>}
           </div>
           {(selection || focusMaterialId) && (
             <div className="selected-source">
@@ -161,13 +138,21 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             <label className="skip" htmlFor="chat-input">
               Your question
             </label>
-            <input
+            <textarea
               id="chat-input"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="Ask a question…"
+              rows={2}
+              maxLength={1000}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  if (session && !busy && question.trim()) ask();
+                }
+              }}
             />
-            <button disabled={!session || !!busy || !question.trim()}>{busy === "ask" ? "Working…" : "Send"}</button>
+            <button disabled={!session || !!busy || model.chatHistory.loading || !question.trim()}>{busy === "ask" ? "Working…" : "Send"}</button>
           </form>
         </section>
       )}

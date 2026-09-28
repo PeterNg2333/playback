@@ -4,12 +4,14 @@ using Playback.Api.Terms;
 using Playback.Api.Services.Audio;
 using Playback.Api.Db;
 using Playback.Api.Endpoints;
+using Playback.Api.Services.Ai;
 
 using System.Text;
 using System.Net.Sockets;
 using NAudio.Wave;
 
 if (args is ["--validation-fixtures"]) { ValidationFixtures.Run(); return; }
+if (args is ["--conversation-check"]) { await ConversationCheck.Run(); return; }
 
 
 
@@ -228,6 +230,17 @@ var allowedTerm = new TermInsight { Id = "a".PadRight(64, 'a') };
 NoteAgent.ValidateReferences($"A term [ref:{allowedTerm.Id}]", [allowedTerm]);
 try { NoteAgent.ValidateReferences("Invented [ref:missing]", [allowedTerm]); throw new Exception("Invented note reference was accepted"); }
 catch (InvalidOperationException) { }
+var longNoteSource = new string('c', 32) + "-microphone-63926191107278790-" + new string('d', 64);
+var secondNoteSource = new string('e', 32);
+NoteAgent.ValidateSourceReferences($"Point [{longNoteSource}, {secondNoteSource}] [unclear] [ref:{allowedTerm.Id}]", [longNoteSource, secondNoteSource]);
+try {
+    NoteAgent.ValidateSourceReferences($"Point [{longNoteSource}, {new string('f', 32)}]", [longNoteSource]);
+    throw new Exception("An invented source in a mixed citation was accepted");
+} catch (InvalidOperationException) { }
+var longSourceEdits = NoteChangeLog.Build("", $"Point [[{longNoteSource}, {secondNoteSource}]]", [longNoteSource], [secondNoteSource]);
+Check(longSourceEdits.Single().TranscriptIds.SequenceEqual([longNoteSource]) &&
+      longSourceEdits.Single().MaterialIds.SequenceEqual([secondNoteSource]),
+    "Long and grouped citations must retain both transcript and material provenance");
 var contextEntries = new[] {
     new Transcript { Id = "before", Original = "Fourier Transform", Translation = "傅立葉變換", TranslationLanguage = "zh-Hant" },
     new Transcript { Id = "target", Original = "FFT bins" },
@@ -238,9 +251,10 @@ Check(context.Contains("Fourier Transform") && context.Contains("傅立葉變換
       !context.Contains("domaine fréquentiel") && context.Contains("TARGET [target]") && contextEntries[1].Original == "FFT bins",
     "Translation must use adjacent originals and matching-language translations without changing target original");
 var batchContext = TranslationContext.BuildBatch(contextEntries, [contextEntries[1], contextEntries[2]], "zh-Hant");
-Check(batchContext.Contains("TARGETS (untrusted):") && batchContext.Contains("[target] FFT bins") &&
-      batchContext.Contains("[after] Frequency domain") && batchContext.Contains("傅立葉變換") &&
-      !batchContext.Contains("domaine fréquentiel") && !batchContext.Contains("translation: FFT bins"),
+Check(batchContext.Prompt.Contains("TARGETS (untrusted):") && batchContext.Prompt.Contains("[01] FFT bins") &&
+      batchContext.Prompt.Contains("[02] Frequency domain") && batchContext.Prompt.Contains("傅立葉變換") &&
+      !batchContext.Prompt.Contains("domaine fréquentiel") && !batchContext.Prompt.Contains("translation: FFT bins") &&
+      batchContext.TargetIds["01"] == "target" && batchContext.TargetIds["02"] == "after",
     "Batched translation must distinguish targets from same-language context");
 var translatedBatch = TranslationAgent.ParseBatch("""
 ```json
@@ -271,16 +285,51 @@ var longTranscripts = Enumerable.Range(0, 360).Select(i => new Transcript
 var longSession = new SessionView("synthetic", "Three hours", null, DateTime.UtcNow,
     "", 0, 0, false, "zh-Hant", [], longTranscripts, [], [], [], null);
 var sparseTranslation = TranslationContext.BuildBatch(longTranscripts, [longTranscripts[4], longTranscripts[355]], "zh-Hant");
-Check(sparseTranslation.Contains("[long-4]") && sparseTranslation.Contains("[long-355]") &&
-      !sparseTranslation.Contains("[long-180]"),
+Check(sparseTranslation.TargetIds.Values.SequenceEqual(["long-4", "long-355"]) &&
+      sparseTranslation.Prompt.Contains("[01] A spectrogram") && sparseTranslation.Prompt.Contains("[02] The kernel") &&
+      !sparseTranslation.Prompt.Contains("Lecture segment number 180"),
     "Sparse translation retries must not resend the whole three-hour transcript");
 var earlyAnswer = ChatContextBuilder.Build(longSession, new QuestionInput("What does spectrogram show?"));
 var lateAnswer = ChatContextBuilder.Build(longSession, new QuestionInput("Explain the kernel?"));
 Check(earlyAnswer.RelevantTranscripts[0].Id == "long-4" &&
       lateAnswer.RelevantTranscripts[0].Id == "long-355" &&
-      earlyAnswer.Prompt.Contains("Source [long-4] (120000-150000 ms)") &&
-      lateAnswer.Prompt.Contains("Source [long-355] (10650000-10680000 ms)"),
-    "Three-hour questions must retrieve early and late transcript sources with exact audio times");
+      earlyAnswer.Prompt.Contains("Source [03] (120000-180000 ms)") &&
+      lateAnswer.Prompt.Contains("Source [178] (10620000-10680000 ms)"),
+    "Three-hour questions must retrieve early and late grouped sources with exact passage ranges");
+var aliases = earlyAnswer.References!;
+Check(aliases.Encode("Point [long-4, long-5]").Contains("[03]") &&
+      aliases.Decode("Point [03]") == "Point [long-4, long-5]",
+    "Short audio aliases must expand to every underlying chunk in the cited passage");
+Check(aliases.Decode("`[03]`\n```text\n[03]\n```") == "`[03]`\n```text\n[03]\n```",
+    "Short aliases inside literal code must not be rewritten");
+var widePassage = Enumerable.Range(0, 16).Select(index => new Transcript {
+    Id = new string('a', 32) + "-microphone-63926191107278790-" + new string('b', 64) + index,
+    SourceId = "microphone", StartMs = index * 3000, EndMs = (index + 1) * 3000,
+    Original = "A bottleneck limits throughput."
+}).ToList();
+var wideSession = longSession with { Transcripts = widePassage };
+var wideContext = ChatContextBuilder.Build(wideSession, new QuestionInput("Explain the bottleneck"));
+var wideCitation = "Point [" + string.Join(", ", widePassage.Select(x => x.Id)) + "]";
+Check(wideCitation.Length > 2000 && wideContext.References!.Encode(wideCitation) == "Point [01]" &&
+      ChatAgent.CitedEvidence(wideContext, wideContext.References.Decode("Point [01]")).Length == 16 &&
+      NoteChangeLog.Build("", wideCitation, widePassage.Select(x => x.Id), []).Single().TranscriptIds.Count == 16,
+    "The maximum merged passage must retain all long canonical source IDs while using one short model alias");
+NoteAgent.ValidateSourceReferences($"Code `[{new string('f', 32)}]`\n```text\n[{new string('f', 32)}]\n```", []);
+NoteAgent.ValidateReferences("Literal `[ref:unknown]`", []);
+try {
+    NoteAgent.ValidateSourceReferences(wideCitation.Replace(widePassage[^1].Id, new string('f', 32)), widePassage.Select(x => x.Id));
+    throw new Exception("An invented source at the end of a long merged citation was accepted");
+} catch (InvalidOperationException) { }
+try { aliases.Decode("Unknown [9999]"); throw new Exception("An unknown short citation was accepted"); }
+catch (InvalidOperationException) { }
+Check(GeminiLanguageModel.OutputLimit("RollingLectureNoteEditor") == 4096 &&
+      GeminiLanguageModel.OutputLimit("PlaybackQuestionAnswerer") == 1024 && NoteAgent.AutomaticInterval.TotalSeconds == 90,
+    "Automatic notes and routine answers must retain explicit cost limits");
+await GeminiOutputCheck.Run();
+try {
+    GeminiLanguageModel.ParseGrounding(Json("{\"candidates\":[{\"finishReason\":\"MAX_TOKENS\",\"content\":{\"parts\":[{\"text\":\"Partial answer\"}]}}]}"));
+    throw new Exception("A truncated grounded answer was accepted");
+} catch (InvalidOperationException) { }
 var citedEarly = ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [long-4].");
 Check(citedEarly.Length == 1 && citedEarly[0].Id == "long-4" &&
       citedEarly[0].Kind == "lecture" && citedEarly[0].Label == "120000-150000 ms",
@@ -332,7 +381,7 @@ var chineseTimeline = Enumerable.Range(0, 360).Select(i => new Transcript
 var chineseSession = longSession with { Transcripts = chineseTimeline };
 var chineseAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("傅立葉變換是甚麼？"));
 Check(chineseAnswer.RelevantTranscripts[0].Id == "zh-5" &&
-      chineseAnswer.Prompt.Contains("Source [zh-5] (150000-180000 ms)"),
+      chineseAnswer.Prompt.Contains("Source [03] (120000-180000 ms)"),
     "Chinese questions must retrieve an early matching source from a long lecture");
 var mixedAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("FFT是甚麼？"));
 Check(mixedAnswer.RelevantTranscripts[0].Id == "zh-5",

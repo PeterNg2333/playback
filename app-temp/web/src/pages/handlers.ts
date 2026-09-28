@@ -14,6 +14,7 @@ import type { Evidence, TermCandidate, Session } from "../types/api";
 import { api, askStream } from "./api";
 import { usePlaybackField, usePlaybackStore } from "./store";
 import { useAudioPlayback } from "./useAudioPlayback";
+import { useChatConversations } from "./useChatConversations";
 
 export function usePlaybackController() {
   const [settingsOpen, setSettingsOpen] = usePlaybackField("settingsOpen");
@@ -51,6 +52,7 @@ export function usePlaybackController() {
   const refreshVersion = useRef(0);
   const questionFlight = useRef<AbortController | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
+  const chatHistory = useChatConversations(session?.id, health?.chatConversations);
   useEffect(() => {
     document.body.dataset.view = view;
     document.body.dataset.language = session?.translationEnabled
@@ -61,6 +63,7 @@ export function usePlaybackController() {
     setSelection(null);
     setFocusMaterialId(null);
     setAnswer(null);
+    setQuestion("");
     setAnswerDraft("");
     questionFlight.current?.abort();
     questionFlight.current = null;
@@ -269,7 +272,7 @@ export function usePlaybackController() {
     });
   }
   async function ask() {
-    if (!session || questionFlight.current) return;
+    if (!session || questionFlight.current || chatHistory.loading) return;
     setAnswer(null);
     const parsed = QuestionSchema.safeParse(question);
     if (!parsed.success) {
@@ -281,6 +284,8 @@ export function usePlaybackController() {
     setAnswerDraft(""); setBusy("ask"); setError("");
     const id = session.id;
     try {
+      const conversation = health?.chatConversations ? chatHistory.current ?? await chatHistory.create() : undefined;
+      if (controller.signal.aborted || usePlaybackStore.getState().session?.id !== id) return;
       const body = {
             question: parsed.data,
             useWeb,
@@ -288,6 +293,7 @@ export function usePlaybackController() {
             selectedText: selection?.text,
             materialId: focusMaterialId,
             requestId: crypto.randomUUID(),
+            conversationId: conversation?.id,
           };
       const result = health?.groundedChatFallback
         ? await askStream(id, body, controller.signal, text => {
@@ -296,6 +302,14 @@ export function usePlaybackController() {
         : await api(`/sessions/${id}/ask`, "POST", body, AnswerSchema);
       if (usePlaybackStore.getState().session?.id !== id || controller.signal.aborted) return;
       setAnswer(result);
+      if (conversation) {
+        try { await chatHistory.reload(conversation.id); }
+        catch {
+          if (usePlaybackStore.getState().session?.id === id && !controller.signal.aborted)
+            setError("The answer is available, but conversation history could not be refreshed. Reopen it after the backend reconnects.");
+        }
+      }
+      if (usePlaybackStore.getState().session?.id !== id || controller.signal.aborted) return;
       setSelection(null); setFocusMaterialId(null);
     } catch (reason) {
       if (usePlaybackStore.getState().session?.id === id && !controller.signal.aborted)
@@ -305,6 +319,18 @@ export function usePlaybackController() {
         questionFlight.current = null; setBusy(""); setAnswerDraft("");
       }
     }
+  }
+  async function newConversation() {
+    await action("conversation", async () => {
+      await chatHistory.create();
+      setAnswer(null); setAnswerDraft(""); setQuestion(""); setSelection(null); setFocusMaterialId(null);
+    });
+  }
+  async function selectConversation(id: string) {
+    await action("conversation", async () => {
+      await chatHistory.select(id);
+      setAnswer(null); setAnswerDraft(""); setQuestion(""); setSelection(null); setFocusMaterialId(null);
+    });
   }
   async function retryAsr(ids: string[]) {
     if (!session) return;
@@ -352,14 +378,6 @@ export function usePlaybackController() {
     await action("translation", async () => {
       await api(`/sessions/${session.id}/translation/retry`, "POST");
       await refresh(session.id);
-    });
-  }
-  async function reviewTerms() {
-    if (!session) return;
-    await action("terms", async () => {
-      await api(`/sessions/${session.id}/terms/review`, "POST");
-      await refresh(session.id);
-      setSettingsOpen(false);
     });
   }
   function captureSelection() {
@@ -528,6 +546,9 @@ export function usePlaybackController() {
     setQuestion,
     answer,
     answerDraft,
+    chatHistory,
+    newConversation,
+    selectConversation,
     busy,
     error,
     setError,
@@ -547,7 +568,6 @@ export function usePlaybackController() {
     setTranslation,
     setLanguages,
     retryTranslations,
-    reviewTerms,
     captureSelection,
     askTerm,
     record,

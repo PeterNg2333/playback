@@ -1,46 +1,14 @@
-import { useEffect, useRef, useState } from "react";
 import type {
   Chunk,
   Session,
   TermCandidate,
-  TermInsight,
   Transcript,
 } from "../types/api";
 import { cleanAsrText, recordedRange } from "./format";
 import { RecordPlay } from "./RecordPlay";
-import { TermExplanation } from "./TermExplanation";
+import { TermHighlight } from "./TermHighlight";
+import { termSegments } from "../Component/termSegments";
 import { SourceTag, sourceLabel } from "./SourceTag";
-
-function highlightedSegments(text: string, insights: TermInsight[]) {
-  const matches: { start: number; end: number; insight: TermInsight }[] = [];
-  const lower = text.toLocaleLowerCase();
-  for (const insight of insights) {
-    const term = insight.term.toLocaleLowerCase();
-    if (!term) continue;
-    let from = 0;
-    while (from < text.length && matches.length < 20) {
-      const start = lower.indexOf(term, from);
-      if (start < 0) break;
-      matches.push({ start, end: start + term.length, insight });
-      from = start + term.length;
-    }
-  }
-  matches.sort((a, b) => a.start - b.start || b.end - a.end);
-  const segments: { text: string; insight?: TermInsight }[] = [];
-  let cursor = 0;
-  for (const match of matches) {
-    if (match.start < cursor) continue;
-    if (match.start > cursor)
-      segments.push({ text: text.slice(cursor, match.start) });
-    segments.push({
-      text: text.slice(match.start, match.end),
-      insight: match.insight,
-    });
-    cursor = match.end;
-  }
-  if (cursor < text.length) segments.push({ text: text.slice(cursor) });
-  return segments;
-}
 
 export function TranscriptRow({
   transcript,
@@ -57,23 +25,12 @@ export function TranscriptRow({
   onSelect: () => void;
   onAskTerm: (candidate: TermCandidate, transcriptId?: string) => void;
 }) {
-  const [openInsight, setOpenInsight] = useState<TermInsight | null>(null);
-  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (hold.current) clearTimeout(hold.current);
-    },
-    [],
-  );
-  const cancelHold = () => {
-    if (hold.current) clearTimeout(hold.current);
-    hold.current = null;
-  };
   const original =
     cleanAsrText(transcript.displayOriginal ?? transcript.original) || "No words returned by ASR";
   const range = recordedRange(transcript.recordedAt, session?.createdAt, transcript.startMs, transcript.endMs);
   const insights = (session?.termInsights || []).filter(
-    (entry) => entry.highlight && entry.transcriptIds.includes(transcript.id),
+    (entry) => entry.highlight && entry.transcriptIds.includes(transcript.id) &&
+      (!entry.outputLanguage || entry.outputLanguage === session?.noteLanguage),
   );
   const translationReady =
     session?.translationEnabled &&
@@ -100,42 +57,11 @@ export function TranscriptRow({
               onMouseUp={onSelect}
               onKeyUp={onSelect}
             >
-              {highlightedSegments(original, insights).map((segment, index) =>
-                segment.insight ? (
-                  <button
-                    type="button"
-                    className="term-highlight"
-                    key={index}
-                    title="Hold for a short explanation"
-                    aria-label={`Hold to explain ${segment.text}`}
-                    onPointerDown={() => {
-                      cancelHold();
-                      hold.current = setTimeout(
-                        () => setOpenInsight(segment.insight!),
-                        500,
-                      );
-                    }}
-                    onPointerUp={cancelHold}
-                    onPointerCancel={cancelHold}
-                    onPointerLeave={cancelHold}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      setOpenInsight(segment.insight!);
-                    }}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setOpenInsight(segment.insight!);
-                      }
-                    }}
-                  >
-                    {segment.text}
-                  </button>
+              {termSegments(original, insights).map((segment, index) =>
+                segment.term && session ? (
+                  <TermHighlight key={index} sessionId={session.id} insight={segment.term} text={segment.text}
+                    onAsk={() => onAskTerm({ text: segment.term!.term, transcriptIds: segment.term!.transcriptIds,
+                      materialIds: segment.term!.materialIds }, transcript.id)} />
                 ) : (
                   <span key={index}>{segment.text}</span>
                 ),
@@ -196,14 +122,6 @@ export function TranscriptRow({
                 ? "Translation failed · retry in settings"
                 : "Translation pending…"}
           </p>
-        )}
-        {openInsight && session && (
-          <TermExplanation
-            key={openInsight.id}
-            sessionId={session.id}
-            insight={openInsight}
-            onClose={() => setOpenInsight(null)}
-          />
         )}
       </div>
     </article>

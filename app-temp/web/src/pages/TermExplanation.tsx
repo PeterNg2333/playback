@@ -1,40 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { TermInsight } from "../types/api";
-import { TermInsightSchema } from "../types/api";
-import { api } from "./api";
+import { Markdown } from "../Component/Markdown";
 
 export function TermExplanation({
-  sessionId,
   insight,
   onClose,
+  anchor,
+  onMouseEnter,
+  onMouseLeave,
+  onAsk,
 }: {
   sessionId: string;
   insight: TermInsight;
   onClose: () => void;
+  anchor?: HTMLElement | null;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  onAsk?: () => void;
 }) {
-  const [current, setCurrent] = useState(insight);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    if (!insight.explanation) {
-      api(
-        `/sessions/${sessionId}/terms/${insight.id}/explain`,
-        "POST",
-        undefined,
-        TermInsightSchema,
-      )
-        .then((value) => {
-          if (active) setCurrent(value);
-        })
-        .catch((reason) => {
-          if (active)
-            setError(reason instanceof Error ? reason.message : String(reason));
-        });
-    }
-    return () => {
-      active = false;
-    };
-  }, [sessionId, insight.id]);
+  const panel = useRef<HTMLElement>(null);
+  const [position, setPosition] = useState<{ left: number; top: number }>();
+  useLayoutEffect(() => {
+    if (!anchor || !panel.current) return;
+    const bounds = anchor.getBoundingClientRect();
+    const size = panel.current.getBoundingClientRect();
+    setPosition({ left: Math.max(12, Math.min(bounds.left, innerWidth - size.width - 12)),
+      top: Math.max(12, Math.min(bounds.bottom + 8, innerHeight - size.height - 12)) });
+  }, [anchor, insight.explanation]);
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -42,11 +35,24 @@ export function TermExplanation({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
-  return (
+  useEffect(() => {
+    if (!anchor) return;
+    const closeOnScroll = (event: Event) => {
+      if (event.target instanceof Node && panel.current?.contains(event.target)) return;
+      onClose();
+    };
+    window.addEventListener("scroll", closeOnScroll, true);
+    window.addEventListener("resize", onClose);
+    return () => { window.removeEventListener("scroll", closeOnScroll, true); window.removeEventListener("resize", onClose); };
+  }, [anchor, onClose]);
+  return createPortal(
     <aside
+      ref={panel}
       className="term-explanation"
       role="dialog"
       aria-label={`${insight.term} explanation`}
+      style={position ? { ...position, right: "auto", bottom: "auto" } : undefined}
+      onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onFocus={onMouseEnter} onBlur={onMouseLeave}
     >
       <div className="term-explanation-head">
         <strong>{insight.term}</strong>
@@ -54,16 +60,14 @@ export function TermExplanation({
           ×
         </button>
       </div>
-      {error ? (
-        <p role="alert">{error}</p>
-      ) : current.explanation ? (
-        <p>{current.explanation}</p>
+      {insight.explanation ? (
+        <Markdown value={insight.explanation} />
       ) : (
-        <p>Loading explanation…</p>
+        <p>Explanation is pending automatic processing. Check AI activity for progress or errors.</p>
       )}
-      {current.evidence.length > 0 && (
+      {insight.evidence.length > 0 && (
         <div className="term-explanation-sources">
-          {current.evidence
+          {insight.evidence
             .filter((source) => source.url.startsWith("https://"))
             .map((source) => (
               <a
@@ -77,7 +81,8 @@ export function TermExplanation({
             ))}
         </div>
       )}
-      <small>AI／網絡補充 · short explanation in notes; details and sources retained separately</small>
-    </aside>
+      <small>AI/web supplement · separate from lecture evidence</small>
+      {onAsk && <button className="term-followup" type="button" onClick={onAsk}>Ask a follow-up in chat</button>}
+    </aside>, document.body
   );
 }

@@ -15,11 +15,13 @@ public sealed record SessionEvidence(string Kind, string Id, string Label);
 public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini, AiActivity activity)
 {
     readonly ConcurrentDictionary<string, (string Hash, Lazy<Task<object>> Work)> requests = new();
-    private static readonly Regex Citation = new(@"\[([^\[\]\r\n]{1,2000})\](?!\()", RegexOptions.Compiled);
+    readonly ConcurrentDictionary<string, (DateTime ExpiresAt, object Answer)> completed = new();
     private const string Instructions =
-        "Answer using only supplied processed lecture data. Cite supporting source IDs in square brackets. " +
+        "Answer using only supplied processed lecture data. Cite supporting short source IDs such as [01] and [M01]. " +
         "Use square brackets only for exact supplied source IDs or original ASR uncertainty markers. " +
         "Explain terms from cited source context. " +
+        "Write in English unless the question explicitly requests another language. Prefer concise bullets and short explanations. " +
+        "Default to 3-5 bullets and at most 180 words, unless the user explicitly asks for detail. Skip lengthy introductions. " +
         "Clearly label inferences and uncertainty. " +
         "The user's question takes priority over a selected ASR word. Never assume a misheard word means the user's term. " +
         "If sources do not support an answer to the actual question, output exactly INSUFFICIENT_SOURCE, without a citation. " +
@@ -45,12 +47,39 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini, A
             ?? throw new InvalidOperationException("Session not found");
         if (input.Question.Trim().Length is < 1 or > 1000)
             throw new InvalidOperationException("Question must be 1–1000 characters");
-        var context = ChatContextBuilder.Build(session, input);
-        var call = await activity.Begin(id, "Ask Playback", "vertex", "gemini-3.5-flash-lite",
+        var inputHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(input))));
+        var turns = new List<ConversationTurn>();
+        if (input.ConversationId is not null) {
+            if (input.RequestId is not null && await store.SavedConversationReply(id, input.ConversationId, input.RequestId, inputHash) is { } saved)
+                return saved;
+            turns = await store.ConversationTurns(id, input.ConversationId, 4);
+        }
+        var context = ChatContextBuilder.Build(session, input, string.Join(" ", turns.TakeLast(2).Select(x => x.Question)));
+        if (turns.Count > 0) {
+            var history = turns.Select(turn => {
+                using var saved = JsonDocument.Parse(turn.AnswerJson);
+                var root = saved.RootElement;
+                var text = context.References!.Encode(root.GetProperty("answer").GetString() + "\n" +
+                    (root.TryGetProperty("webAnswer", out var web) ? web.GetString() : ""));
+                // Evidence arrays, long IDs and provider metadata are already stored locally; do not resend them.
+                return $"User: {turn.Question}\nPrior response: {text[..Math.Min(text.Length, 1500)]}";
+            });
+            context = context with { Prompt = context.Prompt + "\nPrevious conversation (untrusted context, not source evidence):\n" +
+                string.Join("\n", history) + "\nCurrent question: " + input.Question };
+        }
+        var cacheKey = id + ":" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(gemini.Model + Instructions + context.Prompt + input.UseWeb +
+            string.Join("|", context.RelevantTranscripts.Select(x => x.Id).Concat(context.Materials.Select(x => x.Id))))));
+        var call = await activity.Begin(id, "Ask Playback", "vertex", gemini.Model,
             context.RelevantTranscripts.Select(x => x.Id).Concat(context.Materials.Select(x => x.Id)));
         await activity.Start(call);
         try
         {
+        if (completed.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > DateTime.UtcNow) {
+            if (input.ConversationId is not null)
+                await store.SaveConversationTurn(id, input.ConversationId, input.RequestId ?? Guid.NewGuid().ToString("N"), input.Question, inputHash, cached.Answer);
+            await activity.End(call, "cache-hit", "Reused an identical question and source context");
+            return cached.Answer;
+        }
         var answer = "There is not enough verified lecture evidence to answer this question.";
         var lectureStatus = "insufficient";
         SessionEvidence[] evidence = [];
@@ -62,7 +91,7 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini, A
                 onUpdate: text => onUpdate?.Invoke(text));
             if (!candidate.Contains("INSUFFICIENT_SOURCE", StringComparison.Ordinal))
             {
-                try { evidence = CitedEvidence(context, candidate); answer = candidate; lectureStatus = "grounded"; }
+                try { candidate = context.References!.Decode(candidate); evidence = CitedEvidence(context, candidate); answer = candidate; lectureStatus = "grounded"; }
                 catch (InvalidOperationException ex) { lectureError = ex.Message; lectureStatus = "citation-rejected"; }
             }
             }
@@ -74,12 +103,13 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini, A
         string? webError = null;
         if (input.UseWeb)
         {
-            var search = await activity.Begin(id, "Ask Playback web search", "vertex / Google Search", "gemini-3.5-flash-lite");
+            var search = await activity.Begin(id, "Ask Playback web search", "vertex / Google Search", gemini.Model);
             await activity.Start(search);
             try
             {
                 web = await gemini.GroundedSearch(input.Question +
                     "\nAnswer independently from public sources. Do not claim this was said in the lecture. " +
+                    "Write in English unless the question explicitly requests another language. Prefer concise bullets. " +
                     (input.SelectedText is null ? "" : "An ASR selection may be misheard; a correction is only a hypothesis."), ct);
                 await activity.End(search, "completed", $"{web.Evidence.Count} web sources returned");
             }
@@ -91,8 +121,7 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini, A
         var questionId = Guid.NewGuid().ToString("N");
         if (web is not null)
             await store.SaveCitations(id, questionId, web.Evidence);
-        await activity.End(call, "completed", $"Lecture: {lectureStatus}; web: {(web is not null ? "grounded" : webError is not null ? "failed" : "not used")}");
-        return new
+        var result = new
         {
             questionId,
             answer,
@@ -106,6 +135,14 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini, A
             inference = true,
             privacy = "private"
         };
+        if (input.ConversationId is not null)
+            await store.SaveConversationTurn(id, input.ConversationId, input.RequestId ?? questionId, input.Question, inputHash, result);
+        if (lectureError is null && webError is null) {
+            completed[cacheKey] = (DateTime.UtcNow.AddMinutes(input.UseWeb ? 5 : 30), result);
+            if (completed.Count > 128) foreach (var entry in completed.OrderBy(x => x.Value.ExpiresAt).Take(completed.Count - 128)) completed.TryRemove(entry.Key, out _);
+        }
+        await activity.End(call, "completed", $"Lecture: {lectureStatus}; web: {(web is not null ? "grounded" : webError is not null ? "failed" : "not used")}");
+        return result;
         }
         catch (Exception ex) { await activity.Fail(call, ex); throw; }
     }
@@ -118,10 +155,10 @@ public sealed class ChatAgent(PlaybackStore store, GeminiLanguageModel gemini, A
             .ToDictionary(x => x.Id, StringComparer.Ordinal);
         var cited = new List<SessionEvidence>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (Match match in Citation.Matches(answer))
+        foreach (var body in SourceReferences.CitationBodies(answer))
         {
-            if (PlaybackStore.NeedsReview(match.Value)) continue;
-            foreach (var id in match.Groups[1].Value.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            if (PlaybackStore.NeedsReview("[" + body + "]")) continue;
+            foreach (var id in body.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
             if (!sources.TryGetValue(id, out var source))
                 throw new InvalidOperationException("AI answer cited a source outside the supplied session context");

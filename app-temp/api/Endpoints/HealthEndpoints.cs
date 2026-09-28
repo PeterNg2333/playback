@@ -16,9 +16,11 @@ public static class HealthEndpoints
             elapsedRecordingClock = true,
             aiActivity = true,
             groundedChatFallback = true,
+            chatConversations = true,
             savedAsrRecovery = Environment.GetEnvironmentVariable("PLAYBACK_RESUME_SAVED_ASR") != "no",
             database = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_DATABASE") ?? "playback_prototype",
             gemini = gemini.IsConfigured,
+            geminiModel = gemini.Model,
             jev = jev.IsConfigured,
             automaticAsr = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") != "yes"
                 && Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes",

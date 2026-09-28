@@ -122,7 +122,6 @@
 .activity-popover .activity-content { padding: 8px 0; }
 .activity-popover [data-status="running"], .activity-popover [data-status="queued"] { color: #6845bb; }
 .activity-popover [data-status="failed"] { color: #b33242; }
-.note-draft { margin-top: 20px; padding: 12px; border: 1px dashed var(--accent); border-radius: 8px; }
-.note-draft pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; opacity: .7; }
+.note-draft { padding: 14px; border: 1px dashed var(--accent); border-radius: 8px; }
 .provisional-answer { opacity: .62; white-space: pre-wrap; }
 .chat-progress { padding: 10px 0; color: var(--accent); }

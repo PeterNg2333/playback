@@ -13,7 +13,6 @@ type TranscriptSettingsProps = Pick<
   | "setTranslation"
   | "setLanguages"
   | "retryTranslations"
-  | "reviewTerms"
 >;
 
 export function TranscriptSettings({
@@ -26,19 +25,11 @@ export function TranscriptSettings({
   setTranslation,
   setLanguages,
   retryTranslations,
-  reviewTerms,
 }: TranscriptSettingsProps) {
   const streamActive = health?.asrStreaming && capture?.state !== "idle" && capture?.sessionId === session?.id;
   const translationsFailed =
     session?.transcripts.some(
       (entry) => entry.translationStatus === "failed",
-    ) ?? false;
-  const hasUnreviewedTerms =
-    session?.terms.some(
-      (candidate) => !session.termInsights?.some(item =>
-        item.term.toLocaleLowerCase() === candidate.text.toLocaleLowerCase() &&
-        (item.context ?? "") === (candidate.context ?? "") &&
-        (item.outputLanguage ?? session.noteLanguage) === session.noteLanguage),
     ) ?? false;
   const highlightedTerms =
     session?.termInsights?.filter((item) => item.highlight).length ?? 0;
@@ -76,10 +67,10 @@ export function TranscriptSettings({
             disabled={!session || !!busy || !health?.sessionLanguageSettings || !!streamActive}
             onChange={(event) => setLanguages(AsrLanguageSchema.parse(event.target.value), session?.noteLanguage ?? "zh-Hant")}
           >
-            <option value="auto">Auto / 混合語言</option>
-            <option value="yue-en">廣東話 + English（繁體顯示）</option>
-            <option value="yue">廣東話（繁體顯示）</option>
-            <option value="zh">普通話</option>
+            <option value="auto">Auto / mixed languages</option>
+            <option value="yue-en">Cantonese + English (Traditional Chinese display)</option>
+            <option value="yue">Cantonese (Traditional Chinese display)</option>
+            <option value="zh">Mandarin</option>
             <option value="en">English</option>
           </select>
           <small>
@@ -94,8 +85,8 @@ export function TranscriptSettings({
             disabled={!session || !!busy || !health?.sessionLanguageSettings}
             onChange={(event) => setLanguages(session?.asrLanguage ?? "auto", NoteLanguageSchema.parse(event.target.value))}
           >
-            <option value="zh-Hant">TC · 繁體中文</option>
-            <option value="zh-Hans">SC · 简体中文</option>
+            <option value="zh-Hant">TC · Traditional Chinese</option>
+            <option value="zh-Hans">SC · Simplified Chinese</option>
             <option value="en">EN · English</option>
           </select>
           <small>Applies to the next AI revision. Use Revise with AI to update existing notes.</small>
@@ -107,7 +98,7 @@ export function TranscriptSettings({
               disabled={!session || !!busy}
               onChange={(event) => setTranslation(event.target.checked)}
             />
-            啟用翻譯
+            Enable translation
           </label>
           <label htmlFor="translation-language">Translation target language</label>
           <select
@@ -118,12 +109,12 @@ export function TranscriptSettings({
               setTranslation(!!session?.translationEnabled, event.target.value)
             }
           >
-            <option value="yue-Hant">廣東話（繁體）</option>
-            <option value="zh-Hant">TC · 繁體中文</option>
-            <option value="zh-Hans">SC · 简体中文</option>
+            <option value="yue-Hant">Cantonese (Traditional Chinese)</option>
+            <option value="zh-Hant">TC · Traditional Chinese</option>
+            <option value="zh-Hans">SC · Simplified Chinese</option>
             <option value="en">English</option>
-            <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
           </select>
           <small>
             Applies to this session. Existing entries are translated in the
@@ -141,14 +132,8 @@ export function TranscriptSettings({
           {!!session?.terms.length && (
             <div className="term-review-setting">
               <small>{highlightedTerms} key terms highlighted</small>
-              <button
-                className="text-control"
-                disabled={!health?.jev || !!busy || !hasUnreviewedTerms}
-                onClick={reviewTerms}
-              >
-                Review next key terms
-              </button>
-              <small>Sends up to 3 candidate terms to Jev.</small>
+              <small>Jev reviews confirmed source terms automatically. Selected terms receive saved AI explanations. Hover or tap a highlighted term to read it.</small>
+              {!health?.jev && <small>Term detection is unavailable until Jev is configured.</small>}
             </div>
           )}
         </div>

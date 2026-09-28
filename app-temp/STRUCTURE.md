@@ -33,6 +33,14 @@ execution records; it does not replace saved note versions or Jev decisions.
 states carry the session ID, so a delayed response cannot replace another
 session's history. Source navigation runs after React renders the Transcript view.
 `TranscriptSettings.tsx` renders settings; API operations remain in `handlers.ts`.
+`NotesPanel.tsx` owns Preview/Edit/Live draft and the topic tree. `Markdown.tsx`
+transforms reference text through the Markdown AST; `SourceCitation.tsx` shows
+grouped audio passages without changing saved chunk IDs. `termSegments.ts` is
+shared by notes and transcripts; `TermHighlight.tsx` and `TermExplanation.tsx`
+show already saved Jev-selected explanations without generating on hover.
+`ChatConversationMenu.tsx` organizes lecture sessions by group;
+`useChatConversations.ts` loads session-scoped saved conversations;
+`ChatAnswer.tsx` renders their validated answers with collapsed source details.
 `PlaybackFooter.tsx` keeps the player in two rows. `PlaybackModeMenu.tsx` owns
 the scope/source menu and its outside-click and Escape behavior.
 `PlaybackHeader.tsx` chooses the recording source independently, using the API's
@@ -76,7 +84,12 @@ project paths and study commands.
   retains the selected mode through pause/resume and opens only those devices.
 - `Terms/TermCandidateExtractor.cs`: deterministic regex extraction from
   transcripts and materials. It does not call AI; Jev ranking is separate.
-- `Db/`: MongoDB models and `PlaybackStore`.
+- `Services/Ai/SourceReferences.cs`: prompt-local sequential aliases and bounded
+  adjacent transcript groups, expanded to canonical IDs before saving.
+- `Services/Ai/Providers/OutputGuardChatClient.cs`: rejects token-limit
+  completions before partial results become saved notes or answers.
+- `Db/`: MongoDB models and partial `PlaybackStore`; `Conversations.cs` owns
+  the new session-scoped conversations/conversation_turns collections.
 
 Each folder also has a matching `Playback.Api.*` namespace. These namespaces
 make the C# module boundary visible; the injected service and store classes
@@ -89,8 +102,10 @@ describes grouping related routes, and the
 [ASP.NET Core dependency injection guidance](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/dependency-injection?view=aspnetcore-10.0)
 supports keeping application behavior in injected services.
 
-The refactor does not change routes or database collections and does not clear
-or migrate local data. Offline verification:
+The original layout refactor did not change routes or collections. The later
+notes/chat update adds conversation routes and collections; it does not clear
+or destructively migrate local data. See [current behavior and verification](docs/notes-chat-update.zh-HK.md).
+Offline verification:
 
 ```powershell
 dotnet build app-temp/api/Playback.Api.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/

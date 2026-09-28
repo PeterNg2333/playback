@@ -38,7 +38,10 @@ public sealed record SessionView(
     Note? CurrentNote,
     string AsrLanguage = "auto",
     string NoteLanguage = "zh-Hant",
-    string? AsrModel = null);
+    string? AsrModel = null)
+{
+    public List<Playback.Api.Services.Ai.TranscriptSourceGroup> SourceGroups => new Playback.Api.Services.Ai.SourceReferences(this).Groups;
+}
 [BsonIgnoreExtraElements]
 public sealed class SessionRecord
 {
