@@ -38,14 +38,15 @@ public static class ChatContextBuilder
                 ?? throw new InvalidOperationException("Selected transcript is not in this session");
         if (focused is not null && input.SelectedText is not null &&
             (input.SelectedText.Length > 1000 ||
-             !focused.Original.Contains(input.SelectedText, StringComparison.Ordinal)))
+             (!focused.SourceText.Contains(input.SelectedText, StringComparison.Ordinal) &&
+              !focused.Original.Contains(input.SelectedText, StringComparison.Ordinal))))
             throw new InvalidOperationException("Selected text must come from the selected transcript");
 
         var relevant = session.Transcripts
-            .Where(x => !string.IsNullOrWhiteSpace(x.Original))
+            .Where(x => !string.IsNullOrWhiteSpace(x.SourceText))
             .Select(x => (
                 item: x,
-                score: terms.Count(term => x.Original.Contains(term, StringComparison.OrdinalIgnoreCase))
+                score: terms.Count(term => x.SourceText.Contains(term, StringComparison.OrdinalIgnoreCase))
                     + (x.Id == focused?.Id ? 100 : 0)))
             .OrderByDescending(x => x.score)
             .ThenByDescending(x => x.item.StartMs)
@@ -53,7 +54,7 @@ public static class ChatContextBuilder
             .Select(x => x.item)
             .ToArray();
         var lecture = string.Join("\n", relevant.Select(x =>
-            $"Source [{x.Id}] ({x.StartMs}-{x.EndMs} ms): {SourceExcerpt(x.Original, terms, 1600)}"));
+            $"Source [{x.Id}] ({x.StartMs}-{x.EndMs} ms): {SourceExcerpt(x.SourceText, terms, 1600)}"));
 
         var focusedMaterial = input.MaterialId is null
             ? null
@@ -69,7 +70,7 @@ public static class ChatContextBuilder
         var selected = focused is null
             ? ""
             : $"Selected source [{focused.Id}] ({focused.StartMs}-{focused.EndMs} ms): " +
-              $"{input.SelectedText ?? SourceExcerpt(focused.Original, terms, 1600)}\n";
+              $"{input.SelectedText ?? SourceExcerpt(focused.SourceText, terms, 1600)}\n";
         var prompt = $"Selected transcript:\n{selected}Lecture:\n{lecture}\nMaterials:\n{material}\nQuestion: {input.Question}";
 
         return new ChatContext(prompt, relevant, materials, focused, focusedMaterial);

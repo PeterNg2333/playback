@@ -9,6 +9,8 @@ using System.Text;
 using System.Net.Sockets;
 using NAudio.Wave;
 
+if (args is ["--validation-fixtures"]) { ValidationFixtures.Run(); return; }
+
 
 
 if (args is ["--asr-compare"] or ["--asr-compare", "--live"])
@@ -148,6 +150,8 @@ static byte[] Json(string value) => Encoding.UTF8.GetBytes(value);
 static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
 
 await AsrAdapterCheck.Run();
+LanguageSettingsCheck.Run();
+await LiveAsrCheck.Run();
 
 Check(CaptureSourceModes.Sources("microphone").SequenceEqual(["microphone"]) &&
       CaptureSourceModes.Sources("system").SequenceEqual(["system"]) &&
@@ -412,6 +416,17 @@ finally
     Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", previousOffline);
 }
 Console.WriteLine("Protocol checks passed: ASR original, silence, Vertex citations, Jev ranking cache, batched translation, source-backed Q&A and bounded long-lecture lookup");
+
+var contextual = TermCandidateExtractor.Find([], [new Transcript { Id = "mixed", Original = "我哋而家講緩存。cache stores data，用FFT同spectrogram分析。" }]);
+Check(new[] { "緩存", "cache", "FFT", "spectrogram" }.All(term => contextual.Any(x => x.Text == term && x.Context.Contains("data"))),
+    "Lowercase, two-character Chinese and acronyms next to Cantonese must reach contextual Jev ranking");
+Check(PlaybackStore.TermInsightId("session", "cache", "computer", "en") != PlaybackStore.TermInsightId("session", "cache", "toys", "en") &&
+      PlaybackStore.TermInsightId("session", "cache", "computer", "en") != PlaybackStore.TermInsightId("session", "cache", "computer", "zh-Hant"),
+    "Explanation identity must distinguish meaning and output language");
+var groupedContext = ChatContextBuilder.Build(longSession, new QuestionInput("Explain kernel and spectrogram"));
+Check(ChatAgent.CitedEvidence(groupedContext, "Both sources [long-4, long-355].").Length == 2,
+    "Grouped exact source IDs must validate without accepting invented IDs");
+Console.WriteLine("Repair checks passed: contextual Cantonese candidate extraction, explanation cache identity, grouped validated citations");
 
 sealed class DemoJevHandler : HttpMessageHandler
 {

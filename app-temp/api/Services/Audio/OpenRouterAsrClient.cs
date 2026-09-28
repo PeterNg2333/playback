@@ -18,12 +18,15 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
     {
         if (string.IsNullOrWhiteSpace(model) || model.Length > 200 || model.Any(char.IsControl))
             throw new InvalidOperationException("An OpenRouter transcription model ID is required");
-        Model = new("openrouter", model, "rest");
+        Model = new("openrouter", model, "rest", SupportsLanguageHint: true);
         http = new(handler) { Timeout = TimeSpan.FromSeconds(70) };
     }
 
     public async Task<AsrResult> Transcribe(AsrRequest request, CancellationToken ct)
     {
+        LanguageSettings.ValidateAsr(request.Language);
+        AsrModelOptions.Validate(request.Model);
+        var model = request.Model ?? Model.Model;
         if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes")
             throw new InvalidOperationException("External ASR is disabled for offline tests");
         var key = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
@@ -39,19 +42,21 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         // Stable retry identity; remote deduplication is provider-dependent. Local chunk IDs
         // remain authoritative and only one completed transcript is saved for each chunk.
-        var identity = JsonSerializer.Serialize(new { request.SessionId, request.SourceId, request.Sequence, request.Hash });
+        var identity = JsonSerializer.Serialize(new { request.SessionId, request.SourceId, request.Sequence, request.Hash, request.Language, Model = model });
         message.Headers.TryAddWithoutValidation("Idempotency-Key",
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant());
-        message.Content = JsonContent.Create(new
+        var payload = new Dictionary<string, object>
         {
-            model = Model.Model,
-            input_audio = new { data = Convert.ToBase64String(wav), format = "wav" },
-            response_format = "json"
-        });
+            ["model"] = model,
+            ["input_audio"] = new { data = Convert.ToBase64String(wav), format = "wav" },
+            ["response_format"] = "json"
+        };
+        if (LanguageSettings.ProviderHint(request.Language) is { } hint) payload["language"] = hint;
+        message.Content = JsonContent.Create(payload);
         using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"OpenRouter ASR HTTP {(int)response.StatusCode}", null, response.StatusCode);
-        return ParseResponse(await ProviderResponseReader.ReadBounded(response, 512_000, ct));
+        return ParseResponse(await ProviderResponseReader.ReadBounded(response, 512_000, ct)) with { Model = Model with { Model = model } };
     }
 
     public static AsrResult ParseResponse(byte[] bytes)

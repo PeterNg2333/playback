@@ -31,6 +31,7 @@ internal static class AsrAdapterCheck
             Environment.SetEnvironmentVariable("OPENROUTER_API_KEY", "fixture-key");
             Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", null);
             var identities = new List<string>();
+            var languages = new List<string?>();
             var handler = new StubHandler(async (message, ct) =>
             {
                 Require(message.RequestUri?.AbsoluteUri == "https://openrouter.ai/api/v1/audio/transcriptions" &&
@@ -40,7 +41,8 @@ internal static class AsrAdapterCheck
                 identities.Add(message.Headers.GetValues("Idempotency-Key").Single());
                 using var body = JsonDocument.Parse(await message.Content!.ReadAsStringAsync(ct));
                 var root = body.RootElement;
-                Require(root.GetProperty("model").GetString() == "qwen/qwen3-asr-1.7b" &&
+                languages.Add(root.TryGetProperty("language", out var language) ? language.GetString() : null);
+                Require(root.GetProperty("model").GetString() == (languages.Count == 8 ? "openai/whisper-large-v3-turbo" : "qwen/qwen3-asr-1.7b") &&
                     root.GetProperty("response_format").GetString() == "json" &&
                     root.GetProperty("input_audio").GetProperty("format").GetString() == "wav",
                     "OpenRouter ASR request contract mismatch");
@@ -59,6 +61,15 @@ internal static class AsrAdapterCheck
             await adapter.Transcribe(request with { SourceId = "system" }, CancellationToken.None);
             Require(identities[0] == identities[1] && identities[1] != identities[2],
                 "Retries must retain session/source/sequence/hash identity");
+            foreach (var language in new[] { "yue", "zh", "en" })
+                await adapter.Transcribe(request with { Language = language }, CancellationToken.None);
+            Require(languages.SequenceEqual(new string?[] { null, null, null, "yue", "zh", "en" }) &&
+                identities[0] != identities[3] && identities[3] != identities[4],
+                "Auto must omit the language hint; explicit dialects must be sent and change retry identity");
+            await adapter.Transcribe(request with { Language = "yue-en" }, CancellationToken.None);
+            var selected = await adapter.Transcribe(request with { Model = "openai/whisper-large-v3-turbo" }, CancellationToken.None);
+            Require(languages[6] is null && selected.Model?.Model == "openai/whisper-large-v3-turbo" && identities[7] != identities[0],
+                "Mixed language must omit a single-language hint and selected model must reach the provider and saved metadata");
             Require(OpenRouterAsrClient.ParseResponse(Encoding.UTF8.GetBytes("{\"text\":\"\"}")).Text == "",
                 "Empty ASR output must not become invented speech");
             try { OpenRouterAsrClient.ParseResponse(Encoding.UTF8.GetBytes("{\"status\":\"ok\"}")); throw new Exception("Bad schema accepted"); }

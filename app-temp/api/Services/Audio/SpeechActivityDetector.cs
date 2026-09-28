@@ -31,6 +31,7 @@ public sealed class SpeechActivityDetector : IDisposable
     }
 
     public long VoicedMs => voicedMs;
+    public long QuietForMs(long nowMs) => lastVoiceAtMs < 0 ? long.MaxValue : Math.Max(0, nowMs - lastVoiceAtMs);
     public bool Speaking(long nowMs) => lastVoiceAtMs >= 0 && nowMs - lastVoiceAtMs <= 350;
 
     public bool Process(ReadOnlySpan<float> mono, int sampleRate, long nowMs)

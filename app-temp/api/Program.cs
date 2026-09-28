@@ -4,12 +4,13 @@ using Playback.Api.Services.Audio;
 using Playback.Api.Db;
 using Playback.Api.Endpoints;
 using Playback.Api.Middleware;
+using Playback.Api.Services.Ai;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-builder.WebHost.UseUrls(
+builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_PORT") == "5081" ? "http://127.0.0.1:5081" :
     Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes"
         ? "http://127.0.0.1:5079"
         : "http://127.0.0.1:5078");
@@ -18,6 +19,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .AllowAnyHeader()
         .AllowAnyMethod()));
 builder.Services.AddSingleton<PlaybackStore>();
+builder.Services.AddSingleton<AiActivity>();
 builder.Services.AddSingleton<GeminiLanguageModel>();
 builder.Services.AddSingleton<JevTermClassifier>();
 builder.Services.AddSingleton<SyntheticTermComparison>();
@@ -36,6 +38,7 @@ app.UseCors();
 app.UseMiddleware<ApiExceptionMiddleware>();
 
 app.MapHealth();
+app.MapGet("/api/sessions/{id}/activity", async (string id, AiActivity activity) => await activity.Read(id));
 app.MapCapture();
 app.MapGroups();
 app.MapSessions();

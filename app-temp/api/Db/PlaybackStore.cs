@@ -1,5 +1,6 @@
 using Playback.Api.Terms;
 using Playback.Api.Services.Audio;
+using Playback.Api.Services;
 using Playback.Api.Services.Ai.Providers;
 using Playback.Api.Endpoints;
 using System.Collections.Concurrent;
@@ -14,6 +15,7 @@ namespace Playback.Api.Db;
 
 public sealed class PlaybackStore
 {
+    public event Action<string>? SourceChanged;
     public static bool NeedsReview(string original) => Regex.IsMatch(original, @"\[(?:unclear|inaudible|unintelligible)\]", RegexOptions.IgnoreCase);
     readonly IMongoDatabase db;
     readonly ConcurrentDictionary<string, SemaphoreSlim> noteGates = new();
@@ -30,6 +32,10 @@ public sealed class PlaybackStore
         db = new MongoClient(settings).GetDatabase(database);
     }
     IMongoCollection<T> Collection<T>(string name) => db.GetCollection<T>(name);
+    public Task SaveActivity(ActivityRecord item) => Collection<ActivityRecord>("ai_activity")
+        .ReplaceOneAsync(x => x.Id == item.Id, item, new ReplaceOptions { IsUpsert = true });
+    public Task<List<ActivityRecord>> ActivityHistory(string sessionId) => Collection<ActivityRecord>("ai_activity")
+        .Find(x => x.SessionId == sessionId).SortByDescending(x => x.StartedAt).Limit(100).ToListAsync();
     public async Task<bool> IsReady()
     {
         try
@@ -100,7 +106,7 @@ public sealed class PlaybackStore
     }
     public async Task<SessionRecord> SetTranslation(string id, bool enabled, string language)
     {
-        if (language is not ("zh-Hant" or "en" or "ja" or "ko")) throw new InvalidOperationException("Unsupported translation language");
+        _ = LanguageSettings.OutputDescription(language);
         var session = await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstOrDefaultAsync()
             ?? throw new InvalidOperationException("Session not found");
         var changedLanguage = session.TranslationLanguage != language;
@@ -130,6 +136,26 @@ public sealed class PlaybackStore
             if (result.Count >= limit) break;
         }
         return result;
+    }
+    public async Task<SessionRecord> SessionSettings(string id) =>
+        await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstOrDefaultAsync()
+        ?? throw new InvalidOperationException("Session not found");
+
+    public async Task<SessionRecord> SetLanguages(string id, string asrLanguage, string noteLanguage, string? asrModel = null)
+    {
+        LanguageSettings.ValidateAsr(asrLanguage);
+        LanguageSettings.ValidateNote(noteLanguage);
+        AsrModelOptions.Validate(asrModel);
+        var gate = noteGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try
+        {
+            return await Collection<SessionRecord>("sessions").FindOneAndUpdateAsync(x => x.Id == id,
+                Builders<SessionRecord>.Update.Set(x => x.AsrLanguage, asrLanguage).Set(x => x.NoteLanguage, noteLanguage).Set(x => x.AsrModel, asrModel),
+                new FindOneAndUpdateOptions<SessionRecord> { ReturnDocument = ReturnDocument.After })
+                ?? throw new InvalidOperationException("Session not found");
+        }
+        finally { gate.Release(); }
     }
     public async Task RetryTranslations(string id) =>
         await Collection<Transcript>("transcripts").UpdateManyAsync(x => x.SessionId == id && x.TranslationStatus == "failed",
@@ -185,14 +211,14 @@ public sealed class PlaybackStore
     }
     public async Task<List<string>> SessionsWithPendingNotes()
     {
-        var transcripts = await Collection<Transcript>("transcripts").Find(x => x.Original != "" &&
+        var transcripts = await Collection<Transcript>("transcripts").Find(x => x.Original != "" && x.NoteAttempts < 3 &&
             (x.NoteStatus == "pending" || (x.NoteStatus == "failed" && x.NoteRetryAt <= DateTime.UtcNow) ||
              (x.NoteStatus == "processing" && x.NoteRetryAt <= DateTime.UtcNow))).ToListAsync();
         return transcripts.GroupBy(x => x.SessionId)
             .Where(group => group.Sum(x => x.Original.Trim().Length) >= 40)
             .Select(group => group.Key).ToList();
     }
-    public async Task<object> SaveGeneratedNote(string id, string markdown, List<Transcript> transcripts, List<Material> materials, string inputHash, int basedOnVersion)
+    public async Task<object> SaveGeneratedNote(string id, string markdown, List<Transcript> transcripts, List<Material> materials, string inputHash, int basedOnVersion, string outputLanguage = "zh-Hant")
     {
         if (string.IsNullOrWhiteSpace(markdown) || markdown.Length > 250_000)
             throw new InvalidOperationException("Generated note size is invalid");
@@ -200,6 +226,8 @@ public sealed class PlaybackStore
         await gate.WaitAsync();
         try
         {
+            if ((await SessionSettings(id)).NoteLanguage != outputLanguage)
+                throw new InvalidOperationException("Note output language changed while AI was generating; retry with the current language");
             var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
             var existing = await Collection<Note>("notes").Find(x => x.SessionId == id && x.InputHash == inputHash).FirstOrDefaultAsync();
             if (existing is not null && previous?.Version == existing.Version)
@@ -215,6 +243,7 @@ public sealed class PlaybackStore
                 BasedOnVersion = previous?.Version,
                 Markdown = markdown,
                 Author = "agent",
+                OutputLanguage = outputLanguage,
                 ProcessedThroughMs = Math.Max(previous?.ProcessedThroughMs ?? 0, transcripts.Max(x => x.EndMs)),
                 CreatedAt = DateTime.UtcNow,
                 TranscriptIds = (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)).Distinct().ToList(),
@@ -291,13 +320,16 @@ public sealed class PlaybackStore
         if (session is null) return null;
         var materials = await Collection<Material>("materials").Find(x => x.SessionId == id).ToListAsync();
         var transcripts = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
+        // Recompute display from immutable provider text, including older transcripts. No ASR call.
+        foreach (var transcript in transcripts)
+            transcript.DisplayOriginal = LanguageSettings.CantoneseDisplay(transcript.Original, session.AsrLanguage, transcript.AsrDetectedLanguage);
         var chunks = await Collection<ChunkRecord>("chunks").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
         var note = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
         var insights = await Collection<TermInsight>("term_insights").Find(x => x.SessionId == id).ToListAsync();
         var terms = TermCandidateExtractor.Find(materials, transcripts);
         foreach (var insight in insights)
         {
-            var candidate = terms.FirstOrDefault(x => TermInsightId(id, x.Text) == insight.Id);
+            var candidate = terms.FirstOrDefault(x => TermInsightId(id, x.Text, x.Context, session.NoteLanguage) == insight.Id);
             if (candidate is null) continue;
             insight.TranscriptIds = insight.TranscriptIds.Concat(candidate.TranscriptIds).Distinct().ToList();
             insight.MaterialIds = insight.MaterialIds.Concat(candidate.MaterialIds).Distinct().ToList();
@@ -317,7 +349,9 @@ public sealed class PlaybackStore
             chunks,
             terms,
             insights,
-            note);
+            note,
+            session.AsrLanguage,
+            session.NoteLanguage, session.AsrModel);
     }
     public async Task<object> AddMaterial(string id, MaterialInput input)
     {
@@ -327,6 +361,7 @@ public sealed class PlaybackStore
             throw new InvalidOperationException("Session not found");
         var material = new Material { Id = Guid.NewGuid().ToString("N"), SessionId = id, Name = input.Name, Text = input.Text };
         await Collection<Material>("materials").InsertOneAsync(material);
+        SourceChanged?.Invoke(id);
         return new { material.Id, material.Name };
     }
     public async Task<object> SaveNote(string id, string markdown, string author, long processedThroughMs = 0)
@@ -372,16 +407,19 @@ public sealed class PlaybackStore
     public async Task<TermInsight?> TermInsight(string sessionId, string insightId) =>
         await Collection<TermInsight>("term_insights")
             .Find(x => x.SessionId == sessionId && x.Id == insightId).FirstOrDefaultAsync();
-    public static string TermInsightId(string sessionId, string term) =>
+    public static string TermInsightId(string sessionId, string term, string context = "", string language = "zh-Hant") =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"{sessionId}\n{term.Trim().ToLowerInvariant()}"))).ToLowerInvariant();
-    public async Task<TermInsight> SaveTermRanking(string sessionId, TermCandidate candidate, JevRankResult rank)
+            context.Length == 0 ? $"{sessionId}\n{term.Trim().ToLowerInvariant()}" :
+            $"{sessionId}\n{term.Trim().ToLowerInvariant()}\n{context}\n{language}\ncontext-v1"))).ToLowerInvariant();
+    public async Task<TermInsight> SaveTermRanking(string sessionId, TermCandidate candidate, JevRankResult rank, string language = "zh-Hant")
     {
         var insight = new TermInsight
         {
-            Id = TermInsightId(sessionId, candidate.Text),
+            Id = TermInsightId(sessionId, candidate.Text, candidate.Context, language),
             SessionId = sessionId,
             Term = candidate.Text,
+            Context = candidate.Context,
+            OutputLanguage = language,
             Highlight = JevTermClassifier.ShouldHighlight(rank),
             JevProbability = rank.JevProbability,
             JevRank = rank.JevRank,
@@ -406,6 +444,9 @@ public sealed class PlaybackStore
     {
         var update = Builders<TermInsight>.Update
             .Set(x => x.Explanation, result.Answer)
+            .Set(x => x.SearchQueries, result.SearchQueries ?? [])
+            .Set(x => x.GroundingUsageJson, result.UsageJson)
+            .Set(x => x.GroundingMetadataJson, result.GroundingMetadataJson)
             .Set(x => x.Evidence, result.Evidence.Select(x => new TermEvidence { Url = x.Url, Title = x.Title }).ToList())
             .Set(x => x.ExplainedAt, DateTime.UtcNow);
         return await Collection<TermInsight>("term_insights").FindOneAndUpdateAsync(
@@ -414,6 +455,37 @@ public sealed class PlaybackStore
             new FindOneAndUpdateOptions<TermInsight> { ReturnDocument = ReturnDocument.After })
             ?? await TermInsight(sessionId, insightId)
             ?? throw new InvalidOperationException("Term insight not found");
+    }
+    public async Task AddSupplementToNote(string sessionId, string insightId)
+    {
+        var gate = noteGates.GetOrAdd(sessionId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try
+        {
+            var insight = await TermInsight(sessionId, insightId) ?? throw new InvalidOperationException("Term not found");
+            if (insight.AddedToNoteVersion is not null || insight.Explanation is null || insight.Evidence.Count == 0) return;
+            if ((await SessionSettings(sessionId)).NoteLanguage != insight.OutputLanguage)
+                throw new InvalidOperationException("Explanation language changed; the old result was retained but not added to notes");
+            var previous = await Collection<Note>("notes").Find(x => x.SessionId == sessionId).SortByDescending(x => x.Version).FirstOrDefaultAsync();
+            var saved = await Collection<Note>("notes").Find(x => x.Id == sessionId + "-supplement-" + insightId).FirstOrDefaultAsync();
+            if (saved is null)
+            {
+                var summary = Regex.Split(insight.Explanation.Trim(), @"(?<=[。.!?])\s+|\r?\n").FirstOrDefault(x => x.Length > 15) ?? insight.Explanation;
+                if (summary.Length > 500) summary = summary[..500] + "…";
+                var markdown = (previous?.Markdown ?? "").TrimEnd() + $"\n\n**{insight.Term}** — AI／網絡補充：{summary} [ref:{insight.Id}]\n";
+                saved = new Note { Id = sessionId + "-supplement-" + insightId, SessionId = sessionId,
+                    Version = (previous?.Version ?? 0) + 1, BasedOnVersion = previous?.Version, Author = "AI/web supplement",
+                    Markdown = markdown, OutputLanguage = insight.OutputLanguage, CreatedAt = DateTime.UtcNow,
+                    TranscriptIds = previous?.TranscriptIds.ToList() ?? [], MaterialIds = previous?.MaterialIds.ToList() ?? [],
+                    ProcessedThroughMs = previous?.ProcessedThroughMs ?? 0,
+                    InputTranscriptIds = insight.TranscriptIds, InputMaterialIds = insight.MaterialIds,
+                    Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown, previous?.TranscriptIds ?? [], previous?.MaterialIds ?? []) };
+                await Collection<Note>("notes").InsertOneAsync(saved);
+            }
+            await Collection<TermInsight>("term_insights").UpdateOneAsync(x => x.Id == insightId && x.SessionId == sessionId,
+                Builders<TermInsight>.Update.Set(x => x.AddedToNoteVersion, saved.Version));
+        }
+        finally { gate.Release(); }
     }
     public async Task<ChunkRecord> SaveLocalChunk(
         string sessionId, string sourceId, long sequence, long startMs, long endMs,
@@ -557,7 +629,8 @@ public sealed class PlaybackStore
                 .Set(x => x.AsrAttempts, chunk.Status == "asr-manual" ? 0 : chunk.AsrAttempts));
         return chunk;
     }
-    public async Task SaveTranscript(ChunkRecord chunk, string original, AsrModel? asr = null)
+    public async Task SaveTranscript(ChunkRecord chunk, string original, AsrModel? asr = null,
+        string? displayOriginal = null, string? languageHint = null, string? detectedLanguage = null)
     {
         if (await Collection<Transcript>("transcripts").CountDocumentsAsync(x => x.Id == chunk.Id) == 0)
             await Collection<Transcript>("transcripts").InsertOneAsync(new Transcript
@@ -569,6 +642,9 @@ public sealed class PlaybackStore
                 EndMs = chunk.EndMs,
                 RecordedAt = chunk.RecordedAt,
                 Original = original,
+                DisplayOriginal = displayOriginal,
+                AsrLanguageHint = languageHint,
+                AsrDetectedLanguage = detectedLanguage,
                 AsrProvider = asr?.Provider,
                 AsrModel = asr?.Model,
                 Uncertain = NeedsReview(original),
@@ -581,6 +657,7 @@ public sealed class PlaybackStore
             Builders<ChunkRecord>.Update
                 .Set(x => x.Status, string.IsNullOrWhiteSpace(original) ? "asr-empty" : "transcribed")
                 .Set(x => x.Error, null));
+        if (!string.IsNullOrWhiteSpace(original)) SourceChanged?.Invoke(chunk.SessionId);
     }
     public async Task<Transcript?> TranscriptForChunk(string id) =>
         await Collection<Transcript>("transcripts").Find(x => x.Id == id).FirstOrDefaultAsync();

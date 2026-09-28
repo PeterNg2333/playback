@@ -7,27 +7,34 @@ using NAudio.Wave;
 
 namespace Playback.Api.Services.Audio;
 
-public sealed record ActiveCaptureSegment(string SourceId, long StartMs, long EndMs, DateTime RecordedAt, bool Streaming);
+public sealed record ActiveCaptureSegment(string SourceId, long StartMs, long EndMs, DateTime RecordedAt, bool Streaming,
+    string? InterimText = null, string? RawInterimText = null, long? LatencyMs = null, string? Model = null);
 
 public sealed record CaptureStatus(string State, string? SessionId, Dictionary<string, long> Bytes, bool AutoAsr, bool NoSoundWarning, string? Error,
     Dictionary<string, int> Levels, long CapturedThroughMs, long LastFinalizedAtMs, ActiveCaptureSegment[] ActiveSegments,
-    string? SourceMode = null);
+    string? SourceMode = null, int ChunkMilliseconds = LiveAsrSession.ChunkMilliseconds, string? InterimError = null,
+    long RecordingElapsedMs = 0, string? RecordingId = null);
 
-public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger) : IAsyncDisposable
+public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger, IAsrAdapter adapter) : IAsyncDisposable
 {
     readonly SemaphoreSlim transition = new(1, 1);
     readonly string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "data", "local-capture"));
     Recording? active;
+    Recording? recent;
     string? lastError;
 
     public CaptureStatus Status()
     {
         var recording = active;
+        var visible = recording ?? recent;
         CaptureSource[] sources;
         if (recording is null) sources = [];
         else lock (recording.Sources) sources = recording.Sources.ToArray();
+        CaptureSource[] retained;
+        if (visible is null) retained = [];
+        else lock (visible.Sources) retained = visible.Sources.ToArray();
         var capturedThroughMs = recording is null ? 0 : recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
-        return new(recording is null ? "idle" : recording.Paused ? "paused" : "recording", recording?.SessionId,
+        return new(recording is null ? "idle" : recording.Paused ? "paused" : "recording", visible?.SessionId,
             sources.ToDictionary(source => source.Name, source => source.Bytes),
             recording?.AutoAsr ?? false,
             recording is { Paused: false } && DateTime.UtcNow - recording.LastSoundAt > TimeSpan.FromMinutes(1),
@@ -35,9 +42,15 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             sources.ToDictionary(source => source.Name, source => source.Level),
             capturedThroughMs,
             recording?.LastFinalizeAtMs ?? 0,
-            recording is { Paused: false }
-                ? sources.Select(source => source.ActiveSegment(capturedThroughMs)).OfType<ActiveCaptureSegment>().ToArray()
-                : [], recording?.SourceMode);
+            retained.SelectMany(source => source.Live?.Segments ?? [])
+                .Concat(visible?.RetainedSegments ?? [])
+                .Concat(recording is { Paused: false } ? sources.Select(source => source.ActiveSegment(capturedThroughMs)).OfType<ActiveCaptureSegment>() : [])
+                .GroupBy(segment => (segment.SourceId, segment.StartMs))
+                .Select(group => (group.FirstOrDefault(segment => segment.InterimText is not null) ?? group.Last())
+                    with { Streaming = group.Any(segment => segment.Streaming) }).ToArray(),
+            recording?.SourceMode, LiveAsrSession.ChunkMilliseconds,
+            retained.Select(source => source.Live?.Error).FirstOrDefault(error => error is not null),
+            visible?.Clock.ElapsedMilliseconds ?? 0, visible?.Id);
     }
 
     public async Task<CaptureStatus> Start(string sessionId, string sourceMode = "both")
@@ -66,6 +79,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 recording.Cancel.Dispose();
                 throw;
             }
+            recent = null;
             active = recording;
             recording.Pump = Pump(recording);
             return Status();
@@ -98,10 +112,14 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
     {
         WasapiRecorder? recorder = null;
         CaptureSource? source = null;
+        LiveAsrSession? live = null;
         try
         {
             recorder = builder.Build();
-            source = new CaptureSource(name, recorder, Path.Combine(root, recording.SessionId, name), recording);
+            var sourceStartMs = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
+            if (recording.AutoAsr) live = new LiveAsrSession(adapter, recording.SessionId, name,
+                sourceStartMs, () => store.SessionSettings(recording.SessionId));
+            source = new CaptureSource(name, recorder, Path.Combine(root, recording.SessionId, name), recording, live, sourceStartMs);
             recorder.StartRecording();
             lock (recording.Sources) recording.Sources.Add(source);
             return null;
@@ -114,6 +132,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 catch (Exception closeError) { logger.LogWarning(closeError, "Capture device cleanup failed"); }
             }
             source?.Detector.Dispose();
+            if (live is not null) await live.DisposeAsync();
             logger.LogWarning(ex, "{Source} audio capture unavailable", name);
             return ex.Message;
         }
@@ -121,12 +140,22 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
 
     async Task Pump(Recording recording)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
         try
         {
             while (await timer.WaitForNextTickAsync(recording.Cancel.Token))
-                if (!recording.Paused && recording.OffsetMs + recording.Clock.ElapsedMilliseconds - recording.LastFinalizeAtMs >= 30_000)
+            {
+                if (recording.Paused) continue;
+                var end = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
+                CaptureSource[] sources;
+                lock (recording.Sources) sources = recording.Sources.ToArray();
+                var elapsed = end - recording.LastFinalizeAtMs;
+                if (elapsed >= LiveAsrSession.ChunkMilliseconds || elapsed >= 3_000 &&
+                    sources.Any(source => source.HasSpeech) && sources.All(source => source.Quiet(end)))
                     await FinalizeChunks(recording);
+                else if (!asr.LiveBacklog)
+                    foreach (var source in sources) source.Preview(end);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -170,6 +199,9 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             try { await source.Recorder.DisposeAsync(); }
             catch (Exception ex) { recording.Error = $"{source.Name} close: {ex.Message}"; }
             source.Detector.Dispose();
+            if (source.Live is not null) await source.Live.DisposeAsync();
+            if (source.Live is not null)
+                recording.RetainedSegments = recording.RetainedSegments.Concat(source.Live.Segments).TakeLast(48).ToArray();
         }
     }
 
@@ -184,8 +216,10 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             recording.Cancel.Cancel();
             await recording.Pump;
             await CloseSources(recording);
+            recording.Clock.Stop();
             await FinalizeChunks(recording);
             lastError = recording.Error;
+            recent = recording;
             active = null;
             recording.Cancel.Dispose();
             return Status();
@@ -284,16 +318,19 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
 
     sealed class Recording(string sessionId, long offsetMs, string sourceMode)
     {
+        public string Id { get; } = Guid.NewGuid().ToString("N");
         public string SessionId { get; } = sessionId;
         public string SourceMode { get; } = sourceMode;
         public long OffsetMs { get; } = offsetMs;
         public long LastFinalizeAtMs { get; set; } = offsetMs;
-        public bool AutoAsr => Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes";
+        public bool AutoAsr => Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes"
+            && Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") != "yes";
         public Stopwatch Clock { get; } = Stopwatch.StartNew();
         public bool Paused { get; set; }
         public DateTime LastSoundAt { get; set; } = DateTime.UtcNow;
         public CancellationTokenSource Cancel { get; } = new();
         public List<CaptureSource> Sources { get; } = [];
+        public ActiveCaptureSegment[] RetainedSegments { get; set; } = [];
         public Task Pump { get; set; } = Task.CompletedTask;
         public SemaphoreSlim FinalizeGate { get; } = new(1, 1);
         public string? Error { get; set; }
@@ -316,6 +353,10 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         public string Name { get; }
         public WasapiRecorder Recorder { get; }
         public SpeechActivityDetector Detector => detector;
+        public bool HasSpeech { get { lock (gate) return hasSound; } }
+        public bool Quiet(long endMs) { lock (gate) return detector.QuietForMs(endMs) >= 700; }
+        public LiveAsrSession? Live { get; }
+        public void Preview(long endMs) { lock (gate) Live?.Tick(endMs, hasSound); }
         public long Bytes => Interlocked.Read(ref bytes);
         public int Level => Volatile.Read(ref level);
 
@@ -328,14 +369,15 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                     : null;
         }
 
-        public CaptureSource(string name, WasapiRecorder recorder, string directory, Recording recording)
+        public CaptureSource(string name, WasapiRecorder recorder, string directory, Recording recording, LiveAsrSession? live, long sourceStartMs)
         {
             if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
             Name = name;
+            Live = live;
             Recorder = recorder;
             this.directory = directory;
             this.recording = recording;
-            startMs = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
+            startMs = sourceStartMs;
             var format = recorder.WaveFormat;
             recorder.DataAvailable += (buffer, _, _, _) =>
             {
@@ -343,9 +385,11 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 var soundDetected = false;
                 try
                 {
+                    var mono = AudioActivity.Mono(buffer, format);
                     lock (gate)
-                        soundDetected = detector.Process(AudioActivity.Mono(buffer, format), format.SampleRate,
+                        soundDetected = detector.Process(mono, format.SampleRate,
                             recording.OffsetMs + recording.Clock.ElapsedMilliseconds);
+                    Live?.Feed(mono, format.SampleRate, soundDetected);
                 }
                 catch (Exception ex) { recording.Error = $"{name} VAD stopped: {ex.Message}"; }
                 if (soundDetected)
@@ -389,6 +433,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 }
                 startMs = endMs;
                 hasSound = false;
+                Live?.Rotate(endMs);
             }
         }
     }

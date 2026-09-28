@@ -31,6 +31,7 @@ export const chunkStatus = (status: string) =>
   (
     ({
       silent: "Exact digital silence · ASR skipped",
+      "vad-silence": "VAD found no speech · audio retained",
       "asr-empty": "ASR returned no words · audio retained",
       "asr-error": "ASR failed · retrying",
       "asr-manual": "ASR stopped · retry manually",
@@ -86,7 +87,7 @@ export function transcriptDays(
     for (const chunk of [...chunks].sort((a, b) => a.sequence - b.sequence)) {
       const at = dateAt(chunk.recordedAt, chunk.startMs);
       const transcript = transcripts.get(chunk.id);
-      if (chunk.status === "silent" || chunk.status === "asr-empty") {
+      if (chunk.status === "silent" || chunk.status === "vad-silence" || chunk.status === "asr-empty") {
         audio = null;
         transcripts.delete(chunk.id);
         const previous = silence?.chunks.at(-1);
@@ -135,8 +136,23 @@ export function transcriptDays(
       transcript,
       at: dateAt(transcript.recordedAt, transcript.startMs),
     });
-  for (const segment of activeSegments)
+  for (const segment of activeSegments) {
+    const covered = session.chunks.filter(chunk => chunk.sourceId === segment.sourceId && chunk.endMs > segment.startMs && chunk.startMs < segment.endMs);
+    let completedThrough = segment.startMs;
+    for (const chunk of covered.filter(chunk => ["transcribed", "silent", "vad-silence", "asr-empty"].includes(chunk.status)).sort((a, b) => a.startMs - b.startMs)) {
+      if (chunk.startMs <= completedThrough) completedThrough = Math.max(completedThrough, chunk.endMs);
+    }
+    if (completedThrough >= segment.endMs ||
+        session.transcripts.some(text => text.sourceId === segment.sourceId && text.startMs <= segment.startMs && text.endMs >= segment.endMs)) continue;
+    if (segment.interimText) {
+      for (let index = entries.length - 1; index >= 0; index--) {
+        const entry = entries[index];
+        if (entry.kind === "audio" && !entry.transcript && entry.chunks.every(chunk =>
+          chunk.sourceId === segment.sourceId && chunk.startMs === segment.startMs)) entries.splice(index, 1);
+      }
+    }
     entries.push({ kind: "live", segment, at: new Date(segment.recordedAt) });
+  }
   entries.sort((a, b) => a.at.getTime() - b.at.getTime());
   const quietByHour = new Map<
     string,

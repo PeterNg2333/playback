@@ -3,6 +3,7 @@ import type { PlaybackController } from "./handlers";
 import { Header } from "../Component/Layout/Header";
 import { Icon } from "../Component/Icon";
 import { RecordingModeSchema } from "../types/api";
+import { time } from "./format";
 
 export function PlaybackHeader({ model }: { model: PlaybackController }) {
   const {
@@ -37,14 +38,7 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
     capture?.activeSegments?.some((segment) => segment.streaming) ?? false;
   const isIdle = (capture?.state ?? "idle") === "idle";
   const isPaused = capture?.state === "paused";
-  const chunkElapsedMs = Math.max(
-    0,
-    (capture?.capturedThroughMs ?? 0) - (capture?.lastFinalizedAtMs ?? 0),
-  );
-  const remaining = isIdle
-    ? 30
-    : Math.max(0, 30 - Math.floor(chunkElapsedMs / 1000));
-  const countdown = `00:${String(remaining).padStart(2, "0")}`;
+  const elapsed = capture?.recordingElapsedMs == null ? "Restart API for timer" : time(capture.recordingElapsedMs);
   const selectedMode = isIdle ? recordingMode : (capture?.sourceMode ?? "both");
   const sourceSelectionSupported = health?.recordingSourceSelection === true;
   const sourceSelectionTitle =
@@ -105,9 +99,9 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
                 {isPaused ? "Paused" : "Recording"}
                 <span
                   className="record-countdown"
-                  aria-label={`Next audio part in ${remaining} seconds`}
+                  aria-label={`Recording elapsed ${elapsed}`}
                 >
-                  {countdown}
+                  {elapsed}
                 </span>
               </span>
               <span

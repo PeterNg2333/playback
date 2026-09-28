@@ -70,7 +70,7 @@ export function TranscriptRow({
     hold.current = null;
   };
   const original =
-    cleanAsrText(transcript.original) || "No words returned by ASR";
+    cleanAsrText(transcript.displayOriginal ?? transcript.original) || "No words returned by ASR";
   const range = recordedRange(transcript.recordedAt, session?.createdAt, transcript.startMs, transcript.endMs);
   const insights = (session?.termInsights || []).filter(
     (entry) => entry.highlight && entry.transcriptIds.includes(transcript.id),
@@ -146,6 +146,8 @@ export function TranscriptRow({
                 {range.start}–{range.end}
               </span>
               <span className="speaker">{sourceLabel(transcript.sourceId)}</span>
+              {transcript.asrModel && <small>Recognized by {transcript.asrProvider} / {transcript.asrModel} · hint {transcript.asrLanguageHint ?? "auto"}</small>}
+              {transcript.displayOriginal != null && transcript.displayOriginal !== transcript.original && <p className="raw-asr">Provider original: {transcript.original}</p>}
               {transcript.uncertain && (
                 <span className="uncertain">Unclear · review audio</span>
               )}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -49,6 +49,14 @@ function Diagram({ source }: { source: string }) {
   );
 }
 
+// Stable component type: activity/capture polling must not remount unchanged diagrams.
+function MarkdownCode(props: { className?: string; children?: ReactNode }) {
+  const language = /language-(\w+)/.exec(props.className || "")?.[1];
+  const source = String(props.children).replace(/\n$/, "");
+  return language === "mermaid" || language === "flowchart"
+    ? <Diagram source={source} /> : <code>{props.children}</code>;
+}
+
 export function Markdown({
   value,
   onReference,
@@ -82,15 +90,7 @@ export function Markdown({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
         components={{
-          code(props) {
-            const language = /language-(\w+)/.exec(props.className || "")?.[1];
-            const source = String(props.children).replace(/\n$/, "");
-            return language === "mermaid" || language === "flowchart" ? (
-              <Diagram source={source} />
-            ) : (
-              <code>{props.children}</code>
-            );
-          },
+          code: MarkdownCode,
           a(props) {
             const source = /^\/source\/([a-z0-9_-]{32,180})$/i.exec(props.href || "");
             if (source && onSource)

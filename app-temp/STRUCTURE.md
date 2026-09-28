@@ -23,9 +23,12 @@ can be moved by dragging to a group or back to Sessions; each session also has
 a keyboard-accessible move menu. Deleting a group keeps its sessions and moves
 them to Sessions through `DELETE /api/groups/{id}`.
 
-`TranscriptPanel.tsx` switches between Transcript and a read-only Activity tab.
+`TranscriptPanel.tsx` renders the transcript. `ActivityPopover.tsx` sits beside
+Lecture notes and reads bounded execution state via `useActivity.ts`.
 `ActivityContent.tsx` owns loading saved edits from `/notes/edits`.
 `NoteEditHistory.tsx` and `TermDecisionTrace.tsx` render the two histories;
+restoring a saved note creates a new version. `Services/Ai/AiActivity.cs` owns
+execution records; it does not replace saved note versions or Jev decisions.
 `SourceLinks.tsx` supplies their shared source links. Loading, loaded, and failed
 states carry the session ID, so a delayed response cannot replace another
 session's history. Source navigation runs after React renders the Transcript view.

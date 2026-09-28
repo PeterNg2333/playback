@@ -1,6 +1,8 @@
 import type { Evidence, NoteEditLog, Session } from "../types/api";
 import { SourceLinks } from "./SourceLinks";
 import { formatDateTime } from "./format";
+import { api } from "./api";
+import { useState } from "react";
 
 type NoteEditHistoryProps = {
   session: Session;
@@ -13,6 +15,8 @@ export function NoteEditHistory({
   notes,
   onSource,
 }: NoteEditHistoryProps) {
+  const [restoring, setRestoring] = useState(false);
+  const [message, setMessage] = useState("");
   if (!notes.length) return <p className="empty">No saved note edits yet.</p>;
   return [...notes].reverse().map((note) => {
     const authorLabel =
@@ -33,6 +37,14 @@ export function NoteEditHistory({
           <small>{note.edits.length} changes</small>
         </summary>
         <div className="activity-entry-body">
+          <button className="text-control" disabled={restoring || note.version === session.noteVersion}
+            onClick={async () => {
+              setRestoring(true); setMessage("");
+              try { await api(`/sessions/${session.id}/notes/${note.version}/restore`, "POST"); setMessage(`Restored v${note.version} as a new version. Unsaved editor text is retained.`); }
+              catch(error) { setMessage(error instanceof Error ? error.message : String(error)); }
+              finally { setRestoring(false); }
+            }}>Restore this version</button>
+          {message && <p role="status">{message}</p>}
           <p className="activity-help">
             {note.basedOnVersion == null
               ? "First saved version"

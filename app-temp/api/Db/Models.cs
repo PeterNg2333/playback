@@ -3,6 +3,23 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace Playback.Api.Db;
 
+public sealed class ActivityRecord
+{
+    [BsonId] public string Id { get; set; } = "";
+    public string SessionId { get; set; } = "";
+    public string Task { get; set; } = "";
+    public string Provider { get; set; } = "";
+    public string Model { get; set; } = "";
+    public string Status { get; set; } = "queued";
+    public DateTime StartedAt { get; set; }
+    public DateTime? EndedAt { get; set; }
+    public long? DurationMs { get; set; }
+    public string? Summary { get; set; }
+    public List<string> SourceIds { get; set; } = [];
+    public int? BasedOnVersion { get; set; }
+    [BsonIgnore] public string? Draft { get; set; }
+}
+
 public sealed record SessionView(
     string Id,
     string Title,
@@ -18,7 +35,10 @@ public sealed record SessionView(
     List<ChunkRecord> Chunks,
     List<TermCandidate> Terms,
     List<TermInsight> TermInsights,
-    Note? CurrentNote);
+    Note? CurrentNote,
+    string AsrLanguage = "auto",
+    string NoteLanguage = "zh-Hant",
+    string? AsrModel = null);
 [BsonIgnoreExtraElements]
 public sealed class SessionRecord
 {
@@ -28,6 +48,9 @@ public sealed class SessionRecord
     public DateTime CreatedAt { get; set; }
     public bool TranslationEnabled { get; set; }
     public string TranslationLanguage { get; set; } = "zh-Hant";
+    public string AsrLanguage { get; set; } = "auto";
+    public string? AsrModel { get; set; }
+    public string NoteLanguage { get; set; } = "zh-Hant";
 }
 public sealed class GroupRecord
 {
@@ -50,6 +73,7 @@ public sealed class Note
     public int? BasedOnVersion { get; set; }
     public string Markdown { get; set; } = "";
     public string Author { get; set; } = "";
+    public string? OutputLanguage { get; set; }
     public long ProcessedThroughMs { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<string> TranscriptIds { get; set; } = [];
@@ -70,6 +94,11 @@ public sealed class Transcript
     public long EndMs { get; set; }
     public DateTime? RecordedAt { get; set; }
     public string Original { get; set; } = "";
+    public string? DisplayOriginal { get; set; }
+    [BsonIgnore, System.Text.Json.Serialization.JsonIgnore]
+    public string SourceText => DisplayOriginal ?? Original;
+    public string? AsrLanguageHint { get; set; }
+    public string? AsrDetectedLanguage { get; set; }
     public string? AsrProvider { get; set; }
     public string? AsrModel { get; set; }
     public string? Translation { get; set; }
@@ -113,6 +142,10 @@ public sealed class TermInsight
     [BsonId] public string Id { get; set; } = "";
     public string SessionId { get; set; } = "";
     public string Term { get; set; } = "";
+    public string Context { get; set; } = "";
+    public string OutputLanguage { get; set; } = "zh-Hant";
+    public string ExplanationVersion { get; set; } = "context-v1";
+    public int? AddedToNoteVersion { get; set; }
     public bool Highlight { get; set; }
     public double JevProbability { get; set; }
     public string JevRank { get; set; } = "";
@@ -124,6 +157,9 @@ public sealed class TermInsight
     public List<string> TranscriptIds { get; set; } = [];
     public List<string> MaterialIds { get; set; } = [];
     public string? Explanation { get; set; }
+    public List<string> SearchQueries { get; set; } = [];
+    public string? GroundingUsageJson { get; set; }
+    public string? GroundingMetadataJson { get; set; }
     public List<TermEvidence> Evidence { get; set; } = [];
     public DateTime? ExplainedAt { get; set; }
 }

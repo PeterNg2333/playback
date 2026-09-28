@@ -378,3 +378,10 @@ dialog::backdrop {
     bottom: 178px;
   }
 }
+@media (max-width: 700px) {
+  .topbar .project-name { width: 100%; max-width: 100%; left: auto; text-align: center; }
+  .sidebar:not(.is-open) { visibility: hidden; pointer-events: none; }
+}
+.chat .markdown-preview { max-width: 100%; }
+.chat .markdown-preview h1, .chat .markdown-preview h2, .chat .markdown-preview h3 { font-size: 14px; }
+.chat .markdown-preview ul, .chat .markdown-preview ol { padding-left: 20px; }

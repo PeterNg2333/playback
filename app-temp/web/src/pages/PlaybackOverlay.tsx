@@ -1,6 +1,7 @@
 import type { PlaybackController } from "./handlers";
 import { TextInputDialog } from "../Component/Dialog/TextInputDialog";
 import { recordedRange } from "./format";
+import { Markdown } from "../Component/Markdown";
 
 export function PlaybackOverlay({ model }: { model: PlaybackController }) {
   const {
@@ -12,6 +13,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
     error,
     setError,
     answer,
+    answerDraft,
     jump,
     focusMaterialId,
     setSelection,
@@ -73,6 +75,10 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             </button>
           </div>
           <div className="chat-scroll">
+            {busy === "ask" && <div className="chat-progress" role="status">
+              <strong>Checking sources{useWeb ? " and public web" : ""}…</strong>
+              {answerDraft && <p className="provisional-answer">Unverified draft · {answerDraft.replace("INSUFFICIENT_SOURCE", "Lecture evidence is insufficient; checking the allowed sources…")}</p>}
+            </div>}
             {error && (
               <p className="chat-error" role="alert">
                 {error}
@@ -86,11 +92,11 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             )}
             {answer ? (
               <div className="answer">
-                <p>{answer.answer}</p>
+                <Markdown value={answer.answer} sources={answer.evidence.filter(ev => !!ev.id).map(ev => ({ id: ev.id!, label: ev.label || ev.title || ev.kind }))}
+                  onSource={id => { const ev = answer.evidence.find(item => item.id === id); if (ev) jump(ev); }} />
+                {answer.webError && <p className="chat-error" role="alert">Public web search failed: {answer.webError}</p>}
                 {answer.webAnswer && (
-                  <p>
-                    <strong>Public web:</strong> {answer.webAnswer}
-                  </p>
+                  <section><strong>Public web:</strong><Markdown value={answer.webAnswer} /></section>
                 )}
                 {answer.webSuggestions && (
                   <iframe
@@ -161,7 +167,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="Ask a question…"
             />
-            <button disabled={!session || !!busy}>Send</button>
+            <button disabled={!session || !!busy || !question.trim()}>{busy === "ask" ? "Working…" : "Send"}</button>
           </form>
         </section>
       )}

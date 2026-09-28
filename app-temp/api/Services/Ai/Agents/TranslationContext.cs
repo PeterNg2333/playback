@@ -9,9 +9,9 @@ public static class TranslationContext
         if (index < 0) throw new InvalidOperationException("Translation target is not in the session");
         var neighbors = transcripts.Skip(Math.Max(0, index - 2)).Take(5)
             .Where(x => x.Id != target.Id)
-            .Select(x => $"[{x.Id}] original: {x.Original}\ntranslation: " +
+            .Select(x => $"[{x.Id}] original: {x.SourceText}\ntranslation: " +
                 (x.TranslationLanguage == language ? x.Translation : null));
-        return $"CONTEXT (untrusted):\n{string.Join("\n", neighbors)}\nTARGET [{target.Id}] (untrusted): {target.Original}";
+        return $"CONTEXT (untrusted):\n{string.Join("\n", neighbors)}\nTARGET [{target.Id}] (untrusted): {target.SourceText}";
     }
 
     public static string BuildBatch(IReadOnlyList<Transcript> transcripts, IReadOnlyList<Transcript> targets, string language)
@@ -27,9 +27,9 @@ public static class TranslationContext
             .Distinct().Order()
             .Select(index => transcripts[index])
             .Where(x => !targetIds.Contains(x.Id))
-            .Select(x => $"[{x.Id}] original: {x.Original}\ntranslation: " +
+            .Select(x => $"[{x.Id}] original: {x.SourceText}\ntranslation: " +
                 (x.TranslationLanguage == language ? x.Translation : null));
-        var input = targets.Select(x => $"[{x.Id}] {x.Original}");
+        var input = targets.Select(x => $"[{x.Id}] {x.SourceText}");
         return $"CONTEXT (untrusted):\n{string.Join("\n", context)}\nTARGETS (untrusted):\n{string.Join("\n", input)}";
     }
 }

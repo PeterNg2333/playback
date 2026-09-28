@@ -2,9 +2,13 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
+2026-09-28 修復與驗收：最新行為以 [AI 實際流程](docs/ai-flow.zh-HK.md) 為準；真實 provider／實機測試、離線回歸、失敗及限制保存在本機 [validation 索引](data/validation/index.md)。下方 2026-09-26／27 的資料是歷史結果，不能代替本輪驗收。沒有原生串流 ASR 或三小時實機穩定性承諾。
+
+每個 session 的 Transcript settings 現有三組獨立語言設定：ASR（Auto／混合、廣東話、普通話、英文）；Notes output（TC／SC／EN）；Translation target（廣東話繁體、TC、SC、EN，及原有日／韓語）。ASR 設定用於之後的辨識請求，已完成逐字稿不會重新上傳；廣東話模式以本機 Windows 字形轉換作繁體顯示，原始 ASR 文字保留。筆記設定用於下一次 AI revision，改語言後可按 Revise with AI；翻譯目標更改會重新排入翻譯佇列。設定保存到 session，重載後保留，不需清空資料庫。詳見 [ASR 語言設定](docs/asr-adapters.zh-HK.md#語言設定)。
+
 2026-09-28：來源選單在 idle 時可選；舊 API 會明示重啟提示並阻止忽略所選來源的錄音。`dev` 亦檢查來源與 ASR adapter capability。筆記改用 presentation／lecture-note prompt，list、tree、diagram、table 和 code block 均按內容需要使用，不強制圖表，並要求移除舊 AI 筆記滲入的 `BASE VERSION` 標記。已保存版本不會自動改寫；下一次 Revise with AI 使用新 prompt。
 
-ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenRouter `qwen/qwen3-asr-1.7b`，否則保留 SenseVoice；亦可明確設 `PLAYBACK_ASR_PROVIDER`。兩者現在均為封存 chunk 的 REST 轉錄，真正 streaming 目前只有擴充合約，未接 capture。配置、官方接口研究、延遲限制及離線／opt-in live 比較指令見 [ASR adapters 研究](docs/asr-adapters.zh-HK.md)。下方較早的 SenseVoice 測試數字並非 Qwen 的測試結果。
+ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenRouter `qwen/qwen3-asr-1.7b`，否則保留 SenseVoice；亦可明確設 `PLAYBACK_ASR_PROVIDER`。兩者目前是 REST：錄音最多約 8 秒封存，約每 2 秒嘗試更新灰字預覽，正式稿完成後替換。Streaming adapter 的 PCM 接線已具備，但尚未有具體 realtime provider。設定可按 session 切換 Whisper V3／Turbo，以及「廣東話 + English」自動辨識、繁體顯示。預覽增加音訊請求費用；三款模型的短音訊 live 比較、raw/display 差異及局限已保存於 validation。詳見 [ASR adapters 研究](docs/asr-adapters.zh-HK.md)。下方較早測試紀錄並非新流程的實測。
 
 此目錄是 .NET 10 + React/Vite 的本機驗證版。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**此版本沒有登入或分享權限，不可當作已可部署的產品。**
 
@@ -12,13 +16,13 @@ ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenR
 
 左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。偵測到音量活動時，Transcript 先顯示淡色待完成列；音訊保存後以原文或音訊狀態取代。列上顯示「Microphone」或「System audio」來源，目前沒有真人講者分離。連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
 
-Transcript 標題旁的 **Activity** tab 是唯讀紀錄：顯示最近最多 100 個已保存的 AI／手動筆記版本、逐行新增／移除、版本基底與來源，以及已保存的 Jev explain probability、category、confidence 和實際高亮決定。來源可跳回逐字稿或教材；開啟 Activity 不會呼叫外部模型。新 Jev 決定會另保存 model、cache 狀態及採用的高亮規則；舊紀錄缺少的欄位顯示未有紀錄，不推測過往資料。這是已保存的編輯和決定紀錄；模型內部推理及失敗請求的完整歷史沒有保存。
+**Activity** 已移至 Lecture notes 標題旁的 ↶。Popover 支援 hover／click／keyboard／Escape／touch，顯示本 session 最近 100 條真實執行、provider/model、queued/running/completed/failed/cache-hit、時間、耗時、來源及脫敏錯誤，並沿用保存的 note edits 和 Jev 決定。Restore this version 會新增還原版本。開啟紀錄不呼叫模型；舊版本沒有的執行資料不會補造。
 
 時間線保留可收合的日期／小時，但取消多層邊線及逐列卡片，只使用輕微縮排。底部播放器固定兩行：第一行是播放模式、進度、時間與速度，第二行是後退五秒、播放／暫停及前進五秒。播放模式選單可切換 Full session 與音訊來源；這與頂部的錄音來源設定分開。
 
 開始錄音前可選 **Microphone**（咪高峰）、**System audio**（Windows 預設播放裝置的全機 loopback）或 **Both sources**（兩者）。System audio 並非指定單一視窗。錄音期間模式鎖定，暫停／繼續沿用所選來源；要換模式須先停止。Both sources 如只有一個裝置可用仍會收音，並顯示另一個來源的實際錯誤。舊版 API 沒有來源選擇能力時，仍可選來源偏好，但 Record 會停用並顯示重啟提示；先停止錄音，再於自己的終端按 `Ctrl+C`、執行 `pnpm.cmd dev` 並重載網頁，才能使用新模式。現有 session 不需清空或遷移。
 
-錄音狀態由本機 API 保持。暫停會封存目前音訊 chunk；繼續後使用新的收音來源，錄音時間不計暫停時段。麥克風連續一分鐘沒有偵測到足夠音量時，UI 會提示檢查裝置。這是簡單的 energy VAD 診斷：噪音可能被視為聲音，較遠或細聲的語音也可能被漏掉，並不判斷是否有人說話。
+錄音狀態由本機 API 保持。頂部顯示本次 Record elapsed time，跨分段不重設，pause 凍結、resume 接續，重載由後端恢復；stop 後重新 Record 歸零。Silero VAD 用於人聲及送音策略，音量計另反映即時振幅。VAD 仍可能誤判；原始錄音保留供回聽，並非保證辨識所有人聲。
 
 ## 短期可行性審核（2026-09-27）
 
@@ -39,7 +43,7 @@ React/Vite UI ── localhost API ──> MongoDB: sessions/materials/chunks/tr
                               ├── Agent Framework + Vertex Gemini 3.5 Flash-Lite: notes, translation, private Q&A
                               ├── Vertex Gemini 3.5 Flash-Lite + Google Search: explanations / web evidence
                               └── Jev: candidate term decisions
-Windows mic + system output ── .NET API process ── 約 30s WAV ── local disk + MongoDB
+Windows mic + system output ── .NET API process ── 最多約 8s WAV ── local disk + MongoDB
                                                     └── ASR adapter: SenseVoice / OpenRouter Qwen (automatic queue, at most 2 requests)
 ```
 
@@ -59,7 +63,7 @@ pnpm.cmd dev
 
 `dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
 
-先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每約三十秒完成一段 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
+先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每段最多約八秒，滿三秒且語音結束時可提早完成 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
 
 錄音音訊會自動上傳目前配置的 ASR provider。介面與 API 不設同意勾選或同意 header；AI 筆記、提問和翻譯直接觸發 Gemini，術語評估直接觸發 Jev。憑證只從 process environment 讀 `GOOGLE_AI_STUDIO_API_KEY`、`OPENROUTER_API_KEY`、`JEV_API_KEY`；沒有 key 時顯示實際錯誤，不會回傳假成功。
 
@@ -134,7 +138,7 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 
 翻譯若啟用，1,266 段在沒有失敗重試時約需 127 次十段批次請求，原逐段流程會有 1,266 次。批次回應必須包含每個 transcript ID 且不可重複；解析失敗會標記該批次失敗並按原有退避規則重試。Jev 的 `Bearer` header、`GET /v1/models` 及回應 schema 已按 [TypeSafe OpenAPI](https://api.typesafe.ai/openapi.json) 核對。2026-09-27 更新 key 後，`pnpm.cmd test:jev-live` 以虛構 `spectrogram` 完成模型發現、排名及快取：`high`、probability `0.84`、confidence `0.53`，並收到 usage 物件；這不代表真實課堂術語品質已驗證。[Vertex Express REST 資源](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 仍沒有建立顯式 context cache 的端點，故此流程沒有使用顯式 cache。
 
-問答現在按問題詞語選取最多五份教材，中文連續字詞會拆成相鄰雙字供長課堂搜尋；長教材截取含匹配詞的最多 3,000 字，逐字稿每段及選中來源各截取最多 1,600 字。模型回答必須以方括號引用本次提供的來源 ID，否則回報失敗；原有的 `[unclear]` 等 ASR 標記不作引用。evidence 只列實際引用的來源及其音訊時間或教材名稱。這能防止缺失或虛構 ID 被當成來源，但不能證明引用內容的語義正確。離線協定檢查、Week 3 開頭／中段／末段唯讀搜尋、合成中文三小時搜尋，以及虛構資料 Gemini live 問答均已通過。
+問答現在按問題詞語選取最多五份教材，中文連續字詞會拆成相鄰雙字供長課堂搜尋；長教材截取含匹配詞的最多 3,000 字，逐字稿每段及選中來源各截取最多 1,600 字。模型回答必須以方括號引用本次提供的來源 ID；引用失敗會拒絕 lecture answer，但已允許的獨立 web 分支仍會執行；原有的 `[unclear]` 等 ASR 標記不作引用。evidence 只列實際引用的來源及其音訊時間或教材名稱。這能防止缺失或虛構 ID 被當成來源，但不能證明引用內容的語義正確。離線協定檢查、Week 3 開頭／中段／末段唯讀搜尋、合成中文三小時搜尋，以及虛構資料 Gemini live 問答均已通過。
 
 Week 3 音訊的 live 檢查會把測試片段送到 SenseVoice，並把辨識出的部分文字送到 Gemini 驗證問答及筆記；測試程式不在終端輸出音訊、逐字稿或金鑰。
 
@@ -142,9 +146,9 @@ Week 3 音訊的 live 檢查會把測試片段送到 SenseVoice，並把辨識�
 
 每個新筆記版本保存與前一版本逐行比較的新增／移除紀錄、行號及該行實際引用的 transcript/material ID；agent 版本另存本輪納入的 transcript/material ID。`GET /api/sessions/{id}/notes/edits` 返回最近 100 個版本的編輯紀錄；筆記預覽可展開最新版本的變更。長篇大量改動時，後端以整段移除／新增紀錄代替高成本逐行配對。若 AI 生成時有人手版本先儲存，舊基底的 AI 結果會被拒絕並待下次重試；無效 `[ref:ID]` 同樣拒絕。這是可審核的文字差異與輸入清單，不能證明 AI 對每一個未引用的句子有正確歸因。
 
-Transcript 設定中的「Review next key terms」每次最多向 Jev 提交三個尚未評估的候選詞。亦可在確認課堂資料可傳送後，於 **process environment** 設 `PLAYBACK_AUTO_TERMS=yes`，讓背景程序每兩分鐘在所有 session 合計最多評估三詞；預設關閉。只有 Jev 的 `explain` 機率至少 0.75、類別為 `high`／`medium` 且類別信心至少 0.50 的詞會在有來源的逐字稿中高亮。短按不彈出視窗，長按約半秒才顯示補充解釋；鍵盤 Enter／Space 也可開啟。此門檻屬試驗規則，真實課堂的 precision/recall 尚未評估。
+2026-09-28 更新：來源事件延遲約四秒排入 Jev，每次最多三個候選詞；自動模式預設開啟（`PLAYBACK_AUTO_TERMS=no` 可關）。「Review next key terms」保留為手動重試入口。候選包含小寫／中文並攜帶 context，門檻仍為 probability ≥ .75、high/medium、confidence ≥ .50。長按／鍵盤可展開高亮詞的保存解釋。門檻的自然課堂 precision/recall 未評估。
 
-首次開啟高亮詞會向 Vertex Google Search 請求公開來源解釋，然後把解釋及 HTTPS 來源獨立保存在 `term_insights`，再次開啟使用已保存版本。筆記生成只可放已提供的 `[ref:ID]` 標記，不把補充解釋文字放入 Markdown；預覽把標記顯示為可開啟保存解釋的 `ref`。現有舊筆記與 MongoDB 紀錄可讀取，新增欄位預設為空。此流程已通過合成資料的 .NET protocol checks、web build、Playwright 1280／1024／768／375／320 像素 UI fixture；新的資料庫寫入路徑和真實課堂 Jev 決策仍未做 live 端到端驗證。
+Jev 選中後立即以 Gemini + Google Search 解釋，短文標示「AI／網絡補充」加入筆記及 `[ref:ID]`，詳解／HTTPS evidence 保存於 `term_insights`；不是等點開才生成。按 term/context/output language/version 保存、去重和重用。搜尋失敗顯示真實錯誤，普通筆記仍可處理。2026-09-28 已以合成樣本 system loopback 驗證自動來源事件、Jev、搜尋、note version 及 UI；自然課堂品質仍未驗收。
 
 ## 2026-09-27：系統聲 ASR 與共用播放器複核
 

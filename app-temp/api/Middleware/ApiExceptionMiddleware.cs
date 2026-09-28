@@ -10,11 +10,11 @@ public sealed class ApiExceptionMiddleware(RequestDelegate next)
         }
         catch (InvalidOperationException ex)
         {
-            await WriteError(context, 409, ex.Message);
+            await WriteError(context, 409, Playback.Api.Services.Ai.AiActivity.SafeError(ex));
         }
         catch (HttpRequestException ex)
         {
-            await WriteError(context, 502, ex.Message);
+            await WriteError(context, 502, Playback.Api.Services.Ai.AiActivity.SafeError(ex));
         }
         catch (System.Text.Json.JsonException)
         {
@@ -27,6 +27,10 @@ public sealed class ApiExceptionMiddleware(RequestDelegate next)
         catch (TimeoutException)
         {
             await WriteError(context, 503, "Local MongoDB is unavailable");
+        }
+        catch (OperationCanceledException) when (!context.RequestAborted.IsCancellationRequested)
+        {
+            await WriteError(context, 504, "Provider request timed out; retry explicitly. Saved audio and notes are retained.");
         }
     }
 

@@ -221,7 +221,7 @@ async function main() {
       const health = await (
         await fetch("http://127.0.0.1:5078/api/health")
       ).json();
-      if (!health.manualAsrRetry || !health.sessionAudioMix || !health.recordingSourceSelection || !health.asr)
+      if (!health.manualAsrRetry || !health.sessionAudioMix || !health.recordingSourceSelection || !health.asr || !health.sessionLanguageSettings || !health.liveAsrPreview || !health.elapsedRecordingClock || !health.aiActivity || !health.groundedChatFallback)
         throw new Error(
           "An older Playback API is running. Stop it with Ctrl+C, then run pnpm.cmd dev again.",
         );

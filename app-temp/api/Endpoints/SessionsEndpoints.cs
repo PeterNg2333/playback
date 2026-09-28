@@ -15,6 +15,9 @@ public static class SessionsEndpoints
         app.MapPut("/api/sessions/{id}/translation", async (
             string id, TranslationInput input, PlaybackStore store) =>
             await store.SetTranslation(id, input.Enabled, input.Language));
+        app.MapPut("/api/sessions/{id}/languages", async (
+            string id, LanguagesInput input, PlaybackStore store) =>
+            await store.SetLanguages(id, input.AsrLanguage, input.NoteLanguage, input.AsrModel));
         app.MapPost("/api/sessions/{id}/translation/retry", async (string id, PlaybackStore store) =>
         {
             var session = await store.Session(id)

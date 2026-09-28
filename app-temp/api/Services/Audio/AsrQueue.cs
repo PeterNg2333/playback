@@ -19,6 +19,8 @@ public sealed class AsrQueue : IAsyncDisposable
     readonly bool paused = Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") == "yes";
     bool databaseUnavailable;
 
+    public bool LiveBacklog { get { lock (queued) return liveJobs.Count > 0; } }
+
     public AsrQueue(PlaybackStore store, AsrProcessor processor, ILogger<AsrQueue> logger)
     {
         this.store = store;
@@ -69,7 +71,9 @@ public sealed class AsrQueue : IAsyncDisposable
 
     async Task ScanPending()
     {
-        if (paused || Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes") return;
+        if (paused || Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes"
+            || Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_PORT") == "5081"
+            || Environment.GetEnvironmentVariable("PLAYBACK_RESUME_SAVED_ASR") == "no") return;
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
         try
         {

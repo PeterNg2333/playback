@@ -3,6 +3,8 @@ import { z } from "zod";
 export const SessionTitleSchema = z.string().trim().min(1).max(120);
 export const GroupNameSchema = z.string().trim().min(1).max(80);
 export const QuestionSchema = z.string().trim().min(1).max(1000);
+export const AsrLanguageSchema = z.enum(["auto", "yue-en", "yue", "zh", "en"]);
+export const NoteLanguageSchema = z.enum(["zh-Hant", "zh-Hans", "en"]);
 
 export const TranscriptSchema = z.object({
   id: z.string(),
@@ -11,6 +13,11 @@ export const TranscriptSchema = z.object({
   endMs: z.number(),
   recordedAt: z.string().nullish(),
   original: z.string(),
+  displayOriginal: z.string().nullish(),
+  asrProvider: z.string().nullish(),
+  asrModel: z.string().nullish(),
+  asrLanguageHint: z.string().nullish(),
+  asrDetectedLanguage: z.string().nullish(),
   translation: z.string().nullish(),
   translationLanguage: z.string().nullish(),
   translationStatus: z.string().optional(),
@@ -28,6 +35,7 @@ export const MaterialSchema = z.object({
 });
 export const TermCandidateSchema = z.object({
   text: z.string(),
+  context: z.string().optional(),
   transcriptIds: z.array(z.string()),
   materialIds: z.array(z.string()),
 });
@@ -50,6 +58,8 @@ export const NoteEditLogSchema = z.object({
 export const TermInsightSchema = z.object({
   id: z.string(),
   term: z.string(),
+  context: z.string().optional(),
+  outputLanguage: z.string().optional(),
   highlight: z.boolean(),
   jevProbability: z.number().optional(),
   jevRank: z.string().optional(),
@@ -86,6 +96,9 @@ export const SessionSchema = SessionSummarySchema.extend({
   noteVersion: z.number(),
   translationEnabled: z.boolean(),
   translationLanguage: z.string(),
+  asrLanguage: AsrLanguageSchema.default("auto"),
+  asrModel: z.string().nullish(),
+  noteLanguage: NoteLanguageSchema.default("zh-Hant"),
   materials: z.array(MaterialSchema),
   transcripts: z.array(TranscriptSchema),
   chunks: z.array(ChunkSchema),
@@ -121,7 +134,16 @@ export const AnswerSchema = z.object({
   webSuggestions: z.string().nullish(),
   evidence: z.array(EvidenceSchema),
   inference: z.boolean(),
+  lectureStatus: z.string().optional(),
+  lectureError: z.string().nullish(),
+  webError: z.string().nullish(),
 });
+export const ActivitySchema = z.object({
+  id: z.string(), sessionId: z.string(), task: z.string(), provider: z.string(), model: z.string(),
+  status: z.string(), startedAt: z.string(), endedAt: z.string().nullish(), durationMs: z.number().nullish(),
+  summary: z.string().nullish(), sourceIds: z.array(z.string()), basedOnVersion: z.number().nullish(), draft: z.string().nullish(),
+});
+export type Activity = z.infer<typeof ActivitySchema>;
 export const HealthSchema = z.object({
   mongo: z.boolean(),
   gemini: z.boolean(),
@@ -130,7 +152,16 @@ export const HealthSchema = z.object({
   asrPaused: z.boolean().optional(),
   sessionAudioMix: z.boolean().optional(),
   recordingSourceSelection: z.boolean().optional(),
-  asr: z.object({ provider: z.string(), model: z.string(), transport: z.string() }).optional(),
+  sessionLanguageSettings: z.boolean().optional(),
+  liveAsrPreview: z.boolean().optional(),
+  elapsedRecordingClock: z.boolean().optional(),
+  aiActivity: z.boolean().optional(),
+  groundedChatFallback: z.boolean().optional(),
+  build: z.string().optional(),
+  asrStreaming: z.boolean().optional(),
+  asrModels: z.array(z.string()).optional(),
+  audioChunkMilliseconds: z.number().optional(),
+  asr: z.object({ provider: z.string(), model: z.string(), transport: z.string(), supportsLanguageHint: z.boolean().optional() }).optional(),
 });
 export const RecordingModeSchema = z.enum(["microphone", "system", "both"]);
 export const CaptureStatusSchema = z.object({
@@ -144,6 +175,10 @@ export const CaptureStatusSchema = z.object({
   levels: z.record(z.string(), z.number()).optional(),
   capturedThroughMs: z.number().optional(),
   lastFinalizedAtMs: z.number().optional(),
+  recordingElapsedMs: z.number().optional(),
+  recordingId: z.string().nullish(),
+  chunkMilliseconds: z.number().optional(),
+  interimError: z.string().nullish(),
   activeSegments: z
     .array(
       z.object({
@@ -152,6 +187,7 @@ export const CaptureStatusSchema = z.object({
         endMs: z.number(),
         recordedAt: z.string(),
         streaming: z.boolean().optional(),
+        interimText: z.string().nullish(),
       }),
     )
     .optional(),

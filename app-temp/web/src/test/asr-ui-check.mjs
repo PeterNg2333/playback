@@ -97,7 +97,8 @@ const session = {
       startMs: 1000,
       endMs: 2000,
       recordedAt: "2026-09-26T09:10:00Z",
-      original: "Second line",
+      original: "广东话：我哋学 FFT。",
+      displayOriginal: "廣東話：我哋學 FFT。",
       uncertain: false,
       translation: "第二句",
       translationStatus: "completed",
@@ -117,6 +118,7 @@ const session = {
 let capture = { state: "idle", bytes: {}, autoAsr: false };
 let captureRequest;
 let translationRequest;
+let languagesRequest;
 let asrPaused = false;
 let recordingSourceSelection = true;
 let questionRequest;
@@ -166,7 +168,11 @@ try {
         asrPaused,
         sessionAudioMix: true,
         recordingSourceSelection,
-        asr: { provider: "openrouter", model: "qwen/qwen3-asr-1.7b", transport: "rest" },
+        sessionLanguageSettings: true,
+        liveAsrPreview: true,
+        audioChunkMilliseconds: 8000,
+        asrModels: ["qwen/qwen3-asr-1.7b", "openai/whisper-large-v3", "openai/whisper-large-v3-turbo"],
+        asr: { provider: "openrouter", model: "qwen/qwen3-asr-1.7b", transport: "rest", supportsLanguageHint: true },
       };
     else if (path === "/api/capture/status") data = capture;
     else if (path === "/api/capture/start") {
@@ -177,8 +183,9 @@ try {
         sourceMode: captureRequest.sourceMode,
         bytes: { microphone: 32000 },
         levels: { microphone: 80 },
-        capturedThroughMs: 1000,
-        lastFinalizedAtMs: 0,
+        capturedThroughMs: 61000,
+        recordingElapsedMs: 1000,
+        lastFinalizedAtMs: 60000,
         activeSegments: [],
         autoAsr: true,
       };
@@ -264,6 +271,10 @@ try {
       session.chunks.find((chunk) => chunk.id === "failed").status =
         "pending-asr";
       data = {};
+    } else if (path === `/api/sessions/${id}/languages`) {
+      languagesRequest = request.postDataJSON();
+      Object.assign(session, languagesRequest);
+      data = { ok: true };
     } else if (path === `/api/sessions/${id}/translation`) {
       translationRequest = request.postDataJSON();
       session.translationEnabled = translationRequest.enabled;
@@ -283,6 +294,8 @@ try {
       : "http://127.0.0.1:5173";
   await page.goto(web);
   await page.locator(".audio-row").first().waitFor();
+  await page.locator("#second").getByText("廣東話：我哋學 FFT。", { exact: true }).waitFor();
+  assert.equal(await page.locator("#second").getByText("广东话：我哋学 FFT。", { exact: true }).count(), 0);
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
     await page.screenshot({
       path: join(tmpdir(), "playback-transcript-default-1280.png"),
@@ -465,7 +478,29 @@ try {
   }
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await page.getByText("ASR: qwen/qwen3-asr-1.7b (openrouter, rest)").waitFor();
+  const asrLanguage = page.getByRole("combobox", { name: "ASR spoken language" });
+  const noteLanguage = page.getByRole("combobox", { name: "Notes output language" });
+  await asrLanguage.selectOption("yue");
+  assert.deepEqual(languagesRequest, { asrLanguage: "yue", noteLanguage: "zh-Hant", asrModel: null });
+  await noteLanguage.selectOption("en");
+  assert.deepEqual(languagesRequest, { asrLanguage: "yue", noteLanguage: "en", asrModel: null });
+  await page.getByRole("combobox", { name: "ASR model" }).selectOption("openai/whisper-large-v3-turbo");
+  assert.deepEqual(languagesRequest, { asrLanguage: "yue", noteLanguage: "en", asrModel: "openai/whisper-large-v3-turbo" });
+  await asrLanguage.selectOption("yue-en");
+  await page.reload();
+  await page.getByRole("button", { name: "Transcript settings" }).click();
+  assert.equal(await asrLanguage.inputValue(), "yue-en");
+  assert.equal(await page.getByRole("combobox", { name: "ASR model" }).inputValue(), "openai/whisper-large-v3-turbo");
+  assert.equal(await noteLanguage.inputValue(), "en");
+  const translationLanguage = page.getByRole("combobox", { name: "Translation target language" });
+  for (const language of ["yue-Hant", "zh-Hans", "en", "zh-Hant"]) {
+    await translationLanguage.selectOption(language);
+    assert.deepEqual(translationRequest, { enabled: false, language });
+  }
+  if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
+    await page.screenshot({ path: join(tmpdir(), "playback-language-settings-320.png") });
   const translation = page.getByRole("checkbox", { name: "啟用翻譯" });
+  await page.waitForFunction(() => !document.querySelector('input[type="checkbox"]')?.disabled);
   assert.equal(await translation.isDisabled(), false);
   assert.equal(
     await page.getByRole("checkbox", { name: /I confirm lecturer/ }).count(),
@@ -518,7 +553,8 @@ try {
     });
   assert.equal(explanationRequests, 1);
   await page.getByRole("button", { name: "Close explanation" }).click();
-  await page.getByRole("tab", { name: "Activity", exact: true }).click();
+  await page.getByRole("navigation", { name: "Workspace views" }).getByRole("button", { name: "Notes", exact: true }).click();
+  await page.getByRole("button", { name: "AI activity history", exact: true }).click();
   await page.getByText("v1 · AI edit", { exact: true }).click();
   await page
     .locator(".activity-edit pre")
@@ -544,13 +580,9 @@ try {
     });
   await trace.getByRole("button", { name: "08:10:00", exact: true }).click();
   await page.locator("#first").waitFor();
-  assert.equal(
-    await page
-      .getByRole("tab", { name: "Transcript", exact: true })
-      .getAttribute("aria-selected"),
-    "true",
-  );
-  await page.getByRole("tab", { name: "Activity", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("navigation", { name: "Workspace views" }).getByRole("button", { name: "Notes", exact: true }).click();
+  await page.getByRole("button", { name: "AI activity history", exact: true }).click();
   await page.getByText("v1 · AI edit", { exact: true }).click();
   await page.getByRole("button", { name: "Tutorial.txt", exact: true }).click();
   await page.locator("#activity-material").waitFor();
@@ -559,6 +591,7 @@ try {
     "",
     "Activity material links must open the materials section",
   );
+  await page.keyboard.press("Escape");
   await page
     .getByRole("combobox", { name: "Recording source" })
     .selectOption("microphone");
@@ -570,18 +603,20 @@ try {
   );
   assert.equal(dialogs, 0);
   await page.locator(".record-indicator").waitFor();
-  await page.getByLabel("Next audio part in 29 seconds").waitFor();
+  await page.getByLabel("Recording elapsed 00:01").waitFor();
+  capture.recordingElapsedMs = 3661000;
+  await page.getByLabel("Recording elapsed 01:01:01").waitFor();
   await page.getByRole("img", { name: "Audio signal quiet" }).waitFor();
   await page.getByText("Listening for sound").waitFor();
   const placeholderStarted = Date.now();
   capture = {
     ...capture,
-    capturedThroughMs: 1100,
+    capturedThroughMs: 60100,
     activeSegments: [
       {
         sourceId: "microphone",
-        startMs: 1000,
-        endMs: 1100,
+        startMs: 60000,
+        endMs: 60100,
         recordedAt: "2026-09-26T08:11:00Z",
         streaming: false,
       },
@@ -595,9 +630,9 @@ try {
   await page.getByText("Speech detected · recording audio").waitFor();
   capture = {
     ...capture,
-    capturedThroughMs: 2100,
+    capturedThroughMs: 61100,
     activeSegments: [
-      { ...capture.activeSegments[0], endMs: 2100, streaming: true },
+      { ...capture.activeSegments[0], endMs: 61100, streaming: true },
     ],
   };
   await page.getByRole("img", { name: "Audio signal received" }).waitFor();
@@ -610,18 +645,36 @@ try {
         .evaluate((element) => getComputedStyle(element).opacity),
     ) < 1,
   );
+  capture = { ...capture, activeSegments: [{ ...capture.activeSegments[0], interimText: "我哋 study FFT" }] };
+  await page.locator(".interim-text").getByText("我哋 study FFT", { exact: true }).waitFor();
+  capture = { ...capture, activeSegments: [{ ...capture.activeSegments[0], interimText: "我哋 study FFT and frequency" }] };
+  await page.locator(".interim-text").getByText("我哋 study FFT and frequency", { exact: true }).waitFor();
+  assert.equal(await page.locator(".interim-text").count(), 1);
+  if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
+    await page.locator(".live-segment").scrollIntoViewIfNeeded();
+    await page.locator(".live-segment").screenshot({ path: join(tmpdir(), "playback-interim-row.png") });
+  }
   session.chunks.push({
     id: "saved-live",
     sourceId: "microphone",
     sequence: 900000,
-    startMs: 1000,
-    endMs: 2000,
+    startMs: 60000,
+    endMs: 61100,
     recordedAt: "2026-09-26T08:11:00Z",
     status: "pending-asr",
   });
-  capture = { ...capture, activeSegments: [], lastFinalizedAtMs: 2000 };
+  capture = { ...capture, lastFinalizedAtMs: 61100 };
+  await page.locator(".live-segment").getByText("我哋 study FFT and frequency", { exact: true }).waitFor();
+  session.chunks.find(chunk => chunk.id === "saved-live").status = "asr-error";
+  await page.waitForTimeout(4300);
+  await page.locator(".live-segment").getByText("我哋 study FFT and frequency", { exact: true }).waitFor();
+  session.chunks.find(chunk => chunk.id === "saved-live").status = "transcribed";
+  session.transcripts.push({ id: "saved-live", sourceId: "microphone", startMs: 60000, endMs: 61100,
+    recordedAt: "2026-09-26T08:11:00Z", original: "我哋 study FFT and frequency", uncertain: false });
+  await page.locator("#saved-live").waitFor();
   await page.locator(".live-segment").waitFor({ state: "detached" });
-  await page.locator(".audio-row").filter({ hasText: "08:11:00" }).waitFor();
+  assert.equal(await page.getByText("我哋 study FFT and frequency", { exact: true }).count(), 1);
+  await page.locator(".record-row").filter({ hasText: "08:11:00" }).waitFor();
   await page.setViewportSize({ width: 320, height: 720 });
   assert.equal(
     await page.evaluate(
@@ -796,7 +849,7 @@ try {
   askFailure = false;
   await page.getByRole("button", { name: "Send" }).click();
   await page
-    .getByText("The lecture introduced Fourier Transform [first].")
+    .locator(".answer").getByText(/The lecture introduced Fourier Transform/)
     .waitFor();
   assert.equal(await page.locator(".chat-error").count(), 0);
   assert.equal(dialogs, 0);

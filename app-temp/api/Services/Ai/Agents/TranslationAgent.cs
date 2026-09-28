@@ -1,14 +1,16 @@
 using Playback.Api.Db;
 using Playback.Api.Services.Ai.Providers;
+using Playback.Api.Services;
 using System.Text;
 using System.Text.Json;
+using Playback.Api.Services.Ai;
 
 namespace Playback.Api.Services.Ai.Agents;
 
 public sealed class TranslationAgent : IAsyncDisposable
 {
     public static string Instructions(string language) =>
-        $"Translate each TARGET original into {language}. " +
+        $"Translate each TARGET original into {LanguageSettings.OutputDescription(language)}. " +
         "Use CONTEXT for terminology and preserve uncertainty. " +
         "Return only JSON: {\"translations\":[{\"id\":\"target ID\",\"text\":\"translation\"}]}. " +
         "Include each target ID exactly once and do not translate context. " +
@@ -16,14 +18,16 @@ public sealed class TranslationAgent : IAsyncDisposable
     readonly PlaybackStore store;
     readonly GeminiLanguageModel gemini;
     readonly ILogger<TranslationAgent> logger;
+    readonly AiActivity activity;
     readonly CancellationTokenSource stopping = new();
     readonly Task worker;
 
-    public TranslationAgent(PlaybackStore store, GeminiLanguageModel gemini, ILogger<TranslationAgent> logger)
+    public TranslationAgent(PlaybackStore store, GeminiLanguageModel gemini, ILogger<TranslationAgent> logger, AiActivity activity)
     {
         this.store = store;
         this.gemini = gemini;
         this.logger = logger;
+        this.activity = activity;
         worker = Task.Run(ProcessPendingTranslations);
     }
 
@@ -57,6 +61,8 @@ public sealed class TranslationAgent : IAsyncDisposable
     {
         var session = await store.Session(targets[0].SessionId);
         if (session is null || !session.TranslationEnabled) return;
+        var call = await activity.Begin(session.Id, "Translation", "vertex", "gemini-3.5-flash-lite", targets.Select(x => x.Id));
+        await activity.Start(call);
         try
         {
             var prompt = TranslationContext.BuildBatch(session.Transcripts, targets, session.TranslationLanguage);
@@ -69,9 +75,11 @@ public sealed class TranslationAgent : IAsyncDisposable
             var values = ParseBatch(translated, targets.Select(x => x.Id).ToArray());
             foreach (var target in targets)
                 await store.SetTranslationResult(target, session.TranslationLanguage, values[target.Id], null);
+            await activity.End(call, "completed", $"{targets.Length} translations saved");
         }
         catch (Exception ex) when (!stopping.IsCancellationRequested)
         {
+            await activity.Fail(call, ex);
             foreach (var target in targets)
                 await store.SetTranslationResult(target, session.TranslationLanguage, null, ex.Message);
             logger.LogWarning(ex, "Translation failed for {TranscriptCount} transcripts", targets.Length);

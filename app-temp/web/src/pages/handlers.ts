@@ -10,8 +10,8 @@ import {
   SessionSummarySchema,
   SessionTitleSchema,
 } from "../types/api";
-import type { Evidence, TermCandidate } from "../types/api";
-import { api } from "./api";
+import type { Evidence, TermCandidate, Session } from "../types/api";
+import { api, askStream } from "./api";
 import { usePlaybackField, usePlaybackStore } from "./store";
 import { useAudioPlayback } from "./useAudioPlayback";
 
@@ -48,6 +48,9 @@ export function usePlaybackController() {
   } | null>(null);
   const savedMarkdown = useRef("");
   const textDialogSubmitting = useRef(false);
+  const refreshVersion = useRef(0);
+  const questionFlight = useRef<AbortController | null>(null);
+  const [answerDraft, setAnswerDraft] = useState("");
   useEffect(() => {
     document.body.dataset.view = view;
     document.body.dataset.language = session?.translationEnabled
@@ -58,8 +61,14 @@ export function usePlaybackController() {
     setSelection(null);
     setFocusMaterialId(null);
     setAnswer(null);
+    setAnswerDraft("");
+    questionFlight.current?.abort();
+    questionFlight.current = null;
+    if (usePlaybackStore.getState().busy === "ask") setBusy("");
+    setError("");
   }, [session?.id]);
   async function refresh(id?: string) {
+    const version = ++refreshVersion.current;
     const h = await api("/health", "GET", undefined, HealthSchema);
     setHealth(h);
     setCapture(
@@ -91,6 +100,7 @@ export function usePlaybackController() {
         undefined,
         SessionSchema,
       );
+      if (version !== refreshVersion.current) return;
       const previousSessionId = usePlaybackStore.getState().session?.id;
       const previousSavedMarkdown = savedMarkdown.current;
       setSession(item);
@@ -104,8 +114,10 @@ export function usePlaybackController() {
     }
   }
   async function refreshSessionSnapshot(id: string) {
+    const version = refreshVersion.current;
     const item = await api("/sessions/" + id, "GET", undefined, SessionSchema);
-    if (usePlaybackStore.getState().session?.id !== id) return;
+    if (version !== refreshVersion.current || usePlaybackStore.getState().session?.id !== id) return;
+    if (item.noteVersion < (usePlaybackStore.getState().session?.noteVersion ?? 0)) return;
     const previous = savedMarkdown.current;
     savedMarkdown.current = item.noteMarkdown;
     setMarkdown((current) =>
@@ -151,7 +163,7 @@ export function usePlaybackController() {
           (value?.activeSegments || [])
             .map(
               (segment) =>
-                `${segment.sourceId}:${segment.startMs}:${!!segment.streaming}`,
+                `${segment.sourceId}:${segment.startMs}:${!!segment.streaming}:${segment.interimText ?? ""}`,
             )
             .join("|");
         if (
@@ -159,8 +171,11 @@ export function usePlaybackController() {
           status.state !== previous.state ||
           status.sessionId !== previous.sessionId ||
           status.error !== previous.error ||
+          status.interimError !== previous.interimError ||
           status.noSoundWarning !== previous.noSoundWarning ||
           status.lastFinalizedAtMs !== previous.lastFinalizedAtMs ||
+          status.recordingId !== previous.recordingId ||
+          Math.floor((status.recordingElapsedMs ?? 0) / 1000) !== Math.floor((previous.recordingElapsedMs ?? 0) / 1000) ||
           segmentKeys(status) !== segmentKeys(previous) ||
           Math.floor((status.capturedThroughMs || 0) / 1000) !==
             Math.floor((previous.capturedThroughMs || 0) / 1000)
@@ -254,32 +269,42 @@ export function usePlaybackController() {
     });
   }
   async function ask() {
-    if (!session) return;
+    if (!session || questionFlight.current) return;
     setAnswer(null);
     const parsed = QuestionSchema.safeParse(question);
     if (!parsed.success) {
       setError("Question must be 1–1000 characters.");
       return;
     }
-    await action("ask", async () => {
-      setAnswer(
-        await api(
-          `/sessions/${session.id}/ask`,
-          "POST",
-          {
+    const controller = new AbortController();
+    questionFlight.current = controller;
+    setAnswerDraft(""); setBusy("ask"); setError("");
+    const id = session.id;
+    try {
+      const body = {
             question: parsed.data,
             useWeb,
             transcriptId: selection?.transcriptId,
             selectedText: selection?.text,
             materialId: focusMaterialId,
-          },
-          AnswerSchema,
-        ),
-      );
-      setQuestion("");
-      setSelection(null);
-      setFocusMaterialId(null);
-    });
+            requestId: crypto.randomUUID(),
+          };
+      const result = health?.groundedChatFallback
+        ? await askStream(id, body, controller.signal, text => {
+            if (usePlaybackStore.getState().session?.id === id) setAnswerDraft(text);
+          })
+        : await api(`/sessions/${id}/ask`, "POST", body, AnswerSchema);
+      if (usePlaybackStore.getState().session?.id !== id || controller.signal.aborted) return;
+      setAnswer(result);
+      setSelection(null); setFocusMaterialId(null);
+    } catch (reason) {
+      if (usePlaybackStore.getState().session?.id === id && !controller.signal.aborted)
+        setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (questionFlight.current === controller) {
+        questionFlight.current = null; setBusy(""); setAnswerDraft("");
+      }
+    }
   }
   async function retryAsr(ids: string[]) {
     if (!session) return;
@@ -288,6 +313,13 @@ export function usePlaybackController() {
         await api(`/sessions/${session.id}/chunks/retry`, "POST", {
           chunkIds: ids.slice(index, index + 100),
         });
+      await refresh(session.id);
+    });
+  }
+  async function setLanguages(asrLanguage: Session["asrLanguage"], noteLanguage: Session["noteLanguage"], asrModel: string | null = session?.asrModel ?? null) {
+    if (!session) return;
+    await action("languages", async () => {
+      await api(`/sessions/${session.id}/languages`, "PUT", { asrLanguage, noteLanguage, asrModel });
       await refresh(session.id);
     });
   }
@@ -338,7 +370,7 @@ export function usePlaybackController() {
     const transcript = session?.transcripts.find(
       (entry) => entry.id === row?.id,
     );
-    if (text && text.length <= 1000 && transcript?.original.includes(text))
+    if (text && text.length <= 1000 && transcript && (transcript.displayOriginal ?? transcript.original).includes(text))
       setSelection({
         transcriptId: transcript.id,
         text,
@@ -353,7 +385,7 @@ export function usePlaybackController() {
       session?.transcripts.find((entry) =>
         candidate.transcriptIds.includes(entry.id),
       );
-    const matched = transcript?.original.match(
+    const matched = (transcript?.displayOriginal ?? transcript?.original)?.match(
       new RegExp(candidate.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
     )?.[0];
     setSelection(
@@ -495,6 +527,7 @@ export function usePlaybackController() {
     question,
     setQuestion,
     answer,
+    answerDraft,
     busy,
     error,
     setError,
@@ -512,6 +545,7 @@ export function usePlaybackController() {
     ask,
     retryAsr,
     setTranslation,
+    setLanguages,
     retryTranslations,
     reviewTerms,
     captureSelection,

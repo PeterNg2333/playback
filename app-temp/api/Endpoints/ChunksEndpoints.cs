@@ -22,7 +22,7 @@ public static class ChunksEndpoints
             if (file is null || file.Length is < 44 or > 25_000_000)
                 return Results.BadRequest(new { error = "Expected a WAV file in field file" });
             var chunk = await store.SaveChunk(form, file, ct);
-            if (chunk.Status is "transcribed" or "asr-empty" or "silent" or "asr-error" or "asr-manual")
+            if (chunk.Status is "transcribed" or "asr-empty" or "silent" or "vad-silence" or "asr-error" or "asr-manual")
                 return Results.Ok(new { chunk.Id, chunk.Status });
             asr.Enqueue(chunk.Id);
             return Results.Accepted(

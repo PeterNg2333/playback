@@ -1,0 +1,56 @@
+using System.Collections.Concurrent;
+using Playback.Api.Db;
+
+namespace Playback.Api.Services.Ai;
+
+// Execution state belongs here; note versions and Jev decisions remain their own saved results.
+public sealed class AiActivity(PlaybackStore store)
+{
+    readonly DateTime startedAt = DateTime.UtcNow;
+    readonly ConcurrentDictionary<string, ActivityRecord> running = new();
+    public async Task<ActivityRecord> Begin(string sessionId, string task, string provider, string model,
+        IEnumerable<string>? sources = null, int? basedOnVersion = null)
+    {
+        var item = new ActivityRecord { Id = Guid.NewGuid().ToString("N"), SessionId = sessionId,
+            Task = task, Provider = provider, Model = model, Status = "queued", StartedAt = DateTime.UtcNow,
+            SourceIds = sources?.Distinct().ToList() ?? [], BasedOnVersion = basedOnVersion };
+        await store.SaveActivity(item);
+        running[item.Id] = item;
+        return item;
+    }
+    public async Task Start(ActivityRecord item)
+    {
+        item.Status = "running";
+        await store.SaveActivity(item);
+    }
+    public void Draft(ActivityRecord item, string text)
+    {
+        if (text.Length <= 250_000) item.Draft = text;
+    }
+    public async Task End(ActivityRecord item, string status, string summary, string? model = null)
+    {
+        item.Status = status; item.Summary = summary; item.Model = model ?? item.Model;
+        item.EndedAt = DateTime.UtcNow;
+        item.DurationMs = (long)(item.EndedAt.Value - item.StartedAt).TotalMilliseconds;
+        item.Draft = null;
+        await store.SaveActivity(item);
+        running.TryRemove(item.Id, out _);
+    }
+    public Task Fail(ActivityRecord item, Exception error) => End(item, "failed", SafeError(error));
+    public async Task<List<ActivityRecord>> Read(string sessionId)
+    {
+        var saved = await store.ActivityHistory(sessionId);
+        foreach (var item in saved.Where(x => (x.Status is "queued" or "running") && x.StartedAt < startedAt && !running.ContainsKey(x.Id)))
+            await End(item, "failed", "API restarted before this operation completed; inspect the saved result before retrying.");
+        return saved.Select(x => running.TryGetValue(x.Id, out var live) ? live : x).ToList();
+    }
+    public static string SafeError(Exception error)
+    {
+        if (error is OperationCanceledException or TimeoutException) return "Request timed out or was cancelled; retry explicitly.";
+        var value = error.Message;
+        foreach (var name in new[] { "OPENROUTER_API_KEY", "GOOGLE_AI_STUDIO_API_KEY", "JEV_API_KEY", "DASHSCOPE_API_KEY" })
+            if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } key) value = value.Replace(key, "[redacted]");
+        return System.Text.RegularExpressions.Regex.Replace(value[..Math.Min(value.Length, 600)],
+            @"(?i)(bearer\s+|[?&](?:key|api_key)=)[^\s&]+", "$1[redacted]");
+    }
+}

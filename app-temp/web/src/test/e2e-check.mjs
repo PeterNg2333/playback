@@ -221,8 +221,21 @@ try {
   await page.locator("#session-materials > summary").click();
   await page.getByText(materialText).waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
+  await page.getByLabel("ASR spoken language").selectOption("yue-en");
+  await page.getByLabel("ASR model", { exact: true }).selectOption("openai/whisper-large-v3-turbo");
+  await page.getByLabel("Notes output language").selectOption("zh-Hans");
+  await page.waitForFunction(async (id) => {
+    const saved = await (await fetch(`/api/sessions/${id}`)).json();
+    return saved.asrLanguage === "yue-en" && saved.noteLanguage === "zh-Hans" && saved.asrModel === "openai/whisper-large-v3-turbo";
+  }, sessionId);
+  await page.reload();
+  await page.getByRole("button", { name: "Transcript settings" }).click();
+  await page.waitForFunction(() => document.getElementById("asr-language")?.disabled === false);
+  assert.equal(await page.getByLabel("ASR spoken language").inputValue(), "yue-en");
+  assert.equal(await page.getByLabel("ASR model", { exact: true }).inputValue(), "openai/whisper-large-v3-turbo");
+  assert.equal(await page.getByLabel("Notes output language").inputValue(), "zh-Hans");
   await page.getByLabel("啟用翻譯").check();
-  await page.getByLabel("目標語言").selectOption("en");
+  await page.getByLabel("Translation target language").selectOption("en");
   await page.waitForFunction(async (id) => {
     const response = await fetch(`/api/sessions/${id}`);
     return response.ok && (await response.json()).translationLanguage === "en";
@@ -303,7 +316,7 @@ try {
   const savedAudio = page.waitForResponse((response) =>
     response.url().endsWith(`/api/chunks/${chunkId}/audio`),
   );
-  await quietAudio.locator(".record-play").click();
+  await page.locator(`.record-play[data-chunk-id="${chunkId}"]`).click();
   assert.ok(
     [200, 206].includes((await savedAudio).status()),
     "Saved chunk must play from the real API",
@@ -361,7 +374,7 @@ try {
     "Source selection must use the same footer player",
   );
   assert.equal(await page.locator("audio").count(), 1);
-  await page.getByRole("tab", { name: "Activity", exact: true }).click();
+  await page.getByRole("button", { name: "AI activity history", exact: true }).click();
   await page.getByRole("heading", { name: "LLM edit log" }).waitFor();
   await page.getByText("v1 · Manual edit", { exact: true }).click();
   await page
@@ -375,7 +388,7 @@ try {
     0,
     "Activity is read-only",
   );
-  await page.getByRole("tab", { name: "Transcript", exact: true }).click();
+  await page.keyboard.press("Escape");
   await page
     .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
     .click();

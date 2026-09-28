@@ -64,6 +64,8 @@ body[data-language="original"] .translation {
   position: relative;
 }
 .settings-menu {
+  max-height: calc(100dvh - 150px);
+  overflow-y: auto;
   position: absolute;
   top: 42px;
   right: 0;
@@ -112,6 +114,9 @@ body[data-language="original"] .translation {
 .transcript-panel .panel-head {
   position: relative;
   z-index: 9;
+}
+.transcript-panel .panel-head:has(.settings-menu) {
+  z-index: 20;
 }
 .term-tag {
   display: inline-block;
@@ -552,6 +557,11 @@ body[data-language="original"] .translation {
   50% {
     box-shadow: 0 0 0 8px #f8dbe866;
   }
+}
+.interim-text {
+  color: var(--muted);
+  margin: 8px 0 0;
+  white-space: pre-wrap;
 }
 @media (max-width: 1100px) {
   .app-shell[data-view="notes"] .transcript-panel {

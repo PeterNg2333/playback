@@ -77,7 +77,7 @@ export function TermExplanation({
             ))}
         </div>
       )}
-      <small>Saved separately from lecture notes</small>
+      <small>AI／網絡補充 · short explanation in notes; details and sources retained separately</small>
     </aside>
   );
 }

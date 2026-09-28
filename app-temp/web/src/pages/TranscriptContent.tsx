@@ -28,7 +28,8 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
           <span className="record-time">{range.start}</span>
           <div className="record-main">
             <div className="record-meta"><SourceTag sourceId={segment.sourceId} /><span>Started {range.start}</span></div>
-            <div className="record-line"><span className="record-summary"><span className="live-dot" /> {segment.streaming ? "Speech active · recording audio" : "Speech detected · recording audio"}</span><span className="live-pending">Saving…</span></div>
+            <div className="record-line"><span className="record-summary"><span className="live-dot" /> {segment.interimText ? "Interim transcription" : segment.streaming ? "Speech active · recording audio" : "Speech detected · recording audio"}</span><span className="live-pending">{segment.interimText ? "Awaiting final…" : "Saving…"}</span></div>
+            {segment.interimText && <p className="interim-text">{segment.interimText}</p>}
           </div>
         </article>
       );
@@ -185,6 +186,7 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
           {capture.error}
         </p>
       )}
+      {capture?.sessionId === session?.id && capture?.interimError && <p className="capture-error" role="status">{capture.interimError}</p>}
       <div className="rows">
         {capture &&
           capture.sessionId === session?.id &&

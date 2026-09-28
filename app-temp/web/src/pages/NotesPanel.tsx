@@ -1,10 +1,12 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { PlaybackController } from "./handlers";
 import { Panel } from "../Component/Layout/Panel";
 import { Markdown } from "../Component/Markdown";
 import { api } from "./api";
 import { recordedRange } from "./format";
 import { TermExplanation } from "./TermExplanation";
+import { ActivityPopover } from "./ActivityPopover";
+import { useActivity } from "./useActivity";
 
 export function NotesPanel({ model }: { model: PlaybackController }) {
   const {
@@ -20,6 +22,37 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
     refresh,
   } = model;
   const editorValue = useRef(markdown);
+  const body = useRef<HTMLDivElement>(null);
+  const scroll = useRef({ sessionId: session?.id, top: 0, follow: false, text: "", offset: 0 });
+  const rememberScroll = () => {
+    const element = body.current;
+    if (!element) return;
+    const top = element.getBoundingClientRect().top;
+    const block = Array.from(element.querySelectorAll<HTMLElement>(".markdown-preview > *"))
+      .find(item => item.getBoundingClientRect().bottom > top);
+    scroll.current = { sessionId: session?.id, top: element.scrollTop,
+      follow: element.scrollHeight > element.clientHeight && element.scrollHeight - element.scrollTop - element.clientHeight < 24,
+      text: block?.textContent ?? "", offset: block ? block.getBoundingClientRect().top - top : 0 };
+  };
+  const activity = useActivity(session?.id, model.health?.aiActivity);
+  const runningNote = activity.items.find(item => item.task === "Note revision" && item.status === "running"
+    && item.basedOnVersion === session?.noteVersion);
+  useLayoutEffect(() => {
+    const element = body.current;
+    if (!element || noteMode !== "preview") return;
+    const previous = scroll.current;
+    if (previous.sessionId !== session?.id) element.scrollTop = 0;
+    else if (previous.follow) element.scrollTop = element.scrollHeight;
+    else {
+      const anchor = Array.from(element.querySelectorAll<HTMLElement>(".markdown-preview > *"))
+        .find(item => item.textContent === previous.text);
+      element.scrollTop = anchor
+        ? element.scrollTop + anchor.getBoundingClientRect().top - element.getBoundingClientRect().top - previous.offset
+        : previous.top;
+    }
+    rememberScroll();
+  }, [markdown, runningNote?.draft, session?.id, noteMode]);
+  const queued = session?.transcripts.some(entry => entry.noteStatus === "pending" || entry.noteStatus === "processing");
   const [referenceId, setReferenceId] = useState<string | null>(null);
   const reference = session?.termInsights?.find(
     (insight) => insight.id === referenceId,
@@ -36,6 +69,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
         <div className="note-title">
           <h2>Lecture notes</h2>
           <span>v{session?.noteVersion || 0}</span>
+          <ActivityPopover key={session?.id} session={session} items={activity.items} error={activity.error} onSource={jump} />
         </div>
         <div className="panel-actions">
           <div className="segmented">
@@ -54,7 +88,9 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           </div>
         </div>
       </div>
-      <div className="notes-body">
+      {runningNote ? <div className="note-status" role="status">AI is generating a revision…</div>
+        : queued && <div className="note-status" role="status">Confirmed text queued for notes</div>}
+      <div className="notes-body" ref={body} onScroll={rememberScroll}>
         {noteMode === "preview" ? (
           markdown ? (
             <>
@@ -179,6 +215,10 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             />
           </div>
         )}
+        {runningNote?.draft && noteMode === "preview" && <details className="note-draft" open>
+          <summary>Live draft · citations pending validation · not saved</summary>
+          <pre>{runningNote.draft}</pre>
+        </details>}
       </div>
       {waitingForSpeech ? (
         <p className="note-status" role="status">Waiting for more recognized speech before generating AI notes.</p>

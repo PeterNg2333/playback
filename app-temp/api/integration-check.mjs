@@ -59,6 +59,26 @@ try {
     text: "B-only synthetic source",
   });
   const one = (await call(`/sessions/${first.id}`)).data;
+  assert.equal(one.asrLanguage, "auto");
+  assert.equal(one.noteLanguage, "zh-Hant");
+  for (const [asrLanguage, noteLanguage] of [["yue", "zh-Hant"], ["zh", "zh-Hans"], ["en", "en"]]) {
+    const updated = await call(`/sessions/${first.id}/languages`, "PUT", { asrLanguage, noteLanguage });
+    assert.equal(updated.status, 200);
+    const saved = (await call(`/sessions/${first.id}`)).data;
+    assert.equal(saved.asrLanguage, asrLanguage);
+    assert.equal(saved.noteLanguage, noteLanguage);
+  }
+  assert.equal((await call(`/sessions/${second.id}`)).data.asrLanguage, "auto");
+  assert.equal((await call(`/sessions/${first.id}/languages`, "PUT", { asrLanguage: "zh-Hant", noteLanguage: "en" })).status, 409);
+  assert.equal((await call(`/sessions/${first.id}/languages`, "PUT", { asrLanguage: "yue", noteLanguage: "ja" })).status, 409);
+  assert.equal((await call(`/sessions/${first.id}/languages`, "PUT", { asrLanguage: "yue-en", noteLanguage: "en", asrModel: "openai/whisper-large-v3-turbo" })).status, 200);
+  assert.equal((await call(`/sessions/${first.id}`)).data.asrModel, "openai/whisper-large-v3-turbo");
+  assert.equal((await call(`/sessions/${first.id}/languages`, "PUT", { asrLanguage: "yue-en", noteLanguage: "en", asrModel: "invalid/model" })).status, 409);
+  assert.equal((await call(`/sessions/${second.id}`)).data.asrModel, null);
+  for (const language of ["yue-Hant", "zh-Hans", "en", "zh-Hant"]) {
+    assert.equal((await call(`/sessions/${first.id}/translation`, "PUT", { enabled: false, language })).status, 200);
+    assert.equal((await call(`/sessions/${first.id}`)).data.translationLanguage, language);
+  }
   assert.deepEqual(
     one.materials.map((x) => x.name),
     ["A.txt"],
@@ -79,6 +99,11 @@ try {
   assert.match(versions[1].inputHash, /^[a-f0-9]{64}$/);
   assert.equal(versions[1].basedOnVersion, 1);
   assert.equal((await call(`/sessions/${second.id}`)).data.noteVersion, 0);
+  const restored = (await call(`/sessions/${first.id}/notes/1/restore`, "POST")).data;
+  assert.equal(restored.version, 3);
+  assert.equal((await call(`/sessions/${first.id}`)).data.noteMarkdown, "# First");
+  await call(`/sessions/${first.id}/notes/2/restore`, "POST");
+  assert.equal((await call(`/sessions/${first.id}/notes`)).data.length, 4, "Restore preserves every earlier version");
 
   const wav = Buffer.alloc(44 + 16000 * 2);
   wav.write("RIFF", 0);
@@ -263,12 +288,15 @@ try {
       const speech = Buffer.from(wav);
       for (let offset = 44; offset < speech.length; offset += 2)
         speech.writeInt16LE(2500, offset);
+      // DC/background is correctly rejected by VAD now. Use an unsupported codec
+      // to exercise durable processing failure/retry without contacting a provider.
+      speech.writeUInt16LE(65535, 20);
       const failed = await upload(
         first.id,
         "failure",
         0,
-        4500,
-        5500,
+        45000,
+        46000,
         speech,
         createHash("sha256").update(speech).digest("hex"),
       );
@@ -293,8 +321,8 @@ try {
         first.id,
         "failure",
         0,
-        4500,
-        5500,
+        45000,
+        46000,
         speech,
         createHash("sha256").update(speech).digest("hex"),
       );

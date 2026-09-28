@@ -20,6 +20,7 @@ export function RecordPlay({
   return (
     <button
       className="record-play"
+      data-chunk-id={id}
       aria-label={`${playing ? "Pause" : "Play"} audio from ${startTime} to ${endTime}`}
       aria-pressed={playing}
       title={playing ? "Pause" : "Play"}
