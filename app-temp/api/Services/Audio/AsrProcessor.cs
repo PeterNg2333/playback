@@ -6,7 +6,7 @@ namespace Playback.Api.Services.Audio;
 
 public sealed class AsrProcessor(
     PlaybackStore store,
-    SenseVoiceClient senseVoice,
+    IAsrAdapter asr,
     ILogger<AsrProcessor> logger)
 {
     public async Task Process(string id, CancellationToken ct)
@@ -35,12 +35,12 @@ public sealed class AsrProcessor(
         }
         await store.SetChunkStatus(id, "transcribing");
         var watch = Stopwatch.StartNew();
-        var result = await senseVoice.Transcribe(chunk.Path, ct);
-        await store.SaveTranscript(chunk, result.Text);
+        var result = await asr.Transcribe(new(chunk.Path, chunk.SessionId, chunk.SourceId, chunk.Sequence, chunk.Hash), ct);
+        await store.SaveTranscript(chunk, result.Text, asr.Model);
         logger.LogInformation(
-            "ASR completed for {ChunkId} in {ElapsedMs} ms; provider inference {InferenceSeconds} s, " +
+            "ASR {Provider}/{Model} completed for {ChunkId} in {ElapsedMs} ms; provider inference {InferenceSeconds} s, " +
             "duration {DurationSeconds} s, rtf {Rtf}, language {Language}",
-            id, watch.ElapsedMilliseconds, result.InferenceSeconds, result.DurationSeconds, result.RealTimeFactor, result.Language);
+            asr.Model.Provider, asr.Model.Model, id, watch.ElapsedMilliseconds, result.InferenceSeconds, result.DurationSeconds, result.RealTimeFactor, result.Language);
     }
 
     async Task SaveFailure(string id, CancellationToken ct, Exception failure)

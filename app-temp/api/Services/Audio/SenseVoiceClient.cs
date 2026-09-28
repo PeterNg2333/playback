@@ -4,8 +4,10 @@ using Playback.Api.Services;
 
 namespace Playback.Api.Services.Audio;
 
-public sealed partial class SenseVoiceClient
+public sealed partial class SenseVoiceClient : IAsrAdapter, IDisposable
 {
+    public AsrModel Model { get; } = new("sensevoice", "SenseVoice", "rest");
+    public Task<AsrResult> Transcribe(AsrRequest request, CancellationToken ct) => Transcribe(request.Path, ct);
     [GeneratedRegex(@"<\|[^|>]*\|>")]
     private static partial Regex SpecialTokenRegex();
 
@@ -15,6 +17,9 @@ public sealed partial class SenseVoiceClient
     {
         if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes")
             throw new InvalidOperationException("External ASR is disabled for offline tests");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(120));
+        ct = deadline.Token;
         var endpoint = Environment.GetEnvironmentVariable("PLAYBACK_ASR_ENDPOINT") ?? "https://dev-aks.setsailapi.com/stt/infer/upload";
         if (endpoint != "https://dev-aks.setsailapi.com/stt/infer/upload") throw new InvalidOperationException("ASR endpoint is not allowlisted");
         if (new FileInfo(path).Length is < 44 or > 25_000_000) throw new InvalidOperationException("ASR WAV must be 44 bytes to 25 MB");
@@ -23,7 +28,8 @@ public sealed partial class SenseVoiceClient
         using var content = new ByteArrayContent(wav);
         content.Headers.ContentType = new("audio/wav");
         body.Add(content, "file", "audio.wav");
-        using var response = await http.PostAsync(endpoint, body, ct);
+        using var message = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = body };
+        using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode) throw new HttpRequestException($"SenseVoice HTTP {(int)response.StatusCode}");
         var bytes = await ProviderResponseReader.ReadBounded(response, 512_000, ct);
         return ParseResponse(bytes);
@@ -50,11 +56,5 @@ public sealed partial class SenseVoiceClient
             GetString("language"),
             GetDouble("rtf"));
     }
+    public void Dispose() => http.Dispose();
 }
-
-public sealed record AsrResult(
-    string Text,
-    double? DurationSeconds,
-    double? InferenceSeconds,
-    string? Language,
-    double? RealTimeFactor);

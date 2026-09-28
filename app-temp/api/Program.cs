@@ -25,7 +25,7 @@ builder.Services.AddSingleton<ChatAgent>();
 builder.Services.AddSingleton<NoteAgent>();
 builder.Services.AddSingleton<TermReviewAgent>();
 builder.Services.AddSingleton<TranslationAgent>();
-builder.Services.AddSingleton<SenseVoiceClient>();
+builder.Services.AddSingleton<IAsrAdapter>(_ => AsrAdapters.Create());
 builder.Services.AddSingleton<AsrProcessor>();
 builder.Services.AddSingleton<SessionAudioRenderer>();
 builder.Services.AddSingleton<AsrQueue>();

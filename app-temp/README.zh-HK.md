@@ -2,6 +2,10 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
+2026-09-28：來源選單在 idle 時可選；舊 API 會明示重啟提示並阻止忽略所選來源的錄音。`dev` 亦檢查來源與 ASR adapter capability。筆記改用 presentation／lecture-note prompt，list、tree、diagram、table 和 code block 均按內容需要使用，不強制圖表，並要求移除舊 AI 筆記滲入的 `BASE VERSION` 標記。已保存版本不會自動改寫；下一次 Revise with AI 使用新 prompt。
+
+ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenRouter `qwen/qwen3-asr-1.7b`，否則保留 SenseVoice；亦可明確設 `PLAYBACK_ASR_PROVIDER`。兩者現在均為封存 chunk 的 REST 轉錄，真正 streaming 目前只有擴充合約，未接 capture。配置、官方接口研究、延遲限制及離線／opt-in live 比較指令見 [ASR adapters 研究](docs/asr-adapters.zh-HK.md)。下方較早的 SenseVoice 測試數字並非 Qwen 的測試結果。
+
 此目錄是 .NET 10 + React/Vite 的本機驗證版。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**此版本沒有登入或分享權限，不可當作已可部署的產品。**
 
 ## 介面與錄音狀態
@@ -12,7 +16,7 @@ Transcript 標題旁的 **Activity** tab 是唯讀紀錄：顯示最近最多 10
 
 時間線保留可收合的日期／小時，但取消多層邊線及逐列卡片，只使用輕微縮排。底部播放器固定兩行：第一行是播放模式、進度、時間與速度，第二行是後退五秒、播放／暫停及前進五秒。播放模式選單可切換 Full session 與音訊來源；這與頂部的錄音來源設定分開。
 
-開始錄音前可選 **Microphone**（咪高峰）、**System audio**（Windows 預設播放裝置的全機 loopback）或 **Both sources**（兩者）。System audio 並非指定單一視窗。錄音期間模式鎖定，暫停／繼續沿用所選來源；要換模式須先停止。Both sources 如只有一個裝置可用仍會收音，並顯示另一個來源的實際錯誤。舊版 API 沒有來源選擇能力時，選單會停用；先停止錄音，再於自己的終端按 `Ctrl+C`、執行 `pnpm.cmd dev` 並重載網頁，才能使用新模式。現有 session 不需清空或遷移。
+開始錄音前可選 **Microphone**（咪高峰）、**System audio**（Windows 預設播放裝置的全機 loopback）或 **Both sources**（兩者）。System audio 並非指定單一視窗。錄音期間模式鎖定，暫停／繼續沿用所選來源；要換模式須先停止。Both sources 如只有一個裝置可用仍會收音，並顯示另一個來源的實際錯誤。舊版 API 沒有來源選擇能力時，仍可選來源偏好，但 Record 會停用並顯示重啟提示；先停止錄音，再於自己的終端按 `Ctrl+C`、執行 `pnpm.cmd dev` 並重載網頁，才能使用新模式。現有 session 不需清空或遷移。
 
 錄音狀態由本機 API 保持。暫停會封存目前音訊 chunk；繼續後使用新的收音來源，錄音時間不計暫停時段。麥克風連續一分鐘沒有偵測到足夠音量時，UI 會提示檢查裝置。這是簡單的 energy VAD 診斷：噪音可能被視為聲音，較遠或細聲的語音也可能被漏掉，並不判斷是否有人說話。
 
@@ -36,7 +40,7 @@ React/Vite UI ── localhost API ──> MongoDB: sessions/materials/chunks/tr
                               ├── Vertex Gemini 3.5 Flash-Lite + Google Search: explanations / web evidence
                               └── Jev: candidate term decisions
 Windows mic + system output ── .NET API process ── 約 30s WAV ── local disk + MongoDB
-                                                    └── SenseVoice (automatic queue, at most 2 requests)
+                                                    └── ASR adapter: SenseVoice / OpenRouter Qwen (automatic queue, at most 2 requests)
 ```
 
 錄音先在 `app-temp/data/local-capture` 完成每段 WAV，再匯入 `app-temp/data/audio`；匯入失敗的完整 WAV 會留待下一次 Start 時重試。MongoDB 只存 metadata。原始 ASR 為獨立欄位，翻譯及修訂不覆蓋它。材料與 transcript 查詢依 session ID 隔離。私人問題只留在當前 UI 狀態，暫未持久化。
@@ -51,13 +55,13 @@ pnpm.cmd dev
 
 `pnpm.cmd dev` 首次會自動安裝缺少的 web 套件及還原 .NET 套件（可能連網），不必先執行 `setup`。啟動時檢查 MongoDB；若未連上且沒有指定 `PLAYBACK_MONGO_URI`，會提示並嘗試以現有本機 image 啟動 Playback 的 MongoDB container，然後等待資料庫就緒。此步不會下載 image 或重建現有 container。若 Docker Desktop 未開或本機沒有 image，網頁仍會起動，但不能建立或讀取 session；先開 Docker Desktop，再明確執行 `pnpm.cmd db:up`（首次可能下載 image）。若用 process environment 或 `.env` 的 `PLAYBACK_MONGO_URI` 指定其他 MongoDB，`dev` 不會啟動 bundled container；不要輸出或提交連接字串。
 
-開始錄音後，保存好的非靜音音訊會自動送往公司 SenseVoice。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存；送往 ASR 前統一轉成 16 kHz 單聲道 PCM，以減少系統聲的上傳大小，原始 WAV 保留作播放。只有完全數位靜音才跳過 ASR；即時錄音提示用本機 Silero 模型判斷語音，與後續 ASR 分開。靜音或 ASR 沒有回傳文字的片段在每個小時合併為一條可展開的「No audio」分隔列，展開後可檢查每段來源、播放及重試。逐字稿按日期、小時及每筆 `HH:mm:ss` 時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
+開始錄音後，保存好的非靜音音訊會自動送往目前配置的 ASR provider。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存；送往 ASR 前統一轉成 16 kHz 單聲道 PCM，以減少系統聲的上傳大小，原始 WAV 保留作播放。只有完全數位靜音才跳過 ASR；即時錄音提示用本機 Silero 模型判斷語音，與後續 ASR 分開。靜音或 ASR 沒有回傳文字的片段在每個小時合併為一條可展開的「No audio」分隔列，展開後可檢查每段來源、播放及重試。逐字稿按日期、小時及每筆 `HH:mm:ss` 時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
 
 `dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
 
 先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每約三十秒完成一段 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
 
-錄音音訊會自動上傳 SenseVoice。介面與 API 不設同意勾選或同意 header；AI 筆記、提問和翻譯直接觸發 Gemini，術語評估直接觸發 Jev。憑證只從 process environment 讀 `GOOGLE_AI_STUDIO_API_KEY`、`JEV_API_KEY`；沒有 key 時顯示實際錯誤，不會回傳假成功。
+錄音音訊會自動上傳目前配置的 ASR provider。介面與 API 不設同意勾選或同意 header；AI 筆記、提問和翻譯直接觸發 Gemini，術語評估直接觸發 Jev。憑證只從 process environment 讀 `GOOGLE_AI_STUDIO_API_KEY`、`OPENROUTER_API_KEY`、`JEV_API_KEY`；沒有 key 時顯示實際錯誤，不會回傳假成功。
 
 若執行環境暫時禁止外部音訊傳送，可設定 process environment `PLAYBACK_PAUSE_EXTERNAL_ASR=yes` 再啟動 API。這只暫停 ASR 佇列，錄音仍保存在本機；Transcript 顯示暫停狀態。移除此設定並重啟後，待處理音訊會自動續傳。
 

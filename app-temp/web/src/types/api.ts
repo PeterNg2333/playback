@@ -130,6 +130,7 @@ export const HealthSchema = z.object({
   asrPaused: z.boolean().optional(),
   sessionAudioMix: z.boolean().optional(),
   recordingSourceSelection: z.boolean().optional(),
+  asr: z.object({ provider: z.string(), model: z.string(), transport: z.string() }).optional(),
 });
 export const RecordingModeSchema = z.enum(["microphone", "system", "both"]);
 export const CaptureStatusSchema = z.object({

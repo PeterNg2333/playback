@@ -1,4 +1,5 @@
 using Playback.Api.Terms;
+using Playback.Api.Services.Audio;
 using Playback.Api.Services.Ai.Providers;
 using Playback.Api.Endpoints;
 using System.Collections.Concurrent;
@@ -556,7 +557,7 @@ public sealed class PlaybackStore
                 .Set(x => x.AsrAttempts, chunk.Status == "asr-manual" ? 0 : chunk.AsrAttempts));
         return chunk;
     }
-    public async Task SaveTranscript(ChunkRecord chunk, string original)
+    public async Task SaveTranscript(ChunkRecord chunk, string original, AsrModel? asr = null)
     {
         if (await Collection<Transcript>("transcripts").CountDocumentsAsync(x => x.Id == chunk.Id) == 0)
             await Collection<Transcript>("transcripts").InsertOneAsync(new Transcript
@@ -568,6 +569,8 @@ public sealed class PlaybackStore
                 EndMs = chunk.EndMs,
                 RecordedAt = chunk.RecordedAt,
                 Original = original,
+                AsrProvider = asr?.Provider,
+                AsrModel = asr?.Model,
                 Uncertain = NeedsReview(original),
                 RecognitionStatus = string.IsNullOrWhiteSpace(original)
                     ? "asr-empty"

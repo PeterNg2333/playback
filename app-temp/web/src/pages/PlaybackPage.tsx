@@ -20,6 +20,12 @@ export function PlaybackPage() {
         Skip to workspace
       </a>
       <PlaybackHeader model={model} />
+      {model.health && !model.health.recordingSourceSelection && (
+        <div className="source-api-warning" role="status">
+          Recording source selection needs the updated API. Stop the dev server
+          with Ctrl+C, run pnpm.cmd dev again, then reload this page.
+        </div>
+      )}
       {capture?.noSoundWarning && (
         <div className="sound-warning" role="alert">
           No audio activity detected for over a minute. Check your microphone

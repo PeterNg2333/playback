@@ -218,6 +218,14 @@
 .recording-mode:disabled {
   opacity: 0.6;
 }
+.source-api-warning {
+  flex: none;
+  padding: 7px 20px;
+  border-bottom: 1px solid var(--line);
+  background: #fff8ed;
+  color: var(--ink);
+  font-size: 12px;
+}
 @keyframes record-pulse {
   50% {
     opacity: 0.35;

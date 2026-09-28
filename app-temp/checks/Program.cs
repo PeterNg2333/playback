@@ -11,6 +11,11 @@ using NAudio.Wave;
 
 
 
+if (args is ["--asr-compare"] or ["--asr-compare", "--live"])
+{
+    await AsrComparison.Run(args.Length == 2);
+    return;
+}
 if (args is ["--gemini-live"])
 {
     try { await GeminiLiveCheck.Run(); }
@@ -141,6 +146,8 @@ if (args is ["--jev-live"])
 
 static byte[] Json(string value) => Encoding.UTF8.GetBytes(value);
 static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
+
+await AsrAdapterCheck.Run();
 
 Check(CaptureSourceModes.Sources("microphone").SequenceEqual(["microphone"]) &&
       CaptureSourceModes.Sources("system").SequenceEqual(["system"]) &&

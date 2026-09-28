@@ -166,6 +166,7 @@ try {
         asrPaused,
         sessionAudioMix: true,
         recordingSourceSelection,
+        asr: { provider: "openrouter", model: "qwen/qwen3-asr-1.7b", transport: "rest" },
       };
     else if (path === "/api/capture/status") data = capture;
     else if (path === "/api/capture/start") {
@@ -335,6 +336,10 @@ try {
     request.url().endsWith(`/api/sessions/${id}/audio/segments/0`),
   );
   await page.getByLabel("Playback mode").click();
+  assert.equal(await page.locator(".player-mode-menu").isVisible(), true,
+    "Playback source dropdown must open above the footer");
+  if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
+    await page.screenshot({ path: join(tmpdir(), "playback-source-dropdown.png") });
   await page.getByRole("button", { name: "Full session" }).click();
   await mixedAudio;
   const systemAudio = page.waitForRequest((request) =>
@@ -459,6 +464,7 @@ try {
       });
   }
   await page.getByRole("button", { name: "Transcript settings" }).click();
+  await page.getByText("ASR: qwen/qwen3-asr-1.7b (openrouter, rest)").waitFor();
   const translation = page.getByRole("checkbox", { name: "啟用翻譯" });
   assert.equal(await translation.isDisabled(), false);
   assert.equal(
@@ -809,9 +815,15 @@ try {
   await page.locator("#first").waitFor();
   assert.equal(
     await page.getByRole("combobox", { name: "Recording source" }).isDisabled(),
-    true,
-    "Old APIs must not offer unsupported source modes",
+    false,
+    "Source preference must remain selectable with an old API",
   );
+  await page.getByRole("combobox", { name: "Recording source" }).selectOption("system");
+  assert.equal(await page.getByRole("button", { name: "Start recording" }).isDisabled(), true,
+    "Old APIs must not silently record both sources instead of the selected source");
+  await page.getByText(/Recording source selection needs the updated API/).waitFor();
+  if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
+    await page.screenshot({ path: join(tmpdir(), "playback-source-old-api.png") });
   console.log(
     "ASR UI fixture passed: flat timeline, compact player, read-only edit/Jev activity, recording mode and old API compatibility, manual retry, live meter, Ask Playback states, responsive viewport",
   );

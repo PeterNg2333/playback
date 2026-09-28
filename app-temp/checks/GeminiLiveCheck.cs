@@ -25,7 +25,7 @@ internal static class GeminiLiveCheck
             "Before analyzing a recording, check the microphone for clipping and verify its sample rate.";
         const string prompt =
             $"BASE VERSION 0\n\nMATERIALS\n\nTRANSCRIPTS\n[{transcriptId}, 0-120000 ms] {transcript}";
-        const string instructions =
+        const string instructions = NoteAgent.Instructions + "\n" +
             "Create Markdown lecture notes from the supplied synthetic transcript. " +
             "Start with a short '## Summary', then '## Lecture notes'. " +
             "Mention the Fourier transform, FFT, aliasing, and the sampling example. " +
@@ -36,7 +36,7 @@ internal static class GeminiLiveCheck
         var gemini = new GeminiLanguageModel();
         var markdown = await gemini.Generate(
             "PlaybackDemoNoteEditor", instructions, prompt, timeout.Token);
-        if (string.IsNullOrWhiteSpace(markdown) ||
+        if (string.IsNullOrWhiteSpace(markdown) || markdown.Contains("BASE VERSION", StringComparison.OrdinalIgnoreCase) ||
             !markdown.Contains("Summary", StringComparison.OrdinalIgnoreCase) ||
             !markdown.Contains("Lecture notes", StringComparison.OrdinalIgnoreCase) ||
             !markdown.Contains("Fourier", StringComparison.OrdinalIgnoreCase) ||

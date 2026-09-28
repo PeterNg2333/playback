@@ -1,12 +1,13 @@
 using Playback.Api.Services.Ai.Providers;
 using Playback.Api.Db;
+using Playback.Api.Services.Audio;
 namespace Playback.Api.Endpoints;
 
 public static class HealthEndpoints
 {
     public static void MapHealth(this WebApplication app)
     {
-        app.MapGet("/api/health", async (PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev) => new
+        app.MapGet("/api/health", async (PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr) => new
         {
             mongo = await store.IsReady(),
             database = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_DATABASE") ?? "playback_prototype",
@@ -19,7 +20,8 @@ public static class HealthEndpoints
             autoTerms = Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TERMS") == "yes",
             manualAsrRetry = true,
             sessionAudioMix = true,
-            recordingSourceSelection = true
+            recordingSourceSelection = true,
+            asr = asr.Model
         });
     }
 }

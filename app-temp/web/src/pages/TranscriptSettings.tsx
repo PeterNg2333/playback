@@ -50,6 +50,9 @@ export function TranscriptSettings({
       {settingsOpen && (
         <div className="settings-menu">
           <strong>Transcript settings</strong>
+          {health?.asr && (
+            <small>ASR: {health.asr.model} ({health.asr.provider}, {health.asr.transport})</small>
+          )}
           <label className="settings-check">
             <input
               type="checkbox"

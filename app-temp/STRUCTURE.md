@@ -65,7 +65,9 @@ project paths and study commands.
 - `Services/Audio/`: `WindowsAudioCaptureService` records microphone and system
   audio, finalizes WAV chunks, and replays chunks left on disk. `AsrQueue`
   schedules and retries saved chunks; `AsrProcessor` transcribes one chunk
-  through `SenseVoiceClient`. `AudioSilence` and `AudioActivity` inspect WAV
+  through `IAsrAdapter` (SenseVoice or OpenRouter transcription REST).
+  `IStreamingAsrAdapter` defines the future realtime lifecycle; capture currently
+  sends saved chunks through REST. `AudioSilence` and `AudioActivity` inspect WAV
   data without sending it to an external provider.
   `CaptureSourceModes` allowlists microphone, system, and both; the capture service
   retains the selected mode through pause/resume and opens only those devices.

@@ -70,6 +70,8 @@ public sealed class Transcript
     public long EndMs { get; set; }
     public DateTime? RecordedAt { get; set; }
     public string Original { get; set; } = "";
+    public string? AsrProvider { get; set; }
+    public string? AsrModel { get; set; }
     public string? Translation { get; set; }
     public string? TranslationLanguage { get; set; }
     public string TranslationStatus { get; set; } = "pending";

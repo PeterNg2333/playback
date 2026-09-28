@@ -372,15 +372,15 @@ export function usePlaybackController() {
   async function record(command: "start" | "stop" | "pause" | "resume") {
     if (command === "start" && !session) return;
     await action("capture", async () => {
+      if (command === "start" && !health?.recordingSourceSelection)
+        throw new Error("Restart the API to record with the selected audio source");
       const status = await api(
         `/capture/${command}`,
         "POST",
         command === "start"
           ? {
               sessionId: session!.id,
-              sourceMode: health?.recordingSourceSelection
-                ? recordingMode
-                : "both",
+              sourceMode: recordingMode,
             }
           : undefined,
         CaptureStatusSchema,

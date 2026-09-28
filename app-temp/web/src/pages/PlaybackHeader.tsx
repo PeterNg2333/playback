@@ -49,7 +49,7 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
   const sourceSelectionSupported = health?.recordingSourceSelection === true;
   const sourceSelectionTitle =
     health && !sourceSelectionSupported
-      ? "Restart the API to choose a recording source"
+      ? "Restart the API before recording with the selected source"
       : "Choose which audio to record; stop recording to change it";
   const signalState = isPaused ? "paused" : streaming ? "received" : "quiet";
   return (
@@ -77,7 +77,7 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
           className="recording-mode"
           aria-label="Recording source"
           title={sourceSelectionTitle}
-          disabled={!sourceSelectionSupported || !!busy || !isIdle}
+          disabled={!!busy || !isIdle}
           value={selectedMode}
           onChange={(event) =>
             setRecordingMode(RecordingModeSchema.parse(event.target.value))
@@ -91,7 +91,7 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
           {isIdle ? (
             <button
               className="record-start"
-              disabled={!session || !!busy || !health?.mongo}
+              disabled={!session || !!busy || !health?.mongo || !sourceSelectionSupported}
               onClick={() => record("start")}
               aria-label="Start recording"
             >
