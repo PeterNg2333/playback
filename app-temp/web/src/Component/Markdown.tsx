@@ -1,10 +1,13 @@
-import { createContext, useContext, useEffect, useState, useMemo, memo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useMemo, memo, lazy, Suspense, type ReactNode, type ComponentType, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
+import type { ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import rehypeSanitize from "rehype-sanitize";
+import remarkMath from "remark-math";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { termSegments } from "./termSegments";
 import { SourceCitation } from "./SourceCitation";
 import { requestDiagram } from "./diagramRenderer";
+import "../styles/math.css";
 function Diagram({ source }: { source: string }) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
@@ -36,12 +39,34 @@ function Diagram({ source }: { source: string }) {
   );
 }
 
-// Stable component type: activity/capture polling must not remount unchanged diagrams.
+function FormulaSource({ source, display, title }: { source: string; display: boolean; title: string }) {
+  const Tag = display ? "div" : "span";
+  return <Tag className={`math-formula${display ? " math-display" : ""}`}><code className="math-source" title={title}>{source}</code></Tag>;
+}
+function FormulaUnavailable(props: { source: string; display: boolean }) {
+  return <FormulaSource {...props} title="Equation renderer could not load; source is preserved. Reload to retry." />;
+}
+const Formula = lazy<ComponentType<{ source: string; display: boolean }>>(() => import("./MathFormula").catch(() => ({ default: FormulaUnavailable })));
+
+// Stable component types: polling must not remount unchanged diagrams or formulas.
 function MarkdownCode(props: { className?: string; children?: ReactNode }) {
   const language = /language-(\w+)/.exec(props.className || "")?.[1];
   const source = String(props.children).replace(/\n$/, "");
-  return language === "mermaid" || language === "flowchart"
-    ? <Diagram source={source} /> : <code>{props.children}</code>;
+  if (language === "mermaid" || language === "flowchart") return <Diagram source={source} />;
+  if (language === "math") {
+    const display = !props.className?.split(/\s+/).includes("math-inline");
+    return <Suspense fallback={<FormulaSource source={source} display={display} title="Loading equation renderer…" />}>
+      <Formula source={source} display={display} />
+    </Suspense>;
+  }
+  return <code className={props.className}>{props.children}</code>;
+}
+function MarkdownPre({ node, children }: ComponentPropsWithoutRef<"pre"> & ExtraProps) {
+  const code = node?.children[0];
+  const classes = code?.type === "element" && code.tagName === "code" ? code.properties.className : undefined;
+  // Figures and block equations own their layout; normal fenced code keeps <pre>.
+  return Array.isArray(classes) && classes.some(x => ["language-math", "language-mermaid", "language-flowchart"].includes(String(x)))
+    ? <>{children}</> : <pre>{children}</pre>;
 }
 
 type MarkdownNode = { type: string; value?: string; url?: string; children?: MarkdownNode[] };
@@ -58,7 +83,7 @@ function referencePlugin({ references, terms }: { references: MarkdownReferences
       ? { type: "link", url: `/term/${segment.term.id}`, children: [{ type: "text", value: segment.text }] }
       : { type: "text", value: segment.text });
     function visit(node: MarkdownNode) {
-      if (!node.children || ["link", "linkReference", "code", "inlineCode"].includes(node.type)) return;
+      if (!node.children || ["link", "linkReference", "code", "inlineCode", "math", "inlineMath"].includes(node.type)) return;
       node.children = node.children.flatMap(child => {
         if (child.type !== "text" || !child.value) { visit(child); return [child]; }
         const result: MarkdownNode[] = [];
@@ -189,7 +214,7 @@ export function Markdown({
   onPlaySources?: (ids: string[]) => void;
 }) {
   const indexed = useMemo(() => references ?? indexMarkdownSources(sources, groups), [references, sources, groups]);
-  const plugins = useMemo(() => [remarkGfm, [referencePlugin, { references: indexed, terms }]], [indexed, terms]);
+  const plugins = useMemo(() => [remarkGfm, remarkMath, [referencePlugin, { references: indexed, terms }]], [indexed, terms]);
   const context = useMemo(() => ({ ...indexed, reading, onSource, onPlaySources, onReference, renderTerm }),
     [indexed, reading, onSource, onPlaySources, onReference, renderTerm]);
   return (
@@ -198,8 +223,10 @@ export function Markdown({
     </References.Provider>
   );
 }
-const components = { code: MarkdownCode, a: MarkdownLink };
-const sanitizePlugins = [rehypeSanitize];
+const components = { code: MarkdownCode, pre: MarkdownPre, a: MarkdownLink };
+const sanitizePlugins: ComponentPropsWithoutRef<typeof ReactMarkdown>["rehypePlugins"] = [[rehypeSanitize, { ...defaultSchema, attributes: {
+  ...defaultSchema.attributes, code: [["className", /^language-./, "math-inline", "math-display"]],
+} }]];
 const MarkdownBody = memo(function MarkdownBody({ value, plugins }: { value: string; plugins: unknown[] }) {
   return <div className="markdown-preview"><ReactMarkdown remarkPlugins={plugins as never} rehypePlugins={sanitizePlugins} components={components}>{value}</ReactMarkdown></div>;
 });

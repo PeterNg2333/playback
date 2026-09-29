@@ -6,18 +6,21 @@
     "dev": "vite --host 127.0.0.1 --configLoader runner",
     "build": "tsc -b && vite build --configLoader runner",
     "test:notes": "node src/test/notes-redesign-check.mjs",
+    "test:math": "node src/test/markdown-math-check.mjs",
     "test:loading": "node src/test/session-loading-check.mjs",
     "test:load-assets": "node src/test/frontend-loading-check.mjs",
     "test:memory": "node src/test/frontend-memory-check.mjs"
   },
   "dependencies": {
     "dompurify": "^3.2.6",
+    "katex": "0.16.47",
     "mermaid": "^11.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.0",
+    "remark-math": "6.0.0",
     "zod": "^4.6.5",
     "zustand": "^5.0.15"
   },
