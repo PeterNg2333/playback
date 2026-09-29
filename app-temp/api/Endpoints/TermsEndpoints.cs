@@ -16,7 +16,7 @@ public static class TermsEndpoints
         app.MapPost("/api/sessions/{id}/terms/review", async (string id, TermReviewAgent reviewer, CancellationToken ct) =>
             Results.Ok(await reviewer.Review(id, 3, ct)));
         app.MapPost("/api/sessions/{id}/terms/{insightId}/explain", async (
-            string id, string insightId, TermReviewAgent reviewer, CancellationToken ct) =>
-            Results.Ok(await reviewer.Explain(id, insightId, ct)));
+            string id, string insightId, bool? detail, TermReviewAgent reviewer, CancellationToken ct) =>
+            Results.Ok(await reviewer.Explain(id, insightId, ct, detail == true)));
     }
 }

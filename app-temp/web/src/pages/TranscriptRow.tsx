@@ -3,10 +3,12 @@ import type {
   Session,
   TermCandidate,
   Transcript,
+  TermInsight,
 } from "../types/api";
 import { cleanAsrText, recordedRange } from "./format";
 import { RecordPlay } from "./RecordPlay";
 import { TermHighlight } from "./TermHighlight";
+import { useLayoutEffect, useRef } from "react";
 import { termSegments } from "../Component/termSegments";
 import { SourceTag, sourceLabel } from "./SourceTag";
 
@@ -17,6 +19,9 @@ export function TranscriptRow({
   onTogglePlayback,
   onSelect,
   onAskTerm,
+  insights,
+  candidates,
+  reveal = false,
 }: {
   transcript: Transcript;
   session: Session | null;
@@ -24,14 +29,15 @@ export function TranscriptRow({
   onTogglePlayback: (key: string, chunks: Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">[]) => void;
   onSelect: () => void;
   onAskTerm: (candidate: TermCandidate, transcriptId?: string) => void;
+  insights: TermInsight[];
+  candidates: TermCandidate[];
+  reveal?: boolean;
 }) {
+  const details = useRef<HTMLDetailsElement>(null);
+  useLayoutEffect(() => { if (reveal && details.current) details.current.open = true; }, [reveal]);
   const original =
     cleanAsrText(transcript.displayOriginal ?? transcript.original) || "No words returned by ASR";
   const range = recordedRange(transcript.recordedAt, session?.createdAt, transcript.startMs, transcript.endMs);
-  const insights = (session?.termInsights || []).filter(
-    (entry) => entry.highlight && entry.transcriptIds.includes(transcript.id) &&
-      (!entry.outputLanguage || entry.outputLanguage === session?.noteLanguage),
-  );
   const translationReady =
     session?.translationEnabled &&
     transcript.translationStatus === "completed" &&
@@ -51,7 +57,7 @@ export function TranscriptRow({
           <span>{range.start}–{range.end}</span>
         </div>
         <div className="record-line">
-          <details className="record-copy">
+          <details className="record-copy" ref={details}>
             <summary
               className="record-summary original"
               onMouseUp={onSelect}
@@ -87,10 +93,7 @@ export function TranscriptRow({
                   Suggested revision: {transcript.revision}
                 </p>
               )}
-              {session?.terms
-                .filter((candidate) =>
-                  candidate.transcriptIds.includes(transcript.id),
-                )
+              {candidates
                 .map((candidate) => (
                   <button
                     className="term-tag"

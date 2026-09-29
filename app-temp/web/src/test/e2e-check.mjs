@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { chromium } from "playwright-core";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const offline = process.env.PLAYBACK_OFFLINE_TEST === "yes";
 const skipCapture = process.env.PLAYBACK_E2E_SKIP_CAPTURE === "yes";
+const retain = process.env.PLAYBACK_E2E_RETAIN === "yes";
 if (!offline)
   throw new Error(
     "Set PLAYBACK_OFFLINE_TEST=yes and run the isolated local API/Vite test ports before E2E; external providers must stay disabled.",
@@ -29,10 +31,18 @@ let sessionId;
 let groupId;
 let nestedSessionId;
 const captureErrors = [];
+let passed = false;
+let failure;
+let page;
+const evidence = fileURLToPath(new URL("../../../data/validation/runs/2026-09-29-week3/", import.meta.url));
+await mkdir(evidence, { recursive: true });
 
 try {
   const context = await browser.newContext();
-  const page = await context.newPage();
+  page = await context.newPage();
+  // Enable interception before navigation; Edge can otherwise open the native
+  // picker before its asynchronous interception registration has completed.
+  page.on("filechooser", () => {});
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const title = `E2E demo ${randomUUID().slice(0, 8)}`;
@@ -192,12 +202,16 @@ try {
     groupId,
   );
   await page.getByRole("button", { name: title, exact: true }).click();
+  // TranscriptContent is keyed by session. Opening the old session's details
+  // during a switch loses that open state when the selected session mounts.
+  await page.getByRole("heading", { name: title, exact: true }).waitFor();
+  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
   await page.locator("#session-materials > summary").click();
-  const fileChooser = page.waitForEvent("filechooser");
+  const fileChooser = page.waitForEvent("filechooser", { timeout: 10000 }).catch(() => null);
   await page.getByRole("button", { name: "Attach text material" }).click();
-  await (
-    await fileChooser
-  ).setFiles({
+  const picked = await fileChooser;
+  assert(picked, "Materials file picker did not open after session loading completed");
+  await picked.setFiles({
     name: "demo-lecture.txt",
     mimeType: "text/plain",
     buffer: Buffer.from(materialText),
@@ -234,7 +248,7 @@ try {
   assert.equal(await page.getByLabel("ASR spoken language").inputValue(), "yue-en");
   assert.equal(await page.getByLabel("ASR model", { exact: true }).inputValue(), "openai/whisper-large-v3-turbo");
   assert.equal(await page.getByLabel("Notes output language").inputValue(), "zh-Hans");
-  await page.getByLabel("啟用翻譯").check();
+  await page.getByLabel("Enable translation").check();
   await page.getByLabel("Translation target language").selectOption("en");
   await page.waitForFunction(async (id) => {
     const response = await fetch(`/api/sessions/${id}`);
@@ -245,7 +259,7 @@ try {
       .translationLanguage,
     "en",
   );
-  await page.getByLabel("啟用翻譯").uncheck();
+  await page.getByLabel("Enable translation").uncheck();
   await page.getByRole("button", { name: "Transcript settings" }).click();
   const wav = Buffer.alloc(44 + 16_000 * 2);
   wav.write("RIFF", 0);
@@ -389,6 +403,7 @@ try {
     "Activity is read-only",
   );
   await page.keyboard.press("Escape");
+  if (!retain) {
   await page
     .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
     .click();
@@ -417,8 +432,9 @@ try {
     null,
   );
   groupId = null;
+  }
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
-    const path = join(tmpdir(), "playback-desktop-check.png");
+    const path = join(evidence, "offline-e2e-desktop.png");
     await page.screenshot({ path, fullPage: true });
     console.log(`Desktop screenshot: ${path}`);
   }
@@ -441,14 +457,15 @@ try {
   );
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
     await page.getByRole("button", { name: "Transcript settings" }).click();
-    const path = join(tmpdir(), "playback-narrow-check.png");
+    const path = join(evidence, "offline-e2e-narrow.png");
     await page.screenshot({ path, fullPage: true });
     console.log(`Narrow screenshot: ${path}`);
   }
   assert.deepEqual(errors, []);
+  passed = true;
 
   console.log(
-    "E2E passed: recording source modes, session groups, material, note persistence and activity history, MongoDB audio, automatic silence handling",
+    "E2E passed: session groups, material, note persistence and activity history, MongoDB audio, automatic silence handling",
   );
   if (skipCapture)
     console.log("Local microphone capture skipped for this E2E run");
@@ -456,6 +473,10 @@ try {
     console.log(
       `Capture device unavailable; UI showed the real error: ${captureError}`,
     );
+} catch (error) {
+  failure = error.message;
+  await page?.screenshot({ path: join(evidence, "offline-e2e-failure.png") }).catch(() => {});
+  throw error;
 } finally {
   const cleanupFailures = [];
   try {
@@ -466,7 +487,7 @@ try {
     cleanupFailures.push(`Capture cleanup failed: ${error.message}`);
   }
   await browser.close().catch((error) => cleanupFailures.push(error.message));
-  if (sessionId) {
+  if (sessionId && !retain) {
     try {
       const cleanup = await fetch(`${api}/testing/sessions/${sessionId}`, {
         method: "DELETE",
@@ -479,7 +500,7 @@ try {
       cleanupFailures.push(error.message);
     }
   }
-  if (nestedSessionId) {
+  if (nestedSessionId && !retain) {
     try {
       const cleanup = await fetch(
         `${api}/testing/sessions/${nestedSessionId}`,
@@ -493,7 +514,7 @@ try {
       cleanupFailures.push(error.message);
     }
   }
-  if (groupId) {
+  if (groupId && !retain) {
     try {
       const members = await (await fetch(`${api}/sessions`)).json();
       for (const member of members.filter(
@@ -520,4 +541,7 @@ try {
     }
   }
   if (cleanupFailures.length) throw new Error(cleanupFailures.join("; "));
+  await writeFile(join(evidence, "offline-e2e.json"), JSON.stringify({ testedAt: new Date().toISOString(), passed, failure, offline, skipCapture, retain,
+    sessionId, nestedSessionId, groupId, captureErrors, evidence: "Production browser, real localhost API/MongoDB; synthetic local WAV only, no providers or microphone/system capture." }, null, 2));
+  if (retain) console.log(`Test sessions and group retained: ${sessionId}, ${nestedSessionId}, ${groupId}`);
 }

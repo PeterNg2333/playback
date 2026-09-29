@@ -20,6 +20,7 @@ export function PlaybackPage() {
         Skip to workspace
       </a>
       <PlaybackHeader model={model} />
+      {model.workspaceLoading && <div className="workspace-loading" role="status" aria-live="polite">Loading session…</div>}
       {model.health && !model.health.recordingSourceSelection && (
         <div className="source-api-warning" role="status">
           Recording source selection needs the updated API. Stop the dev server

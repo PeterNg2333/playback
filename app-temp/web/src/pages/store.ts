@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
+import { useCallback } from "react";
 import type {
   Answer,
   CaptureStatus,
@@ -78,13 +79,13 @@ export function usePlaybackField<K extends keyof PlaybackState>(
   key: K,
 ): [PlaybackState[K], Dispatch<SetStateAction<PlaybackState[K]>>] {
   const value = usePlaybackStore((state) => state[key]);
-  const update: Dispatch<SetStateAction<PlaybackState[K]>> = (next) => {
+  const update: Dispatch<SetStateAction<PlaybackState[K]>> = useCallback((next) => {
     usePlaybackStore.setState((state) => ({
       [key]:
         typeof next === "function"
           ? (next as (value: PlaybackState[K]) => PlaybackState[K])(state[key])
           : next,
     }));
-  };
+  }, [key]);
   return [value, update];
 }

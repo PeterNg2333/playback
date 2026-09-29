@@ -55,7 +55,7 @@ internal static class AsrAdapterCheck
             using var adapter = new OpenRouterAsrClient(handler, "qwen/qwen3-asr-1.7b");
             var request = new AsrRequest(path, "session", "microphone", 1, "hash");
             var result = await adapter.Transcribe(request, CancellationToken.None);
-            Require(result.Text == "今日研究 FFT." && result.DurationSeconds == 0.1 && result.InferenceSeconds is null,
+            Require(result.Text == "今日研究 FFT." && result.DurationSeconds == 0.1 && result.InferenceSeconds is null && result.UsageJson == "{\"seconds\":0.1}",
                 "REST adapter must preserve original text and never invent provider metrics");
             await adapter.Transcribe(request, CancellationToken.None);
             await adapter.Transcribe(request with { SourceId = "system" }, CancellationToken.None);

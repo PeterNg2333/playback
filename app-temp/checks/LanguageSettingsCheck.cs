@@ -20,7 +20,7 @@ internal static class LanguageSettingsCheck
         catch (InvalidOperationException) { }
         Require(NoteAgent.InstructionsFor("zh-Hant").Contains("Traditional Chinese") &&
             NoteAgent.InstructionsFor("zh-Hans").Contains("Simplified Chinese") &&
-            NoteAgent.InstructionsFor("en").Contains("Write the complete revised note in English"),
+            NoteAgent.InstructionsFor("en").Contains("Write section Markdown and point text in English"),
             "Note output settings must reach the generation instructions");
         Require(TranslationAgent.Instructions("yue-Hant").Contains("natural written Cantonese") &&
             TranslationAgent.Instructions("zh-Hans").Contains("Simplified Chinese"),

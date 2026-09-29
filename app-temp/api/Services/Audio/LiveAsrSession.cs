@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Threading.Channels;
 using NAudio.Wave;
 using Playback.Api.Db;
+using Playback.Api.Services.Ai;
+using System.Text.Json;
 
 namespace Playback.Api.Services.Audio;
 
@@ -11,8 +13,11 @@ public sealed class LiveAsrSession : IAsyncDisposable
 {
     public const int ChunkMilliseconds = 8_000;
     public const int PreviewMilliseconds = 2_000;
+    public const string PreviewPromptVersion = "asr-interim-v1";
+    public const string PreviewInstructions = "Transcription adapter parameters; no system prompt is sent to the transcription provider. Current-window hypotheses are ephemeral, not confirmed evidence; saved audio is finalized separately.";
     readonly object gate = new();
     readonly IAsrAdapter adapter;
+    readonly AiActivity? activity;
     readonly string sessionId, sourceId;
     readonly Func<Task<SessionRecord>> settings;
     readonly MemoryStream pcm = new();
@@ -34,10 +39,11 @@ public sealed class LiveAsrSession : IAsyncDisposable
     string? error;
 
     public LiveAsrSession(IAsrAdapter adapter, string sessionId, string sourceId, long startMs,
-        Func<Task<SessionRecord>> settings)
+        Func<Task<SessionRecord>> settings, AiActivity? activity = null)
     {
         this.adapter = adapter; this.sessionId = sessionId; this.sourceId = sourceId;
         this.startMs = originMs = lastPreviewMs = startMs; this.settings = settings;
+        this.activity = activity;
         streamTask = adapter is IStreamingAsrAdapter streaming ? Task.Run(() => RunStream(streaming)) : Task.CompletedTask;
     }
 
@@ -106,6 +112,7 @@ public sealed class LiveAsrSession : IAsyncDisposable
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var path = Path.Combine(Path.GetTempPath(), $"playback-interim-{Guid.NewGuid():N}.wav");
+        ActivityRecord? call = null;
         try
         {
             var language = await settings();
@@ -113,7 +120,17 @@ public sealed class LiveAsrSession : IAsyncDisposable
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
             deadline.CancelAfter(TimeSpan.FromSeconds(15));
             var hash = Convert.ToHexString(SHA256.HashData(audio)).ToLowerInvariant();
+            if (activity is not null) {
+                call = await activity.Begin(sessionId, "ASR interim preview", adapter.Model.Provider, language.AsrModel ?? adapter.Model.Model);
+                activity.Context(call, PreviewPromptVersion, PreviewInstructions,
+                    JsonSerializer.Serialize(new { sessionId, sourceId, fromMs = from, throughMs = through, pcmHash = hash, audioBytes = audio.Length,
+                        language = language.AsrLanguage, model = language.AsrModel ?? adapter.Model.Model }));
+                await activity.Start(call);
+            }
+            var providerWatch = System.Diagnostics.Stopwatch.StartNew();
             var result = await adapter.Transcribe(new(path, sessionId, sourceId, from, hash, language.AsrLanguage, language.AsrModel), deadline.Token);
+            if (call is not null) { call.ProviderLatencyMs = providerWatch.ElapsedMilliseconds; call.UsageJson = result.UsageJson;
+                await activity!.End(call, "completed", "Ephemeral preview received; language/version guards decide whether it can be displayed", result.Model?.Model); }
             var text = LanguageSettings.CantoneseDisplay(result.Text, language.AsrLanguage, result.Language);
             var current = await settings();
             lock (gate)
@@ -124,8 +141,8 @@ public sealed class LiveAsrSession : IAsyncDisposable
                     result.Text, clock.ElapsedMilliseconds, result.Model?.Model ?? language.AsrModel ?? adapter.Model.Model));
             }
         }
-        catch (OperationCanceledException) { lock (gate) if (!closed) error = "Interim ASR timed out; saved audio will still be transcribed"; }
-        catch (Exception) { lock (gate) if (!closed) error = "Interim ASR unavailable; saved audio will still be transcribed"; }
+        catch (OperationCanceledException ex) { if (call is not null) await activity!.Fail(call, ex); lock (gate) if (!closed) error = "Interim ASR timed out; saved audio will still be transcribed"; }
+        catch (Exception ex) { if (call is not null) await activity!.Fail(call, ex); lock (gate) if (!closed) error = "Interim ASR unavailable; saved audio will still be transcribed"; }
         finally
         {
             try { if (File.Exists(path)) File.Delete(path); }

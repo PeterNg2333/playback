@@ -431,6 +431,21 @@
     display: none;
   }
 }
+@media (max-width: 1100px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .topbar .project-name {
+    position: static;
+    transform: none;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    text-align: center;
+  }
+}
 @media (max-width: 900px) {
   .panel-head {
     padding: 0 12px;

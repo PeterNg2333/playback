@@ -1,11 +1,21 @@
 using System.Collections.Concurrent;
 using Playback.Api.Db;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Playback.Api.Services.Ai;
 
 // Execution state belongs here; note versions and Jev decisions remain their own saved results.
 public sealed class AiActivity(PlaybackStore store)
 {
+    // Notes needs live draft/lifecycle metadata; complete prompts remain in storage
+    // and the group flow response. Use the same record contract without a second DTO.
+    public static readonly JsonSerializerOptions NotesResponseOptions = new(JsonSerializerDefaults.Web) {
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver { Modifiers = { type => {
+            if (type.Type == typeof(ActivityRecord))
+                foreach (var property in type.Properties.Where(x => x.Name == "promptText").ToList()) type.Properties.Remove(property);
+        } } }
+    };
     readonly DateTime startedAt = DateTime.UtcNow;
     readonly ConcurrentDictionary<string, ActivityRecord> running = new();
     public async Task<ActivityRecord> Begin(string sessionId, string task, string provider, string model,
@@ -20,8 +30,14 @@ public sealed class AiActivity(PlaybackStore store)
     }
     public async Task Start(ActivityRecord item)
     {
+        item.QueueDelayMs = (long)(DateTime.UtcNow - item.StartedAt).TotalMilliseconds;
         item.Status = "running";
         await store.SaveActivity(item);
+    }
+    public void Context(ActivityRecord item, string version, string instructions, string input) {
+        item.PromptVersion = version; item.PromptHash = NoteSections.Hash(instructions);
+        item.PromptText = instructions;
+        item.InputHash = NoteSections.Hash(input); item.InputBytes = System.Text.Encoding.UTF8.GetByteCount(input);
     }
     public void Draft(ActivityRecord item, string text)
     {

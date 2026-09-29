@@ -1,4 +1,5 @@
 using Playback.Api.Db;
+using Playback.Api.Services.Ai;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
@@ -15,7 +16,7 @@ public sealed record CaptureStatus(string State, string? SessionId, Dictionary<s
     string? SourceMode = null, int ChunkMilliseconds = LiveAsrSession.ChunkMilliseconds, string? InterimError = null,
     long RecordingElapsedMs = 0, string? RecordingId = null);
 
-public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger, IAsrAdapter adapter) : IAsyncDisposable
+public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger, IAsrAdapter adapter, AiActivity activity) : IAsyncDisposable
 {
     readonly SemaphoreSlim transition = new(1, 1);
     readonly string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "data", "local-capture"));
@@ -118,7 +119,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             recorder = builder.Build();
             var sourceStartMs = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
             if (recording.AutoAsr) live = new LiveAsrSession(adapter, recording.SessionId, name,
-                sourceStartMs, () => store.SessionSettings(recording.SessionId));
+                sourceStartMs, () => store.SessionSettings(recording.SessionId), activity);
             source = new CaptureSource(name, recorder, Path.Combine(root, recording.SessionId, name), recording, live, sourceStartMs);
             recorder.StartRecording();
             lock (recording.Sources) recording.Sources.Add(source);

@@ -288,10 +288,11 @@ try {
     });
   });
 
-  const web =
+  const web = process.env.PLAYBACK_WEB_TEST_URL ?? (
     process.env.PLAYBACK_OFFLINE_TEST === "yes"
       ? "http://127.0.0.1:5174"
-      : "http://127.0.0.1:5173";
+      : "http://127.0.0.1:5173");
+  assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(web));
   await page.goto(web);
   await page.locator(".audio-row").first().waitFor();
   await page.locator("#second").getByText("廣東話：我哋學 FFT。", { exact: true }).waitFor();
@@ -300,7 +301,7 @@ try {
     await page.screenshot({
       path: join(tmpdir(), "playback-transcript-default-1280.png"),
     });
-  assert.equal(await page.getByRole("button", { name: "Sources" }).count(), 0);
+  assert.equal(await page.locator(".transcript-panel").getByRole("button", { name: "Sources" }).count(), 0);
   assert.equal(
     await page.locator(".audio-row").count(),
     2,
@@ -411,12 +412,12 @@ try {
     await page.getByRole("button", { name: "More actions" }).count(),
     0,
   );
-  assert.equal(await page.locator(".timeline-day > summary").count(), 1);
-  assert.equal(await page.locator(".timeline-hour > summary").count(), 2);
+  assert.equal(await page.locator(".timeline-toggle:not(.hour-toggle)").count(), 1);
+  assert.equal(await page.locator(".hour-toggle").count(), 2);
   assert.equal(await page.locator(".timeline-minute").count(), 0);
-  assert.equal(await page.locator(".timeline-entries").count(), 2);
+  assert.ok(await page.locator("[data-virtual-row]").count() < 30, "The short timeline should mount only its visible items");
   assert.match(
-    await page.locator(".timeline-hour > summary").first().textContent(),
+    await page.locator(".hour-toggle").first().textContent(),
     /08:00/,
   );
   for (const width of [1024, 768, 375, 320]) {
@@ -426,7 +427,7 @@ try {
       `${width}px player must stay compact`,
     );
     const inset = await page
-      .locator(".timeline-entries")
+      .locator("[data-virtual-row]")
       .first()
       .evaluate((element) => {
         const rows = element.closest(".rows");
@@ -730,9 +731,12 @@ try {
   await page.setViewportSize({ width: 1440, height: 720 });
   await page.reload();
   await page.getByText("Note paragraph 80.").waitFor();
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await page.getByRole("button", { name: /Open audio sources/ }).first().click();
   await page
-    .getByRole("button", { name: "Jump to source at 08:00:05" })
+    .getByRole("button", { name: "Jump to 08:00:05" })
     .waitFor();
+  await page.getByRole("button", { name: "Close sources" }).click();
   assert.equal(
     await page.locator(".markdown-preview").getByText("c".repeat(32)).count(),
     0,
@@ -771,8 +775,7 @@ try {
     await page.getByRole("button", { name: "Save", exact: true }).isVisible(),
     true,
   );
-  assert.equal((await page.locator(".record-row").count()) >= 1266, true);
-  assert.equal((await page.locator(".quiet-section").count()) > 0, true);
+  assert.ok(await page.locator(".record-row").count() < 80, "The 1,266-source fixture must use bounded mounted rows");
   await page.setViewportSize({ width: 375, height: 720 });
   assert.equal(
     await page.evaluate(

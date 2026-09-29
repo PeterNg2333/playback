@@ -2,6 +2,8 @@ using System.Threading.Channels;
 using NAudio.Wave;
 using Playback.Api.Db;
 using Playback.Api.Services.Audio;
+using Playback.Api.Services.Ai;
+using System.Collections.Concurrent;
 
 internal static class LiveAsrCheck
 {
@@ -17,6 +19,7 @@ internal static class LiveAsrCheck
         var settings = new SessionRecord { AsrLanguage = "yue-en", AsrModel = "openai/whisper-large-v3-turbo" };
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
+        var traces = new PreviewStore();
         var rest = new Rest(async (request, ct) =>
         {
             Interlocked.Increment(ref calls);
@@ -26,9 +29,9 @@ internal static class LiveAsrCheck
             Require(wav.WaveFormat.SampleRate == 16_000 && wav.WaveFormat.Channels == 1 && wav.Length == 64_000,
                 "Interim request must contain real two-second normalized audio");
             await release.Task.WaitAsync(ct);
-            return new("廣東話 and English", null, null, null, null);
+            return new("廣東話 and English", null, null, null, null, UsageJson: "{\"seconds\":2}");
         });
-        await using (var live = new LiveAsrSession(rest, "session", "microphone", 0, () => Task.FromResult(settings)))
+        await using (var live = new LiveAsrSession(rest, "session", "microphone", 0, () => Task.FromResult(settings), new AiActivity(traces)))
         {
             live.Feed(Enumerable.Repeat(0.1f, 96_000).ToArray(), 48_000);
             live.Tick(2000, false);
@@ -43,6 +46,8 @@ internal static class LiveAsrCheck
             Require(live.Segments[0].StartMs == 0 && live.Segments[0].EndMs == 2000 &&
                 live.Segments[0].InterimText == "廣東話 and English", "Late preview must retain its original range after rotation");
         }
+        Require(traces.Records.Values.Single() is { Status: "completed", Task: "ASR interim preview", PromptVersion: LiveAsrSession.PreviewPromptVersion,
+            ProviderLatencyMs: not null, UsageJson: "{\"seconds\":2}" }, "Interim execution must record its actual parameters, usage and provider latency");
         var streamed = new Streaming();
         await using (var live = new LiveAsrSession(streamed, "session", "system", 10000, () => Task.FromResult(settings)))
         {
@@ -82,6 +87,10 @@ internal static class LiveAsrCheck
     {
         public AsrModel Model => new("fixture", "rest", "rest");
         public Task<AsrResult> Transcribe(AsrRequest request, CancellationToken ct) => call(request, ct);
+    }
+    sealed class PreviewStore : PlaybackStore {
+        public readonly ConcurrentDictionary<string, ActivityRecord> Records = new();
+        public override Task SaveActivity(ActivityRecord item) { Records[item.Id] = item; return Task.CompletedTask; }
     }
     sealed class Streaming : IStreamingAsrAdapter, IAsrStream
     {

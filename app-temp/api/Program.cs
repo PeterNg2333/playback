@@ -20,8 +20,11 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .AllowAnyMethod()));
 builder.Services.AddSingleton<PlaybackStore>();
 builder.Services.AddSingleton<AiActivity>();
+builder.Services.AddSingleton<AiFlow>();
 builder.Services.AddSingleton<GeminiLanguageModel>();
-builder.Services.AddSingleton<JevTermClassifier>();
+builder.Services.AddSingleton<JevTransport>();
+builder.Services.AddSingleton<JevNoteGate>();
+builder.Services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));
 builder.Services.AddSingleton<SyntheticTermComparison>();
 builder.Services.AddSingleton<ChatAgent>();
 builder.Services.AddSingleton<NoteAgent>();
@@ -38,7 +41,8 @@ app.UseCors();
 app.UseMiddleware<ApiExceptionMiddleware>();
 
 app.MapHealth();
-app.MapGet("/api/sessions/{id}/activity", async (string id, AiActivity activity) => await activity.Read(id));
+app.MapGet("/api/sessions/{id}/activity", async (string id, bool? includePrompt, AiActivity activity) =>
+    Results.Json(await activity.Read(id), includePrompt == false ? AiActivity.NotesResponseOptions : null));
 app.MapCapture();
 app.MapGroups();
 app.MapSessions();

@@ -47,11 +47,14 @@ public sealed class TermReviewAgent : IAsyncDisposable
         {
             var call = await activity.Begin(id, "Jev ranking: " + candidate.Text, "typesafe", "discovery",
                 candidate.TranscriptIds.Concat(candidate.MaterialIds));
+            activity.Context(call, "term-rank-v1", System.Text.Json.JsonSerializer.Serialize(JevTermClassifier.Questions), JevTermClassifier.State(candidate.Text, candidate.Context));
             await activity.Start(call);
             TermInsight insight;
             try
             {
                 var rank = (JevRankResult)await jev.Rank(candidate.Text, ct, candidate.Context);
+                call.ProviderLatencyMs = rank.Cached ? null : rank.LatencyMs;
+                call.UsageJson = !rank.Cached && rank.Usage.ValueKind == System.Text.Json.JsonValueKind.Object && rank.Usage.EnumerateObject().Any() ? rank.Usage.GetRawText() : null;
                 insight = await store.SaveTermRanking(id, candidate, rank, session.NoteLanguage);
                 await activity.End(call, rank.Cached ? "cache-hit" : "completed",
                     $"Explain={rank.JevProbability:F3}; {rank.JevRank}; confidence={rank.JevConfidence:F3}; highlight={insight.Highlight}", rank.Model);
@@ -67,7 +70,7 @@ public sealed class TermReviewAgent : IAsyncDisposable
         } finally { gate.Release(); }
     }
 
-    public async Task<TermInsight> Explain(string sessionId, string insightId, CancellationToken ct)
+    public async Task<TermInsight> Explain(string sessionId, string insightId, CancellationToken ct, bool detail = false)
     {
         var gate = explainGates.GetOrAdd(insightId, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(ct);
@@ -78,15 +81,19 @@ public sealed class TermReviewAgent : IAsyncDisposable
             if (!insight.Highlight) throw new InvalidOperationException("This term was not selected for explanation");
             var call = await activity.Begin(sessionId, "Term explanation: " + insight.Term, "vertex / Google Search",
                 gemini.Model, insight.TranscriptIds.Concat(insight.MaterialIds));
+            var input = $"Term: {insight.Term}\nContext: {insight.Context}\nOutput language: {LanguageSettings.OutputDescription(insight.OutputLanguage)}";
+            activity.Context(call, GeminiLanguageModel.ExplanationPromptVersion, GeminiLanguageModel.ExplanationInstructions, input);
             await activity.Start(call);
             try
             {
-                var cached = insight.Explanation is not null;
+                var cached = insight.Explanation is not null && (!detail || insight.ExplanationVersion == GeminiLanguageModel.ExplanationPromptVersion);
                 if (!cached)
                 {
-                    var explanation = await gemini.GroundedExplain($"Term: {insight.Term}\nContext: {insight.Context}\n" +
-                        $"Output language: {LanguageSettings.OutputDescription(insight.OutputLanguage)}", ct);
-                    insight = await store.SaveTermExplanation(sessionId, insightId, explanation);
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    GroundedResult explanation;
+                    try { explanation = await gemini.GroundedExplain(input, ct, usage => call.UsageJson = usage); }
+                    finally { call.ProviderLatencyMs = watch.ElapsedMilliseconds; }
+                    insight = await store.SaveTermExplanation(sessionId, insightId, explanation, detail);
                 }
                 await activity.End(call, cached ? "cache-hit" : "completed", $"{insight.Evidence.Count} sources; saved hover explanation");
                 return (await store.TermInsight(sessionId, insightId))!;

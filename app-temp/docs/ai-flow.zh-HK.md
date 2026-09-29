@@ -1,6 +1,6 @@
 # 2026-09-28：錄音到筆記及 Ask Playback 的實際流程
 
-以下包含較早的 3.5 live 驗證記錄。最新筆記／聊天／成本行為以 [notes-chat-update.zh-HK.md](notes-chat-update.zh-HK.md) 為準：預設 3.1 Flash-Lite、90 秒自動筆記、短合併引用、獨立 Live draft、hover 解釋不追加筆記段落，以及 MongoDB 保存獨立對話。本輪新模型尚未作付費 live 驗證。
+以下是較早的3.5 live及2026-09-28流程記錄。2026-09-29新程式預設3.1 Flash-Lite、每10秒由Jev note gate決策、只更新選定sections、Reading／Sources／詳解／group flow及virtualized transcript；現行行為與未驗證項以 [逐項驗收](../../docs/notes-redesign-validation.zh-HK.md) 及 [notes-chat-update](notes-chat-update.zh-HK.md) 為準。Live runtime未更新，新prompt／gate自然內容沒有新增付費驗證。
 
 本版使用 .NET 10、Microsoft Agent Framework、Vertex Express `gemini-3.5-flash-lite`、TypeSafe Jev，以及 OpenRouter transcription REST。結果索引在本機 [`../data/validation/index.md`](../data/validation/index.md)。這個目錄被 Git ignore；報告、raw response、音訊和截圖不提交。
 

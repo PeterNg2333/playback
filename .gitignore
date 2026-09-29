@@ -61,3 +61,4 @@ nunit-*.xml
 
 # Local browser screenshots and review artifacts
 /output/
+/app-temp/web/output/

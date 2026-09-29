@@ -1,17 +1,28 @@
+import { memo, useCallback, useMemo, useRef, useState } from "react";
+import type { CaptureStatus, TermCandidate, TermInsight } from "../types/api";
+import { VirtualTranscript, type VirtualItem } from "./VirtualTranscript";
 import type { PlaybackController } from "./handlers";
 import type { TimelineEntry } from "./format";
 import { chunkStatus, recordedRange, transcriptDays } from "./format";
 import { TranscriptRow } from "./TranscriptRow";
 import { RecordPlay } from "./RecordPlay";
 import { SourceTag, sourceLabel } from "./SourceTag";
+import { combineTranscriptEntries, type DisplayEntry } from "./transcriptPassages";
+import { TranscriptPassage } from "./TranscriptPassage";
 
-export function TranscriptContent({ model }: { model: PlaybackController }) {
+function sameTimelineCapture(a: CaptureStatus | null, b: CaptureStatus | null) {
+  return a === b || a?.sessionId === b?.sessionId && a?.state === b?.state && a?.error === b?.error &&
+    a?.interimError === b?.interimError && JSON.stringify(a?.activeSegments ?? []) === JSON.stringify(b?.activeSegments ?? []);
+}
+
+export const TranscriptContent = memo(function TranscriptContent({ model }: { model: PlaybackController }) {
   const {
     session,
     capture,
     health,
     attach,
     busy,
+    workspaceLoading,
     askTerm,
     playingKey,
     togglePlayback,
@@ -19,7 +30,68 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
     retryAsr,
   } = model;
 
-  function renderEntry(entry: TimelineEntry) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [combine, setCombine] = useState(true);
+  const [revealId, setRevealId] = useState<string>();
+  const termIndex = useMemo(() => {
+    const insights = new Map<string, TermInsight[]>(), candidates = new Map<string, TermCandidate[]>();
+    for (const term of session?.termInsights ?? []) if (term.highlight && !["details", "detail", "okay", "information"].includes(term.term.toLowerCase()) &&
+      (!term.outputLanguage || term.outputLanguage === session?.noteLanguage))
+      for (const id of term.transcriptIds) insights.set(id, [...(insights.get(id) ?? []), term]);
+    for (const term of session?.terms ?? []) for (const id of term.transcriptIds) candidates.set(id, [...(candidates.get(id) ?? []), term]);
+    return { insights, candidates };
+  }, [session?.termInsights, session?.terms, session?.noteLanguage]);
+  const baseDays = useMemo(() => session ? transcriptDays(session) : new Map(),
+    [session?.id, session?.createdAt, session?.transcripts, session?.chunks]);
+  const renderCurrent = useRef(renderEntry); renderCurrent.current = renderEntry;
+  const liveRows = useRef(new Map<string, Extract<TimelineEntry, { kind: "live" }>>());
+  liveRows.current.clear();
+  if (session && capture?.sessionId === session.id) for (const segment of capture.activeSegments ?? []) {
+    if (session.transcripts.some(x => x.sourceId === segment.sourceId && x.startMs <= segment.startMs && x.endMs >= segment.endMs)) continue;
+    liveRows.current.set("live-" + segment.sourceId + segment.startMs, { kind: "live", segment, at: new Date(segment.recordedAt) });
+  }
+  // Interim text/end time changes update the visible row through the ref above.
+  // Rebuild the all-lecture layout only for confirmed data, collapse, or a new live window.
+  const liveLayout = [...liveRows.current].map(([key, entry]) => key + entry.segment.recordedAt).join("|");
+  const expandSource = useCallback((id: string) => {
+    setRevealId(id);
+    for (const [day, hours] of baseDays) for (const [hour, items] of hours)
+      if (items.some((entry: TimelineEntry) => entry.kind === "transcript" ? entry.transcript.id === id : entry.kind !== "live" && entry.chunks.some(x => x.id === id)))
+        setCollapsed(old => ({ ...old, [day]: false, [day + hour]: false }));
+  }, [baseDays]);
+  const entries = useMemo(() => {
+  const entries: VirtualItem[] = [];
+  const days = new Map<string, Map<string, TimelineEntry[]>>();
+  for (const [day, hours] of baseDays) days.set(day, new Map([...hours].map(([hour, items]) => [hour, [...items]])));
+  if (session && liveRows.current.size) {
+    for (const [day, hours] of transcriptDays({ ...session, chunks: [], transcripts: [] }, [...liveRows.current.values()].map(entry => entry.segment))) {
+      if (!days.has(day)) days.set(day, new Map());
+      for (const [hour, items] of hours) days.get(day)!.set(hour, [...(days.get(day)!.get(hour) ?? []), ...items].sort((a, b) => a.at.getTime() - b.at.getTime()));
+    }
+  }
+  for (const [day, hours] of [...days].sort(([a], [b]) => a.localeCompare(b))) {
+    entries.push({ key: "day-" + day, sourceIds: [], estimate: 38, render: () => <button className="timeline-toggle" aria-expanded={!collapsed[day]}
+      onClick={() => setCollapsed(old => ({ ...old, [day]: !old[day] }))}>{collapsed[day] ? "▸" : "▾"} {day}</button> });
+    if (collapsed[day]) continue;
+    for (const [hour, items] of [...hours].sort(([a], [b]) => a.localeCompare(b))) {
+      const key = day + hour;
+      entries.push({ key: "hour-" + key, sourceIds: [], estimate: 36, render: () => <button className="timeline-toggle hour-toggle" aria-expanded={!collapsed[key]}
+        onClick={() => setCollapsed(old => ({ ...old, [key]: !old[key] }))}>{collapsed[key] ? "▸" : "▾"} {hour} · {items.length} parts</button> });
+      if (collapsed[key]) continue;
+      const latest = session?.transcripts.reduce((max, text) => Math.max(max, text.endMs), 0) ?? 0;
+      const settled = capture?.sessionId === session?.id && capture?.state !== "idle" ? Math.floor((latest - 60000) / 30000) * 30000 : Infinity;
+      for (const entry of combine ? combineTranscriptEntries(items, settled) : items) {
+        const sourceIds = entry.kind === "passage" ? entry.transcripts.map(x => x.id) : entry.kind === "transcript" ? [entry.transcript.id] : entry.kind === "live" ? [] : entry.chunks.map(x => x.id);
+        const key = entry.kind === "live" ? "live-" + entry.segment.sourceId + entry.segment.startMs : sourceIds[0];
+        entries.push({ key, sourceIds, render: () => renderCurrent.current(liveRows.current.get(key) ?? entry) });
+      }
+    }
+  }
+  return entries;
+  }, [baseDays, collapsed, liveLayout, combine, capture?.state]);
+  function renderEntry(entry: DisplayEntry) {
+    if (entry.kind === "passage") return <TranscriptPassage entry={entry} model={model} revealId={revealId}
+      insights={termIndex.insights} candidates={termIndex.candidates} />;
     if (entry.kind === "live") {
       const { segment } = entry;
       const range = recordedRange(segment.recordedAt, session?.createdAt, segment.startMs, segment.endMs);
@@ -50,6 +122,8 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
           onTogglePlayback={togglePlayback}
           onSelect={captureSelection}
           onAskTerm={askTerm}
+          insights={termIndex.insights.get(transcript.id) ?? []}
+          candidates={termIndex.candidates.get(transcript.id) ?? []}
         />
       );
     }
@@ -71,7 +145,7 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
             <div className="quiet-parts">
               {chunks.map((chunk) => {
                 const part = recordedRange(chunk.recordedAt, session?.createdAt, chunk.startMs, chunk.endMs);
-                return <div className="quiet-part" key={chunk.id}>
+                return <div className="quiet-part" id={chunk.id} key={chunk.id}>
                   <SourceTag sourceId={chunk.sourceId} />
                   <span>{part.start}–{part.end}</span>
                   <RecordPlay id={chunk.id} chunks={[chunk]} startTime={part.start} endTime={part.end} playingKey={playingKey} onToggle={togglePlayback} />
@@ -92,6 +166,7 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
     return (
       <article
         className={`record-row transcript-row audio-row ${failedIds.length ? "asr-manual-row" : ""}`}
+        id={first.id}
         key={first.id}
       >
         <span className="record-time">{range.start}</span>
@@ -152,7 +227,7 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
           <button
             className="text-control"
             onClick={attach}
-            disabled={!session || !!busy}
+            disabled={!session || !!busy || workspaceLoading}
           >
             Attach text material
           </button>
@@ -202,19 +277,8 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
             </div>
           )}
         {session && (session.chunks.length || session.transcripts.length || (capture?.sessionId === session.id && !!capture.activeSegments?.length)) ? (
-          Array.from(transcriptDays(session, capture?.sessionId === session.id ? capture.activeSegments || [] : []).entries()).map(([day, hours]) => (
-            <details className="timeline-day" key={day} open>
-              <summary>{day}</summary>
-              {Array.from(hours.entries()).map(([hour, entries]) => (
-                <details className="timeline-hour" key={hour} open>
-                  <summary>
-                    {hour} · {entries.length} sections
-                  </summary>
-                  <div className="timeline-entries">{entries.map(renderEntry)}</div>
-                </details>
-              ))}
-            </details>
-          ))
+          <><label className="combine-transcript"><input type="checkbox" checked={combine} onChange={event => setCombine(event.target.checked)} />Combine completed passages</label>
+            <VirtualTranscript key={session.id} items={entries} sessionId={session.id} onReveal={expandSource} /></>
         ) : capture?.sessionId !== session?.id || capture?.state === "idle" ? (
           <p className="empty">
             No transcript yet. Record a session to see audio and text here.
@@ -223,4 +287,5 @@ export function TranscriptContent({ model }: { model: PlaybackController }) {
       </div>
     </div>
   );
-}
+}, (a, b) => a.model.session === b.model.session && sameTimelineCapture(a.model.capture, b.model.capture) && a.model.health === b.model.health &&
+  a.model.busy === b.model.busy && a.model.workspaceLoading === b.model.workspaceLoading && a.model.playingKey === b.model.playingKey);

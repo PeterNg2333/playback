@@ -1,6 +1,7 @@
 import type { Evidence, Session, TermInsight } from "../types/api";
 import { SourceLinks } from "./SourceLinks";
 import { formatDateTime } from "./format";
+import { LazyDetails } from "../Component/LazyDetails";
 
 type TermDecisionTraceProps = {
   session: Session;
@@ -31,15 +32,14 @@ export function TermDecisionTrace({
   if (!decisions.length)
     return <p className="empty">No saved Jev decisions yet.</p>;
   return decisions.map((decision) => (
-    <details className="activity-entry" key={decision.id}>
-      <summary>
+    <LazyDetails className="activity-entry" key={decision.id} summary={<>
         <strong>{decision.term}</strong>
         <span>{formatDateTime(decision.rankedAt)}</span>
         <small className="decision-outcome" data-highlight={decision.highlight}>
           {decision.highlight ? "Highlighted" : "Not highlighted"}
         </small>
-      </summary>
-      <div className="activity-entry-body">
+      </>}>
+      {() => <div className="activity-entry-body">
         <dl className="decision-scores">
           <div>
             <dt>Explain probability</dt>
@@ -71,7 +71,7 @@ export function TermDecisionTrace({
           materialIds={decision.materialIds}
           onSelect={onSource}
         />
-      </div>
-    </details>
+      </div>}
+    </LazyDetails>
   ));
 }

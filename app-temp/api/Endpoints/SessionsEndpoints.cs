@@ -31,6 +31,7 @@ public static class SessionsEndpoints
             await store.Session(id) is { } session
                 ? Results.Ok(session)
                 : Results.NotFound());
+        app.MapGet("/api/sessions/{id}/sync", async (string id, string? cursor, PlaybackStore store) => await store.SyncSession(id, cursor));
         app.MapPost("/api/sessions/{id}/materials", async (
             string id, MaterialInput input, PlaybackStore store) =>
             await store.AddMaterial(id, input));

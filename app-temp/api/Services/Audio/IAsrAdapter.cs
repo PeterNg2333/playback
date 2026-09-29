@@ -8,7 +8,8 @@ public sealed record AsrResult(
     double? InferenceSeconds,
     string? Language,
     double? RealTimeFactor,
-    AsrModel? Model = null);
+    AsrModel? Model = null,
+    string? UsageJson = null);
 
 // Saved chunks are the recovery boundary, regardless of the provider's transport.
 public interface IAsrAdapter

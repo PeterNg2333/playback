@@ -9,11 +9,12 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using MongoDB.Driver;
+using MongoDB.Bson;
 using Microsoft.Extensions.Primitives;
 
 namespace Playback.Api.Db;
 
-public sealed partial class PlaybackStore
+public partial class PlaybackStore
 {
     public event Action<string>? SourceChanged;
     public static bool NeedsReview(string original) => Regex.IsMatch(original, @"\[(?:unclear|inaudible|unintelligible)\]", RegexOptions.IgnoreCase);
@@ -32,9 +33,9 @@ public sealed partial class PlaybackStore
         db = new MongoClient(settings).GetDatabase(database);
     }
     IMongoCollection<T> Collection<T>(string name) => db.GetCollection<T>(name);
-    public Task SaveActivity(ActivityRecord item) => Collection<ActivityRecord>("ai_activity")
+    public virtual Task SaveActivity(ActivityRecord item) => Collection<ActivityRecord>("ai_activity")
         .ReplaceOneAsync(x => x.Id == item.Id, item, new ReplaceOptions { IsUpsert = true });
-    public Task<List<ActivityRecord>> ActivityHistory(string sessionId) => Collection<ActivityRecord>("ai_activity")
+    public virtual Task<List<ActivityRecord>> ActivityHistory(string sessionId) => Collection<ActivityRecord>("ai_activity")
         .Find(x => x.SessionId == sessionId).SortByDescending(x => x.StartedAt).Limit(100).ToListAsync();
     public async Task<bool> IsReady()
     {
@@ -88,12 +89,14 @@ public sealed partial class PlaybackStore
     }
     public async Task DeleteGroup(string id)
     {
+        var members = await Collection<SessionRecord>("sessions").Find(x => x.GroupId == id).Project(x => x.Id).ToListAsync();
         var deleted = await Collection<GroupRecord>("groups").DeleteOneAsync(x => x.Id == id);
         var moved = await Collection<SessionRecord>("sessions").UpdateManyAsync(
             x => x.GroupId == id,
             Builders<SessionRecord>.Update.Set(x => x.GroupId, null));
         if (deleted.DeletedCount == 0 && moved.MatchedCount == 0)
             throw new InvalidOperationException("Group not found");
+        foreach (var member in members) Touch(member, "group");
     }
     public async Task<object> MoveSession(string id, string? groupId)
     {
@@ -102,6 +105,7 @@ public sealed partial class PlaybackStore
         var result = await Collection<SessionRecord>("sessions").UpdateOneAsync(x => x.Id == id,
             Builders<SessionRecord>.Update.Set(x => x.GroupId, groupId));
         if (result.MatchedCount == 0) throw new InvalidOperationException("Session not found");
+        Touch(id, "group");
         return new { id, groupId };
     }
     public async Task<SessionRecord> SetTranslation(string id, bool enabled, string language)
@@ -113,11 +117,15 @@ public sealed partial class PlaybackStore
         var update = Builders<SessionRecord>.Update.Set(x => x.TranslationEnabled, enabled).Set(x => x.TranslationLanguage, language);
         await Collection<SessionRecord>("sessions").UpdateOneAsync(x => x.Id == id, update);
         if (changedLanguage)
+        {
             await Collection<Transcript>("transcripts").UpdateManyAsync(x => x.SessionId == id,
                 Builders<Transcript>.Update
                     .Set(x => x.TranslationStatus, "pending")
                     .Set(x => x.TranslationRetryAt, null)
                     .Set(x => x.TranslationError, null));
+            Touch(id, "transcript");
+        }
+        Touch(id, "settings");
         return (await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstAsync());
     }
     public async Task<List<Transcript>> PendingTranslations(int limit = 30, string? sessionId = null)
@@ -150,16 +158,20 @@ public sealed partial class PlaybackStore
         await gate.WaitAsync();
         try
         {
-            return await Collection<SessionRecord>("sessions").FindOneAndUpdateAsync(x => x.Id == id,
+            var result = await Collection<SessionRecord>("sessions").FindOneAndUpdateAsync(x => x.Id == id,
                 Builders<SessionRecord>.Update.Set(x => x.AsrLanguage, asrLanguage).Set(x => x.NoteLanguage, noteLanguage).Set(x => x.AsrModel, asrModel),
                 new FindOneAndUpdateOptions<SessionRecord> { ReturnDocument = ReturnDocument.After })
                 ?? throw new InvalidOperationException("Session not found");
+            Touch(id, "display-settings");
+            return result;
         }
         finally { gate.Release(); }
     }
-    public async Task RetryTranslations(string id) =>
+    public async Task RetryTranslations(string id) {
         await Collection<Transcript>("transcripts").UpdateManyAsync(x => x.SessionId == id && x.TranslationStatus == "failed",
             Builders<Transcript>.Update.Set(x => x.TranslationRetryAt, null).Set(x => x.TranslationStatus, "pending"));
+        Touch(id, "transcript");
+    }
     public async Task<Transcript> SetTranslationResult(Transcript transcript, string language, string? value, string? error)
     {
         if (error is null && value is not null)
@@ -191,11 +203,13 @@ public sealed partial class PlaybackStore
             .Set(x => x.TranslationError, error)
             .Set(x => x.TranslationRetryAt, retryAt);
         if (error is null) update = update.Set(x => x.Translation, value).Set(x => x.TranslationLanguage, language);
-        return await Collection<Transcript>("transcripts").FindOneAndUpdateAsync(x => x.Id == transcript.Id, update,
+        var saved = await Collection<Transcript>("transcripts").FindOneAndUpdateAsync(x => x.Id == transcript.Id, update,
             new FindOneAndUpdateOptions<Transcript> { ReturnDocument = ReturnDocument.After })
             ?? throw new InvalidOperationException("Transcript not found");
+        Touch(transcript.SessionId, "translation", [transcript.Id]);
+        return saved;
     }
-    public async Task MarkNotes(IEnumerable<string> ids, string status, string? error = null)
+    public virtual async Task MarkNotes(IEnumerable<string> ids, string status, string? error = null)
     {
         var list = ids.ToArray();
         if (list.Length == 0) return;
@@ -208,68 +222,18 @@ public sealed partial class PlaybackStore
             .Set(x => x.NoteRetryAt, retryAt);
         if (status == "failed") update = update.Inc(x => x.NoteAttempts, 1);
         await Collection<Transcript>("transcripts").UpdateManyAsync(x => list.Contains(x.Id), update);
+        foreach (var group in (await Collection<Transcript>("transcripts").Find(x => list.Contains(x.Id))
+            .Project(x => new { x.Id, x.SessionId }).ToListAsync()).GroupBy(x => x.SessionId))
+            Touch(group.Key, "transcript", group.Select(x => x.Id));
     }
-    public async Task<List<string>> SessionsWithPendingNotes()
+    public virtual async Task<List<string>> SessionsWithPendingNotes()
     {
-        var transcripts = await Collection<Transcript>("transcripts").Find(x => x.Original != "" && x.NoteAttempts < 3 &&
-            (x.NoteStatus == "pending" || (x.NoteStatus == "failed" && x.NoteRetryAt <= DateTime.UtcNow) ||
-             (x.NoteStatus == "processing" && x.NoteRetryAt <= DateTime.UtcNow))).ToListAsync();
-        return transcripts.GroupBy(x => x.SessionId)
-            .Where(group => group.Sum(x => x.Original.Trim().Length) >= 40)
-            .Select(group => group.Key).ToList();
-    }
-    public async Task<object> SaveGeneratedNote(string id, string markdown, List<Transcript> transcripts, List<Material> materials, string inputHash, int basedOnVersion, string outputLanguage = "zh-Hant")
-    {
-        if (string.IsNullOrWhiteSpace(markdown) || markdown.Length > 250_000)
-            throw new InvalidOperationException("Generated note size is invalid");
-        var gate = noteGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync();
-        try
-        {
-            if ((await SessionSettings(id)).NoteLanguage != outputLanguage)
-                throw new InvalidOperationException("Note output language changed while AI was generating; retry with the current language");
-            var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
-            var existing = await Collection<Note>("notes").Find(x => x.SessionId == id && x.InputHash == inputHash).FirstOrDefaultAsync();
-            if (existing is not null && previous?.Version == existing.Version)
-                return new { existing.Version, existing.Markdown, existing.Author };
-            if ((previous?.Version ?? 0) != basedOnVersion)
-                throw new InvalidOperationException("Note changed while AI was generating; retry with the latest version");
-            var times = transcripts.Select(x => x.RecordedAt ?? DateTime.MinValue).Where(x => x != DateTime.MinValue).ToArray();
-            var note = new Note
-            {
-                Id = $"{id}-{inputHash}",
-                SessionId = id,
-                Version = (previous?.Version ?? 0) + 1,
-                BasedOnVersion = previous?.Version,
-                Markdown = markdown,
-                Author = "agent",
-                OutputLanguage = outputLanguage,
-                ProcessedThroughMs = Math.Max(previous?.ProcessedThroughMs ?? 0, transcripts.Max(x => x.EndMs)),
-                CreatedAt = DateTime.UtcNow,
-                TranscriptIds = (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)).Distinct().ToList(),
-                MaterialIds = (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id)).Distinct().ToList(),
-                InputTranscriptIds = transcripts.Select(x => x.Id).ToList(),
-                InputMaterialIds = materials.Select(x => x.Id).ToList(),
-                Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
-                    (previous?.TranscriptIds ?? []).Concat(transcripts.Select(x => x.Id)),
-                    (previous?.MaterialIds ?? []).Concat(materials.Select(x => x.Id))),
-                InputHash = inputHash,
-                SourceFrom = times.Length > 0
-                    ? new[] { previous?.SourceFrom ?? times.Min(), times.Min() }.Min()
-                    : previous?.SourceFrom,
-                SourceThrough = times.Length > 0
-                    ? new[] { previous?.SourceThrough ?? times.Max(), times.Max() }.Max()
-                    : previous?.SourceThrough
-            };
-            try { await Collection<Note>("notes").InsertOneAsync(note); }
-            catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
-            {
-                var saved = await Collection<Note>("notes").Find(x => x.Id == note.Id).FirstAsync();
-                return new { saved.Version, saved.Markdown, saved.Author };
-            }
-            return new { note.Version, note.Markdown, note.Author };
-        }
-        finally { gate.Release(); }
+        var ids = await Collection<Transcript>("transcripts").Find(x => x.Original != "" &&
+            (x.NoteStatus == "pending" || x.NoteStatus == "deferred" || x.NoteStatus == "failed" || x.NoteStatus == "processing"))
+            .Project(x => x.SessionId).ToListAsync();
+        var materialSessions = await Collection<Material>("materials").Find(FilterDefinition<Material>.Empty).Project(x => x.SessionId).ToListAsync();
+        var flushed = await Collection<NoteGateRecord>("note_gates").Find(x => x.FlushRequested).Project(x => x.SessionId).ToListAsync();
+        return ids.Concat(materialSessions).Concat(flushed).Distinct().ToList();
     }
     public async Task DeleteTestSession(string id)
     {
@@ -316,7 +280,7 @@ public sealed partial class PlaybackStore
         if (chunk is null || chunk.SessionId != sessionId) throw new InvalidOperationException("Test chunk not found in session");
         await SaveTranscript(chunk, text);
     }
-    public async Task<SessionView?> Session(string id)
+    public virtual async Task<SessionView?> Session(string id)
     {
         var session = await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstOrDefaultAsync();
         if (session is null) return null;
@@ -363,42 +327,25 @@ public sealed partial class PlaybackStore
             throw new InvalidOperationException("Session not found");
         var material = new Material { Id = Guid.NewGuid().ToString("N"), SessionId = id, Name = input.Name, Text = input.Text };
         await Collection<Material>("materials").InsertOneAsync(material);
+        Touch(id, "material", [material.Id]);
         SourceChanged?.Invoke(id);
         return new { material.Id, material.Name };
     }
-    public async Task<object> SaveNote(string id, string markdown, string author, long processedThroughMs = 0)
+    public async Task<object> SaveNote(string id, string markdown, string author, long processedThroughMs = 0, int? basedOnVersion = null)
     {
         if (markdown.Length > 250_000) throw new InvalidOperationException("Note is too large");
-        var gate = noteGates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync();
-        try
-        {
-            if (await Collection<SessionRecord>("sessions").CountDocumentsAsync(x => x.Id == id) == 0)
-                throw new InvalidOperationException("Session not found");
-            var previous = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
-            var userHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"user\n{previous?.Version ?? 0}\n{markdown}"))).ToLowerInvariant();
-            var note = new Note
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                SessionId = id,
-                Version = (previous?.Version ?? 0) + 1,
-                BasedOnVersion = previous?.Version,
-                InputHash = userHash,
-                Markdown = markdown,
-                Author = author,
-                ProcessedThroughMs = Math.Max(processedThroughMs, previous?.ProcessedThroughMs ?? 0),
-                CreatedAt = DateTime.UtcNow,
-                TranscriptIds = previous?.TranscriptIds.ToList() ?? [],
-                MaterialIds = previous?.MaterialIds.ToList() ?? [],
-                Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown,
-                    previous?.TranscriptIds ?? [], previous?.MaterialIds ?? []),
-                SourceFrom = previous?.SourceFrom,
-                SourceThrough = previous?.SourceThrough
-            };
-            await Collection<Note>("notes").InsertOneAsync(note);
-            return new { note.Version, note.Markdown, note.Author };
-        }
-        finally { gate.Release(); }
+        var session = await Session(id) ?? throw new InvalidOperationException("Session not found");
+        if (basedOnVersion.HasValue && basedOnVersion != session.NoteVersion)
+            throw new InvalidOperationException("Notes changed; keep your editor text and compare with the latest version");
+        var previous = session.CurrentNote;
+        var citations = Services.Ai.NoteSections.CloneCitations(previous?.Citations ?? []);
+        var deleted = previous?.DeletedSectionIds.ToList() ?? [];
+        var suppressed = previous?.SuppressedSourceIds.ToList() ?? [];
+        var allowed = Services.Ai.MaterialSources.Allowed(session);
+        var sections = Services.Ai.NoteSections.UserEdit(previous, id, markdown, allowed, citations, deleted, suppressed);
+        return await SaveSectionNote(id, new Services.Ai.SectionUpdate(sections, citations, []),
+            Services.Ai.NoteSections.Hash($"user:{session.NoteVersion}:{markdown}"), session.NoteVersion, session.NoteLanguage,
+            author, deleted, suppressed);
     }
     public async Task<List<Note>> NoteHistory(string id)
     {
@@ -422,6 +369,7 @@ public sealed partial class PlaybackStore
             Term = candidate.Text,
             Context = candidate.Context,
             OutputLanguage = language,
+            ExplanationVersion = GeminiLanguageModel.ExplanationPromptVersion,
             Highlight = JevTermClassifier.ShouldHighlight(rank),
             JevProbability = rank.JevProbability,
             JevRank = rank.JevRank,
@@ -440,23 +388,34 @@ public sealed partial class PlaybackStore
         {
             return (await TermInsight(sessionId, insight.Id))!;
         }
+        Touch(sessionId, "insight", [insight.Id]);
         return insight;
     }
-    public async Task<TermInsight> SaveTermExplanation(string sessionId, string insightId, GroundedResult result)
+    public async Task<TermInsight> SaveTermExplanation(string sessionId, string insightId, GroundedResult result, bool detail = false)
     {
         var update = Builders<TermInsight>.Update
             .Set(x => x.Explanation, result.Answer)
+            .Set(x => x.ExplanationVersion, GeminiLanguageModel.ExplanationPromptVersion)
+            .Set(x => x.ExplanationSummary, result.Answer.Split("\n\n", StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(x => !x.StartsWith('#')) is { } summary
+                ? summary[..Math.Min(summary.Length, 600)] : result.Answer[..Math.Min(result.Answer.Length, 600)])
             .Set(x => x.SearchQueries, result.SearchQueries ?? [])
             .Set(x => x.GroundingUsageJson, result.UsageJson)
             .Set(x => x.GroundingMetadataJson, result.GroundingMetadataJson)
             .Set(x => x.Evidence, result.Evidence.Select(x => new TermEvidence { Url = x.Url, Title = x.Title }).ToList())
             .Set(x => x.ExplainedAt, DateTime.UtcNow);
-        return await Collection<TermInsight>("term_insights").FindOneAndUpdateAsync(
-            x => x.SessionId == sessionId && x.Id == insightId && x.Explanation == null,
+        if (detail && await TermInsight(sessionId, insightId) is { Explanation: not null } previous) {
+            var archive = previous.ToBsonDocument(); archive["InsightId"] = insightId;
+            archive["_id"] = Services.Ai.NoteSections.Hash(insightId + previous.ExplanationVersion + previous.Explanation);
+            await Collection<BsonDocument>("term_explanation_history").ReplaceOneAsync(new BsonDocument("_id", archive["_id"]), archive, new ReplaceOptions { IsUpsert = true });
+        }
+        var saved = await Collection<TermInsight>("term_insights").FindOneAndUpdateAsync(
+            x => x.SessionId == sessionId && x.Id == insightId && (x.Explanation == null || detail && x.ExplanationVersion != GeminiLanguageModel.ExplanationPromptVersion),
             update,
             new FindOneAndUpdateOptions<TermInsight> { ReturnDocument = ReturnDocument.After })
             ?? await TermInsight(sessionId, insightId)
             ?? throw new InvalidOperationException("Term insight not found");
+        Touch(sessionId, "insight", [insightId]);
+        return saved;
     }
     public Task<List<string>> TermReviewSessionIds() => Collection<SessionRecord>("sessions")
         .Find(FilterDefinition<SessionRecord>.Empty).SortByDescending(x => x.CreatedAt).Limit(128).Project(x => x.Id).ToListAsync();
@@ -537,6 +496,7 @@ public sealed partial class PlaybackStore
         };
         chunk.Path = path;
         await Collection<ChunkRecord>("chunks").ReplaceOneAsync(x => x.Id == id, chunk, new ReplaceOptions { IsUpsert = true }, ct);
+        Touch(session, "chunk", [id]);
         return chunk;
     }
     public async Task<ChunkRecord?> Chunk(string id)
@@ -585,6 +545,7 @@ public sealed partial class PlaybackStore
                 .Set(x => x.Status, stopRetries || attempts >= 3 ? "asr-manual" : "asr-error")
                 .Set(x => x.Error, error)
                 .Set(x => x.AsrAttempts, attempts));
+        Touch(chunk.SessionId, "chunk", [id]);
         return !stopRetries && attempts < 3;
     }
     public async Task<ChunkRecord> RetryAsr(string sessionId, string id)
@@ -595,11 +556,15 @@ public sealed partial class PlaybackStore
         if (chunk.Status is not ("asr-error" or "asr-manual" or "asr-empty"))
             throw new InvalidOperationException("Only failed or empty ASR chunks can be retried");
         if (chunk.Status == "asr-empty")
+        {
             await Collection<Transcript>("transcripts").DeleteOneAsync(x => x.Id == id && x.SessionId == sessionId);
+            Touch(sessionId, "transcript", [id]);
+        }
         await Collection<ChunkRecord>("chunks").UpdateOneAsync(x => x.Id == id,
             Builders<ChunkRecord>.Update.Set(x => x.Status, "pending-asr")
                 .Set(x => x.Error, null)
                 .Set(x => x.AsrAttempts, chunk.Status == "asr-manual" ? 0 : chunk.AsrAttempts));
+        Touch(sessionId, "chunk", [id]);
         return chunk;
     }
     public async Task SaveTranscript(ChunkRecord chunk, string original, AsrModel? asr = null,
@@ -615,6 +580,7 @@ public sealed partial class PlaybackStore
                 EndMs = chunk.EndMs,
                 RecordedAt = chunk.RecordedAt,
                 Original = original,
+                ConfirmedAt = DateTime.UtcNow,
                 DisplayOriginal = displayOriginal,
                 AsrLanguageHint = languageHint,
                 AsrDetectedLanguage = detectedLanguage,
@@ -630,13 +596,16 @@ public sealed partial class PlaybackStore
             Builders<ChunkRecord>.Update
                 .Set(x => x.Status, string.IsNullOrWhiteSpace(original) ? "asr-empty" : "transcribed")
                 .Set(x => x.Error, null));
+        Touch(chunk.SessionId, "source", [chunk.Id]);
         if (!string.IsNullOrWhiteSpace(original)) SourceChanged?.Invoke(chunk.SessionId);
     }
     public async Task<Transcript?> TranscriptForChunk(string id) =>
         await Collection<Transcript>("transcripts").Find(x => x.Id == id).FirstOrDefaultAsync();
-    public async Task SetChunkStatus(string id, string status, string? error = null) =>
+    public async Task SetChunkStatus(string id, string status, string? error = null) {
         await Collection<ChunkRecord>("chunks").UpdateOneAsync(x => x.Id == id,
             Builders<ChunkRecord>.Update.Set(x => x.Status, status).Set(x => x.Error, error));
+        var chunk = await Chunk(id); if (chunk is not null) Touch(chunk.SessionId, "chunk", [id]);
+    }
     public async Task<Transcript> Translate(string sessionId, string transcriptId, string translation)
     {
         var filter = Builders<Transcript>.Filter.Where(x => x.Id == transcriptId && x.SessionId == sessionId);
@@ -644,6 +613,7 @@ public sealed partial class PlaybackStore
             filter,
             Builders<Transcript>.Update.Set(x => x.Translation, translation),
             new FindOneAndUpdateOptions<Transcript> { ReturnDocument = ReturnDocument.After });
+        Touch(sessionId, "translation", [transcriptId]);
         return result ?? throw new InvalidOperationException("Transcript not found in session");
     }
     public async Task SaveCitations(string sessionId, string questionId, IEnumerable<WebEvidence> evidence)

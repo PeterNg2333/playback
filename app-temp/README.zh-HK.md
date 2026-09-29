@@ -2,9 +2,11 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
-2026-09-28 筆記／聊天更新：短引用 `01`、合併音訊段落、Live draft 分頁、紫色 pen 進度、自動 Jev 詞語 hover 解釋，以及按講堂保存聊天。Routine Gemini 預設改為 3.1 Flash-Lite，自動筆記至少相隔 90 秒並限制輸出。詳見 [本輪行為與驗證](docs/notes-chat-update.zh-HK.md)；以下較早的 3.5 live 結果不能代替本輪新模型驗證。重啟 API／重載網頁後使用新功能；現有筆記按 Revise with AI 才套用新格式。另一個 session 可使用 [Docker Compose 交接 prompt](../docs/docker-compose-handoff.md)。
+2026-09-29 後續補完：逐 record DB 查詢、完成段落展示合併、session／diagram loading、Mermaid 延後載入、失敗 usage，以及 section 的單一正文 JSON contract 已加入。使用 repo Week 3 首一小時文字完成一小時 frontend load；批准後的真實 API／Mongo 保存、126 版歷史、restart／cursor、group flow、材料及本地音訊 E2E 通過。Jev／Gemini 真實結果及成本已保存；九次筆記生成得到三版，仍有30條 pending、65條 deferred，自然筆記品質未通過。詳見 [Week 3 驗收報告](../docs/week3-one-hour-validation.zh-HK.md)。
 
-2026-09-28 修復與驗收：最新行為以 [AI 實際流程](docs/ai-flow.zh-HK.md) 為準；真實 provider／實機測試、離線回歸、失敗及限制保存在本機 [validation 索引](data/validation/index.md)。下方 2026-09-26／27 的資料是歷史結果，不能代替本輪驗收。沒有原生串流 ASR 或三小時實機穩定性承諾。
+每10秒由真正的Jev note問題檢查changed confirmed input；允許後排入section更新，沒有固定90秒等待。Reading／Sources、整理、group flow、保存詳解及 virtualization 已實作。現在 prompt 為 `section-notes-v6`／`section-organize-v6`、chat 為 `chat-v2`；較早保存結果有自己的生效版本，不能代替新 prompt 的自然品質驗收。原5078未重啟，歷史恢復 preview 未套用；使用者要求的一小時 frontend fixture 已完成，未新增硬件／ASR 長測。初版紀錄見 [逐項驗收與限制](../docs/notes-redesign-validation.zh-HK.md)。
+
+2026-09-28 修復與驗收歷史見 [當時AI流程](docs/ai-flow.zh-HK.md) 及本機 [validation索引](data/validation/index.md)；新note gate／section流程以2026-09-29驗收為準。下方2026-09-26／27資料是歷史結果，不能代替本輪驗收。沒有原生串流ASR或三小時實機穩定性承諾。
 
 每個 session 的 Transcript settings 現有三組獨立語言設定：ASR（Auto／混合、廣東話、普通話、英文）；Notes output（TC／SC／EN）；Translation target（廣東話繁體、TC、SC、EN，及原有日／韓語）。ASR 設定用於之後的辨識請求，已完成逐字稿不會重新上傳；廣東話模式以本機 Windows 字形轉換作繁體顯示，原始 ASR 文字保留。筆記設定用於下一次 AI revision，改語言後可按 Revise with AI；翻譯目標更改會重新排入翻譯佇列。設定保存到 session，重載後保留，不需清空資料庫。詳見 [ASR 語言設定](docs/asr-adapters.zh-HK.md#語言設定)。
 
@@ -49,7 +51,7 @@ Windows mic + system output ── .NET API process ── 最多約 8s WAV ─�
                                                     └── ASR adapter: SenseVoice / OpenRouter Qwen (automatic queue, at most 2 requests)
 ```
 
-錄音先在 `app-temp/data/local-capture` 完成每段 WAV，再匯入 `app-temp/data/audio`；匯入失敗的完整 WAV 會留待下一次 Start 時重試。MongoDB 只存 metadata。原始 ASR 為獨立欄位，翻譯及修訂不覆蓋它。材料與 transcript 查詢依 session ID 隔離。私人問題只留在當前 UI 狀態，暫未持久化。
+錄音先在 `app-temp/data/local-capture` 完成每段 WAV，再匯入 `app-temp/data/audio`；匯入失敗的完整 WAV 會留待下一次 Start 時重試。MongoDB 只存 metadata。原始 ASR 為獨立欄位，翻譯及修訂不覆蓋它。材料、transcript 與私人聊天按 session 隔離；conversation／turn 已持久化，重讀保存答案不呼叫模型。
 
 ## 執行
 
@@ -61,7 +63,7 @@ pnpm.cmd dev
 
 `pnpm.cmd dev` 首次會自動安裝缺少的 web 套件及還原 .NET 套件（可能連網），不必先執行 `setup`。啟動時檢查 MongoDB；若未連上且沒有指定 `PLAYBACK_MONGO_URI`，會提示並嘗試以現有本機 image 啟動 Playback 的 MongoDB container，然後等待資料庫就緒。此步不會下載 image 或重建現有 container。若 Docker Desktop 未開或本機沒有 image，網頁仍會起動，但不能建立或讀取 session；先開 Docker Desktop，再明確執行 `pnpm.cmd db:up`（首次可能下載 image）。若用 process environment 或 `.env` 的 `PLAYBACK_MONGO_URI` 指定其他 MongoDB，`dev` 不會啟動 bundled container；不要輸出或提交連接字串。
 
-開始錄音後，保存好的非靜音音訊會自動送往目前配置的 ASR provider。啟動時會掃描舊的待處理片段；失敗時在背景按退避間隔重試，Transcript 時間線直接顯示音訊、狀態和錯誤。每段 WAV 先保存；送往 ASR 前統一轉成 16 kHz 單聲道 PCM，以減少系統聲的上傳大小，原始 WAV 保留作播放。只有完全數位靜音才跳過 ASR；即時錄音提示用本機 Silero 模型判斷語音，與後續 ASR 分開。靜音或 ASR 沒有回傳文字的片段在每個小時合併為一條可展開的「No audio」分隔列，展開後可檢查每段來源、播放及重試。逐字稿按日期、小時及每筆 `HH:mm:ss` 時間分層顯示；ASR 回應中的語言／情緒控制 token 不顯示為逐字稿。Gemini 有配置時，背景程序每兩分鐘合併新逐字稿與教材修訂 rolling notes，避免每個 30 秒音訊片段各自呼叫模型；手動「Revise with AI」仍即時執行。如需暫停背景筆記，可在 process environment 設 `PLAYBACK_AUTO_NOTES=no`。
+開始錄音後，保存好的非靜音音訊會自動送往目前配置的ASR provider。啟動時掃描舊待處理片段；失敗按退避間隔重試，Transcript顯示音訊／狀態／錯誤。每段WAV先保存；送ASR前統一轉16kHz單聲道PCM，原始WAV保留播放。完全數位靜音及VAD無語音均可跳過external ASR；灰字預覽與confirmed稿分開。靜音或ASR無文字的片段在同一小時作可展開的No audio展示合併；原始chunks不刪。逐字稿按日期／小時／`HH:mm:ss`顯示，只掛載可見列及overscan，來源可定位未掛載列。自動筆記每10秒檢查changed confirmed ASR／教材，由Jev決策，wait累積；允許後Gemini只更新選定semantic sections。Stop再評估及明確標示flush safeguard；手動Revise即時，不等待gate。背景筆記可設`PLAYBACK_AUTO_NOTES=no`，可選整理策略`PLAYBACK_AUTO_ORGANIZE=yes`預設關。10秒是檢查週期，不是完成時限。
 
 `dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
 
@@ -132,7 +134,7 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 
 `python app-temp/checks/long-lecture-check.py "app-temp\data\test-audio\sampleAudio"` 只讀取 repo 內的 Week 3 素材 `sampleAudio.m4a` MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊為首 1,200.01 秒（14,607,746 bytes）；完整逐字稿有 1,266 段、97,717 字元，延伸至約 2:44:49，最後一句無時間戳，離線檢查暫估 14 秒。20 分鐘後的逐字稿沒有保留的對應音訊；長時段來源檢查只驗證文字及時間資料。此檢查不解碼或上傳音訊。
 
-依每兩分鐘更新及每次最多 40 段模擬，該逐字稿會有 82 次定時筆記請求；原本每次重送 3,000 字元教材時，來源輸入約 432,337 字元，其中 243,000 字元是第二次起重複的教材。自動筆記現在只在初次或新增教材時發送未處理教材；估算來源輸入降至約 189,337 字元。這些數字不含前版筆記、指示詞、模型輸出或 token 計費，也不是已發生的外部呼叫。每次實際請求現會記錄段落數與 UTF-8 輸入大小，不記錄原文。
+以下82次是舊「每兩分鐘／最多40段」模擬的歷史估算，**不適用於新的10秒Jev決策流程**。該模擬每次重送3,000字元教材時，來源約432,337字元、其中243,000是重複教材；舊去重估算189,337字元。這些不含前版筆記、prompt、輸出或token計費，也不是外部呼叫紀錄。新流程保存實際input identity／bytes、prompt版本、provider確有回報的usage；沒有以儲存citation比例推算費用。
 
 `dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/ -- --sample-audio "app-temp\data\test-audio\sampleAudio"` 用真實逐字稿在記憶體驗證 40 段 backlog、無重複來源 ID、開頭／中段／末段問答的來源挑選及逐字稿時間。若整批離線處理，需要 32 個最多 40 段的 batch；這與上面 82 次定時更新是兩種不同情境。另以 360 段合成三小時時間線測早／晚來源問答；web fixture 以 1,266 段跨約三小時驗證視窗高度、面板捲動、Save 可見、精簡逐字稿及無聲收合。這些檢查不代表真實三小時 ASR、筆記內容品質或課堂問答準確度已通過。
 

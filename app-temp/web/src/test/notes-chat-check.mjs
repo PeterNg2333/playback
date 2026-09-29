@@ -112,12 +112,14 @@ await page.route("**/api/**", async route => {
   return route.fulfill({ json });
 });
 try {
-  await page.goto("http://127.0.0.1:5174");
+  const testUrl = process.env.PLAYBACK_WEB_TEST_URL ?? "http://127.0.0.1:5174"; assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(testUrl));
+  await page.goto(testUrl);
   const content = page.locator(".note-content");
-  await content.getByRole("button", { name: "Open audio sources 01" }).first().waitFor();
-  assert.equal(await content.getByRole("listitem").filter({ hasText: "Start with the limiting resource" }).getByRole("button", { name: "Open audio sources 01" }).count(), 1,
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await content.getByRole("button", { name: "Open audio sources 00:00–00:08", exact: true }).first().waitFor();
+  assert.equal(await content.getByRole("listitem").filter({ hasText: "Start with the limiting resource" }).getByRole("button", { name: "Open audio sources 00:00–00:16" }).count(), 1,
     "Repeated citations in a point must collapse into one grouped source");
-  await content.getByRole("button", { name: "Open audio sources 01" }).first().click();
+  await content.getByRole("listitem").filter({ hasText: "Start with the limiting resource" }).getByRole("button", { name: "Open audio sources 00:00–00:16" }).click();
   const sourcePanel = page.getByRole("dialog", { name: "Grouped audio sources" });
   assert.equal(await sourcePanel.getByRole("button", { name: /^Jump to/ }).count(), 2);
   const nextAudio = page.waitForResponse(response => response.url().endsWith(`/chunks/${nextSourceId}/audio`));
@@ -146,7 +148,7 @@ try {
   await page.getByRole("button", { name: "Ask a follow-up in chat" }).click();
   assert.match(await page.getByLabel("Your question", { exact: true }).inputValue(), /Bottleneck/);
   await page.getByRole("button", { name: "Close chat" }).click();
-  await content.getByRole("button", { name: "Open audio sources 01" }).first().click();
+  await content.getByRole("button", { name: "Open audio sources 00:00–00:16" }).first().click();
   await page.getByRole("dialog", { name: "Grouped audio sources" }).getByRole("button", { name: "Jump to 11:18:04" }).click();
   await page.locator(`[id='${sourceId}']`).waitFor();
   activities = [{ id: "running-note", sessionId: id, task: "Note revision", status: "running", provider: "fixture", model: "fixture",
@@ -194,6 +196,7 @@ try {
   await page.getByRole("button", { name: "Chat conversations" }).click();
   assert.equal(await page.locator("#chat-session optgroup[label='Study group'] option").count(), 1);
   await page.getByRole("button", { name: "＋ New conversation", exact: true }).click();
+  await page.locator(".chat-turn").first().waitFor({ state: "detached" });
   assert.equal(await page.locator(".chat-turn").count(), 0);
   await input.fill("How should resources be allocated?");
   await page.getByRole("button", { name: "Send", exact: true }).click();

@@ -1,38 +1,23 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useMemo, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
-import mermaid from "mermaid";
-import DOMPurify from "dompurify";
 import { termSegments } from "./termSegments";
 import { SourceCitation } from "./SourceCitation";
-
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: "strict",
-  theme: "neutral",
-  htmlLabels: false,
-});
+import { requestDiagram } from "./diagramRenderer";
 function Diagram({ source }: { source: string }) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    mermaid
-      .render("diagram-" + crypto.randomUUID().replaceAll("-", ""), source)
-      .then((result) => {
-        if (active)
-          setSvg(
-            DOMPurify.sanitize(result.svg, {
-              USE_PROFILES: { html: true, svg: true, svgFilters: true },
-            }),
-          );
-      })
-      .catch(() => {
-        if (active) setError("Diagram syntax needs review.");
+    setSvg(""); setError("");
+    const request = requestDiagram(source);
+    request.promise.then(result => { if (active) setSvg(result); })
+      .catch((failure: Error) => {
+        if (active) setError(failure.message);
       });
     return () => {
-      active = false;
+      active = false; request.cancel();
     };
   }, [source]);
   return (
@@ -40,7 +25,7 @@ function Diagram({ source }: { source: string }) {
       <figcaption>Flowchart</figcaption>
       {error ? (
         <p role="alert">{error}</p>
-      ) : (
+      ) : !svg ? <p role="status">Loading diagram…</p> : (
         <div
           className="flowchart-scroll"
           aria-label="Rendered flowchart"
@@ -62,11 +47,10 @@ function MarkdownCode(props: { className?: string; children?: ReactNode }) {
 type MarkdownNode = { type: string; value?: string; url?: string; children?: MarkdownNode[] };
 
 // Transform text nodes, so source-looking text inside code and existing links stays intact.
-function referencePlugin({ labels, terms, groups }: { labels: Map<string, string>; terms: { id: string; term: string }[];
-  groups: { id: string; transcriptIds: string[] }[] }) {
+function referencePlugin({ references, terms }: { references: MarkdownReferences; terms: { id: string; term: string }[] }) {
   return (tree: MarkdownNode) => {
-    const groupBySource = new Map(groups.flatMap(group => group.transcriptIds.map(id => [id, group.id] as const)));
-    const link = (id: string): MarkdownNode => ({ type: "link", url: groupBySource.has(id) ? `/source-group/${groupBySource.get(id)}` : `/source/${id}`,
+    const { sourceLabels: labels, groupBySource, groupsById } = references;
+    const link = (id: string): MarkdownNode => ({ type: "link", url: `/source/${id}`,
       children: [{ type: "text", value: groupBySource.get(id) ?? labels.get(id)! }] });
     const unavailable = (): MarkdownNode => ({ type: "link", url: "/source-unavailable",
       children: [{ type: "text", value: "Source unavailable" }] });
@@ -91,8 +75,8 @@ function referencePlugin({ labels, terms, groups }: { labels: Map<string, string
             const tokens = [...new Set(body.match(/[a-z0-9_-]+/gi) ?? [])];
             for (const id of tokens) {
               if (labels.has(id)) replacement.push(link(id));
-              else if (groups.some(group => group.id === id)) replacement.push({ type: "link", url: `/source-group/${id}`, children: [{ type: "text", value: id }] });
-              else if (/^(?:[a-f0-9]{32,}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})(?:[-_][a-z0-9_-]+)?$/i.test(id))
+              else if (groupsById.has(id)) replacement.push({ type: "link", url: `/source-group/${id}`, children: [{ type: "text", value: id }] });
+              else if (/^(?:cite_[a-f0-9]+|(?:[a-f0-9]{32,}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})(?:[-_][a-z0-9_-]+)?)$/i.test(id))
                 replacement.push(unavailable());
             }
           }
@@ -108,12 +92,15 @@ function referencePlugin({ labels, terms, groups }: { labels: Map<string, string
         if (cursor < child.value.length) result.push({ type: "text", value: child.value.slice(cursor) });
         return result.flatMap(part => part.type === "text" ? highlight(part.value ?? "") : [part]);
       });
-      if (node.type === "paragraph" && groups.length) {
+      if (node.type === "paragraph") {
         const used = new Set<string>();
         let unresolved = false;
         const collect = (child: MarkdownNode): MarkdownNode => {
           if (child.type === "link" && child.url?.startsWith("/source-group/")) {
-            used.add(child.url.slice("/source-group/".length)); return { type: "text", value: "" };
+            groupsById.get(child.url.slice("/source-group/".length))?.transcriptIds.forEach(id => used.add(id)); return { type: "text", value: "" };
+          }
+          if (child.type === "link" && child.url?.startsWith("/source/") && labels.has(child.url.slice(8))) {
+            used.add(child.url.slice(8)); return { type: "text", value: "" };
           }
           if (child.type === "link" && child.url === "/source-unavailable") {
             unresolved = true; return { type: "text", value: "" };
@@ -133,21 +120,34 @@ function referencePlugin({ labels, terms, groups }: { labels: Map<string, string
 
 type ReferenceContext = {
   sourceLabels: Map<string, string>;
+  reading?: boolean;
+  sourceDetails: Map<string, { startMs?: number; endMs?: number; sourceId?: string; text?: string }>;
   groups: { id: string; transcriptIds: string[] }[];
+  groupsById: Map<string, { id: string; transcriptIds: string[] }>;
   onSource?: (id: string) => void;
   onPlaySources?: (ids: string[]) => void;
   onReference?: (id: string) => void;
   renderTerm?: (id: string, text: string) => ReactNode;
 };
 const References = createContext<ReferenceContext | null>(null);
+const noSources: { id: string; label: string; startMs?: number; endMs?: number; sourceId?: string; text?: string }[] = [];
+const noTerms: { id: string; term: string }[] = [];
+const noGroups: { id: string; transcriptIds: string[] }[] = [];
+export type MarkdownReferences = Pick<ReferenceContext, "sourceLabels" | "sourceDetails" | "groups" | "groupsById"> & { groupBySource: Map<string, string> };
+export function indexMarkdownSources(sources: typeof noSources, groups: typeof noGroups): MarkdownReferences {
+  return { sourceLabels: new Map(sources.map(x => [x.id, x.label])), sourceDetails: new Map(sources.map(x => [x.id, x])), groups,
+    groupsById: new Map(groups.map(x => [x.id, x])), groupBySource: new Map(groups.flatMap(group => group.transcriptIds.map(id => [id, group.id] as const))) };
+}
 
 // Stable link component: player/activity refreshes must not close an open popup.
 function MarkdownLink(props: { href?: string; children?: ReactNode }) {
-  const { sourceLabels, groups, onSource, onPlaySources, onReference, renderTerm } = useContext(References)!;
-  const set = /^\/source-(?:set|group)\/([0-9,]+)$/.exec(props.href || "");
+  const { sourceLabels, sourceDetails, reading, groupsById, onSource, onPlaySources, onReference, renderTerm } = useContext(References)!;
+  const set = /^\/source-(set|group)\/([a-z0-9_,\-]+)$/i.exec(props.href || "");
   if (set) {
-    const selected = set[1].split(",").map(id => groups.find(group => group.id === id)).filter(group => group !== undefined);
-    if (selected.length) return <SourceCitation groups={selected} labels={sourceLabels} onSource={onSource} onPlay={onPlaySources} />;
+    if (reading) return null;
+    const ids = set[1] === "group" ? groupsById.get(set[2])?.transcriptIds ?? [] : set[2].split(",");
+    if (ids.length) return <SourceCitation groups={[{ id: set[2], transcriptIds: [...new Set(ids)] }]} labels={sourceLabels}
+      details={sourceDetails} onSource={onSource} onPlay={onPlaySources} />;
   }
   const term = /^\/term\/([a-f0-9]{64})$/i.exec(props.href || "");
   if (term && renderTerm) return renderTerm(term[1], String(props.children));
@@ -155,7 +155,7 @@ function MarkdownLink(props: { href?: string; children?: ReactNode }) {
     return <span className="note-ref unavailable-ref" title="This reference does not match a source in this session. Check the original note in Edit.">Source unavailable</span>;
   const source = /^\/source\/([a-z0-9_-]+)$/i.exec(props.href || "");
   if (source)
-    return onSource
+    return reading ? null : onSource
       ? <button type="button" className="note-ref" onClick={() => onSource(source[1])} aria-label={`Jump to source at ${sourceLabels.get(source[1])}`}>{props.children}</button>
       : <span className="note-ref">{props.children}</span>;
   const reference = /^\/term-ref\/([a-f0-9]{64})$/i.exec(props.href || "");
@@ -168,37 +168,38 @@ function MarkdownLink(props: { href?: string; children?: ReactNode }) {
 export function Markdown({
   value,
   onReference,
-  sources = [],
+  sources = noSources,
   onSource,
-  terms = [],
+  terms = noTerms,
   renderTerm,
-  groups = [],
+  groups = noGroups,
   onPlaySources,
+  reading = false,
+  references,
 }: {
   value: string;
   onReference?: (id: string) => void;
-  sources?: { id: string; label: string }[];
+  sources?: { id: string; label: string; startMs?: number; endMs?: number; sourceId?: string; text?: string }[];
+  reading?: boolean;
+  references?: MarkdownReferences;
   onSource?: (id: string) => void;
   terms?: { id: string; term: string }[];
   renderTerm?: (id: string, text: string) => ReactNode;
   groups?: { id: string; transcriptIds: string[] }[];
   onPlaySources?: (ids: string[]) => void;
 }) {
-  const sourceLabels = new Map(sources.map((source) => [source.id, source.label]));
+  const indexed = useMemo(() => references ?? indexMarkdownSources(sources, groups), [references, sources, groups]);
+  const plugins = useMemo(() => [remarkGfm, [referencePlugin, { references: indexed, terms }]], [indexed, terms]);
+  const context = useMemo(() => ({ ...indexed, reading, onSource, onPlaySources, onReference, renderTerm }),
+    [indexed, reading, onSource, onPlaySources, onReference, renderTerm]);
   return (
-    <References.Provider value={{ sourceLabels, groups, onSource, onPlaySources, onReference, renderTerm }}>
-    <div className="markdown-preview">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, [referencePlugin, { labels: sourceLabels, terms, groups }]]}
-        rehypePlugins={[rehypeSanitize]}
-        components={{
-          code: MarkdownCode,
-          a: MarkdownLink,
-        }}
-      >
-        {value}
-      </ReactMarkdown>
-    </div>
+    <References.Provider value={context}>
+      <MarkdownBody value={value} plugins={plugins} />
     </References.Provider>
   );
 }
+const components = { code: MarkdownCode, a: MarkdownLink };
+const sanitizePlugins = [rehypeSanitize];
+const MarkdownBody = memo(function MarkdownBody({ value, plugins }: { value: string; plugins: unknown[] }) {
+  return <div className="markdown-preview"><ReactMarkdown remarkPlugins={plugins as never} rehypePlugins={sanitizePlugins} components={components}>{value}</ReactMarkdown></div>;
+});

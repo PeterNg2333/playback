@@ -86,6 +86,14 @@ export function useAudioPlayback(session: Session | null, setError: (message: st
   const sourceModeRef = useRef("mix");
   const [speed, setSpeedState] = useState(1);
   const speedRef = useRef(1);
+  const partsCache = useRef<{ id: string; createdAt: string; chunks: Session["chunks"]; modes: Map<string, Part[]> } | undefined>(undefined);
+  function cachedSessionParts(current: Session, source: string) {
+    if (partsCache.current?.id !== current.id || partsCache.current.chunks !== current.chunks || partsCache.current.createdAt !== current.createdAt)
+      partsCache.current = { id: current.id, createdAt: current.createdAt, chunks: current.chunks, modes: new Map() };
+    const cache = partsCache.current!;
+    if (!cache.modes.has(source)) cache.modes.set(source, sessionParts(current, source));
+    return cache.modes.get(source)!;
+  }
 
   useEffect(() => {
     audio.current?.pause();
@@ -143,7 +151,7 @@ export function useAudioPlayback(session: Session | null, setError: (message: st
   function startSessionPlayback(positionMs?: number, play = true) {
     const currentSession = latestSession.current;
     if (!currentSession) return;
-    startQueue("session", "session", sessionParts(currentSession, sourceModeRef.current), positionMs, play);
+    startQueue("session", "session", cachedSessionParts(currentSession, sourceModeRef.current), positionMs, play);
   }
 
   function toggleCurrentPlayback() {
@@ -214,7 +222,7 @@ export function useAudioPlayback(session: Session | null, setError: (message: st
     }
     if (selected.kind === "session" && latestSession.current) {
       const currentEnd = selected.parts.at(-1)!.startMs;
-      const more = sessionParts(latestSession.current, sourceModeRef.current)
+      const more = cachedSessionParts(latestSession.current, sourceModeRef.current)
         .filter((part) => part.startMs > currentEnd);
       if (more.length) {
         selected.parts.push(...more);
@@ -229,7 +237,7 @@ export function useAudioPlayback(session: Session | null, setError: (message: st
   function getPlaybackSnapshot(): PlayerSnapshot {
     const selected = queue.current;
     const player = audio.current;
-    const parts = selected?.parts || (latestSession.current ? sessionParts(latestSession.current, sourceModeRef.current) : []);
+    const parts = selected?.parts || (latestSession.current ? cachedSessionParts(latestSession.current, sourceModeRef.current) : []);
     const first = parts[0];
     const last = parts.at(-1);
     const current = selected && player ? parts[selected.index] : first;

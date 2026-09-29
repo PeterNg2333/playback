@@ -7,6 +7,8 @@ public sealed record TermCandidate(string Text, List<string> TranscriptIds, List
 
 public static class TermCandidateExtractor
 {
+    public static bool Useful(string term) => !new[] { "details", "detail", "example", "information", "question", "okay", "something", "things" }
+        .Contains(term.Trim(), StringComparer.OrdinalIgnoreCase);
     // Only label terms whose exact wording appears in a session source. Emphasis/headings in
     // materials and acronyms/compound names in recognized speech provide conservative candidates.
     static readonly Regex MarkedMaterial = new(
@@ -32,7 +34,7 @@ public static class TermCandidateExtractor
             foreach (Match match in ContextualTerm.Matches(transcript.SourceText))
                 candidates.Add(match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Success ? match.Groups[2].Value : match.Value);
         }
-        return candidates.Where(x => x.Length is >= 2 and <= 80)
+        return candidates.Where(x => x.Length is >= 2 and <= 80 && Useful(x))
             .Select(term => new TermCandidate(term,
                 transcriptList.Where(x => x.SourceText.Contains(term, StringComparison.OrdinalIgnoreCase)).Select(x => x.Id).ToList(),
                 materialList.Where(x => x.Text.Contains(term, StringComparison.OrdinalIgnoreCase)).Select(x => x.Id).ToList(),
@@ -41,7 +43,7 @@ public static class TermCandidateExtractor
             .Where(x => x.TranscriptIds.Count + x.MaterialIds.Count > 0)
             .OrderBy(x => x.Text, StringComparer.OrdinalIgnoreCase).Take(100).ToList();
     }
-    static string Context(string term, string source)
+    public static string Context(string term, string source)
     {
         var at = Math.Max(0, source.IndexOf(term, StringComparison.OrdinalIgnoreCase) - 80);
         return source.Substring(at, Math.Min(400, source.Length - at));

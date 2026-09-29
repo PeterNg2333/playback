@@ -434,3 +434,22 @@ dialog::backdrop {
 .chat .markdown-preview { max-width: 100%; }
 .chat .markdown-preview h1, .chat .markdown-preview h2, .chat .markdown-preview h3 { font-size: 14px; }
 .chat .markdown-preview ul, .chat .markdown-preview ol { padding-left: 20px; }
+.group-flow-dialog { width: 70vw; max-width: 1280px; height: 75vh; max-height: 92vh; padding: 22px; border: 1px solid var(--line); border-radius: 16px; font: inherit; color: var(--ink); background: var(--surface); }
+.group-flow-dialog::backdrop { background: #20233866; }
+.group-flow-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+.group-flow-dialog header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-shrink: 0; padding-bottom: 10px; background: var(--surface); }
+.flow-body { min-height: 0; overflow: auto; }
+.group-flow-dialog button, .group-flow-dialog select { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; color: var(--ink); background: var(--surface); }
+.group-flow-dialog button, .group-flow-dialog select { font: inherit; }
+.group-flow-dialog header h2 { margin-top: 0; }
+.group-flow-dialog p, .group-flow-dialog dd { line-height: 1.6; font-size: 12px; }
+.group-flow-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; font-size: 11px; }
+.group-flow-dialog .markdown-preview { max-width: none; }
+.flow-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.flow-controls select { margin-left: 10px; max-width: 100%; }
+.flow-agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.flow-agents > details, .flow-execution { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+.flow-agents summary, .flow-execution summary { cursor: pointer; font-size: 12px; }
+.flow-agents dt { font-size: 11px; font-weight: bold; color: var(--muted); }
+.flow-agents dd { margin: 4px 0 12px; }
+@media (max-width: 700px) { .group-flow-dialog { width: calc(100vw - 20px); height: 90vh; padding: 12px; } .flow-agents { grid-template-columns: 1fr; } }

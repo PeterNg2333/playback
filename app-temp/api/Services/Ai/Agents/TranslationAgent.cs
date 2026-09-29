@@ -66,12 +66,16 @@ public sealed class TranslationAgent : IAsyncDisposable
         try
         {
             var request = TranslationContext.BuildBatch(session.Transcripts, targets, session.TranslationLanguage);
+            activity.Context(call, "translation-v1", Instructions(session.TranslationLanguage), request.Prompt);
             logger.LogInformation("Translation request input: {TranscriptCount} transcripts, {InputBytes} UTF-8 bytes",
                 targets.Length, Encoding.UTF8.GetByteCount(request.Prompt));
-            var translated = await gemini.Generate("PlaybackTranslator",
+            var providerWatch = System.Diagnostics.Stopwatch.StartNew();
+            string translated;
+            try { translated = await gemini.Generate("PlaybackTranslator",
                 Instructions(session.TranslationLanguage),
                 request.Prompt,
-                stopping.Token);
+                stopping.Token, onUsage: usage => call.UsageJson = usage); }
+            finally { call.ProviderLatencyMs = providerWatch.ElapsedMilliseconds; }
             var values = ParseBatch(translated, request.TargetIds.Keys.ToArray())
                 .ToDictionary(x => request.TargetIds[x.Key], x => x.Value, StringComparer.Ordinal);
             foreach (var target in targets)

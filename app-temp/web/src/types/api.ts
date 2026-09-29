@@ -46,6 +46,11 @@ export const NoteEditSchema = z.object({
   transcriptIds: z.array(z.string()),
   materialIds: z.array(z.string()),
 });
+export const NotePointSchema = z.object({ id: z.string(), text: z.string(), sourceIds: z.array(z.string()) });
+export const NoteSectionSchema = z.object({ id: z.string(), title: z.string(), version: z.number(), markdown: z.string(),
+  userEdited: z.boolean(), points: z.array(NotePointSchema), organizedAt: z.string().nullish() });
+export const NoteCitationSchema = z.object({ id: z.string(), sourceIds: z.array(z.string()) });
+export const CoverageSchema = z.object({ sourceId: z.string(), status: z.string(), reason: z.string(), pointIds: z.array(z.string()) });
 export const NoteEditLogSchema = z.object({
   version: z.number(),
   basedOnVersion: z.number().nullish(),
@@ -71,6 +76,8 @@ export const TermInsightSchema = z.object({
   transcriptIds: z.array(z.string()),
   materialIds: z.array(z.string()),
   explanation: z.string().nullish(),
+  explanationSummary: z.string().nullish(),
+  explanationVersion: z.string().optional(),
   evidence: z.array(z.object({ url: z.string().url(), title: z.string() })),
 });
 export const ChunkSchema = z.object({
@@ -118,6 +125,9 @@ export const SessionSchema = SessionSummarySchema.extend({
       inputTranscriptIds: z.array(z.string()).optional(),
       inputMaterialIds: z.array(z.string()).optional(),
       edits: z.array(NoteEditSchema).optional(),
+      sections: z.array(NoteSectionSchema).optional(),
+      citations: z.array(NoteCitationSchema).optional(),
+      coverage: z.array(CoverageSchema).optional(),
     })
     .nullish(),
 });
@@ -153,6 +163,10 @@ export const ActivitySchema = z.object({
   id: z.string(), sessionId: z.string(), task: z.string(), provider: z.string(), model: z.string(),
   status: z.string(), startedAt: z.string(), endedAt: z.string().nullish(), durationMs: z.number().nullish(),
   summary: z.string().nullish(), sourceIds: z.array(z.string()), basedOnVersion: z.number().nullish(), draft: z.string().nullish(),
+  promptVersion: z.string().nullish(), promptHash: z.string().nullish(), inputHash: z.string().nullish(), inputBytes: z.number().nullish(),
+  usageJson: z.string().nullish(), sectionId: z.string().nullish(), scheduleDelayMs: z.number().nullish(),
+  providerLatencyMs: z.number().nullish(), queueDelayMs: z.number().nullish(),
+  promptText: z.string().nullish(),
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 export const HealthSchema = z.object({
@@ -160,6 +174,7 @@ export const HealthSchema = z.object({
   gemini: z.boolean(),
   jev: z.boolean(),
   automaticAsr: z.boolean().optional(),
+  autoNotes: z.boolean().optional(),
   asrPaused: z.boolean().optional(),
   sessionAudioMix: z.boolean().optional(),
   recordingSourceSelection: z.boolean().optional(),
@@ -169,6 +184,7 @@ export const HealthSchema = z.object({
   aiActivity: z.boolean().optional(),
   groundedChatFallback: z.boolean().optional(),
   chatConversations: z.boolean().optional(),
+  sectionNotes: z.boolean().optional(), sessionSync: z.boolean().optional(), jevNoteGate: z.boolean().optional(),
   build: z.string().optional(),
   asrStreaming: z.boolean().optional(),
   asrModels: z.array(z.string()).optional(),

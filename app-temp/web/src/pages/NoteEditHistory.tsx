@@ -3,6 +3,7 @@ import { SourceLinks } from "./SourceLinks";
 import { formatDateTime } from "./format";
 import { api } from "./api";
 import { useState } from "react";
+import { LazyDetails } from "../Component/LazyDetails";
 
 type NoteEditHistoryProps = {
   session: Session;
@@ -28,15 +29,14 @@ export function NoteEditHistory({
     const hasInputs =
       note.inputTranscriptIds.length > 0 || note.inputMaterialIds.length > 0;
     return (
-      <details className="activity-entry" key={note.version}>
-        <summary>
+      <LazyDetails className="activity-entry" key={note.version} summary={<>
           <strong>
             v{note.version} · {authorLabel}
           </strong>
           <span>{formatDateTime(note.createdAt)}</span>
           <small>{note.edits.length} changes</small>
-        </summary>
-        <div className="activity-entry-body">
+        </>}>
+        {() => <div className="activity-entry-body">
           <button className="text-control" disabled={restoring || note.version === session.noteVersion}
             onClick={async () => {
               setRestoring(true); setMessage("");
@@ -80,8 +80,8 @@ export function NoteEditHistory({
               />
             </div>
           ))}
-        </div>
-      </details>
+        </div>}
+      </LazyDetails>
     );
   });
 }

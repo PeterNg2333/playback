@@ -23,12 +23,14 @@ export function ActivityContent({ session, onSource }: ActivityContentProps) {
   useEffect(() => {
     if (!sessionId) return;
     let active = true;
+    const request = new AbortController();
     setHistory({ status: "loading", sessionId });
     api(
       `/sessions/${sessionId}/notes/edits`,
       "GET",
       undefined,
       NoteEditLogSchema.array(),
+      AbortSignal.any([request.signal, AbortSignal.timeout(30000)]),
     )
       .then((notes) => {
         if (active) setHistory({ status: "loaded", sessionId, notes });
@@ -43,6 +45,7 @@ export function ActivityContent({ session, onSource }: ActivityContentProps) {
       });
     return () => {
       active = false;
+      request.abort();
     };
   }, [sessionId, noteVersion]);
 

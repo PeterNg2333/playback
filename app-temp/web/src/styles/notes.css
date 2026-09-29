@@ -80,6 +80,13 @@
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
+.flowchart > p {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .flowchart-scroll {
   overflow-x: auto;
 }
@@ -311,3 +318,23 @@
     padding: 5px 6px;
   }
 }
+.note-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 16px; border-top: 1px solid var(--line); }
+.note-tools select { min-width: 0; max-width: 220px; }
+.note-section { margin-bottom: 20px; }
+.section-coverage { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; }
+.note-conflict { flex-shrink: 0; padding: 8px 16px; font-size: 12px; background: var(--accent-soft); }
+.note-conflict p { margin: 4px 0; }
+.note-conflict pre { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-conflict button { margin-right: 8px; }
+.notes-history-dialog { width: 70vw; max-width: 1200px; height: 75vh; max-height: 90vh; padding: 20px; border: 1px solid var(--line); border-radius: 14px; }
+.notes-history-dialog::backdrop { background: #20233866; }
+.notes-history-dialog[open] { display: flex; flex-direction: column; overflow: hidden; font: inherit; color: var(--ink); }
+.notes-history-dialog header { display: flex; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+.notes-history-dialog button, .notes-history-dialog input { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; color: var(--ink); background: var(--surface); max-width: 100%; }
+.notes-history-dialog button:disabled { color: var(--muted); opacity: .65; }
+.history-layout { display: grid; grid-template-columns: minmax(140px, 220px) minmax(0, 1fr); gap: 18px; min-height: 0; overflow: auto; }
+.history-layout nav { display: flex; flex-direction: column; gap: 5px; }
+.history-layout main { min-width: 0; }
+.historical-note { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 34vh; overflow: auto; font-size: 12px; }
+.history-layout article { padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin: 10px 0; }
+@media (max-width: 700px) { .notes-history-dialog { width: calc(100vw - 20px); height: 90vh; padding: 12px; } .history-layout { grid-template-columns: 1fr; } }

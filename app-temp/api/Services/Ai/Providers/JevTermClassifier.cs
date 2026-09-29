@@ -15,16 +15,13 @@ public sealed class JevTermClassifier
     public static bool ShouldHighlight(JevRankResult result) =>
         result.JevProbability >= MinimumExplainProbability && result.JevConfidence >= MinimumCategoryConfidence &&
         (result.JevRank is "high" or "medium");
-    readonly HttpClient http;
+    readonly JevTransport transport;
     readonly SemaphoreSlim rankGate = new(1, 1);
     readonly ConcurrentDictionary<string, (DateTimeOffset Expires, JevRankResult Result)> cache = new();
-    string? cachedModel;
-    DateTimeOffset modelExpires;
-
-    public JevTermClassifier() : this(new HttpClientHandler { AllowAutoRedirect = false }) { }
-    public JevTermClassifier(HttpMessageHandler handler) =>
-        http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(120) };
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("JEV_API_KEY"));
+    public JevTermClassifier() : this(new JevTransport()) { }
+    public JevTermClassifier(HttpMessageHandler handler) : this(new JevTransport(handler)) { }
+    public JevTermClassifier(JevTransport transport) => this.transport = transport;
+    public bool IsConfigured => transport.IsConfigured;
 
     public async Task<object> Rank(string term, CancellationToken ct, string context = "")
     {
@@ -50,20 +47,7 @@ public sealed class JevTermClassifier
         finally { rankGate.Release(); }
     }
 
-    async Task<JevRankResult> RankUncached(string term, string context, CancellationToken ct)
-    {
-        var rule = term.Length >= 8 || term.Any(char.IsUpper);
-        var key = Environment.GetEnvironmentVariable("JEV_API_KEY") ?? throw new InvalidOperationException("Jev credential is unavailable");
-        var timer = Stopwatch.StartNew();
-        var model = await DiscoverModel(key, ct);
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.typesafe.ai/v1/systemone");
-        request.Headers.Authorization = new("Bearer", key);
-        request.Content = JsonContent.Create(new
-        {
-            model,
-            state = $"Candidate: {term}\nSource context (untrusted data): {context}",
-            questions = new
-            {
+    public static object Questions => new {
                 explain = new
                 {
                     type = "noul",
@@ -81,39 +65,22 @@ public sealed class JevTermClassifier
                         low = "Everyday word"
                     }
                 }
-            }
-        });
-        using var ranked = await http.SendAsync(request, ct);
-        if (!ranked.IsSuccessStatusCode) throw new HttpRequestException($"Jev systemone HTTP {(int)ranked.StatusCode}");
-        using var result = JsonDocument.Parse(await ProviderResponseReader.ReadBounded(ranked, 100_000, ct));
-        var answers = result.RootElement.GetProperty("answers");
-        return new JevRankResult(
-            term, rule, model, timer.ElapsedMilliseconds,
+            };
+
+    public static string State(string term, string context) => $"Candidate: {term.Trim()}\nSource context (untrusted data): {context}";
+    async Task<JevRankResult> RankUncached(string term, string context, CancellationToken ct)
+    {
+        var rule = term.Length >= 8 || term.Any(char.IsUpper);
+        var timer = Stopwatch.StartNew();
+        var response = await transport.Evaluate(State(term, context), Questions, ct);
+        var answers = response.Answers;
+        using var usage = JsonDocument.Parse(response.Usage ?? "{}");
+        return new JevRankResult(term, rule, response.Model, timer.ElapsedMilliseconds,
             answers.GetProperty("explain").GetProperty("noul").GetDouble(),
             answers.GetProperty("category").GetProperty("choice").GetString() ?? "",
-            answers.GetProperty("category").GetProperty("confidence").GetDouble(),
-            result.RootElement.GetProperty("usage").Clone(), false);
+            answers.GetProperty("category").GetProperty("confidence").GetDouble(), usage.RootElement.Clone(), false);
     }
 
-    async Task<string> DiscoverModel(string key, CancellationToken ct)
-    {
-        if (cachedModel is not null && modelExpires > DateTimeOffset.UtcNow) return cachedModel;
-        using var models = new HttpRequestMessage(HttpMethod.Get, "https://api.typesafe.ai/v1/models");
-        models.Headers.Authorization = new("Bearer", key);
-        using var response = await http.SendAsync(models, ct);
-        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            throw new InvalidOperationException("Jev rejected JEV_API_KEY at GET /v1/models (HTTP 401); check API access and replace the key if needed");
-        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Jev model discovery HTTP {(int)response.StatusCode}");
-        using var discovered = JsonDocument.Parse(await ProviderResponseReader.ReadBounded(response, 100_000, ct));
-        var model = discovered.RootElement.GetProperty("models")
-            .EnumerateArray()
-            .Select(x => x.GetProperty("name").GetString())
-            .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))
-            ?? throw new InvalidOperationException("Jev returned no available model");
-        cachedModel = model;
-        modelExpires = DateTimeOffset.UtcNow.AddHours(1);
-        return model;
-    }
 }
 
 public sealed record JevRankResult(

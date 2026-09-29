@@ -14,6 +14,6 @@ export function TranscriptPanel({ model }: { model: PlaybackController }) {
         <TranscriptSettings {...model} />
       </div>
     </div>
-    <div className="transcript-view" id="transcript-view"><TranscriptContent model={model} /></div>
+    <div className="transcript-view" id="transcript-view"><TranscriptContent key={model.session?.id} model={model} /></div>
   </Panel>;
 }

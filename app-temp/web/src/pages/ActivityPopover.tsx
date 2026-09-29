@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Activity, Evidence, Session } from "../types/api";
 import { ActivityContent } from "./ActivityContent";
 import { time } from "./format";
+import { LazyDetails } from "../Component/LazyDetails";
 
 export function ActivityPopover({ session, items, error, onSource }: {
   session: Session | null; items: Activity[]; error?: string; onSource: (source: Evidence) => void;
@@ -37,8 +38,9 @@ export function ActivityPopover({ session, items, error, onSource }: {
       {error && <p role="alert">{error}</p>}
       <div className="execution-history">
         {items.length === 0 && <p>No model calls recorded by this API version yet.</p>}
-        {items.map(item => <details className="activity-entry" key={item.id}>
-          <summary><strong>{item.task}</strong><span data-status={item.status}>{item.status}</span></summary>
+        {items.map(item => <LazyDetails className="activity-entry" key={item.id}
+          summary={<><strong>{item.task}</strong><span data-status={item.status}>{item.status}</span></>}>
+          {() => <>
           <p>{item.provider} · {item.model}</p>
           <small>{new Date(item.startedAt).toLocaleTimeString()} · {item.durationMs == null ? "in progress" : `${(item.durationMs / 1000).toFixed(1)}s`}</small>
           <p>{item.summary}</p>
@@ -49,8 +51,8 @@ export function ActivityPopover({ session, items, error, onSource }: {
               onClick={() => onSource({ kind: material ? "material" : "lecture", id })}>
               {material?.name ?? (transcript ? `${transcript.sourceId} · ${time(transcript.startMs)}–${time(transcript.endMs)}` : `Source ${id.slice(-8)}`)}
             </button>;
-          })}
-        </details>)}
+          })}</>}
+        </LazyDetails>)}
       </div>
       <ActivityContent session={session} onSource={onSource} />
     </section>}

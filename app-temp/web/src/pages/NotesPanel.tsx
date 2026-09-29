@@ -1,14 +1,16 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PlaybackController } from "./handlers";
 import { Panel } from "../Component/Layout/Panel";
 import { Markdown } from "../Component/Markdown";
 import { api } from "./api";
-import { recordedRange } from "./format";
+import { NotePreview } from "./NotePreview";
+import { NoteTools } from "./NoteTools";
 import { TermExplanation } from "./TermExplanation";
 import { ActivityPopover } from "./ActivityPopover";
 import { useActivity } from "./useActivity";
 import { Icon } from "../Component/Icon";
-import { TermHighlight } from "./TermHighlight";
+import { LazyDetails } from "../Component/LazyDetails";
+
 
 export function NotesPanel({ model }: { model: PlaybackController }) {
   const {
@@ -23,6 +25,10 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
     action,
     refresh,
   } = model;
+  const [reading, setReading] = useState(true);
+  const [previousDraft, setPreviousDraft] = useState<{ text: string; version: number }>();
+  useEffect(() => setPreviousDraft(undefined), [session?.id]);
+  const editConflict = !!session && markdown !== savedMarkdown.current && model.editorBaseVersion.current !== session.noteVersion;
   const editorValue = useRef(markdown);
   const body = useRef<HTMLDivElement>(null);
   const [topics, setTopics] = useState<{ title: string; level: number }[]>([]);
@@ -61,22 +67,33 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
     }
     rememberScroll();
   }, [markdown, runningNote?.draft, session?.id, noteMode, topics]);
-  const queued = session?.transcripts.some(entry => entry.noteStatus === "pending" || entry.noteStatus === "processing");
+  const queued = useMemo(() => session?.transcripts.some(entry => ["pending", "processing", "deferred"].includes(entry.noteStatus ?? "")), [session?.transcripts]);
+  const draftSources = useMemo(() => [
+    ...(session?.transcripts ?? []).map(entry => ({ id: entry.id, label: String(entry.startMs / 1000) + "s" })),
+    ...(session?.materials ?? []).map(entry => ({ id: entry.id, label: entry.name })),
+  ], [session?.transcripts, session?.materials]);
   const [referenceId, setReferenceId] = useState<string | null>(null);
   const reference = session?.termInsights?.find(
     (insight) => insight.id === referenceId,
   );
-  const transcriptChars = session?.transcripts.reduce(
+  const transcriptChars = useMemo(() => session?.transcripts.reduce(
     (sum, entry) => sum + entry.original.trim().length, 0,
-  ) ?? 0;
-  const waitingForSpeech = transcriptChars > 0 && transcriptChars < 40 && !session?.noteMarkdown;
-  const failedNotes = session?.transcripts.filter((entry) => entry.noteStatus === "failed").length ?? 0;
-  const keyTerms = session?.termInsights?.filter(insight => insight.highlight &&
-    (!insight.outputLanguage || insight.outputLanguage === session.noteLanguage)) ?? [];
+  ) ?? 0, [session?.transcripts]);
+  const waitingForSpeech = transcriptChars === 0 && !session?.noteMarkdown;
+  const failedNotes = useMemo(() => session?.transcripts.filter((entry) => entry.noteStatus === "failed").length ?? 0, [session?.transcripts]);
+
   const latestNote = activity.items.find(item => item.task === "Note revision" && item.basedOnVersion === session?.noteVersion);
+  const latestGate = activity.items.find(item => item.task === "Jev note gate" && item.basedOnVersion === session?.noteVersion);
+  const preparation = activity.items.find(item => item.task === "Note input preparation" && item.basedOnVersion === session?.noteVersion);
   const draftNote = runningNote ?? latestNote;
   const noteStatus = runningNote ? (runningNote.draft ? "Editing…" : "Analyzing…")
-    : busy === "generate" || queued ? "Queued…" : null;
+    : busy === "generate" ? "Generating…" : latestGate?.status === "running" ? "Deciding…"
+      : queued && latestNote?.status === "failed" ? "Notes failed"
+      : queued && latestGate?.status === "failed" ? "Note gate failed"
+      : queued && preparation?.status === "failed" ? "Input needs review"
+      : queued && latestGate?.summary?.startsWith("wait:") ? "Waiting for continuation"
+      : queued && latestNote?.summary?.startsWith("No section change") ? "Waiting for continuation"
+      : queued ? (model.health?.autoNotes === false ? "Sources awaiting revision" : "Pending decision…") : null;
   editorValue.current = markdown;
   return (
     <Panel className="notes-panel">
@@ -101,6 +118,8 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             >
               Edit
             </button>
+            <button aria-pressed={reading} onClick={() => setReading(true)}>Reading</button>
+            <button aria-pressed={!reading} onClick={() => setReading(false)}>Sources</button>
             <button aria-pressed={noteMode === "draft"} onClick={() => setNoteMode("draft")}>
               Live draft{runningNote && <span className="draft-dot" aria-hidden="true" />}
             </button>
@@ -130,79 +149,17 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                   </ol>
                 </nav>
               </details>}
-              <div className="note-content">
-              <Markdown
-                value={markdown}
-                onReference={setReferenceId}
-                groups={session?.sourceGroups}
-                onPlaySources={ids => model.togglePlayback("note-passage-" + ids.join("-"), (session?.transcripts ?? []).filter(entry => ids.includes(entry.id)))}
-                terms={keyTerms.map(insight => ({ id: insight.id, term: insight.term }))}
-                renderTerm={(id, text) => {
-                  const insight = keyTerms.find(item => item.id === id);
-                  return insight && session ? <TermHighlight sessionId={session.id} insight={insight} text={text}
-                    onAsk={() => model.askTerm({ text: insight.term, transcriptIds: insight.transcriptIds, materialIds: insight.materialIds })} /> : text;
-                }}
-                sources={[
-                  ...(session?.transcripts || []).map((entry) => ({
-                    id: entry.id,
-                    label: recordedRange(entry.recordedAt, session?.createdAt, entry.startMs, entry.endMs).start,
-                  })),
-                  ...(session?.materials || []).map((entry) => ({ id: entry.id, label: entry.name })),
-                ]}
-                onSource={(id) => jump({ kind: session?.materials.some((entry) => entry.id === id) ? "material" : "lecture", id })}
-              />
-              </div>
+              <NotePreview key={session?.id} model={model} reading={reading} onReference={setReferenceId} />
               {!!session?.currentNote && (
                 <>
-                  <details className="note-sources">
-                    <summary>
-                      {session.currentNote.author === "user"
-                        ? "Linked passages from earlier notes"
-                        : "Linked transcript and materials"}{" "}
-                      · {session.currentNote.transcriptIds.length} audio ·{" "}
-                      {session.currentNote.materialIds.length} materials
-                    </summary>
-                    {session.currentNote.transcriptIds.map((id) => {
-                      const source = session.transcripts.find(
-                        (entry) => entry.id === id,
-                      );
-                      return (
-                        source && (
-                          <button
-                            className="citation"
-                            key={id}
-                            onClick={() => jump({ kind: "lecture", id })}
-                          >
-                            {recordedRange(source.recordedAt, session.createdAt, source.startMs, source.endMs).start}
-                          </button>
-                        )
-                      );
-                    })}
-                    {session.currentNote.materialIds.map((id) => {
-                      const source = session.materials.find(
-                        (entry) => entry.id === id,
-                      );
-                      return (
-                        source && (
-                          <button
-                            className="citation"
-                            key={id}
-                            onClick={() => jump({ kind: "material", id })}
-                          >
-                            {source.name}
-                          </button>
-                        )
-                      );
-                    })}
-                  </details>
-                  <details className="note-changes">
-                    <summary>
+                  {!reading && <p className="coverage-summary">Saved source links are evidence metadata. Section points show what was written; deferred inputs remain pending.</p>}
+                  <LazyDetails className="note-changes" summary={<>
                       Changes in v{session.noteVersion} ·{" "}
                       {session.currentNote.edits?.length || 0}
-                    </summary>
-                    {session.currentNote.edits?.length ? (
+                    </>}>
+                    {() => session.currentNote!.edits?.length ? (
                       <ol>
-                        {session.currentNote.edits.map((edit, index) => (
+                        {session.currentNote!.edits.map((edit, index) => (
                           <li key={`${edit.kind}-${edit.line}-${index}`}>
                             <small>
                               {edit.kind === "insert" ? "Added" : "Removed"} ·
@@ -222,7 +179,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                                       jump({ kind: "lecture", id })
                                     }
                                   >
-                                    {recordedRange(source.recordedAt, session.createdAt, source.startMs, source.endMs).start}
+                                    {String(source.startMs / 1000) + "s"}
                                   </button>
                                 )
                               );
@@ -235,7 +192,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                         No recorded line changes in this version.
                       </p>
                     )}
-                  </details>
+                  </LazyDetails>
                 </>
               )}
             </>
@@ -247,10 +204,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
         ) : noteMode === "draft" ? (
           <section className="note-draft" aria-label="Live note draft">
             <p className="draft-label">Live draft · unverified citations · not saved</p>
-            {draftNote?.draft ? <Markdown value={draftNote.draft} groups={session?.sourceGroups} sources={[
-              ...(session?.transcripts ?? []).map(entry => ({ id: entry.id, label: recordedRange(entry.recordedAt, session?.createdAt, entry.startMs, entry.endMs).start })),
-              ...(session?.materials ?? []).map(entry => ({ id: entry.id, label: entry.name })),
-            ]} /> : <p className="empty">{runningNote ? "Analyzing confirmed sources. The draft will appear as it is written." : "No live revision is running. Saved notes are available in Preview."}</p>}
+            {draftNote?.draft ? <Markdown key={session?.id} value={draftNote.draft} groups={session?.sourceGroups} sources={draftSources} /> : <p className="empty">{runningNote ? "Analyzing confirmed sources. The draft will appear as it is written." : "No live revision is running. Saved notes are available in Preview."}</p>}
             {draftNote?.status === "failed" && <p role="alert">This revision failed. The draft was not saved.</p>}
           </section>
         ) : (
@@ -280,15 +234,27 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           transcript entries. Retry with “Revise with AI”.
         </p>
       )}
+      <NoteTools key={session?.id} model={model} />
+      {editConflict && <div className="note-conflict" role="alert">
+        <p>Saved notes changed while you were editing. Your draft and caret are retained; review the current notes before saving.</p>
+        <details><summary>Read current saved notes · v{session!.noteVersion}</summary><pre>{session!.noteMarkdown}</pre></details>
+        <button onClick={() => { setPreviousDraft({ text: editorValue.current, version: model.editorBaseVersion.current });
+          model.editorBaseVersion.current = session!.noteVersion; setMarkdown(session!.noteMarkdown); }}>Load current notes and keep my draft for recovery</button>
+      </div>}
+      {previousDraft && <div className="note-conflict"><button onClick={() => {
+        model.editorBaseVersion.current = previousDraft.version; setMarkdown(previousDraft.text); setPreviousDraft(undefined);
+      }}>Recover my previous draft</button><button onClick={() => action("copy", () => navigator.clipboard.writeText(previousDraft.text))}>Copy previous draft</button></div>}
       <footer className="note-footer">
         <button
           className="save-button"
-          disabled={!session || !!busy || markdown === savedMarkdown.current}
+          disabled={!session || !!busy || editConflict || markdown === savedMarkdown.current}
           onClick={() =>
             action("save", async () => {
-              await api(`/sessions/${session!.id}/notes`, "POST", {
-                markdown: editorValue.current,
+              const submittedMarkdown = editorValue.current;
+              const saved = await api<{ version: number }>(`/sessions/${session!.id}/notes`, "POST", {
+                markdown: submittedMarkdown, basedOnVersion: model.editorBaseVersion.current,
               });
+              model.editorBaseVersion.current = saved.version; savedMarkdown.current = submittedMarkdown;
               await refresh(session!.id);
             })
           }
@@ -297,14 +263,15 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
         </button>
         <button
           className="secondary-action"
-          disabled={!session || !!busy}
+          disabled={!session || !!busy || editConflict}
           onClick={() =>
             action("generate", async () => {
               const currentMarkdown = editorValue.current;
               if (currentMarkdown !== savedMarkdown.current) {
-                await api(`/sessions/${session!.id}/notes`, "POST", {
-                  markdown: currentMarkdown,
+                const saved = await api<{ version: number }>(`/sessions/${session!.id}/notes`, "POST", {
+                  markdown: currentMarkdown, basedOnVersion: model.editorBaseVersion.current,
                 });
+                model.editorBaseVersion.current = saved.version; savedMarkdown.current = currentMarkdown;
                 await refresh(session!.id);
               }
               await api(`/sessions/${session!.id}/notes/generate`, "POST");

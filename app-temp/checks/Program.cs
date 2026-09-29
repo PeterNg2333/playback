@@ -12,6 +12,13 @@ using NAudio.Wave;
 
 if (args is ["--validation-fixtures"]) { ValidationFixtures.Run(); return; }
 if (args is ["--conversation-check"]) { await ConversationCheck.Run(); return; }
+if (args is ["--notes-redesign-check"]) { try { await NotesRedesignCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
+if (args is ["--notes-recovery-preview", var snapshotFolder]) { NotesRecoveryPreview.Run(snapshotFolder); return; }
+if (args is ["--notes-store-check"]) { try { await NotesStoreCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
+if (args is ["--session-sync-store-check"]) { try { await SessionSyncStoreCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
+if (args is ["--week3-live", var reportFolder]) { await NotesRedesignCheck.Week3Live(reportFolder); return; }
+if (args is ["--week3-store-seed", var seedFolder]) { await Week3StoreCheck.Seed(seedFolder); return; }
+if (args is ["--week3-term-live", var termFolder]) { await Week3StoreCheck.Term(termFolder); return; }
 
 
 
@@ -268,14 +275,17 @@ catch (InvalidOperationException) { }
 var backlog = Enumerable.Range(0, 45).Select(i => new Transcript { Id = $"late-{i}", StartMs = i * 1000, Original = "source text", NoteStatus = i == 1 ? "completed" : i == 2 ? "failed" : "pending" }).ToList();
 backlog.Add(new Transcript { Id = "empty", StartMs = 1, Original = "", NoteStatus = "pending" });
 var pendingNotes = NoteAgent.Pending(backlog);
-Check(pendingNotes.Count == 40 && pendingNotes[0].Id == "late-0" && pendingNotes.Any(x => x.Id == "late-2") && pendingNotes.All(x => x.Id != "late-1" && x.Id != "empty"),
+Check(pendingNotes.Count == 44 && pendingNotes.Count <= 64 && pendingNotes.Sum(x => x.SourceText.Length) <= 18000 && pendingNotes[0].Id == "late-0" && pendingNotes.Any(x => x.Id == "late-2") && pendingNotes.All(x => x.Id != "late-1" && x.Id != "empty"),
     "Note jobs must include late and failed transcripts in bounded batches without using a time cursor");
 var noteMaterials = Enumerable.Range(0, 7).Select(i => new Material { Id = $"material-{i}", Text = "synthetic" }).ToList();
-var priorNote = new Note { MaterialIds = noteMaterials.Take(5).Select(x => x.Id).ToList() };
-Check(NoteAgent.MaterialsForPrompt(noteMaterials, null, false).Count == 5 &&
+var priorNote = new Note { MaterialIds = noteMaterials.Take(5).Select(x => x.Id).ToList(), Coverage = noteMaterials.Take(5)
+    .Select(x => new SourceDisposition { SourceId = x.Id, Status = "covered", ContentHash = NoteSections.Hash(x.Text), PointIds = ["written"] }).ToList(),
+    Sections = [new NoteSection { Points = [new NotePoint { Id = "written", SourceIds = noteMaterials.Take(5).Select(x => x.Id).ToList() }] }] };
+Check(NoteAgent.MaterialsForPrompt(noteMaterials, null, false).Count == 2 &&
       NoteAgent.MaterialsForPrompt(noteMaterials, priorNote, false).Select(x => x.Id).SequenceEqual(["material-5", "material-6"]) &&
-      NoteAgent.MaterialsForPrompt(noteMaterials, priorNote, true).Count == 5,
-    "Automatic notes should send only new materials while explicit revision can re-read the sources");
+      NoteAgent.MaterialsForPrompt(noteMaterials, priorNote, true).Count == 2 &&
+      NoteAgent.MaterialsForPrompt(noteMaterials, new Note { MaterialIds = priorNote.MaterialIds }, false).First().Id == "material-0",
+    "Material-ID metadata cannot prove digestion; bounded actual point coverage chooses new passages, explicit revision can re-read sources");
 var longTranscripts = Enumerable.Range(0, 360).Select(i => new Transcript
 {
     Id = $"long-{i}", StartMs = i * 30_000, EndMs = (i + 1) * 30_000,
@@ -323,7 +333,7 @@ try {
 try { aliases.Decode("Unknown [9999]"); throw new Exception("An unknown short citation was accepted"); }
 catch (InvalidOperationException) { }
 Check(GeminiLanguageModel.OutputLimit("RollingLectureNoteEditor") == 4096 &&
-      GeminiLanguageModel.OutputLimit("PlaybackQuestionAnswerer") == 1024 && NoteAgent.AutomaticInterval.TotalSeconds == 90,
+      GeminiLanguageModel.OutputLimit("PlaybackQuestionAnswerer") == 1024 && NoteAgent.AutomaticInterval.TotalSeconds == 10,
     "Automatic notes and routine answers must retain explicit cost limits");
 await GeminiOutputCheck.Run();
 try {
@@ -440,6 +450,13 @@ Check(grounded.Evidence[0].Url == "https://example.org/source" && grounded.Searc
     "Vertex citation or search suggestions were lost");
 try { GeminiLanguageModel.ParseGrounding(Json("{\"candidates\":[]}")); throw new Exception("Empty grounded response was accepted"); }
 catch (InvalidOperationException) { }
+string? rejectedGroundingUsage = null;
+try {
+    GeminiLanguageModel.ParseGrounding(Json("{\"candidates\":[{\"finishReason\":\"MAX_TOKENS\"}],\"usageMetadata\":{\"promptTokenCount\":20,\"candidatesTokenCount\":10}}"),
+        value => rejectedGroundingUsage = value);
+    throw new Exception("Truncated grounding was accepted");
+} catch (InvalidOperationException) { }
+Check(rejectedGroundingUsage?.Contains("promptTokenCount") == true, "Rejected grounding lost reported usage");
 var previousJevKey = Environment.GetEnvironmentVariable("JEV_API_KEY");
 var previousOffline = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST");
 try

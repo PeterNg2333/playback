@@ -24,7 +24,7 @@ public sealed class ConversationTurn
     public DateTime CreatedAt { get; set; }
 }
 
-public sealed partial class PlaybackStore
+public partial class PlaybackStore
 {
     public async Task<ConversationRecord> CreateConversation(string sessionId)
     {

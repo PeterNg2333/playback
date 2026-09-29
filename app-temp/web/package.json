@@ -4,7 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --configLoader runner",
-    "build": "tsc -b && vite build --configLoader runner"
+    "build": "tsc -b && vite build --configLoader runner",
+    "test:notes": "node src/test/notes-redesign-check.mjs",
+    "test:loading": "node src/test/session-loading-check.mjs",
+    "test:load-assets": "node src/test/frontend-loading-check.mjs",
+    "test:memory": "node src/test/frontend-memory-check.mjs"
   },
   "dependencies": {
     "dompurify": "^3.2.6",

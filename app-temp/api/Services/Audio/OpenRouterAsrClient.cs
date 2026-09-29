@@ -70,7 +70,8 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
             usage.TryGetProperty("seconds", out value) && value.ValueKind == JsonValueKind.Number)
             duration = value.GetDouble();
         var language = root.TryGetProperty("language", out var lang) && lang.ValueKind == JsonValueKind.String ? lang.GetString() : null;
-        return new(text.GetString()!, duration, null, language, null);
+        return new(text.GetString()!, duration, null, language, null,
+            UsageJson: root.TryGetProperty("usage", out var providerUsage) && providerUsage.ValueKind == JsonValueKind.Object ? providerUsage.GetRawText() : null);
     }
 
     public void Dispose() => http.Dispose();

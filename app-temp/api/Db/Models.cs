@@ -18,6 +18,16 @@ public sealed class ActivityRecord
     public List<string> SourceIds { get; set; } = [];
     public int? BasedOnVersion { get; set; }
     [BsonIgnore] public string? Draft { get; set; }
+    public string? PromptVersion { get; set; }
+    public string? PromptHash { get; set; }
+    public string? InputHash { get; set; }
+    public int? InputBytes { get; set; }
+    public string? UsageJson { get; set; }
+    public string? SectionId { get; set; }
+    public long? ScheduleDelayMs { get; set; }
+    public long? ProviderLatencyMs { get; set; }
+    public long? QueueDelayMs { get; set; }
+    public string? PromptText { get; set; }
 }
 
 public sealed record SessionView(
@@ -87,6 +97,63 @@ public sealed class Note
     public string? InputHash { get; set; }
     public DateTime? SourceFrom { get; set; }
     public DateTime? SourceThrough { get; set; }
+    public List<NoteSection> Sections { get; set; } = [];
+    public List<NoteCitation> Citations { get; set; } = [];
+    public List<string> DeletedSectionIds { get; set; } = [];
+    public List<string> SuppressedSourceIds { get; set; } = [];
+    public List<SourceDisposition> Coverage { get; set; } = [];
+}
+
+public sealed class NoteSection
+{
+    public string Id { get; set; } = "";
+    public int Version { get; set; } = 1;
+    public string Title { get; set; } = "";
+    public string Markdown { get; set; } = "";
+    public bool UserEdited { get; set; }
+    public List<NotePoint> Points { get; set; } = [];
+    public DateTime? OrganizedAt { get; set; }
+    public int? OrganizedVersion { get; set; }
+}
+public sealed class NotePoint
+{
+    public string Id { get; set; } = "";
+    public string Text { get; set; } = "";
+    public List<string> SourceIds { get; set; } = [];
+}
+public sealed class NoteCitation
+{
+    public string Id { get; set; } = "";
+    public List<string> SourceIds { get; set; } = [];
+}
+public sealed class SourceDisposition
+{
+    public string SourceId { get; set; } = "";
+    public string Status { get; set; } = "pending";
+    public string Reason { get; set; } = "";
+    public List<string> PointIds { get; set; } = [];
+    public string? ContentHash { get; set; }
+}
+public sealed class NoteGateRecord
+{
+    [BsonId] public string Id { get; set; } = "";
+    public string SessionId { get; set; } = "";
+    public string InputHash { get; set; } = "";
+    public string Status { get; set; } = "pending";
+    public string Decision { get; set; } = "";
+    public double Probability { get; set; }
+    public double Confidence { get; set; }
+    public string Model { get; set; } = "";
+    public string? UsageJson { get; set; }
+    public string PromptVersion { get; set; } = "";
+    public int WaitCount { get; set; }
+    public int Attempts { get; set; }
+    public DateTime? RetryAt { get; set; }
+    public DateTime ChangedAt { get; set; }
+    public bool FlushRequested { get; set; }
+    public bool GenerationRequested { get; set; }
+    public int FlushVersion { get; set; }
+    public int EvaluatedFlushVersion { get; set; }
 }
 public sealed class Transcript
 {
@@ -117,6 +184,7 @@ public sealed class Transcript
     public string? Revision { get; set; }
     public bool Uncertain { get; set; }
     public string RecognitionStatus { get; set; } = "recognized";
+    public DateTime? ConfirmedAt { get; set; }
 }
 public sealed class CitationRecord
 {
@@ -160,6 +228,7 @@ public sealed class TermInsight
     public List<string> TranscriptIds { get; set; } = [];
     public List<string> MaterialIds { get; set; } = [];
     public string? Explanation { get; set; }
+    public string? ExplanationSummary { get; set; }
     public List<string> SearchQueries { get; set; } = [];
     public string? GroundingUsageJson { get; set; }
     public string? GroundingMetadataJson { get; set; }
