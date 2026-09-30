@@ -18,6 +18,7 @@ public static class HealthEndpoints
             groundedChatFallback = true,
             chatConversations = true,
             sectionNotes = true,
+            noteCoverage = true,
             sessionSync = true,
             jevNoteGate = jev.IsConfigured,
             noteDecisionIntervalSeconds = 10,

@@ -4,6 +4,36 @@ using System.Text.Json;
 
 internal static class NotesStoreCheck
 {
+    public static async Task Coverage(string folder) {
+        Environment.SetEnvironmentVariable("PLAYBACK_MONGO_URI", "mongodb://127.0.0.1:27017");
+        Environment.SetEnvironmentVariable("PLAYBACK_MONGO_DATABASE", "playback_e2e");
+        Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");
+        var store = new PlaybackStore();
+        if (!await store.IsReady()) throw new InvalidOperationException("Local MongoDB unavailable; no container started");
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true };
+        var id = JsonSerializer.SerializeToElement(await store.CreateSession("E2E note coverage " + Guid.NewGuid().ToString("N")[..8]), options).GetProperty("id").GetString()!;
+        var material = JsonSerializer.SerializeToElement(await store.AddMaterial(id, new MaterialInput("Synthetic capacity fixture", "One bottleneck with n=10 gives R/10.")), options).GetProperty("id").GetString()!;
+        await store.SaveNote(id, $"## Capacity\n\nR/n for one bottleneck; n=10 gives R/10. [{material}]", "user");
+        var before = (await store.Session(id))!;
+        try {
+            await store.SaveSectionNote(id, new([], [], []), "bad-deletion", before.NoteVersion, before.NoteLanguage);
+            throw new Exception("Mongo store accepted an AI deletion");
+        } catch (InvalidOperationException) { }
+        var unchanged = (await store.Session(id))!;
+        if (unchanged.NoteVersion != before.NoteVersion || unchanged.NoteMarkdown != before.NoteMarkdown)
+            throw new Exception("Rejected update changed saved notes");
+        var update = new Playback.Api.Services.Ai.SectionUpdate(before.CurrentNote!.Sections, before.CurrentNote.Citations, []);
+        await store.SaveSectionNote(id, update, "retained-text", before.NoteVersion, before.NoteLanguage);
+        var after = (await store.Session(id))!;
+        if (after.NoteVersion != 2 || after.NoteMarkdown != before.NoteMarkdown || await store.NoteVersion(id, 1) is null)
+            throw new Exception("Accepted retained update lost content or history");
+        await File.WriteAllTextAsync(Path.Combine(folder, "store-results.json"), JsonSerializer.Serialize(new {
+            testedAt = DateTime.UtcNow, database = "playback_e2e", id, build = typeof(PlaybackStore).Assembly.ManifestModule.ModuleVersionId,
+            evidence = "Real local MongoDB; synthetic text only; no external provider, no deletion",
+            aiDeletionRejected = true, rejectedHeadUnchanged = true, retainedUpdateReadBack = true, oldVersionRetained = true
+        }, options));
+        Console.WriteLine("Coverage Mongo checks passed: AI deletion rejected before write, unchanged head, retained update read-back and old history. Synthetic test session retained.");
+    }
     public static async Task Run() {
         var uri = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_URI");
         if (uri is not null && !uri.StartsWith("mongodb://127.0.0.1:") && !uri.StartsWith("mongodb://localhost:"))

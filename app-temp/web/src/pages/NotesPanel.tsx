@@ -5,6 +5,7 @@ import { Markdown } from "../Component/Markdown";
 import { api } from "./api";
 import { NotePreview } from "./NotePreview";
 import { NoteTools } from "./NoteTools";
+import { NoteCoveragePanel } from "./NoteCoveragePanel";
 import { TermExplanation } from "./TermExplanation";
 import { ActivityPopover } from "./ActivityPopover";
 import { useActivity } from "./useActivity";
@@ -234,6 +235,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           transcript entries. Retry with “Revise with AI”.
         </p>
       )}
+      <NoteCoveragePanel key={session?.id + ":coverage"} model={model} />
       <NoteTools key={session?.id} model={model} />
       {editConflict && <div className="note-conflict" role="alert">
         <p>Saved notes changed while you were editing. Your draft and caret are retained; review the current notes before saving.</p>

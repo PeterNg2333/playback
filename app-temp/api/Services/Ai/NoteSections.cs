@@ -99,6 +99,20 @@ public static class NoteSections
         text = Regex.Replace(text.Trim(), @"^```(?:json)?\s*|\s*```$", "");
         return JsonSerializer.Deserialize<NotePatch>(text, JsonOptions) ?? throw new InvalidOperationException("Empty section response");
     }
+    public static void RequireRetention(Note? previous, SectionUpdate update, IEnumerable<string> allowedIds, bool allowProtectedReformat = false) {
+        if (previous is null) return;
+        var allowed = allowedIds.Concat(previous.TranscriptIds).Concat(previous.Citations.SelectMany(x => x.SourceIds)).Distinct().ToList();
+        var citations = CloneCitations(previous.Citations);
+        citations.AddRange(update.Citations.Where(x => citations.All(c => c.Id != x.Id)));
+        string Canonical(string text) => Compact(previous.SessionId, Expand(text, citations), allowed, citations).Replace("\r\n", "\n");
+        foreach (var old in Read(previous, allowed)) {
+            var current = update.Sections.SingleOrDefault(x => x.Id == old.Id)
+                ?? throw new InvalidOperationException("AI update removed a saved section; result was not applied");
+            var body = Canonical(current.Markdown);
+            if (old.UserEdited && !allowProtectedReformat && Canonical(old.Markdown) != body || old.Points.Any(x => !body.Contains(Canonical(x.Text), StringComparison.Ordinal)))
+                throw new InvalidOperationException("AI update lost saved point text or changed a protected section; result was not applied");
+        }
+    }
     public static SectionUpdate Apply(string sessionId, Note? latest, List<NoteSection> baseSections, NotePatch patch,
         IEnumerable<string> editableIds, IEnumerable<string> inputIds, IEnumerable<string> allowedIds, string inputHash, bool allowUserEdited = false) {
         var editable = editableIds.ToHashSet(); var input = inputIds.ToHashSet(); var allowed = allowedIds.ToHashSet();
@@ -131,11 +145,12 @@ public static class NoteSections
             }
             if (points.Count == 0) throw new InvalidOperationException("Section has no observable coverage points");
             // A model can claim `retains` while omitting the formula/condition in its prose.
-            // Ordinary live updates therefore retain earlier written points literally when they were rewritten.
-            // The explicit organizer can compress them using the checked point/provenance contract.
-            if (existing is not null && !allowUserEdited) {
-                var expandedOutput = Expand(update.Markdown, citations);
-                var missing = existing.Points.Where(p => !expandedOutput.Contains(Expand(p.Text, citations), StringComparison.Ordinal)).ToList();
+            // Organizing also needs this protection: retains + citations alone cannot prove
+            // that a formula, qualification or example survived a model's rewrite.
+            if (existing is not null) {
+                var compactOutput = Compact(sessionId, Expand(update.Markdown, citations), allowed, citations).Replace("\r\n", "\n");
+                var missing = existing.Points.Where(p => !compactOutput.Contains(
+                    Compact(sessionId, Expand(p.Text, citations), allowed, citations).Replace("\r\n", "\n"), StringComparison.Ordinal)).ToList();
                 if (missing.Count > 0) {
                     update.Markdown += "\n\n### Earlier source-backed points\n\nLater corrections may supersede an earlier statement.\n\n" + string.Join("\n\n", missing.Select(p => p.Text));
                     foreach (var prior in missing) {

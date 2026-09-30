@@ -12,8 +12,8 @@ namespace Playback.Api.Services.Ai.Agents;
 
 public sealed class NoteAgent : IAsyncDisposable
 {
-    public const string PromptVersion = "section-notes-v6";
-    public const string OrganizePromptVersion = "section-organize-v6";
+    public const string PromptVersion = "section-notes-v7";
+    public const string OrganizePromptVersion = "section-organize-v7";
     public const string Instructions = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
         Audio/VAD boundaries are not topic boundaries. Join fragments in meaning, continue examples and
@@ -56,6 +56,9 @@ public sealed class NoteAgent : IAsyncDisposable
         "sourceIds":["T001"],"retains":[]}]}],
         "deferred":[{"sourceId":"T002","reason":"why this source still needs continuation"}]}.
         Every input source must contribute a cited point or be explicitly deferred, never silently completed.
+        Deferred is for incomplete or unintelligible speech awaiting continuation, not permission to skip
+        a complete earlier topic. For a gap-repair batch, write the substantive definitions, examples,
+        conditions and arguments in that earlier input; the latest topic is not the whole lecture.
         More than one input chunk may support a complete thought. Source IDs establish traceability, not
         proof of semantic quality; do not claim material is covered unless the point is actually written.
         Never return a complete replacement document. Never reproduce internal context labels or versions.
@@ -327,15 +330,26 @@ public sealed class NoteAgent : IAsyncDisposable
             return await GenerateCore(session, [], [section], ct, organize: true);
         } finally { gate.Release(); }
     }
-    async Task<object> GenerateCore(SessionView session, List<Transcript> pending, List<NoteSection> selected, CancellationToken ct, bool organize = false) {
-        var materials = organize ? new List<Material>() : MaterialsForPrompt(session.Materials, session.CurrentNote, false);
+    public async Task<object> RepairCoverage(string id, int baseVersion, CancellationToken ct) {
+        var gate = gates.GetOrAdd(id, _ => new SemaphoreSlim(1, 1)); await gate.WaitAsync(ct);
+        try {
+            var session = await store.Session(id) ?? throw new InvalidOperationException("Session not found");
+            if (session.NoteVersion != baseVersion) throw new InvalidOperationException("Notes changed; reload the coverage report");
+            var pending = NoteCoverage.OldestBatch(session);
+            if (pending.Count == 0) throw new InvalidOperationException("No unreferenced speech; citations alone do not prove semantic completeness");
+            // Append earlier content; existing sections and user edits remain unchanged.
+            return await GenerateCore(session, pending, [], ct, repair: true);
+        } finally { gate.Release(); }
+    }
+    async Task<object> GenerateCore(SessionView session, List<Transcript> pending, List<NoteSection> selected, CancellationToken ct, bool organize = false, bool repair = false) {
+        var materials = organize || repair ? new List<Material>() : MaterialsForPrompt(session.Materials, session.CurrentNote, false);
         var instructions = InstructionsFor(session.NoteLanguage) + (organize ? "\n" + OrganizeInstructions : "");
         var call = await activity.Begin(session.Id, organize ? "Section organization" : "Note revision", "vertex", gemini.Model,
             pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Concat(selected.SelectMany(x => x.Points).SelectMany(x => x.SourceIds)), session.NoteVersion);
         call.SectionId = organize ? selected[0].Id : null;
         var admitted = false;
         try {
-            var input = organize ? Input(session, pending, selected, materials, "organize") : BoundedInput(session, pending, selected, materials, "notes");
+            var input = organize ? Input(session, pending, selected, materials, "organize") : BoundedInput(session, pending, selected, materials, repair ? "gap-repair" : "notes");
             var hash = NoteSections.Hash(gemini.Model + instructions + input.Text);
             activity.Context(call, organize ? OrganizePromptVersion : PromptVersion, instructions, input.Text);
             await generationSlots.WaitAsync(ct); admitted = true;
@@ -387,11 +401,14 @@ public sealed class NoteAgent : IAsyncDisposable
                     if (Regex.IsMatch(body, @"^(?:T\d+|cite_[a-f0-9]+)$") && !update.Citations.Any(c => c.Id == body))
                         throw new InvalidOperationException("Unknown section citation");
             }
-            var result = await store.SaveSectionNote(session.Id, update, hash, session.NoteVersion, session.NoteLanguage);
+            var result = await store.SaveSectionNote(session.Id, update, hash, session.NoteVersion, session.NoteLanguage,
+                author: organize ? "agent organization" : "agent");
             var covered = update.Coverage.Where(x => x.Status == "covered").Select(x => x.SourceId).Intersect(pending.Select(x => x.Id));
             await store.MarkNotes(covered, "completed");
             var deferredSources = update.Coverage.Where(x => x.Status == "deferred").Select(x => x.SourceId).Intersect(pending.Select(x => x.Id));
             await store.MarkNotes(deferredSources, "deferred", "Retained for continuation; the saved source disposition explains why");
+            await store.MarkNotes(update.Coverage.Where(x => x.Status == "pending").Select(x => x.SourceId).Intersect(pending.Select(x => x.Id)),
+                "pending", "No written point or deferral; still awaiting coverage");
             await activity.End(call, "completed", $"Section patch saved; untouched sections retained; {update.Coverage.Count(x => x.Status == "covered")} sources have written points, " +
                 $"{update.Coverage.Count(x => x.Status == "deferred")} deferred, {update.Coverage.Count(x => x.Status == "pending")} remain pending without a model disposition");
             return result;

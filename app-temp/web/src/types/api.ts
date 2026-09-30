@@ -128,6 +128,7 @@ export const SessionSchema = SessionSummarySchema.extend({
       sections: z.array(NoteSectionSchema).optional(),
       citations: z.array(NoteCitationSchema).optional(),
       coverage: z.array(CoverageSchema).optional(),
+      suppressedSourceIds: z.array(z.string()).optional(),
     })
     .nullish(),
 });
@@ -184,7 +185,7 @@ export const HealthSchema = z.object({
   aiActivity: z.boolean().optional(),
   groundedChatFallback: z.boolean().optional(),
   chatConversations: z.boolean().optional(),
-  sectionNotes: z.boolean().optional(), sessionSync: z.boolean().optional(), jevNoteGate: z.boolean().optional(),
+  sectionNotes: z.boolean().optional(), noteCoverage: z.boolean().optional(), sessionSync: z.boolean().optional(), jevNoteGate: z.boolean().optional(),
   build: z.string().optional(),
   asrStreaming: z.boolean().optional(),
   asrModels: z.array(z.string()).optional(),

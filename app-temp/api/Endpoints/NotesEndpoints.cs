@@ -1,5 +1,6 @@
 using Playback.Api.Services.Ai.Agents;
 using Playback.Api.Db;
+using Playback.Api.Services.Ai;
 namespace Playback.Api.Endpoints;
 
 public static class NotesEndpoints
@@ -12,6 +13,10 @@ public static class NotesEndpoints
             await store.NoteHistory(id));
         app.MapGet("/api/sessions/{id}/notes/history", async (string id, int? before, int? limit, PlaybackStore store) =>
             await store.NotePage(id, before, limit ?? 20));
+        app.MapGet("/api/sessions/{id}/notes/coverage", async (string id, PlaybackStore store) =>
+            await store.Session(id) is { } session ? Results.Ok(NoteCoverage.Audit(session)) : Results.NotFound());
+        app.MapPost("/api/sessions/{id}/notes/repair", async (string id, CoverageRepairInput input, NoteAgent notes, CancellationToken ct) =>
+            await notes.RepairCoverage(id, input.BasedOnVersion, ct));
         app.MapGet("/api/sessions/{id}/notes/{version:int}", async (string id, int version, PlaybackStore store) =>
             await store.NoteVersion(id, version) is { } note ? Results.Ok(note) : Results.NotFound());
         app.MapGet("/api/sessions/{id}/notes/{version:int}/recovery", async (string id, int version, PlaybackStore store) => await store.Recovery(id, version));
@@ -39,3 +44,4 @@ public static class NotesEndpoints
         });
     }
 }
+public sealed record CoverageRepairInput(int BasedOnVersion);

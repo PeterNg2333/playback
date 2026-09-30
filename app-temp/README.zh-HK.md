@@ -2,6 +2,8 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
+2026-09-29 筆記缺口後續：原 Week 3 v146 有 1,110 段曾標 completed 卻未被正文引用，缺失主要由舊全篇生成遺留。現新增 coverage 時間段／兩分鐘大缺口、逐批 Repair earliest gap、organizer 正文保留及寫入前 retention guard；1,156 段完整離線重播、真實 Mongo 防刪及窄屏 UI 通過。自然 Gemini 重跑待明確文字傳送／付費批准，原 v146 未改寫。詳見 [調查及重跑結果](../docs/note-coverage-investigation.zh-HK.md)。Review API 5081 已為 v7；原 5078 未重啟。
+
 2026-09-29 後續補完：逐 record DB 查詢、完成段落展示合併、session／diagram loading、Mermaid 延後載入、失敗 usage，以及 section 的單一正文 JSON contract 已加入。使用 repo Week 3 首一小時文字完成一小時 frontend load；批准後的真實 API／Mongo 保存、126 版歷史、restart／cursor、group flow、材料及本地音訊 E2E 通過。Jev／Gemini 真實結果及成本已保存；九次筆記生成得到三版，仍有30條 pending、65條 deferred，自然筆記品質未通過。詳見 [Week 3 驗收報告](../docs/week3-one-hour-validation.zh-HK.md)。
 
 每10秒由真正的Jev note問題檢查changed confirmed input；允許後排入section更新，沒有固定90秒等待。Reading／Sources、整理、group flow、保存詳解及 virtualization 已實作。現在 prompt 為 `section-notes-v6`／`section-organize-v6`、chat 為 `chat-v2`；較早保存結果有自己的生效版本，不能代替新 prompt 的自然品質驗收。原5078未重啟，歷史恢復 preview 未套用；使用者要求的一小時 frontend fixture 已完成，未新增硬件／ASR 長測。初版紀錄見 [逐項驗收與限制](../docs/notes-redesign-validation.zh-HK.md)。

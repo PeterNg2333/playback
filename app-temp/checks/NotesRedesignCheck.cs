@@ -15,7 +15,7 @@ internal static partial class NotesRedesignCheck
     public static async Task Run() {
         var offline = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST");
         Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");
-        try { Sections(); await Scheduling(); await OrganizationAndLateInput(); await GateProtocol(); await Sync(); await FairAdmission(); }
+        try { Sections(); await CoverageSafeguards(); await Scheduling(); await OrganizationAndLateInput(); await GateProtocol(); await Sync(); await FairAdmission(); }
         finally { Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", offline); }
         Console.WriteLine("Notes redesign checks passed: section retention/coverage, protected edits/deletions/recovery, actual 10s scheduling, persisted wait/allow, idle/dedup, slow sessions, errors/retries, manual/stop and edit/language races (memory providers/store, no network).");
     }
@@ -337,12 +337,14 @@ internal static partial class NotesRedesignCheck
         public override Task<object> SaveSectionNote(string id, SectionUpdate update, string hash, int basedOnVersion, string language, string author = "agent", List<string>? deleted = null, List<string>? suppressed = null) {
             Notes.TryGetValue(id, out var previous);
             if ((previous?.Version ?? 0) != basedOnVersion || Languages[id] != language) throw new InvalidOperationException("Base changed during generation");
+            if (author.StartsWith("agent")) NoteSections.RequireRetention(previous, update, update.Sections.SelectMany(x => x.Points).SelectMany(x => x.SourceIds), allowProtectedReformat: author == "agent organization");
             var coverage = (previous?.Coverage ?? []).Where(x => !update.Coverage.Any(y => y.SourceId == x.SourceId)).Concat(update.Coverage).ToList();
             var note = new Note { SessionId = id, Version = basedOnVersion + 1, BasedOnVersion = basedOnVersion, CreatedAt = DateTime.UtcNow,
                 Markdown = NoteSections.Render(update.Sections), Sections = Copy(update.Sections),
                 Citations = Copy(update.Citations), Coverage = Copy(coverage), InputHash = hash, Author = author,
                 InputTranscriptIds = update.Coverage.Select(x => x.SourceId).ToList(),
-                TranscriptIds = update.Sections.SelectMany(s => s.Points).SelectMany(p => p.SourceIds).Distinct().ToList() };
+                TranscriptIds = update.Sections.SelectMany(s => s.Points).SelectMany(p => p.SourceIds).Distinct().ToList(),
+                SuppressedSourceIds = suppressed ?? previous?.SuppressedSourceIds.ToList() ?? [], DeletedSectionIds = deleted ?? previous?.DeletedSectionIds.ToList() ?? [] };
             Notes[id] = note; return Task.FromResult<object>(new { note.Version, note.Markdown, note.Author });
         }
     }

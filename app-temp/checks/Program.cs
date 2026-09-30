@@ -17,6 +17,9 @@ if (args is ["--notes-recovery-preview", var snapshotFolder]) { NotesRecoveryPre
 if (args is ["--notes-store-check"]) { try { await NotesStoreCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
 if (args is ["--session-sync-store-check"]) { try { await SessionSyncStoreCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
 if (args is ["--week3-live", var reportFolder]) { await NotesRedesignCheck.Week3Live(reportFolder); return; }
+if (args is ["--note-coverage-replay", var coverageFolder]) { await NotesRedesignCheck.CoverageReplay(coverageFolder, false); return; }
+if (args is ["--note-coverage-live", var coverageLiveFolder]) { await NotesRedesignCheck.CoverageReplay(coverageLiveFolder, true); return; }
+if (args is ["--note-coverage-store", var coverageStoreFolder]) { await NotesStoreCheck.Coverage(coverageStoreFolder); return; }
 if (args is ["--week3-store-seed", var seedFolder]) { await Week3StoreCheck.Seed(seedFolder); return; }
 if (args is ["--week3-term-live", var termFolder]) { await Week3StoreCheck.Term(termFolder); return; }
 

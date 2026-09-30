@@ -56,6 +56,7 @@ public partial class PlaybackStore
             if (previous?.InputHash == inputHash) return new { previous.Version, previous.Markdown, previous.Author };
             if ((previous?.Version ?? 0) != basedOnVersion || settings.NoteLanguage != language)
                 throw new InvalidOperationException("Note or language changed during this operation; the result was not applied");
+            if (author.StartsWith("agent")) NoteSections.RequireRetention(previous, update, allowed, allowProtectedReformat: author == "agent organization");
             var coverage = (previous?.Coverage ?? []).Where(x => !update.Coverage.Any(y => y.SourceId == x.SourceId)).Concat(update.Coverage).ToList();
             foreach (var item in coverage.Where(x => x.Status == "covered")) {
                 item.PointIds = update.Sections.SelectMany(x => x.Points).Where(x => x.SourceIds.Contains(item.SourceId)).Select(x => x.Id).ToList();
