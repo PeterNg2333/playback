@@ -1,6 +1,7 @@
 using Playback.Api.Services.Ai.Providers;
 using Playback.Api.Services.Ai.Agents;
 using Playback.Api.Db;
+using Playback.Api.Endpoints;
 
 internal static class GeminiLiveCheck
 {
@@ -24,7 +25,7 @@ internal static class GeminiLiveCheck
             "Before analyzing a recording, check the microphone for clipping and verify its sample rate.";
         const string prompt =
             $"BASE VERSION 0\n\nMATERIALS\n\nTRANSCRIPTS\n[{transcriptId}, 0-120000 ms] {transcript}";
-        const string instructions =
+        const string instructions = NoteAgent.Instructions + "\n" +
             "Create Markdown lecture notes from the supplied synthetic transcript. " +
             "Start with a short '## Summary', then '## Lecture notes'. " +
             "Mention the Fourier transform, FFT, aliasing, and the sampling example. " +
@@ -35,7 +36,7 @@ internal static class GeminiLiveCheck
         var gemini = new GeminiLanguageModel();
         var markdown = await gemini.Generate(
             "PlaybackDemoNoteEditor", instructions, prompt, timeout.Token);
-        if (string.IsNullOrWhiteSpace(markdown) ||
+        if (string.IsNullOrWhiteSpace(markdown) || markdown.Contains("BASE VERSION", StringComparison.OrdinalIgnoreCase) ||
             !markdown.Contains("Summary", StringComparison.OrdinalIgnoreCase) ||
             !markdown.Contains("Lecture notes", StringComparison.OrdinalIgnoreCase) ||
             !markdown.Contains("Fourier", StringComparison.OrdinalIgnoreCase) ||
@@ -57,17 +58,25 @@ internal static class GeminiLiveCheck
         var translationPrompt = TranslationContext.BuildBatch(syntheticEntries, syntheticEntries, "zh-Hant");
         var translated = await gemini.Generate("PlaybackSyntheticTranslator",
             TranslationAgent.Instructions("zh-Hant"),
-            translationPrompt, timeout.Token);
-        var translations = TranslationAgent.ParseBatch(translated, syntheticEntries.Select(x => x.Id).ToArray());
+            translationPrompt.Prompt, timeout.Token);
+        var translations = TranslationAgent.ParseBatch(translated, translationPrompt.TargetIds.Keys.ToArray());
         if (translations.Count != 2 || translations.Values.Any(string.IsNullOrWhiteSpace))
             throw new InvalidOperationException("Vertex translation did not map both synthetic transcript IDs");
 
+        var qaSession = new SessionView("synthetic-qa", "Synthetic Fourier lecture", null, DateTime.UtcNow,
+            "", 0, 0, false, "zh-Hant", [],
+            [new Transcript { Id = transcriptId, StartMs = 0, EndMs = 120_000, Original = transcript }],
+            [], [], [], null);
+        var qaContext = ChatContextBuilder.Build(qaSession,
+            new QuestionInput("What can happen if a signal is sampled below twice its highest frequency?"));
         var answer = await gemini.Generate("PlaybackSyntheticQuestionAnswerer",
             "Answer only from the supplied synthetic lecture source. Cite its ID in square brackets.",
-            $"[{transcriptId}, 0-120000 ms] {transcript}\nQuestion: What can happen if a signal is sampled below twice its highest frequency?",
+            qaContext.Prompt,
             timeout.Token);
+        var qaEvidence = ChatAgent.CitedEvidence(qaContext, qaContext.References!.Decode(answer));
         if (!answer.Contains("alias", StringComparison.OrdinalIgnoreCase) ||
-            !answer.Contains($"[{transcriptId}]", StringComparison.Ordinal))
+            qaEvidence.Length != 1 || qaEvidence[0].Id != transcriptId ||
+            qaEvidence[0].Label != "0-120000 ms")
             throw new InvalidOperationException("Vertex question answer omitted the synthetic fact or source ID");
 
         Console.WriteLine("Gemini live demo passed: synthetic transcript produced cited summary and notes.");

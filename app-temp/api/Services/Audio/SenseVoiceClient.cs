@@ -4,23 +4,32 @@ using Playback.Api.Services;
 
 namespace Playback.Api.Services.Audio;
 
-public sealed class SenseVoiceClient
+public sealed partial class SenseVoiceClient : IAsrAdapter, IDisposable
 {
+    public AsrModel Model { get; } = new("sensevoice", "SenseVoice", "rest");
+    public Task<AsrResult> Transcribe(AsrRequest request, CancellationToken ct) => Transcribe(request.Path, ct);
+    [GeneratedRegex(@"<\|[^|>]*\|>")]
+    private static partial Regex SpecialTokenRegex();
+
     readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
 
     public async Task<AsrResult> Transcribe(string path, CancellationToken ct)
     {
         if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes")
             throw new InvalidOperationException("External ASR is disabled for offline tests");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(TimeSpan.FromSeconds(120));
+        ct = deadline.Token;
         var endpoint = Environment.GetEnvironmentVariable("PLAYBACK_ASR_ENDPOINT") ?? "https://dev-aks.setsailapi.com/stt/infer/upload";
         if (endpoint != "https://dev-aks.setsailapi.com/stt/infer/upload") throw new InvalidOperationException("ASR endpoint is not allowlisted");
         if (new FileInfo(path).Length is < 44 or > 25_000_000) throw new InvalidOperationException("ASR WAV must be 44 bytes to 25 MB");
+        var wav = AsrAudioPreparer.Prepare(path, ct);
         using var body = new MultipartFormDataContent();
-        await using var file = File.OpenRead(path);
-        using var content = new StreamContent(file);
+        using var content = new ByteArrayContent(wav);
         content.Headers.ContentType = new("audio/wav");
         body.Add(content, "file", "audio.wav");
-        using var response = await http.PostAsync(endpoint, body, ct);
+        using var message = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = body };
+        using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode) throw new HttpRequestException($"SenseVoice HTTP {(int)response.StatusCode}");
         var bytes = await ProviderResponseReader.ReadBounded(response, 512_000, ct);
         return ParseResponse(bytes);
@@ -29,26 +38,23 @@ public sealed class SenseVoiceClient
     {
         using var json = JsonDocument.Parse(bytes);
         var root = json.RootElement;
-        double? duration = root.TryGetProperty("duration_seconds", out var durationField) && durationField.ValueKind == JsonValueKind.Number
-            ? durationField.GetDouble() : null;
-        double? inference = root.TryGetProperty("inference_time_seconds", out var inferenceField) && inferenceField.ValueKind == JsonValueKind.Number
-            ? inferenceField.GetDouble() : null;
-        double? rtf = root.TryGetProperty("rtf", out var rtfField) && rtfField.ValueKind == JsonValueKind.Number
-            ? rtfField.GetDouble() : null;
-        var language = root.TryGetProperty("language", out var languageField) && languageField.ValueKind == JsonValueKind.String
-            ? languageField.GetString() : null;
-        if (root.TryGetProperty("raw", out var raw) && raw.ValueKind == JsonValueKind.String)
-            return new(Regex.Replace(raw.GetString()!, @"<\|[^|>]*\|>", "").Trim(), duration, inference, language, rtf);
-        if (root.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
-            return new(text.GetString()!, duration, inference, language, rtf);
-        throw new InvalidOperationException("SenseVoice response schema is unrecognized");
+
+        double? GetDouble(string name) => root.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.Number
+            ? field.GetDouble() : null;
+        string? GetString(string name) => root.TryGetProperty(name, out var field) && field.ValueKind == JsonValueKind.String
+            ? field.GetString() : null;
+
+        string? text = GetString("raw") is string raw
+            ? SpecialTokenRegex().Replace(raw, "").Trim()
+            : GetString("text");
+        if (text is null)
+            throw new InvalidOperationException("SenseVoice response schema is unrecognized");
+
+        return new AsrResult(text,
+            GetDouble("duration_seconds"),
+            GetDouble("inference_time_seconds"),
+            GetString("language"),
+            GetDouble("rtf"));
     }
-
+    public void Dispose() => http.Dispose();
 }
-
-public sealed record AsrResult(
-    string Text,
-    double? DurationSeconds,
-    double? InferenceSeconds,
-    string? Language,
-    double? RealTimeFactor);

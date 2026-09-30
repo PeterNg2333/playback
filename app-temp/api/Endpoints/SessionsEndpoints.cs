@@ -15,6 +15,9 @@ public static class SessionsEndpoints
         app.MapPut("/api/sessions/{id}/translation", async (
             string id, TranslationInput input, PlaybackStore store) =>
             await store.SetTranslation(id, input.Enabled, input.Language));
+        app.MapPut("/api/sessions/{id}/languages", async (
+            string id, LanguagesInput input, PlaybackStore store) =>
+            await store.SetLanguages(id, input.AsrLanguage, input.NoteLanguage, input.AsrModel));
         app.MapPost("/api/sessions/{id}/translation/retry", async (string id, PlaybackStore store) =>
         {
             var session = await store.Session(id)
@@ -28,6 +31,7 @@ public static class SessionsEndpoints
             await store.Session(id) is { } session
                 ? Results.Ok(session)
                 : Results.NotFound());
+        app.MapGet("/api/sessions/{id}/sync", async (string id, string? cursor, PlaybackStore store) => await store.SyncSession(id, cursor));
         app.MapPost("/api/sessions/{id}/materials", async (
             string id, MaterialInput input, PlaybackStore store) =>
             await store.AddMaterial(id, input));

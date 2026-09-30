@@ -47,7 +47,7 @@ ChatClientAgent agent = new(
 
 ## Lecture material 的安全界線
 
-教材和 transcript 都可能包含 prompt injection 式句子；它們只是 quoted data。此 spike 不給 agent tools，所以最壞結果主要是錯誤 draft。正式系統仍須限制 prompt 大小、token/cost、保存 revision history，並在 UI 明示「AI draft」。不要把 API key、其他課堂資料或未獲同意的個人資料送進 prompt。
+教材和 transcript 都可能包含 prompt injection 式句子；它們只是 quoted data。此 spike 不給 agent tools，所以最壞結果主要是錯誤 draft。正式系統仍須限制 prompt 大小、token/cost、保存 revision history，並在 UI 明示「AI draft」。不要把 API key 或其他課堂資料送進 prompt。
 
 ## Source
 

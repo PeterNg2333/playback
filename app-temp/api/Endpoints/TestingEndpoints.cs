@@ -8,7 +8,9 @@ public static class TestingEndpoints
     {
         if (app.Environment.IsDevelopment())
         {
-            if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes")
+            if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes" ||
+                Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_PORT") == "5081" &&
+                Environment.GetEnvironmentVariable("PLAYBACK_MONGO_DATABASE") == "playback_e2e")
             {
                 app.MapPost("/api/testing/sessions/{id}/transcripts", async (
                     string id, SyntheticTranscriptInput input, PlaybackStore store) =>
@@ -23,7 +25,7 @@ public static class TestingEndpoints
             app.MapDelete("/api/testing/sessions/{id}", async (
                 string id, PlaybackStore store, WindowsAudioCaptureService capture) =>
             {
-                if (capture.Status().SessionId == id)
+                if (capture.Status() is { State: not "idle" } current && current.SessionId == id)
                     throw new InvalidOperationException("Stop recording before test cleanup");
                 await store.DeleteTestSession(id);
                 return Results.NoContent();

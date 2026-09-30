@@ -104,7 +104,7 @@ Live stream 可作低延遲 fast path，但不可是唯一 copy；local chunks �
 - `Demo` 只用假 audio/ASR/LLM/search，所有輸出標明 demo。
 - `Real` 才可送資料到公司 SenseVoice、Gemini、search provider。
 - `/health` 顯示 mode、DB、Audio Client、ASR、LLM、search 是否 configured/ready。
-- 設 retention、consent 提示與本機 data folder；API key 只從 environment/user secrets 讀取。
+- 設本機 data folder 與可見的錄音狀態；API key 可由程式從 `.env` 載入到程序環境，內容不可顯示。
 
 **通過證據**
 
@@ -248,7 +248,7 @@ Fault drill 至少包括：UI reload、AI Server kill/restart、PostgreSQL stop/
 - Audio durability 與 idempotency 過關。
 - SenseVoice throughput 能追上 lecture，或 batch catch-up 時間可接受。
 - Rolling note 在真實課堂材料上有可量化幫助，且 cost 可承受。
-- 學生清楚知道 recording/third-party data flow，lecturer consent 可操作。
+- 學生可在 UI 看見 recording/third-party data flow 的狀態。
 
 ### No-go / redesign
 
@@ -256,7 +256,7 @@ Fault drill 至少包括：UI reload、AI Server kill/restart、PostgreSQL stop/
 - ASR backlog 在正常網絡仍線性增長。
 - Note hallucination 無法用 transcript citations/watermark 降到可接受。
 - 三小時 battery/disk/thermal 或第三方 cost 不可接受。
-- 校方／lecturer recording policy 不容許這個 data flow。
+- 測試環境的 provider 故障或成本使這個 data flow 無法運行。
 
 ## 建議的第一個 implementation slice
 

@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { chromium } from "playwright-core";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const offline = process.env.PLAYBACK_OFFLINE_TEST === "yes";
 const skipCapture = process.env.PLAYBACK_E2E_SKIP_CAPTURE === "yes";
+const retain = process.env.PLAYBACK_E2E_RETAIN === "yes";
 if (!offline)
   throw new Error(
     "Set PLAYBACK_OFFLINE_TEST=yes and run the isolated local API/Vite test ports before E2E; external providers must stay disabled.",
@@ -28,11 +30,19 @@ const browser = await chromium.launch({
 let sessionId;
 let groupId;
 let nestedSessionId;
-let captureError;
+const captureErrors = [];
+let passed = false;
+let failure;
+let page;
+const evidence = fileURLToPath(new URL("../../../data/validation/runs/2026-09-29-week3/", import.meta.url));
+await mkdir(evidence, { recursive: true });
 
 try {
   const context = await browser.newContext();
-  const page = await context.newPage();
+  page = await context.newPage();
+  // Enable interception before navigation; Edge can otherwise open the native
+  // picker before its asynchronous interception registration has completed.
+  page.on("filechooser", () => {});
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const title = `E2E demo ${randomUUID().slice(0, 8)}`;
@@ -42,7 +52,7 @@ try {
 
   await page.goto(web);
   await page.getByRole("heading", { name: "Transcript" }).waitFor();
-  await page.getByRole("button", { name: "New session" }).click();
+  await page.getByRole("button", { name: "New session", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("textbox", { name: "Session title" })
@@ -53,43 +63,78 @@ try {
   sessionId = sessions.find((item) => item.title === title)?.id;
   assert.match(sessionId, /^[a-f0-9]{32}$/);
   if (!skipCapture) {
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Start recording" }).click();
-    const started = await Promise.race([
-      page
-        .getByRole("button", { name: "Pause recording" })
-        .waitFor({ timeout: 10_000 })
-        .then(() => true),
-      page
-        .locator(".global-error")
-        .waitFor({ timeout: 10_000 })
-        .then(() => false),
-    ]);
-    if (started) {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      await page.getByRole("button", { name: "Pause recording" }).click();
-      await page.getByRole("button", { name: "Resume recording" }).waitFor();
-      assert.equal(
-        (await (await fetch(`${api}/capture/status`)).json()).state,
-        "paused",
-      );
-      await page.getByRole("button", { name: "Resume recording" }).click();
-      await page.getByRole("button", { name: "Pause recording" }).waitFor();
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      await page.getByRole("button", { name: "Stop recording" }).click();
-      await page.getByRole("button", { name: "Start recording" }).waitFor();
-      assert.equal(
-        (await (await fetch(`${api}/capture/status`)).json()).state,
-        "idle",
-      );
-    } else {
-      captureError = await page.locator(".global-error").textContent();
-      assert.match(captureError, /Microphone could not start/);
-      assert.equal(
-        (await (await fetch(`${api}/capture/status`)).json()).state,
-        "idle",
-      );
-      await page.getByRole("button", { name: "Dismiss error" }).click();
+    for (const mode of ["microphone", "system", "both"]) {
+      await page
+        .getByRole("combobox", { name: "Recording source" })
+        .selectOption(mode);
+      page.once("dialog", (dialog) => dialog.accept());
+      await page.getByRole("button", { name: "Start recording" }).click();
+      const started = await Promise.race([
+        page
+          .getByRole("button", { name: "Pause recording" })
+          .waitFor({ timeout: 10_000 })
+          .then(() => true),
+        page
+          .locator(".global-error")
+          .waitFor({ timeout: 10_000 })
+          .then(() => false),
+      ]);
+      if (started) {
+        const running = await (await fetch(`${api}/capture/status`)).json();
+        assert.equal(running.sourceMode, mode);
+        const expectedSources =
+          mode === "both" ? ["microphone", "system"] : [mode];
+        assert.ok(Object.keys(running.bytes).length > 0);
+        assert.ok(
+          Object.keys(running.bytes).every((source) =>
+            expectedSources.includes(source),
+          ),
+          "Recording must not open an unselected source",
+        );
+        assert.equal(
+          await page
+            .getByRole("combobox", { name: "Recording source" })
+            .isDisabled(),
+          true,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await page.getByRole("button", { name: "Pause recording" }).click();
+        await page.getByRole("button", { name: "Resume recording" }).waitFor();
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).sourceMode,
+          mode,
+        );
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).state,
+          "paused",
+        );
+        await page.getByRole("button", { name: "Resume recording" }).click();
+        await page.getByRole("button", { name: "Pause recording" }).waitFor();
+        const resumed = await (await fetch(`${api}/capture/status`)).json();
+        assert.equal(resumed.sourceMode, mode);
+        assert.ok(
+          Object.keys(resumed.bytes).every((source) =>
+            expectedSources.includes(source),
+          ),
+          "Resume must keep the selected sources",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await page.getByRole("button", { name: "Stop recording" }).click();
+        await page.getByRole("button", { name: "Start recording" }).waitFor();
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).state,
+          "idle",
+        );
+      } else {
+        const captureError = await page.locator(".global-error").textContent();
+        captureErrors.push(`${mode}: ${captureError.trim()}`);
+        assert.match(captureError, /No audio source could start/);
+        assert.equal(
+          (await (await fetch(`${api}/capture/status`)).json()).state,
+          "idle",
+        );
+        await page.getByRole("button", { name: "Dismiss error" }).click();
+      }
     }
   }
 
@@ -100,6 +145,7 @@ try {
     .getByRole("textbox", { name: "Group name" })
     .fill(groupName);
   await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: `Collapse ${groupName}` }).waitFor();
   const groups = await (await fetch(`${api}/groups`)).json();
   groupId = groups.find((item) => item.name === groupName)?.id;
   assert.match(groupId, /^[a-f0-9]{32}$/);
@@ -156,12 +202,16 @@ try {
     groupId,
   );
   await page.getByRole("button", { name: title, exact: true }).click();
+  // TranscriptContent is keyed by session. Opening the old session's details
+  // during a switch loses that open state when the selected session mounts.
+  await page.getByRole("heading", { name: title, exact: true }).waitFor();
+  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
   await page.locator("#session-materials > summary").click();
-  const fileChooser = page.waitForEvent("filechooser");
+  const fileChooser = page.waitForEvent("filechooser", { timeout: 10000 }).catch(() => null);
   await page.getByRole("button", { name: "Attach text material" }).click();
-  await (
-    await fileChooser
-  ).setFiles({
+  const picked = await fileChooser;
+  assert(picked, "Materials file picker did not open after session loading completed");
+  await picked.setFiles({
     name: "demo-lecture.txt",
     mimeType: "text/plain",
     buffer: Buffer.from(materialText),
@@ -185,8 +235,21 @@ try {
   await page.locator("#session-materials > summary").click();
   await page.getByText(materialText).waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
-  await page.getByLabel("啟用翻譯").check();
-  await page.getByLabel("目標語言").selectOption("en");
+  await page.getByLabel("ASR spoken language").selectOption("yue-en");
+  await page.getByLabel("ASR model", { exact: true }).selectOption("openai/whisper-large-v3-turbo");
+  await page.getByLabel("Notes output language").selectOption("zh-Hans");
+  await page.waitForFunction(async (id) => {
+    const saved = await (await fetch(`/api/sessions/${id}`)).json();
+    return saved.asrLanguage === "yue-en" && saved.noteLanguage === "zh-Hans" && saved.asrModel === "openai/whisper-large-v3-turbo";
+  }, sessionId);
+  await page.reload();
+  await page.getByRole("button", { name: "Transcript settings" }).click();
+  await page.waitForFunction(() => document.getElementById("asr-language")?.disabled === false);
+  assert.equal(await page.getByLabel("ASR spoken language").inputValue(), "yue-en");
+  assert.equal(await page.getByLabel("ASR model", { exact: true }).inputValue(), "openai/whisper-large-v3-turbo");
+  assert.equal(await page.getByLabel("Notes output language").inputValue(), "zh-Hans");
+  await page.getByLabel("Enable translation").check();
+  await page.getByLabel("Translation target language").selectOption("en");
   await page.waitForFunction(async (id) => {
     const response = await fetch(`/api/sessions/${id}`);
     return response.ok && (await response.json()).translationLanguage === "en";
@@ -196,7 +259,7 @@ try {
       .translationLanguage,
     "en",
   );
-  await page.getByLabel("啟用翻譯").uncheck();
+  await page.getByLabel("Enable translation").uncheck();
   await page.getByRole("button", { name: "Transcript settings" }).click();
   const wav = Buffer.alloc(44 + 16_000 * 2);
   wav.write("RIFF", 0);
@@ -258,11 +321,89 @@ try {
     savedSession.materials.map((material) => material.text),
     [materialText],
   );
+  const quietAudio = page
+    .locator(".quiet-section")
+    .filter({ hasText: "No audio" })
+    .first();
+  await quietAudio.locator("summary").waitFor({ timeout: 10_000 });
+  await quietAudio.locator("summary").click();
+  const savedAudio = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/chunks/${chunkId}/audio`),
+  );
+  await page.locator(`.record-play[data-chunk-id="${chunkId}"]`).click();
+  assert.ok(
+    [200, 206].includes((await savedAudio).status()),
+    "Saved chunk must play from the real API",
+  );
+  const tone = Buffer.from(wav);
+  for (let offset = 44; offset < tone.length; offset += 2)
+    tone.writeInt16LE(5000, offset);
+  for (const sourceId of ["microphone", "system"]) {
+    const toneForm = new FormData();
+    for (const [key, value] of Object.entries({
+      sessionId,
+      sourceId,
+      sequence: 0,
+      startMs: 2000,
+      endMs: 3000,
+      sha256: createHash("sha256").update(tone).digest("hex"),
+    }))
+      toneForm.set(key, String(value));
+    toneForm.set(
+      "file",
+      new Blob([tone], { type: "audio/wav" }),
+      "synthetic-tone.wav",
+    );
+    assert.equal(
+      (await fetch(`${api}/chunks`, { method: "POST", body: toneForm })).status,
+      202,
+    );
+  }
+  await page.getByLabel("Playback mode").click();
   await page
-    .locator(".silence-section > summary")
-    .first()
-    .waitFor({ timeout: 10_000 });
-  await page.getByText("No sound section").first().waitFor();
+    .getByRole("combobox", { name: "Audio sources" })
+    .locator('option[value="system"]')
+    .waitFor({ state: "attached" });
+  const mixedAudio = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/sessions/${sessionId}/audio/segments/0`),
+  );
+  await page.getByRole("button", { name: "Full session" }).click();
+  assert.equal(
+    (await mixedAudio).status(),
+    200,
+    "Full-session playback must load synchronized audio",
+  );
+  const systemAudio = page.waitForResponse((response) =>
+    response
+      .url()
+      .includes(`/api/sessions/${sessionId}/audio/segments/0?source=system`),
+  );
+  await page.getByLabel("Playback mode").click();
+  await page
+    .getByRole("combobox", { name: "Audio sources" })
+    .selectOption("system");
+  assert.equal(
+    (await systemAudio).status(),
+    200,
+    "Source selection must use the same footer player",
+  );
+  assert.equal(await page.locator("audio").count(), 1);
+  await page.getByRole("button", { name: "AI activity history", exact: true }).click();
+  await page.getByRole("heading", { name: "LLM edit log" }).waitFor();
+  await page.getByText("v1 · Manual edit", { exact: true }).click();
+  await page
+    .locator(".activity-edit pre")
+    .filter({ hasText: "# Demo notes" })
+    .waitFor();
+  assert.equal(
+    await page
+      .locator(".activity-content textarea, .activity-content input")
+      .count(),
+    0,
+    "Activity is read-only",
+  );
+  await page.keyboard.press("Escape");
+  if (!retain) {
   await page
     .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
     .click();
@@ -291,8 +432,9 @@ try {
     null,
   );
   groupId = null;
+  }
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
-    const path = join(tmpdir(), "playback-desktop-check.png");
+    const path = join(evidence, "offline-e2e-desktop.png");
     await page.screenshot({ path, fullPage: true });
     console.log(`Desktop screenshot: ${path}`);
   }
@@ -315,21 +457,26 @@ try {
   );
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
     await page.getByRole("button", { name: "Transcript settings" }).click();
-    const path = join(tmpdir(), "playback-narrow-check.png");
+    const path = join(evidence, "offline-e2e-narrow.png");
     await page.screenshot({ path, fullPage: true });
     console.log(`Narrow screenshot: ${path}`);
   }
   assert.deepEqual(errors, []);
+  passed = true;
 
   console.log(
-    "E2E passed: session groups, material, note persistence, MongoDB audio, automatic silence handling",
+    "E2E passed: session groups, material, note persistence and activity history, MongoDB audio, automatic silence handling",
   );
   if (skipCapture)
     console.log("Local microphone capture skipped for this E2E run");
-  if (captureError)
+  for (const captureError of captureErrors)
     console.log(
-      `Capture device unavailable; UI showed the real error: ${captureError.trim()}`,
+      `Capture device unavailable; UI showed the real error: ${captureError}`,
     );
+} catch (error) {
+  failure = error.message;
+  await page?.screenshot({ path: join(evidence, "offline-e2e-failure.png") }).catch(() => {});
+  throw error;
 } finally {
   const cleanupFailures = [];
   try {
@@ -340,7 +487,7 @@ try {
     cleanupFailures.push(`Capture cleanup failed: ${error.message}`);
   }
   await browser.close().catch((error) => cleanupFailures.push(error.message));
-  if (sessionId) {
+  if (sessionId && !retain) {
     try {
       const cleanup = await fetch(`${api}/testing/sessions/${sessionId}`, {
         method: "DELETE",
@@ -353,7 +500,7 @@ try {
       cleanupFailures.push(error.message);
     }
   }
-  if (nestedSessionId) {
+  if (nestedSessionId && !retain) {
     try {
       const cleanup = await fetch(
         `${api}/testing/sessions/${nestedSessionId}`,
@@ -367,7 +514,7 @@ try {
       cleanupFailures.push(error.message);
     }
   }
-  if (groupId) {
+  if (groupId && !retain) {
     try {
       const members = await (await fetch(`${api}/sessions`)).json();
       for (const member of members.filter(
@@ -394,4 +541,7 @@ try {
     }
   }
   if (cleanupFailures.length) throw new Error(cleanupFailures.join("; "));
+  await writeFile(join(evidence, "offline-e2e.json"), JSON.stringify({ testedAt: new Date().toISOString(), passed, failure, offline, skipCapture, retain,
+    sessionId, nestedSessionId, groupId, captureErrors, evidence: "Production browser, real localhost API/MongoDB; synthetic local WAV only, no providers or microphone/system capture." }, null, 2));
+  if (retain) console.log(`Test sessions and group retained: ${sessionId}, ${nestedSessionId}, ${groupId}`);
 }

@@ -1,0 +1,2531 @@
+This year I have tried to using AI to assist me to do the training, so other than the normal posting,
+0:07
+I will post some problem related to a lecture up to some certificate concept that may not be fully explained during the class.
+0:18
+So I picked this posting as the first example to illustrate to you what you need to do.
+0:31
+If you are using prompt AI, try to type in the question inside that and try to find some answer.
+0:42
+Make some comparison to my lecture lecture slide and compare with the um, another AI generate output and then try to understand the concept better.
+0:50
+So this is the first example that I showed you.
+1:08
+For example, this is the um, I'm using um Google.
+1:13
+Well it doesn't work. Okay. Let me try again. Okay.
+1:20
+Give me a five minute. You enjoy the AI.
+1:38
+I come back later. Maybe you want to ask a question to our camera.
+1:42
+So. So maybe next year, I just.
+4:03
+No need to come to the class. Or I just come to class and I show you the problem, and then you study your own self.
+4:10
+Do you think that is good training? You have to answer that question.
+4:20
+Okay. Yeah. Um, I think, um, it is a very good, um.
+4:26
+Uh, by using the I, it is a very good way for us to review our lecture contents.
+4:33
+Try to compare the contents. Maybe I'm wrong. Or maybe the AI, uh, have some kind of hallucination.
+4:41
+Okay. If you can make your judgment whether this is correct or not.
+4:51
+When you compare the AI generated answer with the material that I show you and give you the explanation in the class,
+4:56
+if you find something wrong in it. I'm wrong.
+5:08
+My slide is wrong or AI is wrong. Then you learn something, right?
+5:13
+Okay, so if you find something different, try to do some more research.
+5:19
+Either you read both paper or the exercise to find out the result and why.
+5:24
+I select these two prompt because a lot of students in the class still have a problem.
+5:34
+To understand the system call. Last weekend we mentioned a legacy internet the intra um.
+5:42
+Then I mentioned six, and then I did not explain the metric how they are moving from the user node to become the node.
+5:54
+So by checking the details inside, you will find that I may give you some more explanation on how the code inside the Intel CPU
+6:05
+to changing or transition from the user load environment to the high pilferage environment.
+6:18
+So we call the kernel by reading them again and compare with the lecture compared with the slide that I provide to you.
+6:27
+You should be able to gain a better picture. And if you still don't understand, try to give your comment in the forum, I will respond.
+6:37
+Maybe I am not 100% correct. After those undocumented.
+6:49
+OS internal magic. But that is the way for you to learn and how you're making use of AI to do your work in the future.
+6:57
+Okay, so everyone needs to use it. Uh, we need to take a bold step to step outside our comfort zone or knowledge.
+7:06
+We need to make sure that I just revamped my windows internal slide, whole deck, or slide by using AI for 20, 27 and 28.
+7:19
+So it will be much, much more difficult for next class.
+7:31
+I saw one of you last year attend my class and track my class, and then come back to my class this year.
+7:36
+You are lucky because this we are still human.
+7:42
+Mainly to do the slide that makes your students hope they are not joining the class.
+7:47
+Um, I think everyone stay here.
+7:56
+I suppose you are already in my class.
+8:00
+You cannot drop the class. You better pay more attention to make sure you have the VM to run all the, um, all the, um, demo by yourself at home.
+8:04
+So this year, we today we are going to revisit the polynomial thing and by using db dba.
+8:18
+But I won't show this to you. You you can do it at home.
+8:28
+Okay. Promise me. This is important. Okay. If you have difficulty in understanding these two problem study and after two weeks later.
+8:32
+Because I need to travel. so I need to rearrange the time.
+8:46
+You can ask me either through the forum. I try to explain to you if I cannot tell you of any explanation.
+8:50
+I will try to recut one video,
+8:59
+put it into YouTube so that you can you can learn the my way of understanding of the transition from user mode to DynamoDB.
+9:01
+So, you know, I'm giving you some hints, right? The best way is participate in the forum.
+9:12
+Ask questions. Don't be shy. If you shine, you don't participate.
+9:20
+I don't know your knowledge. I don't know how to help you. Okay. Promise me.
+9:25
+So I promise you can get a good or at least task example in my class for this year.
+9:30
+Otherwise you need to retake the class next year. It is totally different.
+9:38
+Okay. So um, that is for the, uh, introduction.
+9:44
+I think last time we stopped at this slide.
+11:10
+Right. Am I correct? Any any question on the last last lecture?
+11:13
+You can ask questions by using the mic. I can hear better if you need to.
+11:23
+No question. May I ask why? How this address coming out.
+11:30
+How can I Find the kernel.
+11:41
+User share data. Don't remember right.
+11:44
+Oh, by the way. Can you watch the video that I captured?
+11:55
+Okay. Thank you. So let me show you this again.
+12:01
+This is also important. Today's everything is important. Basically.
+12:05
+So last lecture we mentioned we have to use the debugger try to the local kernel debugging.
+12:53
+Uh and then we try to find the one of the needle dock that is native API function.
+13:01
+Uh, I remember last time I showed you which file that the slide is referring to.
+13:10
+Query file. Basically, they're the same.
+13:16
+Um, the notepad tried to create a file and then call the kernel 32, right, by calling the function name called query file.
+13:18
+And then kernel 32 DLL will call the native API the needle with the function name called mnt query file.
+13:30
+So the command that I'm showing you is try to.
+13:44
+Try to examine to find any symbol with the needle with grave file.
+13:48
+Then after that I call another function called UDF means an function,
+13:58
+which means that this disassembly the function to give you the code and then show you the code at the show.
+14:03
+After showing the code, you will find something, uh, some formula.
+14:13
+Some some reference is called the user kernel data, starting at the address of uh 740308 in the debugger.
+14:18
+And by checking that function, you will find the function is plus three zero 8 or -3 308.
+14:33
+Then you can calculate this address by checking this address.
+14:43
+You will find the contents of the um of the result.
+14:49
+But this example may not be referring to the version that we are using.
+14:54
+So it shows phi zero. So let me now go to the kernel local kernel debugging by using the green debugger again.
+15:00
+Let me repeat again you. The first time you make sure your VM is connect to the internet.
+15:12
+This time um, I have two interface.
+15:20
+Both of them, uh uh, connect one of them, connect to my Mac.
+15:26
+So make sure I can connect to internet first because my debugger needs to download the relevant sample from the Microsoft Sample server.
+15:31
+So let me start. The kernel local kernel debugging by using window debugger and see if I have the icon.
+15:44
+I need to make sure I can enlarge the screen because Ken last lecture won me that.
+15:55
+Maybe you guys cannot see everything. So I turn on one function calls submit by Ctrl key thing Ctrl one.
+16:07
+I can enlarge my screen like this.
+16:18
+You remember this, right? So this is not integrated with the debugger but only for the lecture purpose.
+16:24
+So now what I have to do is turn on local kernel debugging.
+16:32
+Select local. Then I should have the screen running like this.
+16:39
+Now the first command I need to type is make sure I can.
+16:46
+My window debugger can connect. Internet goes to the Microsoft Windows Server.
+16:51
+So I type one command doc command we call reload. After I type reload.
+16:57
+You will see that this thing will come out. It will load.
+17:04
+Try to load the kernel symbol. Easy.
+17:10
+It should be fast. If there is some problem. Oh, it seems everything is okay.
+17:19
+I can load all of this. And actually, you may ask.
+17:26
+And I show you last time. actually the simple tap download from Microsoft.
+17:31
+Um symbol server will be installed at here.
+17:39
+If you see if I type a file in Kevin debugger.
+17:43
+When debug I need to find the symbol, the function name by download the symbol from Microsoft Symbol Server.
+17:50
+Okay, so let me try to retype this command and you can see what's going on.
+18:00
+So LXD is local kernel debugger. So x means examine nt dl exclamation mark wildcard character without.
+18:10
+This time last week I'm using this file. You will see something coming.
+18:22
+Coming out. One is a file with n prefix and other is set w prefix, but you will see that both of them are at the same address.
+18:27
+This is the reason why I said Nptel is an interface.
+18:46
+One side Nptel is facing to the user mode the z w facing the kernel mode, but they are not the real code.
+18:51
+We are not really calling the kernel code directly, it just has some pointer, some reference to point to a table based on the table.
+19:04
+You will be able to find out the actual code inside the kernel.
+19:17
+Actually, the kernel code of this query file lies in one binary we call the OS and kernel.
+19:22
+I think so. This is one thing I want to explain to you.
+19:33
+The second thing is my question is if an assembly this function, this n t is take out from here.
+19:38
+If I type z w to replace n t.
+19:47
+Basically they will show you the same assembly code or the instruction code.
+19:53
+So let me try to disassemble this code.
+19:58
+Now you see the contents right here. Only a few lines of instruction code right here.
+20:10
+Okay. Um, the first one. Basically the first one.
+20:16
+This is the symbol that I can resolve by referring the symbol file.
+20:21
+And you will find the first instruction is Moving house.
+20:26
+Register to contents to the Allerton Register.
+20:30
+This is not important. This one is important. That is one value.
+20:35
+Five. Five has the decimal five five. Moving to e x register.
+20:41
+What is e x? What is the basically are in 32 bit environment.
+20:46
+The CPU register is called E whatever.
+20:52
+E a x d a x register with e is 32 bit.
+20:59
+But when you're referring to the same register in the 16 bit 16 four bit environment, you will you will see that that is L ax l x is 64 bit.
+21:03
+Then we chop in between, separate them.
+21:21
+The lower part is called e x And then you chop that is x that is called a x.
+21:25
+Okay. So you will see the method is like that.
+21:33
+This five five is relevant. Then I will explain later to you.
+21:37
+But first first of all I would like to explain to you all of them.
+21:42
+We will do something. Last lecture we mentioned that is a test instruction right here.
+21:46
+That means compare compare some bite a pie pointer.
+21:52
+The pie pointer is located at this address 308.
+21:58
+Right. Compare this five pointer where this three x is equal to one or not equal to one.
+22:02
+One is here. So the address that I mentioned is 308 with the exact location but that the shared data user data symbol is plus 308,
+22:15
+then that means the location of shared user data actually lies in the kernel location of x zero, and then 740000 because it plus 308.
+22:32
+To equal this this output. So you can solve this problem.
+22:49
+Okay. This one is not the offset. Three zero is not correct.
+22:58
+Should be three eight. I will make a change and upload my today's slide again in the Moodle so that you can get updated copy.
+23:03
+So and this two five is not correct. Actually we in our example is five five right.
+23:14
+25I mix up because I, when I, when I test the 32 bit environment in XP windows XP, the number is two, five, two.
+23:22
+Here you can see that it's push. Push is pushing or it doesn't work right here.
+23:35
+It's moving the two five to the register.
+23:46
+When the updated version in Windows 10, it puts five five to the EA expected before making the comparison.
+23:51
+After the comparison, if there is two, either equal to two, either equal to the six, enter or interrupt to e in this.
+24:00
+In our example, for example, right here you will see if once it compare testing means compare the value pointer with one.
+24:13
+If two. If not equal.
+24:23
+Not equal to. If. Branching to cease or interrupt.
+24:28
+Interrupt. To e h means hexadecimal. So this is a branching right here.
+24:35
+Okay so last lecture we showed this.
+24:44
+And also the um when you go home try to using your AI agent and put my problem inside.
+24:47
+You will find some more in detailed explanation about how the, um,
+24:56
+transition from one location to from from the user mode to the normal AI will give you more details how the CPU handle the center.
+25:01
+Okay, but I'm not covering in my slide. I checked the Google Gemini and also chat with eth0,
+25:16
+and so you can try to deep seat on whatever new new AI model to see whether you get the same content.
+25:26
+Okay, so I won't spend too much time to give the explanation about this part.
+25:38
+So based on this and you will find the two version of the system, and then based on dumping the content,
+25:46
+you will for, for example this one, if I find the system call oh x is equal to zero.
+25:59
+That means it will go to interrupt two instead of one.
+26:07
+If that is one, then it will. It will go to a six enter.
+26:11
+So it depends on what application you are referring to. Now we come to another concept.
+26:18
+I also ask the same question in the prompt, so go home to reread them.
+26:26
+I do have a question in the past usually what is the system surface description table and we don't know the center operate.
+26:34
+We download the interrupt to A to operate because that is the code inside the Intel CPU.
+26:44
+However, it must be doing something other the other than the changing from user mode to the kernel mode and the code.
+26:54
+The program needs to be executed. Need to find the real code.
+27:03
+Where is the code? Where is the file code to be executed?
+27:07
+I mentioned in the early beginning of the class that actually there is a table called Street that is.
+27:12
+Now we are talking about the SCT.
+27:20
+After this score, it goes to the, um, the goes inside to the colonel, and the colonel will find a table that is basically that there are four tables.
+27:23
+One of the tables we use most often is called the K surface table, based on based on the k surface table.
+27:38
+We will be able to find maximum of 4069 entries.
+27:48
+That is the maximum capability of the table inside the Colonel.
+27:53
+And but we are not having that, um, Colonel, uh, API, uh, inside the SSD yet.
+27:58
+Uh, we I think the latest one is 300 something, um, a function, uh, pointer contained in this table and you will see this number one here.
+28:09
+One two and three four. At first I will think that if the EAX register five five, push into the x register by checking the AI engine.
+28:21
+AI engine told me that that EA extract content will be assessed by the kernel process to find to grab the five five in Windows 10 two five in the XP.
+28:37
+Also for the function of create file, but if it grabs the five five, should I refer to 555 the number five five to get the function call query file?
+28:53
+That is my question. What is your will?
+29:06
+Because we are checking something that is undocumented by Microsoft.
+29:12
+We are already a hacker. We try to find out something not properly told us.
+29:17
+Then next slide is important. Don't forget I get this secret.
+29:29
+Formula is from one of the website for the web team.
+29:36
+Uh, a poster.
+29:41
+Um, then I get this information from them for the hacker.
+29:46
+So you can go to if you want to do the red team exercise, learn the hacking, go to this red team node.
+29:51
+But it just tells you how to do that. It won't explain too much.
+29:58
+So I want to understand the deep inside logic in the window kernel.
+30:03
+So I draw this table. I think eight years ago, I tried to find out.
+30:10
+Make it more clear. So actually in the past, I make it more interactive.
+30:16
+But now I just have one slide. So either we call the internet interrupt 3 or 6 enter.
+30:22
+We go to find a kernel system surface based.
+30:30
+Here we have for table for access to system surface description table.
+30:37
+But two of them are important. One is referring the number one for an OS kernel X another point to Win32 k dot six.
+30:44
+If you still remember the last lecture I mentioned, one thing I show you one XP diagram here.
+30:56
+See if I can go back to that slide here.
+31:05
+That is Karma's work. So every deal system deal will assess the NTL deal to make the call.
+31:12
+And then after the call, the transaction either go by two mechanisms.
+31:21
+One is legacy interrupta and the modern one is CS.
+31:27
+Enter. This code applies in the Intel CPU and then go into the kernel.
+31:32
+So the two of them are not passing through the needle that pass through the Win32 cases.
+31:37
+So you will see that actually from the table that I'm referring to.
+31:48
+That is two table. Depends on what the way it goes into the kernel to check the SST.
+31:58
+The street. Don't forget. S s t only a reference table to reference the n location or the pointer to the annotation on a particular driver.
+32:09
+To find out the actual code. So if you are if if you are calling the red file or white file it passing through the entity doc.
+32:25
+Also, it refers to table one by table one.
+32:37
+It will find the number and find some argument to call the final function inside one of the binary lines in your kernel,
+32:41
+which is read by the operating system window operating system.
+32:53
+When it put up its first low, the kernel port, the kernel for holding the actual code of create file or read file.
+32:58
+lies in the anti OS kernel. But this anti OS kernel X will not have an export.
+33:10
+It won't tell you the simple function so that you don't know how to call.
+33:18
+So the previous reverse engineer they find out oh I used by using the debugger.
+33:23
+I find it pulls five five into the eight register and the kernel.
+33:32
+There is some piece of code. Try to read the kernel surface to pointing to the SSD number one, because it is passing through the needle,
+33:39
+and compare the five file to find the final location of the actual cracker.
+33:48
+Okay, so how do we find that? Here is one of the example you need to see Um, and practice at home.
+33:58
+Understand? Again, if you don't understand.
+34:09
+Don't worry. Watch this video again. I will skip the most important part and let you enjoy how to use an AI.
+34:14
+Because in the AI second problem, I ask a question to the AI.
+34:22
+Does it this 55 relate it to the SST and how we use it.
+34:28
+But I did not did not show you. I did not ask the AI to tell me how to find this location, but I will show you in the car.
+34:35
+By combining my lecture slide and the AI you, you should be able to get a full picture.
+34:45
+So go home to practice. Ask your question. Ask question to yourself when reading my.
+34:54
+When you are watching my video and reading the AI generated answer okay, that is the best way for you to learn.
+35:02
+Okay. Any problem? I want to ask.
+35:10
+This is the input by the fiscal dimension in question.
+35:20
+Since enter is invoked by the function call in the entity LTL.
+35:26
+So it's not this call. It shows versus this is call.
+35:32
+Yeah. This is call center is the the name of the Cisco Cisco.
+35:39
+Uh, in using in the Linux and environment or Unix environment they call the Cisco.
+35:45
+But in windows environment they call the center.
+35:52
+But they are the same function. You can just treat that system.
+35:57
+You can treat that, press enter or into a two disc two mechanism.
+36:02
+Same as Cisco in Unix or Linux. Is that okay?
+36:11
+Any other. So let us to do the, um, showing you the content of the SST.
+36:19
+So I have no metric. I can't remember everything, but I will explain to you by using the debugger.
+36:32
+Okay. DT means display type. You remember last time we showed the display type dt the E process structure.
+36:43
+If I provide the correct base address of that um process, it will show you the content.
+36:52
+Everything at the last of the, uh, in the in the video.
+36:59
+At the end of the video. I try to check one of the function.
+37:05
+One of the pulses running. And then I ask you to check the create time and exit time.
+37:09
+And then I assume the exit time should be zero because it's still running, but I accidentally call the PID process.
+37:14
+Then I can find the exit time in the Epos structure.
+37:24
+So HT means display type. If you just type dt.
+37:29
+The symbol of E process, you just have the structure you don't have.
+37:37
+Fail. If you provide the relevant base address of a particular process, it will show the process value under this structure.
+37:42
+So I try to try to find out.
+37:52
+Are there any entity description table. Because I don't know the empty table.
+37:56
+So I typed an exclamation mark.
+38:00
+Wildcard character descriptor table V means variables show you more content.
+38:04
+Now I have for table coming out with this with the content of description table.
+38:17
+One is tall. One is a table filter.
+38:25
+But I would like to check this to one is shadow. And now that is the table that I want to use.
+38:30
+So let me show this table um, by checking the um one of the function right here.
+38:37
+Uh, let me explain this. N k l n l l m p.
+38:48
+Actually, basically that is the original symbol, But actually referring to the code is the anti OS kernel.
+38:55
+So let me try to. This type with the empty.
+39:03
+Um I save my time. I just copy it.
+39:09
+And paste it. And then I type the um also with the wildcard character.
+39:15
+Do I. I just type l4.
+39:24
+L4 means list for entry, not found.
+39:32
+So I need to follow the instruction directory.
+39:37
+Description table. I think.
+39:50
+It will be the same. Actually, I don't know why, but basically they are the same.
+40:27
+I don't need to retype this, this line. And then I try to use another command to display the content.
+40:33
+And you will see the copy is referring to the antique.
+40:51
+Antique surface table. That is the slide that I showed you previously.
+40:56
+That is this table. I want to see the content of this table.
+41:07
+So I type this to show you the content of this table.
+41:25
+I finish the piece. If you want to know what CPS go to here.
+41:30
+And then do a search. It will show you to this page.
+41:38
+What is CPS? It will explain to you inside here.
+41:45
+DS command displays the pointer size value followed by.
+41:50
+To or depending on the target for pi means 32 bit eight by means 64 bit.
+41:58
+It just shows you the content. Okay, so you will find that for this eight by to come out with two symbol right here.
+42:07
+Now let me go to another step. We try to find the content.
+42:18
+When we find this L4, and we find this is one of the value right here, we just forget this.
+42:25
+If I type the DCL by CL means the column the anti decay surface table.
+42:33
+This eg record. Or I skip this.
+42:40
+Actually one thing important why I want to check 1D0.
+42:47
+Here you find 1D zero right here. Okay.
+42:52
+This 1D0. What does that mean? So I use the format command dot format command with S1D0.
+42:58
+It gives you a number actually that for decimal that is 464 entries in this table.
+43:08
+This function table right now if you go back to Windows 8 or windows XP, the number is much less.
+43:16
+Actually it's version of windows kernel.
+43:25
+Actually, each version of windows, each a different patch, will affect the number of the kernel function to be used by the Microsoft operating system.
+43:28
+You don't use it directly,
+43:42
+but we try to take it down to study how the kernel of our current version by using the wind debugger to by to check what's going on in to this.
+43:44
+So we type dd uh, also the displayed um, the content, and then we see what's inside the C1.
+43:58
+Uh, what was inside the K surface table C1 key F surface table L means list entry.
+44:09
+What? So you only have this.
+44:23
+You don't know. What is it that's a problem.
+44:32
+You remember? Uh, I want to see, uh, something.
+44:38
+Uh, either I want to see a address to reference to a particular structure.
+44:43
+I will type dt. For example e pulse structure, underscore E pulse structure with the symbol with the base address.
+44:49
+So I can find the content of that E pulse structure.
+44:59
+But this one is different. This is a function.
+45:03
+A function name is called. This is not a data type.
+45:07
+So I'm using I try to using this to pointing to an address and this address.
+45:12
+How about. Try the first one. The first entry.
+45:18
+The first location is like this. 2942820.
+45:24
+If I try to use an function key surface table plus this address.
+45:31
+And then y3 arrow and then fall.
+45:53
+I will explain to you later on. Actually, four years ago, I don't know what.
+45:58
+What is this? Um, for creative design.
+46:04
+And then before now I can explain to you. What can you see?
+46:09
+And function means I disassembly. First of all, you see one, the one of them the function name.
+46:18
+And to accept coordinate port. Okay.
+46:28
+This is the actual code inside the kernel, which is pointing to the actual code of the function in the kernel core nt,
+46:33
+except connect port Obviously it's related with the sock.
+46:44
+Um, uh, internet connection. Right? Or network connection?
+46:50
+Right. But still, I want to find one important thing.
+46:54
+What is the five? Five? I want to find the creative file code.
+46:59
+If I were the one piece of code inside the kernel, I know the mechanism.
+47:04
+I know that nt. When we call the NT creative file, someone will put the five files into a register.
+47:12
+Now I'm running inside the kernel. I grab the file file.
+47:23
+How can I use this way to identify what is the actual point of the code inside the OS kernel?
+47:27
+Yes. So I struggle.
+47:37
+What is the Why I need to use four, because when I when I read the red team note, it also showed me this formula.
+47:43
+So later on actually I find out you can go home to read the notes that I provide in the slide.
+47:54
+And basically it is referring to three four points.
+48:01
+Actually some kind of magic inside these two, referring to the um, the psst pointer.
+48:04
+It will not directly using the five five to using the five five to find out record,
+48:12
+because actually every four pi is using not a bye to using uh as the 64 bit environment.
+48:18
+We need to shift four bit to find out.
+48:30
+So you just remember you if you don't want to understand two deep in the calculation, you just need to know the point inside this table.
+48:33
+You need to chunk cut the chunk 164 bit.
+48:46
+Cut into two. You just using 432 bit to move into another.
+48:52
+Another location to find out the actual pointer location so it's difficult to understand.
+48:57
+Now how about we we do something we do to use the five five to put the formula.
+49:06
+Almost the same. Then we are not by.
+49:13
+Do I need to use pi? Okay, let me try this one.
+49:19
+See if I can find 95. I think the pie is not correct.
+49:32
+Is it? Okay.
+49:46
+I will find out the actual command later on during the break.
+50:07
+Or actually, I did today. This morning I successfully defined by putting the right five five times for and then go back
+50:14
+to four bit to in order to find out the actual location or the scope of the query file.
+50:28
+What I want to demonstrate to you that is some kind of magic Algorithm used by the window kernel to making use of that number.
+50:35
+When the API call the nt dl dl, put one number.
+50:48
+The function number. Actually, we call the SSN number into the x register and the metric.
+50:54
+When you call the center, this center will execute a piece of code in this Intel CPU, and then the CPU code will find out the SST.
+51:04
+To check out the write table. In our case is table number one based on table number one.
+51:18
+The the piece of code will find the right location of the kernel surface table,
+51:26
+and based on the table to dump somehow it will find out the actual location in the memory loaded is the kernel driver.
+51:33
+So still, this is only a some kind of demonstration.
+51:44
+I want to show you how the sets enter code to perform the function to check the SST,
+51:49
+and then based on SST and the register number to find out the actual code in the anti OS kernel.
+51:56
+But my demonstration right here is failure.
+52:06
+Failure. I will show you later on again. Or you can go to using your AI to find out the actual command when you're using the wing debugger.
+52:11
+How to find the create file. Actually, I found the same way, but I did not post to you.
+52:21
+Maybe you can go home to practicing your knowledge how to use AI to ask the right question.
+52:29
+Okay, I will capture the video again and show you later on.
+52:38
+But other than that, this is the content you need to know.
+52:43
+But, um, this, um, in the slide, I only show you the first function.
+52:48
+The first function is called, um, the um, entry, except connect port other than ring debugger.
+52:54
+Actually, I have already installed one tool on your virtual machine.
+53:05
+We don't need to follow my difficult procedures in using empty kernel to find out the answer.
+53:10
+Actually, you can go to ssh TV now we we already have ssh key will install on the virtual machine.
+53:19
+And number two is the NT accept that point.
+53:32
+Can you find out the NT file?
+53:39
+The answer is yes. You just look bad.
+53:44
+At first I think this is five five, but actually it's not. Um, maybe you can export everything.
+53:48
+And of course, I cannot do the search right here.
+53:55
+It's difficult to find the order function, but anyway, the content will be shown in your dynamic environment.
+53:58
+Okay, so once you watch my video that I upload later on or after I return home,
+54:06
+I will show you how to use the debugger to find the create file by making use of the x register.
+54:16
+Okay, so the whole concept I want to demonstrate to you is how what is the metric from the kernel mode to the user mode,
+54:24
+and by changing the location from transition from the user mode to kernel mode is passing through the needle toggle and TTL toggle will have two.
+54:35
+Phase one is empty and the other is set Z w.
+54:51
+They point to the same location, then you finish, but before you finish, it will push one special value.
+54:55
+The value depends on which version of window which function you call.
+55:03
+In our example, query file is five five. Based on that, then there's some magic showing inside the SST.
+55:09
+This shows the exact concept five five is pushed from register.
+55:22
+We will be pushed to a register. When you call create file and the kernel code will read this file and check SST one to find the SST location,
+55:28
+and then by changing four bit and some actual value.
+55:43
+In our example NT port that is two a whatever, and then find out the actual location of the function inside the nt os kernel x.
+55:47
+It's difficult to understand. The only way is you practice by typing this command or after I finish this you will see.
+56:04
+Actually you can see the create file. And here is I try to explain the what is the meaning of the command right here.
+56:12
+See one min meaning one column L eight means list eight quad keyword.
+56:22
+And then you means an assembly. This for is a bitwise arithmetic right shift by four bit shifting out of the lower four bits.
+56:29
+I just read this to you, so you need to understand how to do the calculate to change into your computer major.
+56:41
+So that is what I can show you in the lecture.
+56:51
+So um, yes, I think I capture one of the slides this morning instead of using this five, five or uh,
+56:59
+uh, I just type in five five by we found this table by referring five, five times for this one.
+57:11
+Then I can find this antiquated file, but not the same command that I showed you.
+57:19
+I want to show you. So that is the way how to find this value.
+57:25
+Actually, the point is, how can we find this value five five times for this one?
+57:32
+And then we can find this value after typing this command.
+57:38
+Or maybe I can show you on my existing one debugger.
+57:44
+See one means column empty exclamation mark key.
+57:51
+Surface table plus. 0X5.
+57:55
+Five times for this one.
+58:05
+And I got this till seven.
+58:14
+The same as per my slide. And based on this then see if I can function empty with this address.
+58:18
+By using this address with four pitch shift.
+58:31
+Then you can find the actual code of entry file.
+58:37
+Okay, so I remember, uh, last lecture I tried to show you the result.
+58:43
+The result is post 2.5. Then how about we try to use the input?
+58:49
+Did something wrong? What? Oh, I let the plus sign.
+58:54
+Now we can find the entry file. Okay, actually, I can combine these two.
+59:10
+I want to combine these two command into one when I put into the slide.
+59:16
+So if what if I try to use two five.
+59:21
+See if I can find the right file. You'll follow my logic, right?
+59:25
+So I am lazy. I just make sure I can.
+59:29
+Okay, so I just using the arrow key and change two five to change five 5 to 2 five.
+59:33
+Then I find another address. Place this address. I also lazy go back to this one with plus sign right?
+59:43
+I changed the address shifting four bit. Oh it is not the result.
+59:55
+It is another function called empty in format in fact.
+1:00:03
+Okay, so let me give you one exercise.
+1:00:10
+You go home, try to follow the slide.
+1:00:14
+But this for your example follow this slide.
+1:00:18
+Go home. Try to try to find the.
+1:00:22
+Um. Not just one. Try to find the right file.
+1:00:30
+See what number is pushing from, uh, to the EAX register, and then using that number to follow the footstep that I show you.
+1:00:41
+If you have another number from which file, just type this command in the debugger and try to find out the address based on the address,
+1:01:02
+the assembly, this function plus this address three four bit.
+1:01:13
+And then you supposed to be able to find and read file actual code location.
+1:01:18
+Okay, so go home to practice. What I'm doing wrong in the class doesn't mean you will be wrong.
+1:01:26
+You need to figure it out.
+1:01:33
+Okay, so you understand the logic how the kernel performing function to identify the actual location by referring to a table.
+1:01:35
+That table is called SST and that is for SST.
+1:01:46
+Table only two first two is used, one is used by NTT LTL, another is used by the Win32 dock states based on that table,
+1:01:51
+with the transition from CIS before the center pushing the conclusion um,
+1:02:04
+the one of the number to the register x register,
+1:02:11
+and then you can use this registered under the window debugger to locate the actual location inside different functions.
+1:02:18
+So go back to our user mode to kernel mode things. So I try to show you by this diagram.
+1:02:32
+The red line is the user user code. Um below that this kernel code.
+1:02:40
+So uh any application developed. Uh, at the end, somehow you will call the system library, uh, based on system library, DL library.
+1:02:45
+And we'll call the entity DL. Most of them call the entity DL.
+1:02:56
+And doing these things, the entity will transition to the executive to perform the function that I showed you before.
+1:03:03
+But one exception. The exception is some um, there is two library that is related with the GUI interface.
+1:03:11
+Uh, we call it the GDI 32 and user 32.
+1:03:20
+DLL running in user mode and the transition to not passing through the entity LTL.
+1:03:24
+And actually they call it inside this to call the center and also pushing some registers inside this part.
+1:03:30
+The table is another table. Not the same table, not the same number one SSD table, but the SCD table.
+1:03:39
+Number two. When you refer to my chart that I show you.
+1:03:48
+Um, if you want to want to double check your your your information about the Win32 boxes, you can go to your window registry to find the location.
+1:03:56
+Uh, about this window, 32 boxes. Location.
+1:04:10
+Uh, but I don't see any changes since NT up to right now.
+1:04:15
+Even Windows 11, they are still using the.
+1:04:21
+Windows registry to locate Win32 cases.
+1:04:27
+So basically um, that is um, all layered OS, windows OS, uh framework and chat that you need to understand for the windows internal.
+1:04:34
+So some function is called subsystem subsystem, process function, cs, RSS, uh,
+1:04:53
+in the um in the forum, some of you ask a question about the Windows Subsystem Linux number one.
+1:05:01
+And number two. Uh, I mentioned that in the old days, windows do have three different versions of the system.
+1:05:12
+Currently we are only using Win32. In the old days, legacy data.
+1:05:20
+That is Po six which is used by Windows Linux Subsystem.
+1:05:25
+But the way to call the Windows Subsystem for Linux.
+1:05:31
+Number one and number two when compared with Po six.
+1:05:36
+All of them are different.
+1:05:40
+Basically they are using Docker or semi docker Docker in a container way to handle in the modern windows such as Windows 10.
+1:05:42
+So if you study that, if you want to drill down into know more about this, how this subsystem works,
+1:05:55
+you should read that portion originated by one of your classmates, and I provide some further information inside.
+1:06:04
+If you want to know, but I will not cover in um, my slide.
+1:06:13
+So, um, up to window ten. Actually, that is another way we call the Hyper-V hypervisor.
+1:06:18
+Uh, this hypervisor has been used by the Windows Subsystem for Linux.
+1:06:26
+In, uh, version one. Version two.
+1:06:32
+Now we only version two is using uh, version one, still using uh one process called pi pi code process to do the conversion or emulation.
+1:06:35
+But uh, Windows Subsystem for Linux running in Windows 10.
+1:06:45
+Uh, it is basically a full functional, uh, Docker container, but calling the Hyper-V hypervisor.
+1:06:50
+So we are not covered in too deep in this area.
+1:06:59
+So um, that is first part of today is really complicated.
+1:07:04
+So go home to practice the command. And also using your AI.
+1:07:11
+Trying to find two questions that I ask.
+1:07:18
+Highly related with the demonstration that I showed you in the first part of today's lecture.
+1:07:23
+So let us take a take a break for ten minutes.
+1:07:30
+So we come back for 830. So we, I hope, using half an hour to finish the remaining.
+1:07:34
+And then we go to the dynamic analysis and, and during the um, the two weeks break time,
+1:07:43
+actually you can start practicing how to play with the sample to do that one and up two by your own self first.
+1:07:52
+And then after some time later we shall have one full lap in, I think in October 21st, uh, Ken Ma will show you, uh, the one, lap two and three.
+1:08:01
+So. But before that, actually I want to push a little bit far faster so you can practice lap one, lap two after today's lecture.
+1:08:15
+So I have to finish the dynamic analysis in the class today.
+1:08:24
+Okay. Take ten minutes. Come back later.
+1:08:29
+Window processes. So basically, I mentioned in the past, when we go over the traditional OS, uh, introduction to operating system,
+1:08:39
+a program is static entity of the code, and the process is a, the, uh, running version of the code.
+1:08:51
+Uh, but I told you also another, uh, concept under the Microsoft, uh, operating system context.
+1:09:01
+Uh, they are using the concept of the processes or the process is the container meaning not exactly the version of virtualization container.
+1:09:10
+It is only some kind of, um, way to hold the structure, the content of some kind of resource,
+1:09:21
+a set of resources when executing an instance of the program.
+1:09:29
+So the concept is like that. So in the windows kernel, basically you can find the structure of that resources what we call the e process structure.
+1:09:34
+So um, each process uh each process in windows environment will have a PYD process ID and then at least one running flag running for the execution.
+1:09:46
+If no execution, that is no flag. Or maybe if you find multiple factors we call the multifaceted program.
+1:10:00
+So in each process in 60, 30, 32 bit environment, you will find that the maximum virtual address space,
+1:10:11
+the policies actually do not control the Ram or 4K in each process, but the windows operating system play a trick.
+1:10:23
+Assuming tell the I create an environment for you.
+1:10:36
+Your process. For example, your process is called notepad.
+1:10:40
+I create an environment for you. You assume you have four gig memory.
+1:10:44
+That part memory is called virtual memory, not the physical memory.
+1:10:49
+There is a lot of conversion, pointing, pointing of the information inside the kernel by hand, by the OS instead of the process.
+1:10:55
+So you just believe each process to have a 32 bit environment with you at four gigs.
+1:11:07
+So for the window or for the program, each process to have a program.
+1:11:13
+The program code and data is mapped. We are using the term map to into the process memory.
+1:11:20
+That means we load window of. The window loader will load the program, which is static code, into the virtual memory that belongs to that process.
+1:11:28
+And a list of open handle, which is a pointer, can point to other resources, resources inside the kernel or other objects into the in the kernel.
+1:11:41
+For example, a program want to read another program memory.
+1:11:57
+If that is permitted with sufficient privilege, the process needs to first create a handle on that process and to access the details.
+1:12:01
+So each process do have security context, just like the file system, the ACL SS controllers,
+1:12:12
+you can perform just like some kind of SS token that identifies the user security group prefetch capability,
+1:12:23
+uh, the user account control, visualization stage and section, etc., etc..
+1:12:32
+Uh section means one section. You can have multiple section, windows section and also each process do have some of the content.
+1:12:38
+Some of the environmental uh, data we call the PEB called the process environmental block.
+1:12:48
+Actually, uh, that can be exported to from the kernel to the user mode environment so that other processes can access the same information.
+1:12:58
+So 64 bit, uh, will have a larger size.
+1:13:10
+We I here I just point out seven five meaning that is the Total in the in-between separation between the user mode or kernel mode by default.
+1:13:13
+Now let me go to the kernel to see what happened to the in the process.
+1:13:25
+If I want to chat. Last week we showed you the exclamation mark process.
+1:13:32
+Zero zero exclamation mark process. Zero zero.
+1:13:39
+It needs some time to run, and by the time it's running, it shows you the information here.
+1:13:44
+Um, let me stop moving it and you will see the exit.
+1:13:51
+The sed means the process ID 208, and then PEB is the location.
+1:13:56
+You can see the PEB location. And also you see the parent Ssid means the parent ID or in the windows user environment.
+1:14:02
+Tools. We also referred to a process to have an ID we call the PYD.
+1:14:14
+The parent process creates the child process. The child process will have one piece of data called PYD pointing back to the parent.
+1:14:19
+Okay, so but inside the kernel we will use it.
+1:14:28
+We use sed or parent sed. And then of course we should have the process base address.
+1:14:33
+The base address is important. If we have base address we can find this whole structure inside the kernel.
+1:14:40
+Just like the other pointer table that we showed previously.
+1:14:47
+Now before we can go ahead we go to another slide.
+1:14:52
+Um, when we are using a tool last week, I show you a couple of tools that you can see.
+1:14:57
+The window process task manager is another one of them.
+1:15:03
+But I also show you the process and Process Explorer, basically in the um, uh,
+1:15:08
+if you turn on this screen capture you're using Process Explorer, you will find a couple of things that is quite interesting.
+1:15:14
+Some we call the registry process. The registry process is a architecture change introduced in the window to store some information about the hive,
+1:15:21
+that is registry registry highs and functions in memory.
+1:15:32
+Okay, something is showing the registry, but actually this is not actual process.
+1:15:37
+So the another another process we will be able to find individual time is the system idle process.
+1:15:43
+It is also not a real process. Why. Because we just want to see something that is uh, uh representing uh,
+1:15:55
+it is only representing the how the CPU consumed in the, uh, the kernel environment.
+1:16:04
+So, uh, it will have a standard PID equal to zero.
+1:16:10
+Okay. And it only has one threat. But actually, this is not one threat.
+1:16:15
+It is only a representation. It is not a real process.
+1:16:19
+Why? Because we don't we cannot find a possible structure inside the kernel.
+1:16:24
+Then we have the system process. The first process we are using called system is PID number four as standard.
+1:16:29
+Since in windows XP, I think windows 202 thousand.
+1:16:37
+Um, I think the older one windows me or whatever then uh, or windows NT, they are not.
+1:16:44
+Uh, windows NT may be PID equal to two. But nowadays you see any PID number four is standard used by the system process.
+1:16:50
+It represents everything going on inside the kernel space. It's also an, um, a not a formal, um, uh, process inside.
+1:17:00
+Then you will be able to find the Interrupts, which is a process, not the same process.
+1:17:10
+All of these we call the system process. Um, and then also sometimes you will be able to find memory compression.
+1:17:17
+Uh, it's introduced in the windows version. Windows 10 version 1607.
+1:17:26
+So let us go back to our VM. Now I finished everything.
+1:17:33
+Uh, I have MLT window.
+1:17:45
+Okay. With debugger, I start up the debugger right here.
+1:17:49
+So we debugger is itself is a user mode process.
+1:17:54
+Now I use this as an example to show you, uh, this debugger.
+1:17:58
+Now you see the debugger, the PID equal to, uh, A-5.
+1:18:04
+See? Then how can I find what is the human readable decimal number pad?
+1:18:11
+So I use format. A5 three equal to 2652.
+1:18:19
+Now I turn on the Process Explorer. You can also use the process set here that I will show this relationship.
+1:18:28
+I would like to use the Process Explorer. You will see all the processes that I mentioned previously.
+1:18:38
+Usually I don't concern anything above the window explorer.
+1:18:46
+Anything. I am not really concerned at this moment, but I can see my window debugger here.
+1:18:59
+Okay, so what is the PYD? 2652.
+1:19:06
+right? Same as the Colonel.
+1:19:10
+But I cannot find the base address by the window, by the Process Explorer.
+1:19:15
+But I can find more detailed information inside the Colonel.
+1:19:24
+Now, if I want to see more about the PDB, I can click this PDB to find it out.
+1:19:30
+But I want to find the port. Well the I want to copy this address because I want to see the data structure inside the kernel.
+1:19:39
+That is only a set of resources pointer. It do not contain the CPU information which is not running version of the program.
+1:19:52
+A thread may contain CPU register information.
+1:20:04
+Now I type the a t e process without address.
+1:20:08
+You will see that is total totally from the base to the X5X50 of the structure with the information.
+1:20:14
+Of course you will see last time we see the query time and and the exit time.
+1:20:26
+I will show you again. Now you see the p, PCP and a lot of the data structure inside.
+1:20:34
+You will be able to find the um. Let's see.
+1:20:42
+I can find the time. That way time at the offset of 308.
+1:20:46
+Interesting. Just like the k kernel location.
+1:20:56
+And I can, I suppose, be able to find the PDB.
+1:21:01
+F fi f eight. Maybe you can remember this.
+1:21:10
+And then we might notify me later on. And I can also find one item.
+1:21:14
+Usually I use this for my reference image file name at 450.
+1:21:19
+Okay. So later on I can find the exact time.
+1:21:28
+Now let me try to paste the base address to my TT e pulse rate structure.
+1:21:32
+Now you will be referring the structure mapping the structure to the content of the value.
+1:21:43
+Now let us first go back to the top 450.
+1:21:50
+What is 450450 is image file name.
+1:21:54
+Now it shows within debugger. Correct.
+1:21:59
+Right. If you put another base address on the of the post structure.
+1:22:03
+It will show you different process name. So by this we can find the information.
+1:22:12
+I'm correctly mapping the Epos structure to the ring debugging process.
+1:22:17
+If you find garbage right here that means your address is wrong.
+1:22:23
+Okay, so one thing like this I want to double check the process startup time.
+1:22:29
+Uh, what is the time for these 8308 query time?
+1:22:38
+So I have a value right here. Same if I using the dot format to translate it back to the actual time.
+1:22:45
+When I start up this process, I start up this process today.
+1:22:57
+7:00 7:00 and 29 minutes.
+1:23:02
+So I started up this puzzle structure today. This process is called windbag.
+1:23:10
+So can I find the extra time today? Make sure.
+1:23:17
+That zero because I'm still having this process running. Now exit time at four.
+1:23:24
+Offset four nine. Zero is zero. Why?
+1:23:35
+Because it is running. This is the only structure that we can be able to find in the kernel.
+1:23:40
+Basically, in kernel memory, every time when I kill this process and restart it again.
+1:23:50
+The password structure will put in other empty location. So that is one way I check the content of impulse structure.
+1:23:57
+So this is the second slide.
+1:24:06
+You can use Process Explorer or PS list to find the process.
+1:24:10
+Exclamation mark pauses zero zero. Show the inside the local kernel debugger.
+1:24:16
+You can also use in the PowerShell to show what process is running in the system.
+1:24:22
+Why? I need to mention this because something related with two part one part is you need to identify are there any malicious program running?
+1:24:29
+Don't only rely on the image file name right.
+1:24:38
+You need to check some other things. See whether the coke is inside is running.
+1:24:43
+There is one thing you need to know. And the second thing is everything.
+1:24:47
+When malware or if malware had been encoded or packaged, it needs to be unpacked itself inside the memory by traditional way of learning,
+1:24:52
+except for the advancement where such a cobalt stripe, they may still have encoded part of the code inside running the memory.
+1:25:08
+And just like a time bomb, it will end up inside the memory again to execute and then go back to the encrypted
+1:25:15
+environment so that it creates difficulty for any antivirus EDL to detect its existence.
+1:25:25
+But the normal malware that you are going to handle in my class, everything running in the memory is in clear text,
+1:25:32
+so you can check something in the memory to identify whether it is malware or not.
+1:25:40
+Malware. And also another part I mentioned I take away from that part we call the memory forensics.
+1:25:45
+You see, one thing interesting right here I have the process if I want to see the impulse structure.
+1:25:53
+Of the wind debugger. I have already have the memory right here.
+1:26:02
+And check the six something I can find. The exact time is zero.
+1:26:07
+What if I terminate the process here?
+1:26:12
+The debugger. Oh, if I turn on turn off debugger, I cannot find it again.
+1:26:18
+Let me do one thing. I go to start up a notepad.
+1:26:24
+But I don't know its base address.
+1:26:35
+I need to retype it again. So we come back to this demo and show you.
+1:26:39
+Later. We go back to slide first. So when I process creation, when I have a process to be created in windows environment,
+1:26:45
+basically it is startup by the window system or your command point or you YouTuber and icon.
+1:26:53
+So we start up a process. So the process to have some relationship when you double click it.
+1:26:59
+Basically it will start into the process. Start with one initial flat sum.
+1:27:05
+Uh, this chart shows the what the um, window kernel do or uh, or the window load perform.
+1:27:11
+When process we will open the image file. That means the binary the notepad xy um and then create an initialize the kernel object.
+1:27:20
+That is create an epoch structure and then allow some other initialized kernel thread running on inside the object,
+1:27:31
+and then map the image to entity, and then notify when the user process called CSS of the new process is executed and then new process will start.
+1:27:41
+We create, the PDB and PDB PDB is related with the process environmental part, and the TB is the thread environmental block.
+1:27:56
+Other processes will initialize and then load the required DLL used by the node fc in our example, and then execute.
+1:28:08
+Put the control of the first instruction code of the notepad at the entry point, and then let the process execute.
+1:28:18
+So that is what the process creation mechanism handled by kernel.
+1:28:27
+So in each process do have different resources.
+1:28:34
+Sharing model one is the parent and child share all resources.
+1:28:38
+They share the same thing. Another is the child share subset of parent resources.
+1:28:42
+The other thing is parent and child share no resource.
+1:28:49
+They totally separate. Okay.
+1:28:53
+So, um, parent and child, uh, do have a, uh, correlated uh, uh, information at least, uh, in child process will show the ID equal to the parent.
+1:28:56
+If I open the notepad by window explorer.
+1:29:09
+So the parent ID is the window explorer in the, um, structure of the notepad.
+1:29:13
+And the parents sometimes need. Wait. Uh, they set up, uh, some mechanism.
+1:29:21
+The parent may wait until the child terminates. It can terminate.
+1:29:29
+That is, uh, some kind of execution mode that we may we may enable if you want to see what happened.
+1:29:34
+For the empty gray process, you can, um, function that is disassembled inside the kernel debugger.
+1:29:43
+But I won't show it here because all of them are called the cog shows the diagram right here.
+1:29:51
+It is difficult for humans to read this code by your human eyes.
+1:29:58
+Now let me go back to the processing power to see the notepad.
+1:30:03
+So I have the notepad right here. So I have the notepad, the base address, the notepad sed means the pad is five d and the D1157C.
+1:30:09
+Now I have the window explorer. You see the notepad.
+1:30:23
+That is address 1488. If you translate this back to the decimal you will be able to find equal to 5D0.
+1:30:27
+Now let me first show you this notepad under the E power structure.
+1:30:39
+Now we go back to three 308 to find the time.
+1:30:50
+That is this, right? Let me show you.
+1:31:02
+What is the creation time? Just a few minutes ago.
+1:31:07
+We create by 2047, correct?
+1:31:14
+Right. For checking the image file name. See whether it is notepad.
+1:31:18
+Is a file something? Right? Where is the image?
+1:31:25
+File name. Image file name. 450.
+1:31:32
+Right. Yeah. It's notepad. So I'm in the right direction.
+1:31:38
+Then how about we check the extra time? The exit time is zero.
+1:31:43
+normal because it's random right now. Let us do one thing.
+1:31:50
+I kill this one. Processing power.
+1:31:55
+I don't say it. See, if I go back to the kernel to check the memory.
+1:32:00
+The processor structure still inside. Now, let me go back to see the structure for five zero.
+1:32:07
+See whether I can find the. 450 piece.
+1:32:18
+Notepad is still here inside the memory. This is only a temporary version.
+1:32:26
+If some other processes open, it will cover it up.
+1:32:33
+Overwrite it. But because I just shut it down.
+1:32:38
+Because my window environment is still so heavy. If I do a memory capture, and then I can find in the memory if I have some way.
+1:32:45
+I said, if I have some way, I dump the existing memory, then I can find a exit process even though I cannot find a live system.
+1:32:57
+The same thing happens if I open a network connection.
+1:33:12
+Network connection is a soft network connection, a soft object, a TCP IP and port object inside the kernel.
+1:33:17
+If I know the structure, if I capture the memory and a particular point of time,
+1:33:25
+if that structure is still residing in the memory, I may be able to find a system.
+1:33:32
+I process running connect sending a message to another IP address even though at the time I do the memory capture this process.
+1:33:41
+Already finished this process. This part number is not exact in the live system.
+1:33:54
+That kind of what we call the memory forensics.
+1:33:59
+This is the reason why sometimes if we do the memory forensic to to a good way, we can find something that you are not able to find in the system.
+1:34:04
+So that falls into the digital forensic domain.
+1:34:16
+Now let us check the exact time right for this structure.
+1:34:20
+It's still right here. So, um, exact time is right here.
+1:34:24
+Now, previously. It's nothing. Now, I do have access time.
+1:34:29
+Let me show you the exact time at today's 853, I terminate.
+1:34:33
+Okay. So you will see that by using, um, wind debugger, we can find a lot of something that we don't know by using windows for a long time,
+1:34:46
+because that is a magic thing that never been published by Microsoft who performed this.
+1:34:57
+A lot of researchers, a lot of we call the hacker or reverse engineering expert.
+1:35:05
+They, um, find out this information inside, Colonel.
+1:35:11
+Everything. Uh, never. I, uh, there's some talks of discussion about the window internal thing, but that is hard to read.
+1:35:16
+So I try to convert this concept and put some part of that.
+1:35:26
+Uh, put it into our model. Uh, I try to deliver to you within this window.
+1:35:32
+Internal slide. Uh, uh, for your understanding, uh, with a better understanding.
+1:35:39
+So go home. You can practice this process. Determination. I already showed you when the last step inside the process is finished.
+1:35:46
+And then the first the the flat will kill itself and the parent may receive a return.
+1:35:55
+Wait. And then the process resources d allocated. You will see that the allocate doesn't mean that the memory erased.
+1:36:02
+Okay, same as the digital forensics in hard disk media.
+1:36:14
+A lot of digital traditional 20 years ago.
+1:36:20
+Digital forensics. You need to capture the whole hard drive and then you try to bit by bit or bit by bit to read to back up the image.
+1:36:24
+And then you can use tool to find out, delete the file, recover it because it is not overwritten.
+1:36:36
+Even though it had been removed from the recycle bin. That is the digital forensic way.
+1:36:45
+But we are doing something in the memory. So memory capture will give you some more information.
+1:36:50
+When the time step process. Even though it is finished by uh.
+1:36:57
+Understand the concept like that. Of course. I said if someone has some way to do that, actually go back to 2013.
+1:37:02
+I attend one conference. Not really conference one training called memory forensic.
+1:37:11
+So five day training. I learned this kind of concept and map it into the window internal material for you to give you some introduction.
+1:37:15
+Everything I taught in my class is only give you a open door key for you to be trained yourself, to be a reverse engineer.
+1:37:25
+I just give you the key. I cannot deliver everything in ten lecture, But just give you an introduction.
+1:37:36
+So that is process termination. Let me ask you do one thing.
+1:37:44
+If you already have my window system, you can follow my exercise.
+1:37:49
+My question to you. Will a child process attach to the grandparent process under the process tree?
+1:37:55
+If the parent process is terminated, why?
+1:38:03
+No. Why?
+1:38:09
+Yes. Or I don't know.
+1:38:13
+Finally, you guys do have a little bit respond to me, I love that.
+1:38:18
+Okay. You need to ask yourself. Don't be shy.
+1:38:24
+Maybe you are correct. But before that, let me show you.
+1:38:29
+So you go home to somebody. Um, we go to.
+1:38:33
+We don't need the window debugger. Now, let me turn on one command on, uh, this command point.
+1:38:39
+Oh, let me turn on the Process Explorer so that you can see more clearly.
+1:38:48
+I can change this command point called Grand Grandparent.
+1:38:55
+Let me close this. Okay. Give me some time. Right click this.
+1:39:04
+Go to property. Now I can type title.
+1:39:08
+See it. You see grandparents right here right?
+1:39:18
+It's not real real function. But you see this screen is called grandparent.
+1:39:28
+Right. But is command still command under the, uh.
+1:39:34
+The process Explorer or under the kernel debugger. You don't see grandparent right here.
+1:39:43
+You just see Cohoes under the command. Okay. No worry.
+1:39:49
+Grandparent. Grandparent. Furniture.
+1:39:54
+Call parent, start cmd x okay.
+1:39:58
+Grandparent right here. Then I have parent I give a title to it.
+1:40:04
+I'll typo. Forget it. See if I can overwrite it.
+1:40:16
+Say something wrong, but still okay. You assume this is parent.
+1:40:24
+Uh, in incomplete parent, but incomplete parent can still have a child, right?
+1:40:29
+So we restart. Not child component.
+1:40:35
+So if you type start child, you won't spawn another child.
+1:40:42
+So I have a child. I have the title. Okay I have three generation right here.
+1:40:47
+I don't want to have four. So we go back to Process Explorer.
+1:40:56
+We see this grandparent this parent this is child.
+1:41:01
+Now I want to kill the parent. To give you an answer.
+1:41:07
+You see the kid is 4168. Of course you can do more additional study by turn on the wind,
+1:41:17
+but go together to run the exclamation mark process 0.0, and then let it run for a while and then find out.
+1:41:27
+grandparent parent. And then you see, once you cured what happened to the member.
+1:41:35
+This is exercise for you. But this is simple exercise. You can do it now.
+1:41:41
+Kill it by using Process Explorer. How should I kill it?
+1:41:46
+Should I kill the tree or kill the process?
+1:41:50
+Only if I kill the tree. The child will be killed.
+1:41:54
+I don't I don't want to do something for the kids.
+1:42:00
+I just want to kill the parent. So I kill process.
+1:42:06
+Okay. Go home to do your exercise and find out your answer.
+1:42:10
+Oh. Parent died. Oh, child is okay.
+1:42:19
+So go back to my question. If the parent pauses being killed, the child process will be adopted by grandparents.
+1:42:23
+That's in our normal human life, right?
+1:42:36
+The computer is different. You see, the child's go back, not to the grandparent.
+1:42:40
+It goes back to the explorer. Is that.
+1:42:50
+Why? Why you shake your head? Actually, this chart track you.
+1:42:56
+It just shows a track to you to show the parent child process, relationship, relationship by mapping the PYD and PYD.
+1:43:07
+It just shows you in the kernel. If you turn on the debugger to do the same exercise, when you kill the parent,
+1:43:18
+the child process will not update the ID, therefore it won't show you the tree to anyone.
+1:43:26
+Or maybe update to the explorer. So go home to do your exercise.
+1:43:34
+So you will see. Sometimes some tools show you some nice steps and the parent and child relationship only based on PID and PID.
+1:43:43
+Okay, I show you two tricks. Two things. One thing is if you kill the process, the processor should still be able.
+1:43:55
+Sometimes if that is not overwritten, you can find the contents right there and the extra time has been updated so that the allocation,
+1:44:05
+the word just the allocate open to other processes to be used that location.
+1:44:14
+But this content is still inside the kernel unless it is being overwritten.
+1:44:21
+Second is the tree relationship. In the process, you just have something to show you the trade structure.
+1:44:28
+It doesn't really have the real direct linkage of one person to another person, because most of the process we allow this, we are using.
+1:44:39
+The situation is not the resources to be controlled by the parent anymore.
+1:44:50
+It can totally independent. Okay. So that exercise will show you the relationship, how you do the type, the the check, the process relationship.
+1:44:58
+That is very important for we handle um, needle detection sometimes for example a traditional way we call the attack risk in the endpoint.
+1:45:12
+When we're using the modern, uh, detection on endpoint, uh, some tool we call the EDR, which is the endpoint detection and response tool.
+1:45:26
+Actually we use most of them is used by measuring the parent and the child relationship.
+1:45:39
+For example, if you see the notepad try to open another process.
+1:45:47
+It is not legitimate. Usually notepad will not query the process or it will not create another process.
+1:45:54
+If you turn on the task manager, you don't need advanced tool.
+1:46:03
+Our example you will be able to find them. Most of them are not hidden.
+1:46:09
+If you find this, you can guess there may be something wrong right there, unless in some way the right way to a cope injection.
+1:46:15
+Then it will inject a piece of scope inside a notepad, a notepad becoming the resource just like the zombie.
+1:46:26
+You need to know these tricks, but this is the basic thing.
+1:46:34
+Now let me ask you another question. Can we ask some posers?
+1:46:39
+Can we create a notepad? Under Elsa process Elsa process usually will not be a witch.
+1:46:49
+It is a process to handle the user authentication.
+1:46:56
+Can you form of under discussion?
+1:47:03
+For example, our tech tycoon in Hong Kong. You cannot write because.
+1:47:12
+Because we will not adopt you, right? But the pauses, we can add some pauses.
+1:47:18
+We can create a process to ask another process to adopt it.
+1:47:24
+So we use a tool that creates, by a short term what the program is called.
+1:47:28
+Select my parent. See if I think I already created a see if I parent inside somewhere.
+1:47:37
+Let me try to find it out in your VM.
+1:47:47
+Uh create process is under the basic.
+1:47:53
+Know behavior. Oh and that see that my parent.
+1:48:02
+Okay, let me see. Let my parent I go to, um, go to tools.
+1:48:10
+Okay. Go to tools city.
+1:48:19
+Behavior city. Select my parent.
+1:48:23
+Okay. I have the see that my parent inside the village.
+1:48:29
+Okay. A change to the directory control behavior.
+1:48:50
+See that? My parent village. You can find select my parent. Okay.
+1:48:54
+See if I can run the program. Uh, select my parent.
+1:48:59
+I download the command. I can't remember. It doesn't give me anything.
+1:49:06
+Okay. See that? My parents see if I type.
+1:49:13
+Nope. How can I type the command?
+1:49:16
+Okay, I. I show you right here.
+1:49:21
+Select my parent and then I create notepad under PID 66.
+1:49:25
+But I want to find the right parent.
+1:49:32
+I want to find the little thing inside my VM. Sorry, sorry cousin.
+1:49:36
+I mentioned name many times. Um, how about I want to.
+1:49:43
+This time I want another one. I don't want to detach anymore.
+1:49:50
+I want to follow CSS under the PID check for one second.
+1:49:54
+Is it okay? For one second.
+1:50:00
+Now I type no notepad for one second.
+1:50:06
+See where the notepad query denied. SS denial.
+1:50:14
+Okay, I have to find the thing then. Uh.
+1:50:22
+How is the process? I don't find the answer process. Okay.
+1:50:32
+Six. Six. Eight. Now I'm okay.
+1:50:52
+I do have sufficient permission as administrator. Actually, I can do it if I am in the security context of system or anti system, but I cannot.
+1:51:02
+I won't show you right here. I just have the administrator. Right?
+1:51:13
+I want to pawn my notepad under the discussion.
+1:51:17
+See whether. Yes. It's great.
+1:51:23
+I'm becoming rich. All of this is what happened in the select my parent or select or.
+1:51:28
+What's the name? Select my parent program.
+1:51:41
+Basically, it creates a handle to the Elsa process and then kickstart kickstart the notepad through this idea.
+1:51:43
+So it performs something like malware but it is not malware.
+1:51:56
+So you can hide your identity in somehow a malware can do something like this.
+1:52:02
+Okay, so so don't trust only the tool you need to understand how it starts up.
+1:52:07
+So go home to practice this interesting things, and then you can show it to uh,
+1:52:16
+in your if you're working environment to ask your sysadmin to, to to to to check that this is what you learn in the malware analysis.
+1:52:24
+Okay. Now we come to a very difficult part, but I will skim it through in a very fast paced, uh, structure.
+1:52:36
+I'll just show you in the memory in the, uh, this retina is in kernel memory, each of them randomly put inside the memory.
+1:52:45
+So inside each structured data structure, I show you the structure right here.
+1:52:53
+Uh, one of them we discussed in our windows system is for five zero.
+1:52:59
+Uh, is in, uh, image file name, but another version will be different location.
+1:53:05
+Okay. So it depends on which version window you are using, so you need to use vim debugger to find it out.
+1:53:09
+So if a structure is inside the kernel at offset zero means the base address.
+1:53:16
+If you provide the base address with the underscore password structure, you will find the impulse structure inside the kernel.
+1:53:22
+Your your version of kernel. And then the first bite you are pointing to.
+1:53:31
+Another structure called k process. I won't spend too much time on that, but we just need to know it's called TCB.
+1:53:36
+And then you can type a DT structure K plus structure.
+1:53:45
+You can find the structure of this diagram.
+1:53:50
+And also you will be able to find the PDB or you type the PDB uh exclamation mark PDB to show the content or you type tw nt exclamation mark.
+1:53:53
+And then with the address and then you if you type the exclamation process and then type the process name.
+1:54:05
+It will show you the processor address, so that is PDB.
+1:54:15
+The structure I show you in another way.
+1:54:21
+You cannot remember them, but you are encouraged to practice this to check what is inside in a particular process.
+1:54:25
+The best selection is you open a notepad and then you run exclamation process 0.0 inside the window debugger,
+1:54:34
+and then you find your notepad page address to type this command. And then you find interesting thing.
+1:54:43
+Everything highlighted in red is important for you to understand the basic thing.
+1:54:50
+And one very important thing we call the active process line.
+1:54:57
+This is the active process line. You remember the last lecture I mentioned the front pointer and the back pointer.
+1:55:00
+We call that mechanism. That is not a ray.
+1:55:07
+That is called the doubly linked list. Based on this, if the.
+1:55:11
+When you try to show what process is running, either the the process actor process explorer task manager, basically it will do one thing.
+1:55:17
+It will check the through the API to check the process structure, to find the active process,
+1:55:29
+link the first one and then find the first pointer to find another.
+1:55:34
+Another process that until a circle finish.
+1:55:38
+Then you will find all. The process here basically is called process enumeration.
+1:55:43
+If you have a method to take one inside the kernel take, we do the pointer for the for the.
+1:55:50
+If I have three processes A, b, and C if I can manipulate process is active process funding Not funding to be, but funding to see and then see.
+1:55:59
+Pointing back to the A then process B is still running but the broken.
+1:56:10
+And if you use the user mode tool, you don't find the process.
+1:56:18
+That is what we call a term called DXM or direct kernel object manipulation.
+1:56:24
+But I won't cover this in this year's lecture.
+1:56:30
+But you need to have something understand what happened in demon manipulation in the kernel.
+1:56:34
+So if malware can be a kernel malware, it's so magical you cannot detect whether you are using what kind of tool,
+1:56:41
+unless you have your tool to have a kernel module inside the kernel, because anything running inside can share the same privilege.
+1:56:53
+That is a lot of malware nowadays. They can sign.
+1:57:04
+They can perform something in the kernel. So most of the tool that we are using in our class cannot detect these advanced malware.
+1:57:10
+But you need to understand the concept. This is the reason why I said my classes only give you the key to understand the basics.
+1:57:20
+So learning windows internal is very important. I cannot provide you very detail.
+1:57:30
+Um, now we cover the flat flat design entity within the process.
+1:57:36
+You just think that it's a lightweight process, but it contains different kind of structure.
+1:57:40
+It will have the tip, just like the PID in process.
+1:57:46
+It contains a set of CPU register record, uh, EAX, EB, blah blah blah.
+1:57:49
+Or in our environment our a, x, p, x, something like that.
+1:57:57
+And each flat do have two steps. One step in user mode, one step in the kernel mode, and each step to have.
+1:58:04
+Each fact. You have a special memory area.
+1:58:12
+We call the TLS thread local storage.
+1:58:16
+When the process finishes, t thread will first be terminated and then once it's terminated, it will release.
+1:58:20
+So all of this information running in the kernel. Actually the same thing may happen in the thread structure even though a thread terminated.
+1:58:29
+Maybe you may be able to find it out, but somehow it's more frequent a lot.
+1:58:40
+Especially in multi-threaded program, you are usually not going to, um, to monitor this thing.
+1:58:45
+Um, for example, in a sample for example, that one is data multithreaded, but basically the main thread We just analyze the main threat.
+1:58:54
+You can find most of the details of the code running in your virtual machine.
+1:59:04
+Then every threat may have a vivid need to be run inside the process, which as a container share the process.
+1:59:13
+Virtual memory address also sharing same process.
+1:59:21
+User mode. Address all processes inside your computer system.
+1:59:26
+You have their own address, but somehow they may have some overlap.
+1:59:31
+Unless. Unless a one of the processes to have permission to create something inside another process.
+1:59:37
+It depends on the security context of the process, and all policies share one kernel area,
+1:59:45
+but actually the user more process will not directly assassinate the Colonel, but handle by the Colonel itself.
+1:59:56
+Third internal. Basically the same thing. Like the process structure.
+2:00:06
+Go home to practice to this code under the wind debugger to check the same thing.
+2:00:10
+Just like the impulsive structure by your own self. So you will see that environmental blow and you will see the K flag.
+2:00:17
+And actually you will see the flag object have some relationship and then point back to the flat environmental and process environmental
+2:00:25
+blog in user mode area and most of the user mode process to get the other process information not directly through the API,
+2:00:34
+but directly accessing the process environment shared by the kernel to the user mode in a particular location.
+2:00:43
+So that is the flat internal. Every process starts with one thread, basically.
+2:00:52
+So if you see the memory dump and find a memory structure right there, but you don't find any flat content inside,
+2:01:00
+that means meaning it terminates, uh, same as the x x, similarly equal to the process x exit uh structure.
+2:01:09
+So y divide on an application uh into multi fractured environment um PC user responsive and parallel background execution.
+2:01:22
+Multifactor program to have this function. For example one fab uh perform one function and then wait until uh, some uh user interactions.
+2:01:34
+Uh, for example, a notepad may have a function to print out the content to the printer and it, uh, in somehow, uh,
+2:01:45
+this when you send the content from notepad to call to print out the printer, it better to run into a separate thread because you don't.
+2:01:56
+We don't need to wait for the interrupt return from the hardware.
+2:02:08
+If the printer just stuck. In the old days when I'm using windows 3.1 and the printer jammed everything, computer stopped.
+2:02:14
+I need to go to the printer. Take away the printer paper and then make sure it I'm using type writer like printer dot matrix printer.
+2:02:23
+Then I need to take out the paper and then fix the printer, and then come back to see my program to run again.
+2:02:36
+So that is not multifactor. So multifactor to have some kind of function.
+2:02:44
+If we have the modern CPU Intel CPU to multicore simulate the multiprocessor.
+2:02:51
+One processor can handle one particular thread, and you can write your program like that.
+2:02:58
+So it can help the user respond and your program can run more smoothly, but add more complexity, such as synchronization.
+2:03:04
+And make sure sometimes the stability may affect the multifactor program.
+2:03:17
+If you go to the internet to type, give me a picture or process, and inside the kernel you will find this one.
+2:03:23
+We cover most of them actually. In our class we cover every item.
+2:03:35
+Here is an object inside the Microsoft Windows definition.
+2:03:41
+Each object basically the structure with some other things. So access token is an object via this virtual address space descriptor.
+2:03:47
+We are not covered in our lecture, but we add you can find inside the Epos structure.
+2:03:55
+And I mentioned the pointer of one process.
+2:04:01
+Want to assess another process that we need to create a pointer.
+2:04:05
+Or you need to copy a program. You need to create a pointer to the file object.
+2:04:09
+So the pointer is a table inside the kernel and the processor object to have multithreaded and it tracks.
+2:04:15
+Sometimes some of them may contain the access token for a particular thread.
+2:04:25
+Depends on how the program being used. So you can learn the kernel debugger command such as exclamation mark.
+2:04:31
+Everything I show you here except now talking about the token,
+2:04:40
+the handle and object you can type and check inside your Windows Debugger local debugging Section.
+2:04:46
+Um, some other thing. Uh, we may run into a simple.
+2:04:55
+This very simple fact. State five state, basically.
+2:04:59
+But nowadays calls us to have multiple state.
+2:05:04
+But I just call 4 or 5. They are mainly in the initialize.
+2:05:07
+The thread is being created ready? The state is waiting for to be assigned to the CPU.
+2:05:13
+And then running that is assigned to CPU. So the CPU register, the first register will put back to the CPU register to execute.
+2:05:20
+After the execution, the register may change and it will get back to the local store of the location and then until it waits,
+2:05:31
+waiting until it finished before it finishes.
+2:05:41
+Need to wait until an event either kill or we execute again to occur and then final state is a thumbnail.
+2:05:43
+So, uh, those interrupt, uh, based on the schedule and the special function inside the kernel,
+2:05:52
+uh, to handle, uh, each process, multithreaded environment.
+2:06:00
+So the kernel is so busy to handle multiple processes, each process of multiple threads.
+2:06:05
+Uh, we need to handle the synchronization. So busy. Okay.
+2:06:12
+Just like my wife. Example. My wife. I'm a single flat process.
+2:06:18
+I'm the CPU had to handle my wife instruction I have.
+2:06:22
+If I have multiple wife, I will die, but CPU will not.
+2:06:26
+So don't know if this is exactly happening in our technology change.
+2:06:32
+And go back to uh, early stage the computer only single flat single process, but operating system handle everything for you.
+2:06:38
+So operating system is very important piece.
+2:06:47
+So you can type the exclamation mark. Ready to see the changes of the fat state.
+2:06:53
+Now this diagram we talk a term called CPU context, which I will not post in the forum.
+2:07:00
+You can use my slide screenshot.
+2:07:10
+Put it into your agent to ask the agent, your agent, whatever to ask the agent to explain to you.
+2:07:14
+Nowadays AI be coming back to so can will last shot.
+2:07:26
+You better ask the agent to explain to you something that I have not covered in my lecture.
+2:07:32
+Even if you want to know, ask the agent what is context which in the CPU and fact or process?
+2:07:37
+that is the way to how to use the right problem to the left.
+2:07:49
+If you type the wrong things, it gives you garbage. Garbage in, garbage out.
+2:07:54
+You need to put the right and appropriate context and see how it comes out.
+2:08:01
+And then you validate the outcome by comparing any authoritative means.
+2:08:07
+My lecture 75%. That is sufficient for you, but you need to study.
+2:08:15
+That is the way you are using AI to learn your material.
+2:08:22
+Okay, so this is context rate one executing in run mode.
+2:08:31
+Put everything into CPU and thread two is waiting. Now we put back get back to the the context get back data set interrupt or system call happen.
+2:08:36
+Moving the, uh, the information from this, uh,
+2:08:49
+storage to the CPU register and then execute and then fact to when fact to fact one is waiting, finish its job.
+2:08:53
+The CPU will get back the thread number T2 in the the CPU register and let the fact T2 to run and one after is running.
+2:09:07
+It goes back to waiting and ready and then put back in the information.
+2:09:21
+Go back to the factors storage and then the one will be able to use Android to use the CPU.
+2:09:27
+That kind of moving of information handle by synchronization of your kernel to how to Manipulate how to handle the threat,
+2:09:37
+and by moving this information to the storage and from different stages called context, switch to many contexts which may slow down performance.
+2:09:47
+Okay, but it somehow the cloud ACP is so powerful they can handle a lot of things.
+2:10:02
+So another metric for the performance is the memory, the speed, and how many memory physical memory you do have.
+2:10:10
+Because multi program if each program 32 bit before virtual memory if you have ten or 400 or 400,000 processors running in your four gigs,
+2:10:21
+uh, hardware that the performance must be slowed down.
+2:10:39
+So memory affects a lot, not only the CPU.
+2:10:44
+So context switch uh, go home to ask.
+2:10:49
+You can submit my SLI screenshot to your LLM.
+2:10:55
+Ask them to comment which part is wrong, which part you agree or not agree.
+2:11:00
+Then you can get the best information there. Okay.
+2:11:05
+Window objects basically structure. In windows everything is called object.
+2:11:10
+Each object window treat everything is object as I as sophomore Milton or mutex event section,
+2:11:15
+file driver thread process, blah blah blah is an object with 745 with 847.
+2:11:23
+Depends on surface pair with 1055 or.
+2:11:30
+Now if you type the object in some command, enter.
+2:11:34
+The debugger will give you the latest my version of Windows 10, um, will give you the object number.
+2:11:39
+Then, uh, when application want to access the resources which the object,
+2:11:48
+you must call the API and make a reference to the object reference call handle a pointer.
+2:11:53
+Okay. So a handle just like a pointer and an object is a superset of window structure.
+2:12:00
+Actually you can make a structure as an a superset call and window object.
+2:12:07
+So uh we are not covering what is the super. Basically there is some kind of header.
+2:12:14
+You can uh, if we are learning the window, uh, um, uh, memory forensic, uh, we will cover more.
+2:12:20
+But I think this topic is too complicated. Too difficult to show you in the demonstration.
+2:12:28
+Uh, I take it out for this year. Uh, if you want to learn something, you can buy a broker member for Lansing and there is another 700 pages.
+2:12:35
+So but they are interesting. So you can type this command inside your either different environment uh, command debugger or PowerShell.
+2:12:48
+PS means PowerShell. Then you can find the object type information window put up and start up basically the diagram below.
+2:13:00
+Phase. Pivot phase. We call the polls and read the MPL which is the master boot record in your file system.
+2:13:10
+Nowadays we actually about the the file phase is not checking the firmware inside the chip in your hardware.
+2:13:19
+It will go to the Wi-Fi firmware.
+2:13:27
+You can load it uh, it resides inside the hard drive to window, start the window,
+2:13:31
+and then we move to the bootloader phase and the window will find one of the location core,
+2:13:38
+one of the partition core EFI you cannot find in your windows environment, but you can find the hard disk environment,
+2:13:45
+hard disk partition core, EFI, and then inside boot, and then put 64 to put the window loader.
+2:13:54
+And then uh, and then we will check some other things.
+2:14:01
+Uh, once you find windows System32. Yeah.
+2:14:05
+That is residing in your hard drives. You find this file, you find this file.
+2:14:08
+And then we put the kernel and then, uh, load the window and then Neo's kernel.
+2:14:13
+This, you remember that is the kernel part in the SST and then some other DLL and also have the hardware abstraction layer DRL,
+2:14:19
+K, DCOM, TLM and C idle and blah blah blah.
+2:14:30
+So all everything is doing this in your background that you don't aware in the past.
+2:14:35
+So and here after that you will see a simple version.
+2:14:42
+I'm still using windows XP version to let you understand the process.
+2:14:47
+You must go through different things. For example, process it zero which is system.
+2:14:52
+Process which part of the load system image for the idol?
+2:14:57
+Some kind of representation of idle threat? Um, to show you the CPU information.
+2:15:04
+So this is not a real process.
+2:15:10
+If you type an exclamation mark process 0.0, you won't find a system process.
+2:15:14
+You won't find a CID equal to zero, but you can find zero ID equal to four, which is the um, windows environment.
+2:15:20
+So after that a real process is system process running and then running SMS.
+2:15:30
+And then you can type different things into your environment.
+2:15:36
+You can turn on the process explorer or process.
+2:15:41
+You find all of this, each of them to uh, uh, have some, uh, arrow means here they spawned the another process.
+2:15:44
+So if you find something like this sm ss under the explorer, what do you think?
+2:15:54
+It must be malware, right? Because it won't start up right out.
+2:16:04
+Because the section manager is responsible to create FFA, it will not be responsible to being created.
+2:16:09
+This first section manager. First real process running in windows environment.
+2:16:21
+So that is, uh, an example to tell you the parent and grandparent relationship and all of these
+2:16:27
+are to have the permission of the system or NT system permission to start up.
+2:16:36
+Even the administrator cannot kill it or cannot manipulate.
+2:16:44
+You remember I run the select parents. I try to use some other process inside.
+2:16:50
+I do not have permission, but elsewhere process I do have permission.
+2:16:56
+That means one of the hacker tool to dump the credential from your windows environment.
+2:17:02
+Usually dump the Elsa process. One of the famous tool called the Mikasa, which is a partial dump program.
+2:17:08
+They can dump this Elsa process to use to to correct the credentials.
+2:17:18
+If you find something to this action, keep on accessing Elsa process.
+2:17:25
+Then you will suspect that process a problem. I'll show you.
+2:17:31
+I can update you one thing. Even though our time is not sufficient in one environment, working environment,
+2:17:36
+I see a notepad trying to assess the answer process in another environment in China.
+2:17:44
+Based cloud based window environment VPC that cloud to automatically install an agent in the any virtual
+2:17:54
+PC in the cloud and that agent keep on accessing outside policies that create a lot of suspicious to me.
+2:18:09
+I'm not saying they are malware, okay, why the notepad create that kind of things?
+2:18:19
+I don't know yet, but later on I find In a situation that no place sometimes could allow some crypto DL that cannot be filed in the normal notepad.
+2:18:28
+But if you are using the version of Microsoft Office three, there is another version of notepad in the running windows environment.
+2:18:42
+I don't know why, but for the cloud sometimes that is just that.
+2:18:54
+Just the main reason that a special tool needs to continue accessing the process.
+2:19:00
+So one of the easier to call. MDT Microsoft Defender for endpoint.
+2:19:05
+It will be monitoring the process whenever some unknown process access.
+2:19:13
+It will generate an alert, but it will not block it because no one knows what happened.
+2:19:20
+So the process is so risky. If we go back to the virtualized virtualization or circle boot or circle kernel
+2:19:27
+in virtualization based security deployment in the windows environment.
+2:19:37
+You will see the secure kernel.
+2:19:43
+That is another process inside the secure kernel that prevent that kind of tool to be executed in the that kind of deployment.
+2:19:45
+So finally takeaway windows architecture is layered design user mode and kernel move to have zero rank three.
+2:19:57
+We need to cover SSD. What is the function of entity out of DRM.
+2:20:08
+And then if you find something under the kernel, that means it put up first.
+2:20:13
+For example the Hyper-V hypervisor is running in below the kernel input.
+2:20:21
+At first it control the kernel. In theory, it can project very well.
+2:20:30
+If they put up the kernel, the hypervisor has been away some way.
+2:20:36
+Being compromised, then you cannot. None of the tool can help you to identify malicious action, including debugger.
+2:20:40
+If you know how to use it well to find the malware, but it is running in below the range zero.
+2:20:49
+Some people using the term call minus one. Basically, there's no minus one, it's just some kind of concept, so you learn something in the process.
+2:20:59
+E pos structure mainly e p e k process step and the product process question.
+2:21:11
+No question. Go home to us AI.
+2:21:19
+Um, let us start the another part. I'm sorry, because I want to finish it so that you can start paying the sample next week.
+2:21:24
+By your own self, ask a course before you answer.
+2:21:34
+You practice first and answer first, and then you can ask AI later.
+2:21:39
+I cannot forbid you to not ask an AI, but somehow, somehow you won't find additional thing.
+2:21:44
+Then what I present to you. Um.
+2:21:53
+Okay. Behavior analysis. It will be fast because it's simple.
+2:21:57
+Because you understand the window, uh, internal already behavioral analysis, learning behavior of the malware.
+2:22:00
+Because malware need to interact with the OS. You need to understand the basic thing.
+2:22:10
+You need to understand behavioral analysis. Uh, identify the IOC, what we call the indicator of compromise of artifacts.
+2:22:16
+To be correct, Do you need to know how to use the tool? Most of the tools I already show you already.
+2:22:25
+So why? We need to learn the behavioral analysis.
+2:22:30
+Why we need to understand by way of analysis and how to do this.
+2:22:35
+Basically by just like a component in many have been used in many cyber attacks.
+2:22:40
+Most of these cyber attacks use malware.
+2:22:48
+So if you have sufficient knowledge, you can identify what's the motive of the attacker, how they use the tool.
+2:22:53
+Why this tool being used? So basically the tips on analyzing malware.
+2:23:00
+You need to uncover the capability that, well, you cannot uncover completely unless you spend a lot of time,
+2:23:08
+unless you do have a lot of experience, but at least some major things you can find out, right?
+2:23:16
+Uh, you need to understand how to respond when someone say, hey, you attempt to reverse engineer or malware, please handle my case.
+2:23:22
+Then you need to use the tool. The most difficult thing is you don't know where is the malware.
+2:23:31
+If the malware is in task manager, you can find it out easily.
+2:23:38
+You can copy it out, put it into my VM to perform the tool behavior analysis.
+2:23:42
+That is the simple thing. If you are not a lot of people, they try to upload the malware to some samples.
+2:23:47
+Such anyone? Any top one?
+2:23:54
+Sandbox or a lot of people upload to VirusTotal. So ten years ago when I first pushed out the I used the first sample for you to analyze.
+2:24:01
+After the lecture someone uploaded I used to VirusTotal so you can find the virus you don't need to upload.
+2:24:13
+You just make sure the hash put the hash inside VirusTotal. You can find who upload it.
+2:24:23
+You can find a whole other way. You can find what time the first sample has been uploaded.
+2:24:29
+Because this sample unit that no one using except my class except my student.
+2:24:34
+Okay, so you don't need to upload it. You just go to vulture to put the hash inside.
+2:24:41
+You can find what the sandbox provides to you. You need to do the reverse engineering to understand fully how it function.
+2:24:46
+You need to practice to learn how to use it.
+2:24:55
+You need to practice to find things that you always overlook.
+2:24:59
+You need to run behavioral analysis. You need to ask.
+2:25:05
+Answer this question. For example you need to answer. Provide summary of the analysis.
+2:25:08
+You need to identify it. What is characteristic of the sample.
+2:25:13
+What is it? Dependency. Meaning. What library is using it.
+2:25:17
+What? API is calling it by checking the import address table, but the behavior and the code analysis.
+2:25:21
+You need to perform two kinds of analysis. You need to support this with screenshot and not.
+2:25:29
+And then finally you need to make a recommendation everything.
+2:25:37
+You complete it. You can prepare a report. And here's a template because I asked you that in map one and two you need to prepare a final analysis.
+2:25:41
+Write up or report template. This template is an example.
+2:25:55
+You don't need to follow everything. You find everything inside this.
+2:25:59
+Nowadays you can use AI to generate these fine, but better to provide find to your to ask your piece referring to this template.
+2:26:03
+Prepare one for me okay. Is it okay?
+2:26:14
+Promise me, because the major things. I don't want to see the report.
+2:26:19
+I want to see what you learn by your behavior analysis and code analysis.
+2:26:24
+That is the way to learn and not only relying on the report outcome.
+2:26:30
+So what is malware analysis? It covers a lot of content.
+2:26:38
+Basically you need to perform a dynamic or behavioral analysis.
+2:26:42
+You need to identify the IOC. You need to do the code review.
+2:26:48
+You need to understand the file format. You need to understand OS internal.
+2:26:54
+You see OS internally is only a small part. We already spent to lecture on that.
+2:27:00
+It's very difficult. The diagram is not correct. And then you need to understand the reverse.
+2:27:05
+You need to do learn the reverse engineering. So this is the reason why I said I only give you the key.
+2:27:11
+There is a big element inside your door. So you need to understand everything.
+2:27:17
+Another one way you need to do the reverse engineering. I follow one of the paper called the spiral of the malware analysis.
+2:27:22
+Basically it you need to follow some kind of irritating and repressive methodology.
+2:27:30
+First you need to do is preliminary static analysis.
+2:27:37
+I call the basic code check and tailor your static analysis environment.
+2:27:41
+You don't need to do this. I give you the VM detect and mitigate the static analysis.
+2:27:47
+Avoid internals for example, if that expected. In the first example you need to unpack it.
+2:27:52
+I give you the tool called up unpack, unpack before your analysis and you need to do the static analysis.
+2:27:58
+And you need to do the preliminary the the the dynamic analysis.
+2:28:07
+But I recommend you put this at the very beginning stage.
+2:28:12
+Put it here. Move it right here. Because this will give you a more information.
+2:28:18
+This is the lap one for the IAU. Sample.
+2:28:24
+And then you need to tailor your dynamic and environment to entertain the request of the malware.
+2:28:28
+You. If you some tool is not there, the malware will not be functioning.
+2:28:36
+Okay. If the malware needs to do something to find a tool that a driver, if you are, you don't have this.
+2:28:41
+The malware will not run. And our malware is trying to connect a server, a very old age messaging system called Ilk.
+2:28:50
+You need to set up turn on the ELC server at the end. The thing the network request.
+2:29:02
+The malware needs to connect to a port 6667. To help allow the attacker to give instruction to the malware or the block.
+2:29:07
+It is a block to give instruction to the block malware to do something.
+2:29:20
+So that is the code analysis. Another part in MeCP2 you need to do this is your environment.
+2:29:26
+You see this many times. Basically you need to check the malware.
+2:29:33
+There's one tool I recommend when you handle the real case.
+2:29:38
+If you don't know the malware, you can use this tool called Third Light.
+2:29:42
+This tool, you can download it. Uh, they have a, uh, some, um, commercial version, but it seems no more sell to Hong Kong organization and more.
+2:29:49
+But you can still use the, um, the commercial version to do the scan, to have a quick identification of an email inside your system.
+2:30:03
+It will scan the file system. It will scan the memory.
+2:30:14
+So somehow it can detect some other things. Basically it is a signature based scanner.
+2:30:18
+It won't like antivirus. It won't kill anything. It just gives you a summary.
+2:30:25
+If you don't use the command well, you will experience a slow delay if you have a lot of Ram.
+2:30:30
+A lot of swap location and you need to use some tool or copy tool to find it out.
+2:30:37
+For example, I will show you the first P tool.
+2:30:46
+Uh, later on, uh, you will find, uh, the most important thing you need to understand what kind of file.
+2:30:50
+Uh, most of the DL and the X is the P format.
+2:30:57
+We will have a lecture, full lecture to cover the p format. Uh, you can use your command prompt.
+2:31:02
+If you put your window in and put your binary inside a Linux environment.
+2:31:09
+And if the Linux environment to have object term, you can use an object term to dump the IOUs as a sample that you can do it,
+2:31:14
+uh, to check the basic information with different switch H is the header.
+2:31:23
+X is the detail that comes out just like the GUI interface.
+2:31:29
+Um, you can find by step P also installed in your virtual machine.
+2:31:35
+You can put the the I, you see the sample inside that tool to see what can you find.
+2:31:41
+Uh, you need to understand the input section by using P tool.
+2:31:49
+Um, that is another section called resource section. Sometimes basically it should contain the icon and dialog.
+2:31:53
+But a lot may well put the encoder network inside this location.
+2:32:01
+So if I pass the antivirus detection but once it run a section of code.
+2:32:06
+We call this and release this in the manual and put the control courier flag right there to let the malware run.
+2:32:13
+So that is the malware doing in the traditional malware environment.
+2:32:21
+So one tool we call the Di detected easy.
+2:32:28
+You can find the P format to do the basic check completely.
+2:32:33
+Now let me do at least one thing. The password is past one word.
+2:32:38
+Okay, so let me find out the malware before you play with the malware.
+2:32:46
+What you have to do disconnect the.
+2:32:51
+Don't allow it okay.
+2:32:58
+Or disconnect this button. Otherwise you may leak out.
+2:33:03
+Your malware will go to the internet. It's not good.
+2:33:08
+Okay. Or disconnected. Another you.
+2:33:12
+If you have another one. Make sure it is private.
+2:33:15
+To my back or your holes only. Don't go to share.
+2:33:20
+Okay. That means it won't go to the internet. So the malware, all the malware.
+2:33:24
+A lot of malware right here. You only concern one of them right now.
+2:33:29
+Hong Kong, you sample lab one and two.
+2:33:33
+Copy it. To one location.
+2:33:38
+You usually put in ten. You need a password.
+2:33:42
+Infected. I am f b c t e d.
+2:33:48
+It won't kill it. That's basically this malware will be easily detected by Microsoft Windows Defender or antivirus.
+2:33:56
+I disable all the functions so that you can play safely pay with it.
+2:34:05
+Uh, if you want to check this piggy structure.
+2:34:09
+You don't need to use a D or whatever.
+2:34:14
+You just right click it. Go to File analyzer.
+2:34:18
+This is for an entry level student.
+2:34:26
+You can use this to find the information about the hash.
+2:34:32
+It shows it is up expected. This timestamp is only the file system timestamp you can safely neglected.
+2:34:38
+But when you click the import, the p section or p header you will find different kind of thing.
+2:34:46
+If you click the p header or put this into different location, you will find the timestamp here.
+2:34:53
+Usually I refer to basically just skip the UTC time.
+2:35:01
+You can check the local time. This is the compile the program.
+2:35:05
+The author compiled this sample at that time.
+2:35:10
+This sample is written in C, so it's quite structural.
+2:35:15
+Easy for you to s s entry level analysis sample.
+2:35:18
+So this is entry time. This time can be changed easily but it's usually a lot of attack.
+2:35:23
+A lot of malware authors. They are neglected but some of them may know how to play a trick.
+2:35:30
+So don't rely on this as the final digital evidence, but it gives you some hints and then you click on different structure.
+2:35:37
+You will find this free practice section. You analyze this.
+2:35:44
+It doesn't mean that you do not provide you sufficient meaning. You need to unpack it.
+2:35:48
+Follow the instruction in the lab. Then you can see and check the impacted version under the file analyzer.
+2:35:52
+Then you can go to import table. You will see different DLL.
+2:36:02
+It is imported but basically this is the code.
+2:36:07
+I have not run it yet, right? So if you turn on Process Explorer, Process Actor Tasmania, you don't find it.
+2:36:13
+Okay. So and then you can go to export.
+2:36:21
+Why there is no export because this is not a library but some kind of malware sometimes create
+2:36:26
+and export for other parts of itself to call that create difficulty for you to analyze.
+2:36:34
+Okay. So this provides some information. And then you also see some interesting things you can go to.
+2:36:44
+Um can I see the string right here. No okay.
+2:36:51
+So if you put this sample inside once I use the file analyzer a color file, you can safely delete it or you just negate it.
+2:36:58
+And also, if you want to run this program, you need to do one thing.
+2:37:10
+You need to right click go to compatibility. Click this.
+2:37:15
+Otherwise you cannot run in Windows 10 because this is 11 or 15 years ago.
+2:37:19
+Sample 201. Maybe you are younger than this sample.
+2:37:24
+I don't know. So it depends. So you need to run this before that.
+2:37:30
+Or maybe you can put into this to two core bin text.
+2:37:35
+You can see what kind of string character inside. If you move this down below you will find the deal is using some question answering here.
+2:37:39
+You've seen me 94. I don't know whether it is windows me version and you will find.
+2:37:50
+Can you find the block right here? The name. You will see some API call here.
+2:37:57
+Okay. Can I do a search right here? Filter?
+2:38:11
+Nope. Okay. So yeah, this is the problem.
+2:38:15
+The author of this piece of malware, I find it in China website ten, 11 years ago.
+2:38:22
+And then I find this interesting quite, quite, quite easy. And it contains some Chinese character for us to see.
+2:38:29
+And once you play with the sample to the lab tool, you will find it out by your own self.
+2:38:37
+Uh, and and you will find a name.
+2:38:43
+The name is a magic. You find it out, you can put it out inside my, um.
+2:38:50
+Uh, put it inside the your report.
+2:38:56
+So let me do a unpacking so that you can see something.
+2:39:00
+Let me run a little bit out here. And I go to ten.
+2:39:04
+Up. Suppose you can type. Um. Yeah.
+2:39:10
+Up you if you want to, uh, you need to move to the directory that, uh, that have the size of why you need to type you up.
+2:39:13
+D d means the d compact. Before you run, before you play with it, you better unpack it.
+2:39:31
+And then you can see better information.
+2:39:42
+But, uh, in the in the lab, I ask you do the checking of the sample in a practical environment and then do the same thing after it,
+2:39:45
+and you see different things. So I unpack it. you will see the same file, but it changed the size from 8000 by to 16,000 bytes.
+2:39:55
+Now this time, if I do the same thing, it will overwrite the, um, the original one.
+2:40:08
+You will see more information will contain different.
+2:40:17
+Find some command right here in the, in the um you can see file log in information right here.
+2:40:21
+You can see also the block um snapshot.
+2:40:29
+You can find some other information right here. For example you will find the C block A change the snapshot.
+2:40:39
+And if you put this inside the uh file analyzer or, or for example, I put it inside the.
+2:40:48
+dee dee. And if you are using Dee, you make sure you turn on the advanced option.
+2:40:59
+Otherwise you don't see a lot of things.
+2:41:09
+And right now you see it is unpacked the compiler see, uh, Microsoft Visual C and uh, if you turn on this, you will find different information.
+2:41:11
+Any tool, it will give a lot of information for you.
+2:41:24
+And you can find the import is different.
+2:41:28
+You can search what API call it is using.
+2:41:32
+So I just give you some. I won't teach you how to use the tool.
+2:41:37
+You just follow this slide. You can practice to uh how to do the basic code check using file analyzer.
+2:41:43
+You can use PID file inside to do some other thing.
+2:41:52
+being test, I already show you. P studio is another P tool.
+2:41:55
+You can find the information string tool.
+2:42:00
+I don't think I could put it inside into the environment, because the command part sometimes cannot check the Unicode Chinese character.
+2:42:02
+I don't know how to interpret it. Behavioral analysis is you run your sample inside your environment.
+2:42:12
+You need to check for things. File activity policies.
+2:42:20
+Activity network activity. Registry activity that is forcing basic things.
+2:42:25
+You need to know when you play with the sandbox.
+2:42:31
+So and also it tries to upload the registry auto one location.
+2:42:35
+Um so you can follow the instruction or you learn by your own self before the lab.
+2:42:40
+But in the lab camera will show you very wonderful demonstration, but you better do it If you'll have time.
+2:42:48
+Of course. You can bypass camera. Go to YouTube to find 7905.
+2:42:57
+Frankie and Frankie went to Academy or whatever. Hong Kong 7905.
+2:43:04
+See whether you find my video for the studio. So I provide most of them in the YouTube.
+2:43:10
+Uh, so you can use different kind of tool to, um, to do your lap.
+2:43:18
+Um, uh, all the slide just gives you some basic introduction.
+2:43:24
+The best way is you pay with the sample. Okay, so that is the best way to build up the relationship with Mayweather.
+2:43:30
+If you don't pay it, you are not the most parent. If you have a kid, you need to take care of the kid.
+2:43:39
+Otherwise the kid, once they got 15 ages and then they fly away.
+2:43:46
+So you need to learn by handling the sample by using a safety environment under my virtual machine.
+2:43:53
+Okay. Enjoy it. So, uh, I assume my behavioral analysis finished right here.
+2:44:02
+Um, so, uh, I will post the lecture. Um, I mean, the lab one and two question.
+2:44:09
+Not the answer in the model. Uh, by next week.
+2:44:17
+And then you can start playing with that. But before next week, you still have a lot of homework that I told you.
+2:44:22
+You need to practice what I demonstrate, even though, including my error, uh,
+2:44:29
+in your data to understand your version of, uh, debugger in internal settings.
+2:44:35
+Thank you.

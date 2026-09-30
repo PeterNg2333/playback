@@ -1,0 +1,4 @@
+.math-formula { display: inline-block; max-width: 100%; vertical-align: middle; overflow-x: auto; }
+.math-formula math { font-family: "Cambria Math", math; font-size: 1.15em; }
+.math-display { display: block; margin: 12px 0; padding: 6px 0; text-align: center; }
+.markdown-preview .math-source { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }

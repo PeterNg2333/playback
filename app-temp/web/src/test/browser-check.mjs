@@ -26,7 +26,7 @@ try {
     .evaluateAll((items) => items.map((x) => x.getBoundingClientRect().width));
   assert.ok(Math.abs(columns[0] - columns[1]) < 2, `columns: ${columns}`);
   await page.getByRole("button", { name: "Transcript settings" }).click();
-  await page.getByLabel("啟用翻譯").waitFor();
+  await page.getByLabel("Enable translation").waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await page.getByRole("button", { name: "Edit" }).click();
   await page

@@ -9,7 +9,7 @@ Help students and meeting participants retain roughly three hours of audio, foll
 | ID | User outcome | Acceptance criterion |
 |---|---|---|
 | BR-01 | Reliable recording | A local client saves audio in chunks before processing or upload. Network failure or a page reload does not lose completed chunks. Chunks can be retried and deduplicated. The target duration is about three hours. |
-| BR-02 | Appropriate audio sources | Desktop capture covers all system playback audio, with the microphone as a separate source. Source and time information are retained. Mobile initially provides a viewing UI; future long mobile recordings require native capture and a local queue. |
+| BR-02 | Appropriate audio sources | Desktop users can choose microphone, system playback audio, or both. System capture covers all playback audio; microphone and system audio remain separate sources with time information retained. Pause/resume keeps the chosen sources. Mobile initially provides a viewing UI; future long mobile recordings require native capture and a local queue. |
 | BR-03 | Verifiable transcript | ASR produces original text linked to audio time. Unclear speech is marked uncertain. Translations, corrections, and their versions are stored separately and never silently replace the original. |
 | BR-04 | Continuously revised notes | Processed transcripts and materials from the same session feed periodic rolling notes. Note versions and traceable source locations are retained. |
 | BR-05 | Terms and explanations | Candidate terms come from materials and confirmed transcripts. Explanations cite their sources. The system does not infer whether an individual student understands a term from the recording. |
@@ -19,7 +19,7 @@ Help students and meeting participants retain roughly three hours of audio, foll
 
 ## Privacy and data handling
 
-- Before recording, sharing, or sending material to a third party, confirm the lecturer's, classmates', and institution's consent and the applicable privacy and retention rules.
+- The prototype may process locally supplied audio and transcripts through configured providers when the user starts a live workflow. It does not add a separate consent confirmation step.
 - Original audio and ASR text remain available for verification. Model guesses must not silently replace uncertain content.
 - A local development database can be cleared or destructively restructured after the user's explicit approval. This is not the product's data retention policy.
 

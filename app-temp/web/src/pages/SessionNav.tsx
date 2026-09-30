@@ -5,6 +5,7 @@ import { SideNav } from "../Component/Layout/SideNav";
 import type { Group } from "../types/api";
 import type { PlaybackController } from "./handlers";
 import { SessionItem } from "./SessionItem";
+import { GroupFlow } from "./GroupFlow";
 
 export function SessionNav({ model }: { model: PlaybackController }) {
   const {
@@ -22,6 +23,7 @@ export function SessionNav({ model }: { model: PlaybackController }) {
     moveSession,
   } = model;
   const disabled = !health?.mongo || !!busy;
+  const [flowGroup, setFlowGroup] = useState<Group | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -90,20 +92,11 @@ export function SessionNav({ model }: { model: PlaybackController }) {
           ×
         </button>
       </div>
-      <button
-        className="new-session"
-        aria-label="New session"
-        onClick={() => create()}
-        disabled={disabled}
-      >
-        <Icon name="plus" /> New session
-      </button>
-
       <section className="sidebar-section" aria-labelledby="groups-heading">
         <div className="sidebar-heading">
           <h2 id="groups-heading">Groups</h2>
           <button
-            className="nav-icon-button"
+            className="nav-icon-button sidebar-create"
             aria-label="New group"
             title="New group"
             onClick={createGroup}
@@ -157,6 +150,7 @@ export function SessionNav({ model }: { model: PlaybackController }) {
                     <Icon name="more" />
                   </summary>
                   <div className="nav-menu-popover">
+                    <button onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); setFlowGroup(group); }}>View AI flow</button>
                     <button
                       onClick={(event) => {
                         event.currentTarget
@@ -206,6 +200,15 @@ export function SessionNav({ model }: { model: PlaybackController }) {
       >
         <div className="sidebar-heading">
           <h2 id="sessions-heading"><Icon name="folder" /> Sessions</h2>
+          <button
+            className="nav-icon-button sidebar-create"
+            aria-label="New session"
+            title="New session"
+            onClick={() => create()}
+            disabled={disabled}
+          >
+            <Icon name="plus" />
+          </button>
         </div>
         {ungrouped.map((item) => (
           <SessionItem key={item.id} item={item} {...sessionProps} />
@@ -215,6 +218,7 @@ export function SessionNav({ model }: { model: PlaybackController }) {
         )}
       </section>
 
+      {flowGroup && <GroupFlow key={flowGroup.id} group={flowGroup} onClose={() => setFlowGroup(null)} />}
       <dialog
         ref={deleteDialog}
         className="text-dialog delete-group-dialog"

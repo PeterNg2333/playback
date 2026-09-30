@@ -119,7 +119,7 @@ $plan | Format-List method, endpoint, multipartField, contentType, allowAutoRedi
 if (-not $Send) {
     Write-Host 'DRY RUN: no network request was sent.' -ForegroundColor Yellow
     Write-Host "Inspect the plan at: $planPath"
-    Write-Host 'Add -Send only after you have consent to upload this audio.'
+    Write-Host 'Add -Send to upload this audio.'
     return
 }
 

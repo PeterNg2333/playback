@@ -9,8 +9,14 @@
   <ItemGroup>
     <PackageReference Include="Google.GenAI" Version="1.22.0" />
     <PackageReference Include="Microsoft.Agents.AI" Version="1.22.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
     <PackageReference Include="MongoDB.Driver" Version="3.12.0" />
     <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Resources\silero_vad.onnx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Resources\SILERO-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

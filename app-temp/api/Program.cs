@@ -4,12 +4,13 @@ using Playback.Api.Services.Audio;
 using Playback.Api.Db;
 using Playback.Api.Endpoints;
 using Playback.Api.Middleware;
+using Playback.Api.Services.Ai;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-builder.WebHost.UseUrls(
+builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_PORT") == "5081" ? "http://127.0.0.1:5081" :
     Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes"
         ? "http://127.0.0.1:5079"
         : "http://127.0.0.1:5078");
@@ -18,14 +19,20 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .AllowAnyHeader()
         .AllowAnyMethod()));
 builder.Services.AddSingleton<PlaybackStore>();
+builder.Services.AddSingleton<AiActivity>();
+builder.Services.AddSingleton<AiFlow>();
 builder.Services.AddSingleton<GeminiLanguageModel>();
-builder.Services.AddSingleton<JevTermClassifier>();
+builder.Services.AddSingleton<JevTransport>();
+builder.Services.AddSingleton<JevNoteGate>();
+builder.Services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));
 builder.Services.AddSingleton<SyntheticTermComparison>();
 builder.Services.AddSingleton<ChatAgent>();
 builder.Services.AddSingleton<NoteAgent>();
+builder.Services.AddSingleton<TermReviewAgent>();
 builder.Services.AddSingleton<TranslationAgent>();
-builder.Services.AddSingleton<SenseVoiceClient>();
+builder.Services.AddSingleton<IAsrAdapter>(_ => AsrAdapters.Create());
 builder.Services.AddSingleton<AsrProcessor>();
+builder.Services.AddSingleton<SessionAudioRenderer>();
 builder.Services.AddSingleton<AsrQueue>();
 builder.Services.AddSingleton<WindowsAudioCaptureService>();
 
@@ -34,6 +41,8 @@ app.UseCors();
 app.UseMiddleware<ApiExceptionMiddleware>();
 
 app.MapHealth();
+app.MapGet("/api/sessions/{id}/activity", async (string id, bool? includePrompt, AiActivity activity) =>
+    Results.Json(await activity.Read(id), includePrompt == false ? AiActivity.NotesResponseOptions : null));
 app.MapCapture();
 app.MapGroups();
 app.MapSessions();
@@ -44,5 +53,7 @@ app.MapTerms();
 app.MapChunks();
 
 app.Services.GetRequiredService<AsrQueue>();
+app.Services.GetRequiredService<NoteAgent>();
 app.Services.GetRequiredService<TranslationAgent>();
+app.Services.GetRequiredService<TermReviewAgent>();
 app.Run();

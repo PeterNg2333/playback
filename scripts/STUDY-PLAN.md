@@ -27,8 +27,7 @@
 
 ## 已知風險
 
-- Lecture audio 可能包含個人資料或受版權保護內容；正式測試前須取得同意並訂 retention policy。
+- Lecture audio 可能包含個人資料或受版權保護內容；測試程式不應把原文或金鑰寫入日誌。
 - Browser/PWA 的頁面、權限和背景生命週期不能作長錄音的唯一保障。
 - ASR response schema 尚未有正式公司 contract；adapter 必須保存 raw response 並容忍 schema 演進。
 - LLM 每數分鐘重寫全文會愈來愈貴；正式版本應用 transcript watermark、revision history 和 bounded context。
-

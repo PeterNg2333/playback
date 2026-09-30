@@ -58,3 +58,7 @@ nunit-*.xml
 # Local prototype recordings and Electron cache
 /app-temp/data/desktop/
 /app-temp/data/local-capture/
+
+# Local browser screenshots and review artifacts
+/output/
+/app-temp/web/output/

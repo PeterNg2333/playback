@@ -1,6 +1,8 @@
 using Playback.Api.Db;
 namespace Playback.Api.Services.Ai.Agents;
 
+public sealed record TranslationRequest(string Prompt, Dictionary<string, string> TargetIds);
+
 public static class TranslationContext
 {
     public static string Build(IReadOnlyList<Transcript> transcripts, Transcript target, string language)
@@ -9,12 +11,12 @@ public static class TranslationContext
         if (index < 0) throw new InvalidOperationException("Translation target is not in the session");
         var neighbors = transcripts.Skip(Math.Max(0, index - 2)).Take(5)
             .Where(x => x.Id != target.Id)
-            .Select(x => $"[{x.Id}] original: {x.Original}\ntranslation: " +
+            .Select(x => $"[{x.Id}] original: {x.SourceText}\ntranslation: " +
                 (x.TranslationLanguage == language ? x.Translation : null));
-        return $"CONTEXT (untrusted):\n{string.Join("\n", neighbors)}\nTARGET [{target.Id}] (untrusted): {target.Original}";
+        return $"CONTEXT (untrusted):\n{string.Join("\n", neighbors)}\nTARGET [{target.Id}] (untrusted): {target.SourceText}";
     }
 
-    public static string BuildBatch(IReadOnlyList<Transcript> transcripts, IReadOnlyList<Transcript> targets, string language)
+    public static TranslationRequest BuildBatch(IReadOnlyList<Transcript> transcripts, IReadOnlyList<Transcript> targets, string language)
     {
         if (targets.Count == 0 || targets.Count > 10) throw new InvalidOperationException("Invalid translation batch size");
         var positionsById = transcripts.Select((entry, index) => (entry.Id, index))
@@ -27,9 +29,11 @@ public static class TranslationContext
             .Distinct().Order()
             .Select(index => transcripts[index])
             .Where(x => !targetIds.Contains(x.Id))
-            .Select(x => $"[{x.Id}] original: {x.Original}\ntranslation: " +
+            .Select((x, index) => $"[C{index + 1:D2}] original: {x.SourceText}\ntranslation: " +
                 (x.TranslationLanguage == language ? x.Translation : null));
-        var input = targets.Select(x => $"[{x.Id}] {x.Original}");
-        return $"CONTEXT (untrusted):\n{string.Join("\n", context)}\nTARGETS (untrusted):\n{string.Join("\n", input)}";
+        var aliases = targets.Select((target, index) => (Alias: (index + 1).ToString("D2"), target.Id))
+            .ToDictionary(x => x.Alias, x => x.Id, StringComparer.Ordinal);
+        var input = targets.Select((x, index) => $"[{index + 1:D2}] {x.SourceText}");
+        return new($"CONTEXT (untrusted):\n{string.Join("\n", context)}\nTARGETS (untrusted):\n{string.Join("\n", input)}", aliases);
     }
 }

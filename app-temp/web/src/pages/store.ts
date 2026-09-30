@@ -1,16 +1,18 @@
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
+import { useCallback } from "react";
 import type {
   Answer,
   CaptureStatus,
   Group,
   Health,
+  RecordingMode,
   Session,
   SessionSummary,
 } from "../types/api";
 
 export type View = "notes" | "transcript";
-export type NoteMode = "preview" | "markdown";
+export type NoteMode = "preview" | "markdown" | "draft";
 export type Selection = {
   transcriptId: string;
   text: string;
@@ -26,6 +28,8 @@ type PlaybackState = {
   settingsOpen: boolean;
   navOpen: boolean;
   view: View;
+  transcriptView: "transcript" | "activity";
+  recordingMode: RecordingMode;
   noteMode: NoteMode;
   chatOpen: boolean;
   selection: Selection | null;
@@ -49,6 +53,8 @@ export const usePlaybackStore = create<PlaybackState>(() => ({
   settingsOpen: false,
   navOpen: false,
   view: "transcript",
+  transcriptView: "transcript",
+  recordingMode: "both",
   noteMode: "preview",
   chatOpen: false,
   selection: null,
@@ -73,13 +79,13 @@ export function usePlaybackField<K extends keyof PlaybackState>(
   key: K,
 ): [PlaybackState[K], Dispatch<SetStateAction<PlaybackState[K]>>] {
   const value = usePlaybackStore((state) => state[key]);
-  const update: Dispatch<SetStateAction<PlaybackState[K]>> = (next) => {
+  const update: Dispatch<SetStateAction<PlaybackState[K]>> = useCallback((next) => {
     usePlaybackStore.setState((state) => ({
       [key]:
         typeof next === "function"
           ? (next as (value: PlaybackState[K]) => PlaybackState[K])(state[key])
           : next,
     }));
-  };
+  }, [key]);
   return [value, update];
 }
