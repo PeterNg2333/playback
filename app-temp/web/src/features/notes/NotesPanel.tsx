@@ -1,5 +1,4 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import clsx from "clsx";
 import { Panel, PanelHeader } from "../../components/layout/Panel";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { useHealth } from "../../lib/useHealth";
@@ -22,6 +21,11 @@ import { Segment, Segmented } from "../../components/Segmented";
 import { Chip } from "../../components/Chip";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
+
+// A line under the notes saying why AI notes have not appeared or failed.
+const statusStyle = "mx-4.5 mb-2.5 text-[11px] text-[#9a591c]";
+// A tinted strip over the footer when saved notes and the editor's draft diverge.
+const conflictStyle = "shrink-0 bg-accent-soft px-4 py-2 text-[12px]";
 
 export function NotesPanel({
   className,
@@ -187,13 +191,15 @@ export function NotesPanel({
                       : "Pending decision…"
                     : null;
   return (
-    <Panel className={clsx("notes-panel", className)} data-testid="notes-panel">
+    <Panel className={className} data-testid="notes-panel">
       <PanelHeader
         wrap
         title={
-          <div className="note-title">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
             <h2 className="text-[15px] font-[750]">Lecture notes</h2>
-            <span>v{session?.noteVersion || 0}</span>
+            <span className="text-[11px] font-semibold text-muted">
+              v{session?.noteVersion || 0}
+            </span>
             <ActivityPopover
               key={session?.id}
               session={session}
@@ -204,11 +210,14 @@ export function NotesPanel({
             />
             {noteStatus && (
               <span
-                className="note-ai-status"
+                className="inline-flex items-center gap-1.25 rounded-full bg-accent-soft px-2 py-1.25 text-[11px] font-[750] whitespace-nowrap text-accent"
                 role="status"
                 data-testid="note-ai-status"
               >
-                <Icon name="pen" />
+                <Icon
+                  name="pen"
+                  className="size-3.5 animate-note-pen motion-reduce:animate-none"
+                />
                 {noteStatus}
               </span>
             )}
@@ -239,13 +248,19 @@ export function NotesPanel({
               onClick={() => setNoteMode("draft")}
             >
               Live draft
-              {runningNote && <span className="draft-dot" aria-hidden="true" />}
+              {runningNote && (
+                <span
+                  className="ml-1.25 inline-block size-1.25 rounded-full bg-accent"
+                  aria-hidden="true"
+                />
+              )}
             </Segment>
           </Segmented>
         }
       />
+      {/* Rendered notes keep a readable line length. */}
       <div
-        className="notes-body"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5.5 **:data-markdown:max-w-[72ch]"
         data-testid="notes-body"
         ref={body}
         onScroll={rememberScroll}
@@ -254,12 +269,18 @@ export function NotesPanel({
           markdown ? (
             <>
               {topics.length > 1 && (
-                <details className="note-outline" open>
-                  <summary>Topic tree · {topics.length}</summary>
+                <details
+                  className="mb-5.5 rounded-[10px] border border-line bg-accent-soft p-3.5"
+                  open
+                >
+                  <summary className="cursor-pointer text-[12px] font-bold">
+                    Topic tree · {topics.length}
+                  </summary>
                   <nav aria-label="Note topics">
-                    <ol>
+                    <ol className="mt-3">
                       {topics.map((topic, index) => (
                         <li
+                          className="border-l-2 border-line py-1 pl-3"
                           key={`${index}-${topic.title}`}
                           style={{
                             marginLeft:
@@ -270,6 +291,7 @@ export function NotesPanel({
                         >
                           <button
                             type="button"
+                            className="cursor-pointer text-left text-[12px] text-accent"
                             onClick={() => {
                               const element = body.current;
                               const heading = headings()[index];
@@ -304,13 +326,14 @@ export function NotesPanel({
               {!!session?.currentNote && (
                 <>
                   {!reading && (
-                    <p className="coverage-summary">
+                    <p className="mb-4">
                       Saved source links are evidence metadata. Section points
                       show what was written; deferred inputs remain pending.
                     </p>
                   )}
                   <LazyDetails
-                    className="note-changes"
+                    className="mt-3 border-t border-line pt-2.5"
+                    summaryClassName="cursor-pointer text-[12px] font-bold text-muted"
                     summary={
                       <>
                         Changes in v{session.noteVersion} ·{" "}
@@ -320,14 +343,19 @@ export function NotesPanel({
                   >
                     {() =>
                       session.currentNote!.edits?.length ? (
-                        <ol>
+                        <ol className="my-2.5 grid list-decimal gap-2.5 pl-5">
                           {session.currentNote!.edits.map((edit, index) => (
-                            <li key={`${edit.kind}-${edit.line}-${index}`}>
-                              <small>
+                            <li
+                              className="pl-0.5"
+                              key={`${edit.kind}-${edit.line}-${index}`}
+                            >
+                              <small className="text-[11px] text-muted">
                                 {edit.kind === "insert" ? "Added" : "Removed"} ·
                                 line {edit.line}
                               </small>
-                              <p>{edit.text || "(blank line)"}</p>
+                              <p className="my-0.75 text-[12px] whitespace-pre-wrap wrap-anywhere">
+                                {edit.text || "(blank line)"}
+                              </p>
                               {edit.transcriptIds.map((id) => {
                                 const source = session.transcripts.find(
                                   (entry) => entry.id === id,
@@ -365,8 +393,11 @@ export function NotesPanel({
             </EmptyState>
           )
         ) : noteMode === "draft" ? (
-          <section className="note-draft" aria-label="Live note draft">
-            <p className="draft-label">
+          <section
+            className="rounded-lg border border-dashed border-accent p-3.5"
+            aria-label="Live note draft"
+          >
+            <p className="mb-4.5 text-[11px] font-bold text-accent">
               Live draft · unverified citations · not saved
             </p>
             {draftNote?.draft ? (
@@ -388,13 +419,13 @@ export function NotesPanel({
             )}
           </section>
         ) : (
-          <div className="editor-wrap">
+          <div className="flex h-full min-h-0 flex-1">
             <label htmlFor="note-editor" className="sr-only">
               Editable Markdown
             </label>
             <textarea
               id="note-editor"
-              className="markdown-editor"
+              className="block min-h-full w-full flex-1 resize-none rounded-[10px] border border-line bg-white p-3.5 font-[Consolas,'Cascadia_Code',monospace] text-[12px] leading-[1.7] text-ink placeholder:text-[#757575]"
               value={markdown}
               onChange={(e) => draft.setText(e.target.value)}
               placeholder="# Lecture notes&#10;&#10;```mermaid&#10;flowchart LR&#10;Audio --> Notes&#10;```"
@@ -403,12 +434,12 @@ export function NotesPanel({
         )}
       </div>
       {waitingForSpeech ? (
-        <p className="note-status" role="status">
+        <p className={statusStyle} role="status">
           Waiting for more recognized speech before generating AI notes.
         </p>
       ) : (
         failedNotes > 0 && (
-          <p className="note-status" role="status">
+          <p className={statusStyle} role="status">
             Notes update failed for {failedNotes} transcript entries. Retry with
             “Revise with AI”.
           </p>
@@ -420,7 +451,7 @@ export function NotesPanel({
         draftDirty={draft.isDirty}
         onOpenSource={onOpenSource}
       />
-      <div className="note-tools">
+      <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2">
         <NoteHistoryDialog
           key={session?.id}
           session={session}
@@ -435,8 +466,8 @@ export function NotesPanel({
         )}
       </div>
       {draft.conflict && (
-        <div className="note-conflict" role="alert">
-          <p>
+        <div className={conflictStyle} role="alert">
+          <p className="my-1">
             Saved notes changed while you were editing. Your draft and caret are
             retained; review the current notes before saving.
           </p>
@@ -444,19 +475,22 @@ export function NotesPanel({
             <summary>
               Read current saved notes · v{session!.noteVersion}
             </summary>
-            <pre>{session!.noteMarkdown}</pre>
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap wrap-anywhere">
+              {session!.noteMarkdown}
+            </pre>
           </details>
-          <button onClick={draft.takeSavedVersion}>
+          <Button className="mr-2" onClick={draft.takeSavedVersion}>
             Load current notes and keep my draft for recovery
-          </button>
+          </Button>
         </div>
       )}
       {draft.setAside && (
-        <div className="note-conflict">
-          <button onClick={draft.recoverSetAside}>
+        <div className={conflictStyle}>
+          <Button className="mr-2" onClick={draft.recoverSetAside}>
             Recover my previous draft
-          </button>
-          <button
+          </Button>
+          <Button
+            className="mr-2"
             onClick={() =>
               runAction("copy", () =>
                 navigator.clipboard.writeText(draft.setAside!.text),
@@ -464,10 +498,10 @@ export function NotesPanel({
             }
           >
             Copy previous draft
-          </button>
+          </Button>
         </div>
       )}
-      <footer className="note-footer">
+      <footer className="flex flex-none gap-2 border-t border-line px-3.5 py-2.5 md:px-5 md:py-3">
         <Button
           variant="primary"
           className="disabled:cursor-not-allowed disabled:opacity-45"

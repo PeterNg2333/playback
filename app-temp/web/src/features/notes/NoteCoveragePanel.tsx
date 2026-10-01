@@ -13,6 +13,8 @@ import {
 import { usePlaybackStore } from "../../lib/store";
 import { Button } from "../../components/Button";
 
+const panelStyle = "border-t border-line px-4 py-2 text-[0.85rem]";
+
 // How many transcript parts the saved notes cite, the gaps left, and repairing the earliest gap.
 export function NoteCoveragePanel({
   session,
@@ -77,36 +79,44 @@ export function NoteCoveragePanel({
   if (!session) return null;
   if (!health?.noteCoverage)
     return health?.sectionNotes ? (
-      <aside className="note-coverage">
+      <aside className={panelStyle}>
         Transcript reference checks need the updated API. Stop recording,
         restart the local backend, then reload.
       </aside>
     ) : null;
   return (
-    <aside className="note-coverage" aria-label="Transcript reference coverage">
-      {error && <p role="alert">Reference coverage: {error}</p>}
+    <aside className={panelStyle} aria-label="Transcript reference coverage">
+      {error && (
+        <p className="my-2" role="alert">
+          Reference coverage: {error}
+        </p>
+      )}
       {report && (
-        <details>
-          <summary>
+        <details className="open:max-h-60 open:overflow-auto">
+          <summary className="cursor-pointer">
             {report.unreferenced
               ? `${report.unreferenced} transcript parts without note references · ${report.largeGaps} gaps over ${report.largeGapMs / 60000} min`
               : `${report.referenced}/${report.total} transcript parts referenced`}
           </summary>
-          <p>
+          <p className="my-2">
             {report.referenced}/{report.total} parts referenced;{" "}
             {report.suppressed} intentionally excluded. References show
             traceability; review the explanations, examples and formulas for
             completeness.
           </p>
           {report.completedWithoutReference > 0 && (
-            <p>
+            <p className="my-2">
               {report.completedWithoutReference} parts were marked completed but
               have no reference in the saved notes.
             </p>
           )}
           {report.gaps.slice(0, 12).map((gap) => (
-            <div className="note-coverage-gap" key={gap.sourceIds[0]}>
+            <div
+              className="my-[0.3rem] flex flex-wrap items-center gap-2"
+              key={gap.sourceIds[0]}
+            >
               <Button
+                className="text-left whitespace-normal"
                 onClick={() =>
                   onOpenSource({ kind: "transcript", id: gap.sourceIds[0] })
                 }
@@ -121,7 +131,7 @@ export function NoteCoveragePanel({
             </div>
           ))}
           {report.gaps.length > 12 && (
-            <p>
+            <p className="my-2">
               {report.gaps.length - 12} more gaps; repair starts with the
               earliest.
             </p>
@@ -142,7 +152,7 @@ export function NoteCoveragePanel({
                 : "Repair earliest gap with AI"}
             </Button>
           )}
-          <p>
+          <p className="my-2">
             Each repair generates one bounded batch and preserves existing
             sections. Remaining gaps stay visible.
           </p>

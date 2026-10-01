@@ -46,7 +46,9 @@ export function OrganizeSection({
       <label className="sr-only" htmlFor="organize-section">
         Section to organize
       </label>
+      {/* Keeps the browser's own drop-down look, within a width the toolbar can wrap. */}
       <select
+        className="max-w-55 min-w-0 rounded-[revert] [border:revert] bg-[revert] [font:revert] text-[revert]"
         id="organize-section"
         value={sectionId}
         onChange={(e) => setSectionId(e.target.value)}

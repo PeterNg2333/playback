@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { Markdown } from "../../components/markdown/Markdown";
+import { CitationChip, CitationLabel } from "../../components/CitationChip";
 import { termSegments } from "../terms/termMatching";
 import { SourceCitation } from "./SourceCitation";
 
@@ -245,40 +246,36 @@ function CitedLink(props: { href?: string; children?: ReactNode }) {
   if (term && renderTerm) return renderTerm(term[1], String(props.children));
   if (props.href === "/source-unavailable")
     return (
-      <span
-        className="note-ref unavailable-ref"
+      <CitationLabel
+        unavailable
         title="This reference does not match a source in this session. Check the original note in Edit."
       >
         Source unavailable
-      </span>
+      </CitationLabel>
     );
   const source = /^\/source\/([a-z0-9_-]+)$/i.exec(props.href || "");
   if (source)
     return reading ? null : onSource ? (
-      <button
-        type="button"
-        className="note-ref"
+      <CitationChip
         onClick={() => onSource(source[1])}
         aria-label={`Jump to source at ${sourceLabels.get(source[1])}`}
       >
         {props.children}
-      </button>
+      </CitationChip>
     ) : (
-      <span className="note-ref">{props.children}</span>
+      <CitationLabel>{props.children}</CitationLabel>
     );
   const reference = /^\/term-ref\/([a-f0-9]{64})$/i.exec(props.href || "");
   if (reference && onReference)
     return (
-      <button
-        type="button"
-        className="note-ref"
+      <CitationChip
         onClick={() => onReference(reference[1])}
         aria-label="Open saved explanation"
       >
         Explanation
-      </button>
+      </CitationChip>
     );
-  if (reference) return <span className="note-ref">Explanation</span>;
+  if (reference) return <CitationLabel>Explanation</CitationLabel>;
   return (
     <a href={props.href} target="_blank" rel="noopener noreferrer">
       {props.children}

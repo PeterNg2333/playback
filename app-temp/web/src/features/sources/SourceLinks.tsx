@@ -2,6 +2,9 @@ import type { Evidence, Session } from "../../lib/backend/schemas";
 import { recordedRange } from "../../lib/time";
 import { Chip } from "../../components/Chip";
 
+// A source the session no longer has, named by the start of its ID.
+const missingStyle = "text-[11px] font-semibold";
+
 type SourceLinksProps = {
   session: Session;
   transcriptIds: string[];
@@ -21,7 +24,7 @@ export function SourceLinks({
         const transcript = session.transcripts.find((item) => item.id === id);
         if (!transcript)
           return (
-            <span key={id} title={id}>
+            <span className={missingStyle} key={id} title={id}>
               Audio {id.slice(0, 8)}
             </span>
           );
@@ -46,7 +49,7 @@ export function SourceLinks({
         const material = session.materials.find((item) => item.id === id);
         if (!material)
           return (
-            <span key={id} title={id}>
+            <span className={missingStyle} key={id} title={id}>
               Material {id.slice(0, 8)}
             </span>
           );

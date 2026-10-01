@@ -4,9 +4,6 @@
    so a utility on an element overrides them. Each file goes once its feature is migrated. */
 @import "./legacy/base.css" layer(components);
 @import "./markdown.css";
-@import "./legacy/notes.css" layer(components);
-@import "./legacy/activity.css" layer(components);
-@import "./legacy/overlays.css" layer(components);
 
 /* Touch screens cannot hover, so controls revealed on hover stay visible there. */
 @custom-variant hover-none (@media (hover: none));
@@ -40,6 +37,15 @@
   @keyframes record-breathe {
     50% {
       box-shadow: 0 0 0 8px #f8dbe866;
+    }
+  }
+
+  /* The pen in the notes title writes while the AI revises the notes. */
+  --animate-note-pen: note-pen 1.8s ease-in-out infinite;
+  @keyframes note-pen {
+    50% {
+      transform: rotate(-12deg);
+      opacity: 0.55;
     }
   }
 }

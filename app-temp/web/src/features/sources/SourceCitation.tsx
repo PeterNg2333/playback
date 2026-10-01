@@ -2,9 +2,14 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatElapsed } from "../../lib/time";
 import { PopupHeader } from "../../components/PopupHeader";
+import { CitationChip } from "../../components/CitationChip";
 
 // Cited parts from one audio source within five minutes of each other show as one range.
 const MAX_RANGE_MS = 5 * 60_000;
+
+// Plays a cited passage or jumps to one, inside the open panel.
+const sourceButton =
+  "m-1 cursor-pointer rounded-[5px] border border-line bg-accent-soft p-1.25 text-accent";
 
 // A citation chip that opens the cited passages: their times, text, playback and a jump to each.
 export function SourceCitation({
@@ -97,21 +102,19 @@ export function SourceCitation({
   }, [open]);
   return (
     <>
-      <button
+      <CitationChip
         ref={anchor}
-        type="button"
-        className="note-ref"
         aria-label={`Open audio sources ${label}`}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
         {label}
-      </button>
+      </CitationChip>
       {open &&
         createPortal(
           <div
             ref={panel}
-            className="source-citation-panel"
+            className="fixed z-35 max-h-[min(360px,60dvh)] w-[min(320px,calc(100vw-24px))] overflow-y-auto rounded-[10px] border border-line bg-surface p-3.5 text-[12px] shadow-[0_12px_35px_#25243c25]"
             role="dialog"
             aria-label="Grouped audio sources"
             style={position}
@@ -121,24 +124,25 @@ export function SourceCitation({
               closeLabel="Close sources"
               onClose={() => setOpen(false)}
             />
-            <small>
+            <small className="text-[smaller]">
               Session elapsed time · mm:ss (hh:mm:ss after one hour). Ranges
               contain only the cited sources; gaps are listed below.
             </small>
             {ranges.map((range, index) => (
-              <p key={index}>
+              <p className="mb-3" key={index}>
                 {range.sourceId} · {formatElapsed(range.start)}–
                 {formatElapsed(range.end)} · {range.ids.length} cited parts
               </p>
             ))}
             {groups.map((group) => (
-              <section key={group.id}>
+              <section className="mt-3" key={group.id}>
                 {onPlay &&
                   group.transcriptIds.some(
                     (id) => details.get(id)?.startMs != null,
                   ) && (
                     <button
                       type="button"
+                      className={sourceButton}
                       onClick={() => onPlay(group.transcriptIds)}
                     >
                       Play combined passage
@@ -150,6 +154,7 @@ export function SourceCitation({
                       {labels.has(id) ? (
                         <button
                           type="button"
+                          className={sourceButton}
                           disabled={!onSource}
                           onClick={() => {
                             onSource?.(id);
@@ -161,9 +166,11 @@ export function SourceCitation({
                       ) : (
                         <span>Source unavailable</span>
                       )}
-                      {details.get(id)?.text && <p>{details.get(id)!.text}</p>}
+                      {details.get(id)?.text && (
+                        <p className="mb-3">{details.get(id)!.text}</p>
+                      )}
                       {details.get(id)?.startMs != null && (
-                        <small>
+                        <small className="text-[smaller]">
                           {details.get(id)!.sourceId} ·{" "}
                           {formatElapsed(details.get(id)!.startMs!)}–
                           {formatElapsed(details.get(id)!.endMs!)} · exact cited

@@ -13,6 +13,12 @@ import {
 import { restoreNoteVersion } from "./restoreNoteVersion";
 import { Button } from "../../components/Button";
 
+// The dialog's buttons and the version field: hairline boxes on the surface colour.
+const control =
+  "max-w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-ink disabled:text-muted disabled:opacity-65";
+const heading = "mb-[1em] text-[1.17em] font-bold";
+const paragraph = "mb-4";
+
 // Browses saved note versions; restores one, or recovers chosen sections of it into the current notes.
 export function NoteHistoryDialog({
   session,
@@ -124,29 +130,47 @@ export function NoteHistoryDialog({
       </Button>
       <dialog
         ref={dialog}
-        className="notes-history-dialog"
+        className="m-auto h-[90vh] max-h-[90vh] w-[calc(100vw-20px)] max-w-300 rounded-[14px] border border-line bg-surface p-3 text-ink shadow-[0_20px_60px_#25305c30] backdrop:bg-[#20233866] open:flex open:flex-col open:overflow-hidden md:h-[75vh] md:w-[70vw] md:p-5"
         aria-labelledby="note-history-title"
         onCancel={closeHistory}
       >
         {open && (
           <>
-            <header>
-              <h2 id="note-history-title">Note history & recovery</h2>
-              <button aria-label="Close note history" onClick={closeHistory}>
+            <header className="flex shrink-0 justify-between gap-3">
+              <h2 id="note-history-title" className="text-[15px] font-[750]">
+                Note history & recovery
+              </h2>
+              <button
+                className={control}
+                aria-label="Close note history"
+                onClick={closeHistory}
+              >
                 ×
               </button>
             </header>
-            <p>
+            <p className={paragraph}>
               Review historical sections before adding them to the current
               version. Protected deletions are excluded. Existing notes and
               editor text are retained.
             </p>
-            {pending && <p role="status">Loading…</p>}
-            {error && <p role="alert">{error}</p>}
-            <div className="history-layout">
-              <nav aria-label="All note versions">
+            {pending && (
+              <p className={paragraph} role="status">
+                Loading…
+              </p>
+            )}
+            {error && (
+              <p className={paragraph} role="alert">
+                {error}
+              </p>
+            )}
+            <div className="grid min-h-0 grid-cols-1 gap-4.5 overflow-auto md:grid-cols-[minmax(140px,220px)_minmax(0,1fr)]">
+              <nav
+                className="flex flex-col gap-1.25"
+                aria-label="All note versions"
+              >
                 {items.map((x) => (
                   <button
+                    className={control}
                     key={x.version}
                     onClick={() => {
                       setTypedVersion(x.version);
@@ -158,6 +182,7 @@ export function NoteHistoryDialog({
                 ))}
                 {before && (
                   <button
+                    className={control}
                     disabled={pending}
                     onClick={() => setOlderThan(before)}
                   >
@@ -167,6 +192,7 @@ export function NoteHistoryDialog({
                 <label>
                   Go to version
                   <input
+                    className={control}
                     type="number"
                     min={1}
                     value={typedVersion}
@@ -174,18 +200,22 @@ export function NoteHistoryDialog({
                   />
                 </label>
                 <button
+                  className={control}
                   disabled={pending || typedVersion < 1}
                   onClick={() => show(typedVersion)}
                 >
                   Read version
                 </button>
               </nav>
-              <main>
+              <main className="min-w-0">
                 {historical && shownVersion !== undefined && (
                   <>
-                    <h3>Saved v{shownVersion}</h3>
-                    <pre className="historical-note">{historical}</pre>
+                    <h3 className={heading}>Saved v{shownVersion}</h3>
+                    <pre className="my-3 max-h-[34vh] overflow-auto text-[12px] whitespace-pre-wrap wrap-anywhere [font-family:revert]">
+                      {historical}
+                    </pre>
                     <button
+                      className={control}
                       disabled={pending || draftDirty}
                       onClick={() =>
                         saveFromHistory((signal) =>
@@ -201,6 +231,7 @@ export function NoteHistoryDialog({
                       Restore this version as a new protected version
                     </button>
                     <button
+                      className={control}
                       disabled={pending}
                       onClick={() => {
                         setRecoveryVersion(shownVersion);
@@ -213,27 +244,31 @@ export function NoteHistoryDialog({
                 )}
                 {preview && (
                   <section aria-label="Recovery preview">
-                    <h3>
+                    <h3 className={heading}>
                       Merge v{preview.historicalVersion} into v
                       {preview.basedOnVersion}
                     </h3>
-                    <p>
+                    <p className={paragraph}>
                       Historical wording is preserved for review. Check its
                       claims against the original ASR before saving; source
                       membership alone does not validate meaning. Unavailable
                       historical references remain unavailable.
                     </p>
                     {!preview.candidates.length && (
-                      <p>
+                      <p className={paragraph}>
                         No missing source-supported section was found. Source
                         membership alone cannot prove complete semantic
                         coverage.
                       </p>
                     )}
                     {preview.candidates.map((candidate) => (
-                      <article key={candidate.id}>
+                      <article
+                        className="my-2.5 rounded-lg border border-line p-3"
+                        key={candidate.id}
+                      >
                         <label>
                           <input
+                            className="my-0.75 mr-0.75 ml-1"
                             type="checkbox"
                             disabled={candidate.blocked}
                             checked={selected.includes(candidate.id)}
@@ -249,7 +284,9 @@ export function NoteHistoryDialog({
                           {candidate.missingSourceIds.length} missing sources
                         </label>
                         {candidate.blocked && (
-                          <p>Excluded: overlaps an intentional deletion.</p>
+                          <p className={paragraph}>
+                            Excluded: overlaps an intentional deletion.
+                          </p>
                         )}
                         <CitedMarkdown
                           value={candidate.markdown}
@@ -262,6 +299,7 @@ export function NoteHistoryDialog({
                       </article>
                     ))}
                     <button
+                      className={control}
                       disabled={!selected.length || pending || draftDirty}
                       onClick={() =>
                         saveFromHistory((signal) =>

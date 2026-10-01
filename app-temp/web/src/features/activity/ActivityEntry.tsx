@@ -30,7 +30,7 @@ export function ActivityEntry({
           <strong className="text-[12px] wrap-anywhere">{title}</strong>
           <span
             className={clsx(
-              "col-start-1 row-start-2 text-[10px]",
+              "col-start-1 row-start-2 text-[10px] font-semibold",
               detailClassName ?? "text-muted",
             )}
           >

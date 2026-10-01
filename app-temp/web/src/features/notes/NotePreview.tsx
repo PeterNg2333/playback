@@ -182,13 +182,13 @@ export function NotePreview({
     onPlaySources: onPlay,
   };
   return (
-    <div className="note-content" data-testid="note-content" ref={ref}>
+    <div data-testid="note-content" ref={ref}>
       {sections?.length ? (
         sections.map((section) => {
           const ids = [...new Set(section.points.flatMap((x) => x.sourceIds))];
           return (
             <section
-              className="note-section"
+              className="mb-5"
               data-section-id={section.id}
               key={section.id}
             >
@@ -203,7 +203,7 @@ export function NotePreview({
                 />
               )}
               {!reading && (
-                <small className="section-coverage">
+                <small className="mt-1.5 block text-[10px] text-muted">
                   {section.points.length} traceable points · section v
                   {section.version}
                   {section.userEdited ? " · protected user edits" : ""}
