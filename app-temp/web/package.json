@@ -14,6 +14,8 @@
     "test:memory": "node src/test/frontend-memory-check.mjs"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.104.0",
+    "clsx": "^2.1.1",
     "dompurify": "^3.2.6",
     "katex": "0.16.47",
     "mermaid": "^11.4.1",
@@ -27,11 +29,13 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "playwright-core": "^1.63.0",
     "prettier": "^3.6.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
     "vite": "^6.2.0"
   }
