@@ -4,17 +4,17 @@ import type {
   TermCandidate,
   Transcript,
   TermInsight,
-} from "../../types/api";
-import { recordedRange } from "../../lib/time";
-import { cleanAsrText } from "./asrStatus";
-import { PlayButton } from "../player/PlayButton";
-import { TermHighlight } from "../../pages/TermHighlight";
+} from "../../../types/api";
+import { recordedRange } from "../../../lib/time";
+import { cleanAsrText } from "../asrStatus";
+import { PlayButton } from "../../player/PlayButton";
+import { TermHighlight } from "../../../pages/TermHighlight";
 import { useLayoutEffect, useRef } from "react";
-import { termSegments } from "../../Component/termSegments";
+import { termSegments } from "../../../Component/termSegments";
 import {
   AudioSourceBadge,
   audioSourceLabel,
-} from "../recording/AudioSourceBadge";
+} from "../../recording/AudioSourceBadge";
 
 export function TranscriptRow({
   transcript,

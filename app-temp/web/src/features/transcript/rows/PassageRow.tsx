@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
-import type { PassageEntry } from "./timelineEntries";
-import type { Session, TermCandidate, TermInsight } from "../../types/api";
-import { askAboutTerm, captureTranscriptSelection } from "../ask/askAbout";
-import type { AudioPlayer } from "../player/useAudioPlayer";
+import type { PassageEntry } from "../timelineEntries";
+import type { Session, TermCandidate, TermInsight } from "../../../types/api";
+import { askAboutTerm, captureTranscriptSelection } from "../../ask/askAbout";
+import type { AudioPlayer } from "../../player/useAudioPlayer";
 import { TranscriptRow } from "./TranscriptRow";
-import { PlayButton } from "../player/PlayButton";
-import { AudioSourceBadge } from "../recording/AudioSourceBadge";
-import { recordedRange } from "../../lib/time";
-import { cleanAsrText } from "./asrStatus";
+import { PlayButton } from "../../player/PlayButton";
+import { AudioSourceBadge } from "../../recording/AudioSourceBadge";
+import { recordedRange } from "../../../lib/time";
+import { cleanAsrText } from "../asrStatus";
 
-export function TranscriptPassage({
+export function PassageRow({
   entry,
   session,
   playingKey,

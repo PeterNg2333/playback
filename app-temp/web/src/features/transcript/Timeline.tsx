@@ -13,21 +13,22 @@ import { retryAsr } from "./retryAsr";
 import { usePlaybackStore } from "../../pages/store";
 import type { AudioPlayer } from "../player/useAudioPlayer";
 import { VirtualList, type VirtualItem } from "./VirtualList";
-import { recordedRange } from "../../lib/time";
-import { chunkStatus } from "./asrStatus";
 import {
   combineTranscriptEntries,
   transcriptDays,
   type DisplayEntry,
   type TimelineEntry,
 } from "./timelineEntries";
-import { TranscriptRow } from "./TranscriptRow";
-import { PlayButton } from "../player/PlayButton";
-import {
-  AudioSourceBadge,
-  audioSourceLabel,
-} from "../recording/AudioSourceBadge";
-import { TranscriptPassage } from "./TranscriptPassage";
+import { AudioRow } from "./rows/AudioRow";
+import { LiveRow } from "./rows/LiveRow";
+import { PassageRow } from "./rows/PassageRow";
+import { SilenceRow } from "./rows/SilenceRow";
+import { TranscriptRow } from "./rows/TranscriptRow";
+
+// While recording, the last minute of transcripts stays uncombined; older passages
+// settle in 30-second steps so a passage does not change while it is being read.
+const UNSETTLED_MS = 60_000;
+const SETTLE_STEP_MS = 30_000;
 
 // The recorder fields the timeline shows; input levels change every poll and are left out.
 const timelineCapture = (status: CaptureStatus) => ({
@@ -198,7 +199,8 @@ export function Timeline({
           ) ?? 0;
         const settled =
           capture?.sessionId === session?.id && capture?.state !== "idle"
-            ? Math.floor((latest - 60000) / 30000) * 30000
+            ? Math.floor((latest - UNSETTLED_MS) / SETTLE_STEP_MS) *
+              SETTLE_STEP_MS
             : Infinity;
         for (const entry of combine
           ? combineTranscriptEntries(items, settled)
@@ -229,7 +231,7 @@ export function Timeline({
   function renderEntry(entry: DisplayEntry) {
     if (entry.kind === "passage")
       return (
-        <TranscriptPassage
+        <PassageRow
           entry={entry}
           session={session}
           playingKey={playingKey}
@@ -239,210 +241,40 @@ export function Timeline({
           candidates={termIndex.candidates}
         />
       );
-    if (entry.kind === "live") {
-      const { segment } = entry;
-      const range = recordedRange(
-        segment.recordedAt,
-        session?.createdAt,
-        segment.startMs,
-        segment.endMs,
-      );
+    if (entry.kind === "live")
       return (
-        <article
-          className="record-row transcript-row audio-row live-segment"
-          data-streaming={!!segment.streaming}
-          key={`live-${segment.sourceId}-${segment.startMs}`}
-          role="status"
-          aria-label={`${segment.sourceId} audio recording in progress`}
-        >
-          <span className="record-time">{range.start}</span>
-          <div className="record-main">
-            <div className="record-meta">
-              <AudioSourceBadge sourceId={segment.sourceId} />
-              <span>Started {range.start}</span>
-            </div>
-            <div className="record-line">
-              <span className="record-summary">
-                <span className="live-dot" />{" "}
-                {segment.interimText
-                  ? "Interim transcription"
-                  : segment.streaming
-                    ? "Speech active · recording audio"
-                    : "Speech detected · recording audio"}
-              </span>
-              <span className="live-pending">
-                {segment.interimText ? "Awaiting final…" : "Saving…"}
-              </span>
-            </div>
-            {segment.interimText && (
-              <p className="interim-text">{segment.interimText}</p>
-            )}
-          </div>
-        </article>
+        <LiveRow
+          key={`live-${entry.segment.sourceId}-${entry.segment.startMs}`}
+          segment={entry.segment}
+          sessionCreatedAt={session?.createdAt}
+        />
       );
-    }
-    const transcript =
-      entry.kind === "transcript"
-        ? entry.transcript
-        : entry.kind === "audio"
-          ? entry.transcript
-          : undefined;
-    if (transcript) {
+    if (entry.kind !== "silence" && entry.transcript)
       return (
         <TranscriptRow
-          key={transcript.id}
-          transcript={transcript}
+          key={entry.transcript.id}
+          transcript={entry.transcript}
           session={session}
           playingKey={playingKey}
           onTogglePlayback={togglePlayback}
           onSelect={captureSelection}
           onAskTerm={askTerm}
-          insights={termIndex.insights.get(transcript.id) ?? []}
-          candidates={termIndex.candidates.get(transcript.id) ?? []}
+          insights={termIndex.insights.get(entry.transcript.id) ?? []}
+          candidates={termIndex.candidates.get(entry.transcript.id) ?? []}
         />
       );
-    }
     if (entry.kind === "transcript") return null;
-    const chunks = entry.chunks;
-    const first = chunks[0];
-    const last = chunks.at(-1)!;
-    const startTime = recordedRange(
-      first.recordedAt,
-      session?.createdAt,
-      first.startMs,
-      first.endMs,
-    ).start;
-    const endTime = recordedRange(
-      last.recordedAt,
-      session?.createdAt,
-      last.startMs,
-      last.endMs,
-    ).end;
-    const range = { start: startTime, end: endTime };
-    if (entry.kind === "silence") {
-      const emptyIds = chunks
-        .filter((chunk) => chunk.status === "asr-empty")
-        .map((chunk) => chunk.id);
-      return (
-        <details className="quiet-section" key={first.id}>
-          <summary>
-            <span className="quiet-rule" />
-            <span>No audio · {chunks.length} parts</span>
-            <span className="quiet-rule" />
-          </summary>
-          <div className="quiet-section-body">
-            <span>
-              {emptyIds.length
-                ? `${emptyIds.length} parts returned no words from ASR. `
-                : ""}
-              Saved audio from{" "}
-              {Array.from(
-                new Set(
-                  chunks.map((chunk) => audioSourceLabel(chunk.sourceId)),
-                ),
-              ).join(" + ")}
-            </span>
-            {emptyIds.length > 0 && (
-              <button
-                className="retry-asr"
-                disabled={!!busy || health?.asrPaused}
-                onClick={() => retryAsr(session!, emptyIds)}
-              >
-                Retry ASR
-              </button>
-            )}
-            <div className="quiet-parts">
-              {chunks.map((chunk) => {
-                const part = recordedRange(
-                  chunk.recordedAt,
-                  session?.createdAt,
-                  chunk.startMs,
-                  chunk.endMs,
-                );
-                return (
-                  <div className="quiet-part" id={chunk.id} key={chunk.id}>
-                    <AudioSourceBadge sourceId={chunk.sourceId} />
-                    <span>
-                      {part.start}–{part.end}
-                    </span>
-                    <PlayButton
-                      id={chunk.id}
-                      chunks={[chunk]}
-                      startTime={part.start}
-                      endTime={part.end}
-                      playingKey={playingKey}
-                      onToggle={togglePlayback}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </details>
-      );
-    }
-    const failedIds = chunks
-      .filter((chunk) => chunk.status === "asr-manual")
-      .map((chunk) => chunk.id);
-    const retryIds = failedIds;
-    const label = failedIds.length
-      ? "ASR stopped · audio saved"
-      : chunkStatus(first.status);
+    const Row = entry.kind === "silence" ? SilenceRow : AudioRow;
     return (
-      <article
-        className={`record-row transcript-row audio-row ${failedIds.length ? "asr-manual-row" : ""}`}
-        id={first.id}
-        key={first.id}
-      >
-        <span className="record-time">{range.start}</span>
-        <div className="record-main">
-          <div className="record-meta">
-            <AudioSourceBadge sourceId={first.sourceId} />
-            <span>
-              {range.start}–{range.end}
-            </span>
-          </div>
-          <div className="record-line">
-            <details className="record-copy">
-              <summary className="record-summary">{label}</summary>
-              <div className="record-extra">
-                <span>
-                  {range.start}–{range.end}
-                </span>
-                <span className="speaker">
-                  {audioSourceLabel(first.sourceId)}
-                </span>
-                {chunks.length > 1 && (
-                  <p>{chunks.length} audio parts grouped</p>
-                )}
-                {first.error && (
-                  <p className="capture-error" role="alert">
-                    {first.error}
-                  </p>
-                )}
-              </div>
-            </details>
-            <PlayButton
-              id={first.id}
-              chunks={chunks}
-              startTime={range.start}
-              endTime={range.end}
-              playingKey={playingKey}
-              onToggle={togglePlayback}
-            />
-          </div>
-          {retryIds.length > 0 && (
-            <button
-              className="retry-asr"
-              disabled={!!busy || health?.asrPaused}
-              onClick={() => retryAsr(session!, retryIds)}
-            >
-              Retry ASR for {retryIds.length} saved audio part
-              {retryIds.length === 1 ? "" : "s"}
-            </button>
-          )}
-        </div>
-      </article>
+      <Row
+        key={entry.chunks[0].id}
+        chunks={entry.chunks}
+        sessionCreatedAt={session?.createdAt}
+        playingKey={playingKey}
+        onTogglePlayback={togglePlayback}
+        retryDisabled={!!busy || !!health?.asrPaused}
+        onRetry={(chunkIds) => retryAsr(session!, chunkIds)}
+      />
     );
   }
 
