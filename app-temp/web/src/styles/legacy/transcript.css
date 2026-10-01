@@ -139,30 +139,6 @@ body[data-language="original"] .translation {
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
-.source-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink);
-}
-.source-avatar {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 750;
-}
-.source-avatar[data-source="system"] {
-  background: var(--blue);
-}
-.source-tag strong {
-  font-size: 11px;
-}
 .record-line {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -341,10 +317,6 @@ body[data-language="original"] .translation {
 }
 .quiet-part:last-child {
   border-bottom: 0;
-}
-.quiet-part .source-avatar {
-  width: 18px;
-  height: 18px;
 }
 .asr-manual-row {
   border-left: 3px solid #d38a4c;

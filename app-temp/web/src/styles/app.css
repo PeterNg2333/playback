@@ -3,11 +3,9 @@
 /* Until every feature uses utilities, the old stylesheets sit in the components layer,
    so a utility on an element overrides them. Each file goes once its feature is migrated. */
 @import "./legacy/base.css" layer(components);
-@import "./legacy/layout.css" layer(components);
 @import "./markdown.css";
 @import "./legacy/notes.css" layer(components);
 @import "./legacy/transcript.css" layer(components);
-@import "./legacy/controls.css" layer(components);
 @import "./legacy/activity.css" layer(components);
 @import "./legacy/overlays.css" layer(components);
 
@@ -29,4 +27,12 @@
   /* Phones up to 390px wide (most current iPhones) get the compact header and rows;
      xs starts just above them. */
   --breakpoint-xs: 24.4375rem;
+
+  /* The recorder's dot pulses while recording. */
+  --animate-record-pulse: record-pulse 1.5s ease-in-out infinite;
+  @keyframes record-pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
 }

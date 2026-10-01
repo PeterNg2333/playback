@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { useHealth } from "../../lib/useHealth";
@@ -29,9 +30,12 @@ export function Recorder({ session }: { session: Session | null }) {
       ? "Restart the API before recording with the selected source"
       : "Choose which audio to record; stop recording to change it";
   return (
-    <div className="top-actions" data-testid="recorder">
+    <div
+      className="flex flex-none items-center gap-1.25 md:gap-2.5"
+      data-testid="recorder"
+    >
       <select
-        className="recording-mode"
+        className="max-w-27.5 rounded-lg border border-line bg-white px-2.5 py-1.75 text-[11px] font-bold text-ink disabled:opacity-60 md:max-w-46.25"
         aria-label="Recording source"
         title={sourceSelectionTitle}
         disabled={!!busy || !isIdle}
@@ -44,26 +48,46 @@ export function Recorder({ session }: { session: Session | null }) {
         <option value="system">System audio</option>
         <option value="both">Both sources</option>
       </select>
-      <div className="record-actions" data-state={capture?.state || "idle"}>
+      <div
+        className={clsx(
+          "flex items-center gap-1.75",
+          !isIdle && "rounded-[10px] border py-1 pr-1.5 pl-2.5",
+          !isIdle &&
+            (isPaused
+              ? "border-line bg-[#f4f5f8]"
+              : "border-[#efcbdc] bg-[#fff3f8]"),
+        )}
+      >
         {isIdle ? (
           <button
-            className="record-start"
+            className="flex min-h-8.5 items-center gap-1.75 rounded-[9px] border border-[#eac9da] bg-[#fff7fa] px-2 text-[12px] font-bold text-[#a6456d] disabled:cursor-not-allowed disabled:opacity-50 md:px-3"
             disabled={
               !session || !!busy || !health?.mongo || !sourceSelectionSupported
             }
             onClick={() => record("start")}
             aria-label="Start recording"
           >
-            <Icon name="record" />
-            <span>Record</span>
+            <Icon name="record" className="size-3.5" />
+            <span className="max-md:hidden">Record</span>
           </button>
         ) : (
           <>
-            <span className="record-indicator" role="status">
-              <Icon name="record" />
+            {/* Phones show only the dot and the time. */}
+            <span
+              className="flex items-center gap-1.5 text-[12px] font-bold text-[#a6456d] max-md:text-[0px]"
+              role="status"
+            >
+              <Icon
+                name="record"
+                className={clsx(
+                  "size-3.5",
+                  !isPaused &&
+                    "animate-record-pulse motion-reduce:animate-none",
+                )}
+              />
               {isPaused ? "Paused" : "Recording"}
               <span
-                className="record-countdown"
+                className="pl-1.25 text-[11px] tabular-nums"
                 aria-label={`Recording elapsed ${elapsed}`}
               >
                 {elapsed}

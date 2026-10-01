@@ -63,7 +63,7 @@ export function SilenceRow({
             );
             return (
               <div className="quiet-part" id={chunk.id} key={chunk.id}>
-                <AudioSourceBadge sourceId={chunk.sourceId} />
+                <AudioSourceBadge sourceId={chunk.sourceId} small />
                 <span>
                   {part.start}–{part.end}
                 </span>
