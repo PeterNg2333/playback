@@ -1,5 +1,5 @@
 import { useMemo, useRef, type Ref } from "react";
-import { Markdown, indexMarkdownSources } from "../../Component/Markdown";
+import { CitedMarkdown, indexMarkdownSources } from "../sources/CitedMarkdown";
 import { askAboutTerm } from "../ask/askAbout";
 import { visibleTerms } from "../terms/visibleTerms";
 import { parseMaterialPassageId } from "../sources/passageId";
@@ -192,7 +192,7 @@ export function NotePreview({
               data-section-id={section.id}
               key={section.id}
             >
-              <Markdown value={section.markdown} {...common} reading />
+              <CitedMarkdown value={section.markdown} {...common} reading />
               {!reading && ids.length > 0 && (
                 <SourceCitation
                   groups={[{ id: section.id, transcriptIds: ids }]}
@@ -213,7 +213,7 @@ export function NotePreview({
           );
         })
       ) : (
-        <Markdown value={markdown} {...common} reading={reading} />
+        <CitedMarkdown value={markdown} {...common} reading={reading} />
       )}
     </div>
   );

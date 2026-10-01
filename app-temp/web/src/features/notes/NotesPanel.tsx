@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Panel } from "../../Component/Layout/Panel";
-import { Markdown } from "../../Component/Markdown";
+import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm } from "../ask/askAbout";
 import { refreshWorkspace } from "../library/refreshWorkspace";
@@ -356,7 +356,7 @@ export function NotesPanel({
               Live draft · unverified citations · not saved
             </p>
             {draftNote?.draft ? (
-              <Markdown
+              <CitedMarkdown
                 key={session?.id}
                 value={draftNote.draft}
                 groups={session?.sourceGroups}

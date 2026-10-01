@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { api } from "../../pages/api";
-import { Markdown } from "../../Component/Markdown";
+import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { useHealth } from "../../lib/useHealth";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 import type { Session } from "../../types/api";
@@ -284,7 +284,7 @@ export function NoteHistoryDialog({
                         {candidate.blocked && (
                           <p>Excluded: overlaps an intentional deletion.</p>
                         )}
-                        <Markdown
+                        <CitedMarkdown
                           value={candidate.markdown}
                           reading
                           groups={preview.citations.map((x) => ({

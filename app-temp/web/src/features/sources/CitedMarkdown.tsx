@@ -1,138 +1,11 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useMemo,
-  memo,
-  lazy,
-  Suspense,
-  type ReactNode,
-  type ComponentType,
-  type ComponentPropsWithoutRef,
-} from "react";
-import ReactMarkdown from "react-markdown";
-import type { ExtraProps } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import { termSegments } from "../features/terms/termMatching";
-import { SourceCitation } from "../features/sources/SourceCitation";
-import { requestDiagram } from "./diagramRenderer";
-import "../styles/math.css";
-function Diagram({ source }: { source: string }) {
-  const [svg, setSvg] = useState("");
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    setSvg("");
-    setError("");
-    const request = requestDiagram(source);
-    request.promise
-      .then((result) => {
-        if (active) setSvg(result);
-      })
-      .catch((failure: Error) => {
-        if (active) setError(failure.message);
-      });
-    return () => {
-      active = false;
-      request.cancel();
-    };
-  }, [source]);
-  return (
-    <figure className="flowchart">
-      <figcaption>Flowchart</figcaption>
-      {error ? (
-        <p role="alert">{error}</p>
-      ) : !svg ? (
-        <p role="status">Loading diagram…</p>
-      ) : (
-        <div
-          className="flowchart-scroll"
-          aria-label="Rendered flowchart"
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
-      )}
-    </figure>
-  );
-}
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { Markdown } from "../../Component/markdown/Markdown";
+import { termSegments } from "../terms/termMatching";
+import { SourceCitation } from "./SourceCitation";
 
-function FormulaSource({
-  source,
-  display,
-  title,
-}: {
-  source: string;
-  display: boolean;
-  title: string;
-}) {
-  const Tag = display ? "div" : "span";
-  return (
-    <Tag className={`math-formula${display ? " math-display" : ""}`}>
-      <code className="math-source" title={title}>
-        {source}
-      </code>
-    </Tag>
-  );
-}
-function FormulaUnavailable(props: { source: string; display: boolean }) {
-  return (
-    <FormulaSource
-      {...props}
-      title="Equation renderer could not load; source is preserved. Reload to retry."
-    />
-  );
-}
-const Formula = lazy<ComponentType<{ source: string; display: boolean }>>(() =>
-  import("./MathFormula").catch(() => ({ default: FormulaUnavailable })),
-);
-
-// Stable component types: polling must not remount unchanged diagrams or formulas.
-function MarkdownCode(props: { className?: string; children?: ReactNode }) {
-  const language = /language-(\w+)/.exec(props.className || "")?.[1];
-  const source = String(props.children).replace(/\n$/, "");
-  if (language === "mermaid" || language === "flowchart")
-    return <Diagram source={source} />;
-  if (language === "math") {
-    const display = !props.className?.split(/\s+/).includes("math-inline");
-    return (
-      <Suspense
-        fallback={
-          <FormulaSource
-            source={source}
-            display={display}
-            title="Loading equation renderer…"
-          />
-        }
-      >
-        <Formula source={source} display={display} />
-      </Suspense>
-    );
-  }
-  return <code className={props.className}>{props.children}</code>;
-}
-function MarkdownPre({
-  node,
-  children,
-}: ComponentPropsWithoutRef<"pre"> & ExtraProps) {
-  const code = node?.children[0];
-  const classes =
-    code?.type === "element" && code.tagName === "code"
-      ? code.properties.className
-      : undefined;
-  // Figures and block equations own their layout; normal fenced code keeps <pre>.
-  return Array.isArray(classes) &&
-    classes.some((x) =>
-      ["language-math", "language-mermaid", "language-flowchart"].includes(
-        String(x),
-      ),
-    ) ? (
-    <>{children}</>
-  ) : (
-    <pre>{children}</pre>
-  );
-}
+// Markdown written by the AI that cites session sources: [source-id], [[id, id]] for a
+// group of passages, and [ref:<explanation id>]. Citations become source chips (hidden
+// while reading), unknown IDs show as unavailable, and key terms can be highlighted.
 
 type MarkdownNode = {
   type: string;
@@ -339,7 +212,7 @@ export function indexMarkdownSources(
 }
 
 // Stable link component: player/activity refreshes must not close an open popup.
-function MarkdownLink(props: { href?: string; children?: ReactNode }) {
+function CitedLink(props: { href?: string; children?: ReactNode }) {
   const {
     sourceLabels,
     sourceDetails,
@@ -413,7 +286,7 @@ function MarkdownLink(props: { href?: string; children?: ReactNode }) {
   );
 }
 
-export function Markdown({
+export function CitedMarkdown({
   value,
   onReference,
   sources = noSources,
@@ -448,11 +321,7 @@ export function Markdown({
     [references, sources, groups],
   );
   const plugins = useMemo(
-    () => [
-      remarkGfm,
-      remarkMath,
-      [referencePlugin, { references: indexed, terms }],
-    ],
+    () => [[referencePlugin, { references: indexed, terms }]],
     [indexed, terms],
   );
   const context = useMemo(
@@ -468,41 +337,7 @@ export function Markdown({
   );
   return (
     <References.Provider value={context}>
-      <MarkdownBody value={value} plugins={plugins} />
+      <Markdown value={value} plugins={plugins} link={CitedLink} />
     </References.Provider>
   );
 }
-const components = { code: MarkdownCode, pre: MarkdownPre, a: MarkdownLink };
-const sanitizePlugins: ComponentPropsWithoutRef<
-  typeof ReactMarkdown
->["rehypePlugins"] = [
-  [
-    rehypeSanitize,
-    {
-      ...defaultSchema,
-      attributes: {
-        ...defaultSchema.attributes,
-        code: [["className", /^language-./, "math-inline", "math-display"]],
-      },
-    },
-  ],
-];
-const MarkdownBody = memo(function MarkdownBody({
-  value,
-  plugins,
-}: {
-  value: string;
-  plugins: unknown[];
-}) {
-  return (
-    <div className="markdown-preview" data-markdown>
-      <ReactMarkdown
-        remarkPlugins={plugins as never}
-        rehypePlugins={sanitizePlugins}
-        components={components}
-      >
-        {value}
-      </ReactMarkdown>
-    </div>
-  );
-});

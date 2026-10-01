@@ -1,5 +1,6 @@
 import type { Answer, Evidence, Session } from "../../types/api";
-import { Markdown } from "../../Component/Markdown";
+import { Markdown } from "../../Component/markdown/Markdown";
+import { CitedMarkdown } from "../sources/CitedMarkdown";
 
 export function ChatAnswer({
   answer,
@@ -12,7 +13,7 @@ export function ChatAnswer({
 }) {
   return (
     <div className="answer">
-      <Markdown
+      <CitedMarkdown
         value={answer.answer}
         groups={sourceGroups}
         sources={answer.evidence
