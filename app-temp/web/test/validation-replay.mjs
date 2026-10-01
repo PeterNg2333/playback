@@ -139,7 +139,10 @@ try {
     noteMarkdown:
       "```mermaid\nflowchart LR\nAudio --> Notes\n```\n\nStable diagram fixture.",
   };
-  const svg = page.locator(".notes-body .flowchart svg");
+  const svg = page
+    .getByTestId("notes-body")
+    .getByLabel("Rendered flowchart")
+    .locator("svg");
   await svg.waitFor({ timeout: 9000 });
   const diagramId = await svg.getAttribute("id");
   await page.waitForTimeout(2200);
@@ -162,14 +165,14 @@ try {
       exact: true,
     })
     .waitFor({ timeout: 8000 });
-  const body = page.locator(".notes-body");
+  const body = page.getByTestId("notes-body");
   await body.evaluate((el) => {
     el.scrollTop = 900;
     el.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
   const anchor = await body.evaluate((el) => {
     const top = el.getBoundingClientRect().top;
-    const p = [...el.querySelectorAll(".markdown-preview > *")].find(
+    const p = [...el.querySelectorAll("[data-markdown] > *")].find(
       (p) => p.getBoundingClientRect().bottom > top,
     );
     return { text: p.textContent, offset: p.getBoundingClientRect().top - top };
@@ -183,7 +186,7 @@ try {
     .getByText("New introduction.", { exact: true })
     .waitFor({ timeout: 8000 });
   const delta = await body.evaluate((el, a) => {
-    const p = [...el.querySelectorAll(".markdown-preview > *")].find(
+    const p = [...el.querySelectorAll("[data-markdown] > *")].find(
       (p) => p.textContent === a.text,
     );
     return (
@@ -252,18 +255,23 @@ try {
     .getByRole("button", { name: "◇ Ask Playback", exact: true })
     .click();
   await page.getByLabel("Your question", { exact: true }).fill("What is cache");
-  await page.locator(".web-toggle input").check();
+  await page
+    .getByRole("checkbox", { name: /Include public web search/ })
+    .check();
   await page.getByRole("button", { name: "Send", exact: true }).click();
-  await page.locator(".chat-form").dispatchEvent("submit");
+  await page
+    .getByRole("region", { name: "Ask Playback" })
+    .locator("form")
+    .dispatchEvent("submit");
   await page.getByRole("button", { name: "Working…", exact: true }).waitFor();
   await shot("chat-loading");
-  await page.locator(".answer").waitFor();
+  await page.getByTestId("answer").waitFor();
   assert.equal(asks, 1);
-  assert.match(await page.locator(".answer").innerText(), /hypothesis/);
+  assert.match(await page.getByTestId("answer").innerText(), /hypothesis/);
   for (const width of [1440, 1024, 768, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForTimeout(350);
-    await visible(page.locator(".chat"));
+    await visible(page.getByRole("region", { name: "Ask Playback" }));
     await visible(page.getByRole("button", { name: "Send", exact: true }));
     assert(
       await page
@@ -284,7 +292,10 @@ try {
   }
   mode = "error";
   await page.getByRole("button", { name: "Send", exact: true }).click();
-  await page.locator(".chat-error").waitFor();
+  await page
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("alert")
+    .waitFor();
   assert.equal(
     await page.getByLabel("Your question", { exact: true }).inputValue(),
     "What is cache",
@@ -293,7 +304,8 @@ try {
   mode = "incomplete";
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page
-    .locator(".chat-error")
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("alert")
     .getByText(/stream ended before completion/)
     .waitFor();
   await shot("chat-incomplete");
@@ -320,7 +332,7 @@ try {
     .waitFor();
   await page.waitForTimeout(1200);
   assert.equal(
-    await page.locator(".answer").count(),
+    await page.getByTestId("answer").count(),
     0,
     "Old session answer must not appear in new session",
   );

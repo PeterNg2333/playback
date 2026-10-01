@@ -31,6 +31,7 @@ export function NoteEditHistory({
     return (
       <LazyDetails
         className="activity-entry"
+        data-testid="activity-entry"
         key={note.version}
         summary={
           <>

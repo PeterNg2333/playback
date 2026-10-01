@@ -87,6 +87,7 @@ export function ActivityPopover({
             {items.map((item) => (
               <LazyDetails
                 className="activity-entry"
+                data-testid="activity-entry"
                 key={item.id}
                 summary={
                   <>

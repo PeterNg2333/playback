@@ -64,7 +64,7 @@ async function drain() {
       // This host belongs to this request. Mermaid can throw before removing its own
       // temporary SVG (e.g. an unfinished live draft); always remove the whole host.
       const host = document.createElement("div");
-      host.className = "diagram-render-host";
+      host.dataset.diagramRenderHost = "";
       host.setAttribute("aria-hidden", "true");
       host.inert = true;
       host.style.cssText =

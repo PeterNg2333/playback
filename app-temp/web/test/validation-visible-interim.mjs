@@ -64,7 +64,7 @@ try {
     ],
     { windowsHide: true, stdio: "ignore" },
   );
-  const gray = page.locator(".interim-text").last();
+  const gray = page.getByTestId("interim-text").last();
   await gray.waitFor({ timeout: 19000 });
   await gray.scrollIntoViewIfNeeded();
   elapsedMs = Date.now() - start;

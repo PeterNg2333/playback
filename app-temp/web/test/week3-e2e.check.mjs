@@ -154,7 +154,7 @@ try {
       await page
         .getByRole("button", { name: "Revise with AI", exact: true })
         .click();
-      await page.locator(".note-ai-status").waitFor();
+      await page.getByTestId("note-ai-status").waitFor();
       assert.equal(
         await page
           .getByRole("button", { name: "Save", exact: true })
@@ -194,7 +194,7 @@ try {
       await page.waitForFunction(
         (version) =>
           document
-            .querySelector(".note-title")
+            .querySelector('[data-testid="notes-panel"] h2 + span')
             ?.textContent.includes("v" + version),
         current.noteVersion,
       );
@@ -275,15 +275,19 @@ try {
         { timeout: 140000 },
       );
       await page.getByRole("button", { name: "Send", exact: true }).click();
-      await page.locator(".chat-form").dispatchEvent("submit");
+      await page
+        .getByRole("region", { name: "Ask Playback" })
+        .locator("form")
+        .dispatchEvent("submit");
       await page
         .getByRole("button", { name: "Working…", exact: true })
         .waitFor();
       await screenshot("loading");
       assert.equal((await response).status(), 200);
-      await page.locator(".answer").waitFor({ timeout: 140000 });
+      await page.getByTestId("answer").waitFor({ timeout: 140000 });
       assert(
-        (await page.locator(".answer .citation").count()) > 0,
+        (await page.getByTestId("answer").locator("details button").count()) >
+          0,
         "Source-backed chat has no validated citations",
       );
       assert.equal(
@@ -294,7 +298,7 @@ try {
       const conversations = await get(`/sessions/${fixture.id}/conversations`);
       assert(conversations.length > 0);
       snapshots.push({
-        answer: await page.locator(".answer").innerText(),
+        answer: await page.getByTestId("answer").innerText(),
         conversations,
       });
       if (phase === "web") {
@@ -312,7 +316,7 @@ try {
         );
         assert(
           (await page
-            .locator(".answer")
+            .getByTestId("answer")
             .getByText("Public web:", { exact: true })
             .count()) > 0,
         );
@@ -331,7 +335,7 @@ try {
       .getByRole("button")
       .first()
       .click();
-    await page.locator(".answer").waitFor();
+    await page.getByTestId("answer").waitFor();
     assert.equal(
       calls.filter((x) => x.endpoint.endsWith("/ask/stream")).length,
       readChat ? 0 : 1,
@@ -340,12 +344,15 @@ try {
     if (phase === "web-read") {
       assert(
         (await page
-          .locator(".answer")
+          .getByTestId("answer")
           .getByText("Public web:", { exact: true })
           .count()) > 0,
       );
-      await page.locator(".answer-sources summary").click();
-      assert.equal(await page.locator(".answer-sources .citation").count(), 7);
+      await page.getByTestId("answer").locator("details > summary").click();
+      assert.equal(
+        await page.getByTestId("answer").locator("details button").count(),
+        7,
+      );
       // Inspect the actual source-button target without visiting a third-party page.
       await page.evaluate(() => {
         window.__openedSource = null;
@@ -354,7 +361,11 @@ try {
           return null;
         };
       });
-      await page.locator(".answer-sources .citation").first().click();
+      await page
+        .getByTestId("answer")
+        .locator("details button")
+        .first()
+        .click();
       const openedSource = await page.evaluate(() => window.__openedSource);
       assert.match(openedSource, /^https:\/\//);
       snapshots.push({ openedSource });
@@ -368,11 +379,13 @@ try {
     await screenshot("saved");
     await page.setViewportSize({ width: 375, height: 812 });
     await screenshot("narrow");
-    const box = await page.locator(".chat").boundingBox();
+    const box = await page
+      .getByRole("region", { name: "Ask Playback" })
+      .boundingBox();
     assert(box.x >= 0 && box.x + box.width <= 376);
     assert(
       await page
-        .locator(".answer")
+        .getByTestId("answer")
         .evaluate((x) => x.scrollWidth <= x.clientWidth + 1),
       "Saved answer overflows the narrow chat",
     );
@@ -380,10 +393,10 @@ try {
       assert.equal(calls.length, 0, "Reading saved chat generated a POST");
   } else {
     await page.getByRole("button", { name: "Preview", exact: true }).click();
-    assert((await page.locator(".note-section").count()) > 0);
+    assert((await page.locator("[data-section-id]").count()) > 0);
     await page.getByRole("button", { name: "Sources", exact: true }).click();
     const source = page
-      .locator(".note-content")
+      .getByTestId("note-content")
       .getByRole("button", { name: /^Open audio sources/ })
       .first();
     await source.click();
@@ -401,7 +414,10 @@ try {
       .getByRole("dialog", { name: "Note history & recovery" })
       .getByRole("button", { name: /^v1 ·/ })
       .click();
-    await page.locator(".historical-note").waitFor();
+    await page
+      .getByRole("dialog", { name: "Note history & recovery" })
+      .locator("pre")
+      .waitFor();
     await page.getByRole("button", { name: "Close note history" }).click();
     await page
       .locator(`summary[aria-label="Group options for ${fixture.groupName}"]`)
@@ -415,7 +431,7 @@ try {
     });
     await flow.waitFor();
     await flow.getByText("Recorded executions", { exact: true }).waitFor();
-    await flow.locator(".flowchart svg").waitFor();
+    await flow.getByLabel("Rendered flowchart").locator("svg").waitFor();
     const data = await get(
       `/groups/${fixture.groupId}/flow?sessionId=${fixture.id}`,
     );

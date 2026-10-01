@@ -62,11 +62,12 @@ export function TranscriptRow({
     <article
       className="record-row transcript-row"
       id={transcript.id}
+      data-testid="transcript-row"
       data-transcript-id={transcript.id}
     >
-      <span className="record-time" title={`${range.start}–${range.end}`}>
+      <time className="record-time" title={`${range.start}–${range.end}`}>
         {range.start}
-      </span>
+      </time>
       <div className="record-main">
         <div className="record-meta">
           <AudioSourceBadge sourceId={transcript.sourceId} />

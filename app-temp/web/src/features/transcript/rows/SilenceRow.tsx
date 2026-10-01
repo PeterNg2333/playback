@@ -28,7 +28,7 @@ export function SilenceRow({
     .filter((chunk) => chunk.status === "asr-empty")
     .map((chunk) => chunk.id);
   return (
-    <details className="quiet-section">
+    <details className="quiet-section" data-testid="silence-row">
       <summary>
         <span className="quiet-rule" />
         <span>No audio · {chunks.length} parts</span>

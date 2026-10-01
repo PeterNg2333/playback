@@ -113,6 +113,7 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
           return (
             <div
               className="session-group"
+              data-testid="session-group"
               data-drop-target={dropTarget === group.id || undefined}
               key={group.id}
               onDragOver={(event) => dragOver(event, group.id)}

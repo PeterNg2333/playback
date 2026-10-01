@@ -27,7 +27,7 @@ try {
       .waitFor();
   await page.getByRole("button", { name: "Start recording" }).waitFor();
   const columns = await page
-    .locator(".panel")
+    .locator('[data-testid="notes-panel"], [data-testid="transcript-panel"]')
     .evaluateAll((items) => items.map((x) => x.getBoundingClientRect().width));
   assert.ok(Math.abs(columns[0] - columns[1]) < 2, `columns: ${columns}`);
   await page.getByRole("button", { name: "Transcript settings" }).click();
@@ -40,29 +40,38 @@ try {
       "# Pipeline\n\n- Audio to notes\n\n```mermaid\nflowchart LR\nAudio --> Notes\n```",
     );
   await page.getByRole("button", { name: "Preview" }).click();
-  await page.locator(".flowchart svg").waitFor();
-  const diagramText = await page.locator(".flowchart svg").textContent();
+  await page.getByLabel("Rendered flowchart").locator("svg").waitFor();
+  const diagramText = await page
+    .getByLabel("Rendered flowchart")
+    .locator("svg")
+    .textContent();
   assert.ok(
     diagramText?.includes("Audio") && diagramText.includes("Notes"),
     `diagram node: ${(
       await page
-        .locator(".flowchart svg .node")
+        .getByLabel("Rendered flowchart")
+        .locator("svg .node")
         .first()
         .evaluate((x) => x.outerHTML)
     ).slice(0, 1200)}`,
   );
   await page.getByRole("button", { name: "Ask Playback" }).click();
-  await page
-    .locator(".chat-head strong", { hasText: "Ask Playback" })
-    .waitFor();
+  await page.getByRole("region", { name: "Ask Playback" }).waitFor();
   await page.screenshot({ path: "app-temp/.artifacts/browser-desktop.png" });
   await page.getByRole("button", { name: "Close chat" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Toggle sessions" }).click();
-  assert.ok(await page.locator(".sidebar.is-open").isVisible());
+  assert.ok(
+    await page
+      .getByRole("navigation", { name: "Sessions and groups" })
+      .isVisible(),
+  );
   await page.getByRole("button", { name: "Close sessions" }).click();
   await page
-    .locator(".sidebar")
+    .getByRole("navigation", {
+      name: "Sessions and groups",
+      includeHidden: true,
+    })
     .evaluate((element) =>
       element.getAnimations().map((animation) => animation.finish()),
     );

@@ -21,11 +21,12 @@ export function LiveRow({
   return (
     <article
       className="record-row transcript-row audio-row live-segment"
+      data-testid="live-row"
       data-streaming={!!segment.streaming}
       role="status"
       aria-label={`${segment.sourceId} audio recording in progress`}
     >
-      <span className="record-time">{range.start}</span>
+      <time className="record-time">{range.start}</time>
       <div className="record-main">
         <div className="record-meta">
           <AudioSourceBadge sourceId={segment.sourceId} />
@@ -45,7 +46,9 @@ export function LiveRow({
           </span>
         </div>
         {segment.interimText && (
-          <p className="interim-text">{segment.interimText}</p>
+          <p className="interim-text" data-testid="interim-text">
+            {segment.interimText}
+          </p>
         )}
       </div>
     </article>

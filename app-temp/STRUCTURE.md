@@ -166,7 +166,14 @@ MongoDB or network. Run them from `app-temp/web` against Vite dev on port 5174
 - `notes-reading-sources.check.mjs`: Reading/Sources, 1,350 and 2,700 rows,
   history and recovery, AI flow, edit conflicts and draft recovery.
 - `cold-loading.check.mjs` and `markdown-math.check.mjs`: lazy diagram and maths
-  loading; best run on a production preview.
+  loading. `markdown-math` blocks the built `MathFormula-*.js` chunk, so it needs
+  a production preview (`MATH_BASE_URL`, default port 5180).
+
+Checks find elements the way a reader does: by role and accessible name, by
+label, or by an existing `data-*` hook (`data-transcript-id`, `data-markdown`,
+`data-virtual-row`, `data-chunk-id`). An element with no name gets a
+`data-testid` named after its component (`audio-row`, `note-content`). They never
+select by CSS class, because classes are styling and change with it.
 
 `note-coverage-repair`, `notes-snapshot-performance`, `memory-retention` and
 `validation-replay` replay saved runs from `app-temp/data/validation/runs/`.

@@ -71,7 +71,11 @@ export function PlaybackPage() {
         </div>
       )}
       {health && !health.recordingSourceSelection && (
-        <div className="source-api-warning" role="status">
+        <div
+          className="source-api-warning"
+          role="status"
+          data-testid="source-api-warning"
+        >
           Recording source selection needs the updated API. Stop the dev server
           with Ctrl+C, run pnpm.cmd dev again, then reload this page.
         </div>

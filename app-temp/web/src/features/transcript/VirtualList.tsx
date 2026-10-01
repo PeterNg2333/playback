@@ -62,7 +62,7 @@ export function VirtualList({
     () => () => {
       if (revealed.current) {
         clearTimeout(revealed.current.timer);
-        revealed.current.element.classList.remove("source-revealed");
+        delete revealed.current.element.dataset.revealed;
       }
     },
     [],
@@ -201,7 +201,7 @@ export function VirtualList({
       return;
     if (revealed.current) {
       clearTimeout(revealed.current.timer);
-      revealed.current.element.classList.remove("source-revealed");
+      delete revealed.current.element.dataset.revealed;
     }
     for (
       let details = element.closest("details");
@@ -210,12 +210,12 @@ export function VirtualList({
     )
       details.open = true;
     element.querySelector("details")?.setAttribute("open", "");
-    element.classList.add("source-revealed");
+    element.dataset.revealed = "";
     element.tabIndex = -1;
     element.focus({ preventScroll: true });
     element.scrollIntoView({ block: "center" });
     const timer = setTimeout(() => {
-      element.classList.remove("source-revealed");
+      delete element.dataset.revealed;
       revealed.current = undefined;
       setTarget(undefined);
     }, 1600);

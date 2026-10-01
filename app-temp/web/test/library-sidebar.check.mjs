@@ -81,10 +81,13 @@ try {
 
   await page.goto("http://127.0.0.1:5174/");
   await page.getByRole("heading", { name: "Sessions", exact: true }).waitFor();
-  const group = page.locator(".session-group").filter({ hasText: "Research" });
-  const sessionsSection = page.locator(".sessions-section");
-  const newSession = sessionsSection
-    .locator(".sidebar-heading")
+  const group = page
+    .getByTestId("session-group")
+    .filter({ hasText: "Research" });
+  const sessionsSection = page.getByRole("region", { name: "Sessions" });
+  const newSession = page
+    .locator("#sessions-heading")
+    .locator("..")
     .getByRole("button", { name: "New session" });
   const newGroup = page
     .locator("#groups-heading")
@@ -104,7 +107,7 @@ try {
     );
   await sessionsSection
     .getByRole("button", { name: "Lecture 12" })
-    .dragTo(group.locator(".folder-row"));
+    .dragTo(group.getByRole("button", { name: "Collapse Research" }));
   await group.getByRole("button", { name: "Lecture 12" }).waitFor();
   assert.equal(
     sessions.find((item) => item.id === "session-1").groupId,
@@ -112,16 +115,16 @@ try {
   );
   await group
     .getByRole("button", { name: "Lecture 12" })
-    .dragTo(sessionsSection.locator(".sidebar-heading"));
+    .dragTo(sessionsSection.getByRole("heading", { name: "Sessions" }));
   await sessionsSection.getByRole("button", { name: "Lecture 12" }).waitFor();
   assert.equal(sessions.find((item) => item.id === "session-1").groupId, null);
   await sessionsSection
     .getByRole("button", { name: "Lecture 12" })
-    .dragTo(group.locator(".folder-row"));
-  await group.locator(".folder-row").hover();
+    .dragTo(group.getByRole("button", { name: "Collapse Research" }));
+  await group.getByRole("button", { name: "Collapse Research" }).hover();
   assert.equal(
     await group
-      .locator(".folder-create")
+      .getByRole("button", { name: "New session in Research" })
       .evaluate((element) => getComputedStyle(element).opacity),
     "1",
   );
@@ -136,19 +139,12 @@ try {
     sessions.find((item) => item.title === "Research meeting").groupId,
     "group-1",
   );
-  const moveMenu = group
-    .locator(".session-entry")
-    .filter({ hasText: "Lecture 12" })
-    .locator("summary");
+  const moveMenu = group.getByLabel("Move Lecture 12");
   await moveMenu.focus();
   await moveMenu.press("Enter");
   await group.getByRole("button", { name: "Move to Sessions" }).click();
   await sessionsSection.getByRole("button", { name: "Lecture 12" }).waitFor();
-  await sessionsSection
-    .locator(".session-entry")
-    .filter({ hasText: "Lecture 12" })
-    .locator("summary")
-    .click();
+  await sessionsSection.getByLabel("Move Lecture 12").click();
   await sessionsSection
     .getByRole("button", { name: "Move to Research" })
     .click();
@@ -185,10 +181,17 @@ try {
   assert.ok(sessions.every((item) => item.groupId === null));
   await page.setViewportSize({ width: 375, height: 812 });
   await page.getByRole("button", { name: "Toggle sessions" }).click();
-  assert.ok(await page.locator(".sidebar.is-open").isVisible());
+  assert.ok(
+    await page
+      .getByRole("navigation", { name: "Sessions and groups" })
+      .isVisible(),
+  );
   assert.equal(
     await page.evaluate(
-      () => document.elementFromPoint(100, 130)?.closest(".sidebar") !== null,
+      () =>
+        document
+          .elementFromPoint(100, 130)
+          ?.closest('nav[aria-label="Sessions and groups"]') !== null,
     ),
     true,
   );

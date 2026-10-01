@@ -55,7 +55,7 @@ export function PassageRow({
       id={"passage-" + first.id}
       data-passage-sources={entry.transcripts.length}
     >
-      <span className="record-time">{from}</span>
+      <time className="record-time">{from}</time>
       <div className="record-main">
         <div className="record-meta">
           <AudioSourceBadge sourceId={first.sourceId} />

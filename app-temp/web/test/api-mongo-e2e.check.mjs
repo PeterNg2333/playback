@@ -77,7 +77,7 @@ try {
           .waitFor({ timeout: 10_000 })
           .then(() => true),
         page
-          .locator(".global-error")
+          .getByTestId("error-toast")
           .waitFor({ timeout: 10_000 })
           .then(() => false),
       ]);
@@ -128,7 +128,9 @@ try {
           "idle",
         );
       } else {
-        const captureError = await page.locator(".global-error").textContent();
+        const captureError = await page
+          .getByTestId("error-toast")
+          .textContent();
         captureErrors.push(`${mode}: ${captureError.trim()}`);
         assert.match(captureError, /No audio source could start/);
         assert.equal(
@@ -151,27 +153,39 @@ try {
   const groups = await (await fetch(`${api}/groups`)).json();
   groupId = groups.find((item) => item.name === groupName)?.id;
   assert.match(groupId, /^[a-f0-9]{32}$/);
-  const groupFolder = page.locator(".session-group").filter({
+  const groupFolder = page.getByTestId("session-group").filter({
     has: page.getByRole("button", {
       name: `Collapse ${groupName}`,
       exact: true,
     }),
   });
-  await page
-    .getByRole("button", { name: title, exact: true })
-    .dragTo(groupFolder.locator(".folder-row"));
+  await page.getByRole("button", { name: title, exact: true }).dragTo(
+    groupFolder.getByRole("button", {
+      name: `Collapse ${groupName}`,
+      exact: true,
+    }),
+  );
   await groupFolder.getByRole("button", { name: title, exact: true }).waitFor();
   await groupFolder
     .getByRole("button", { name: title, exact: true })
-    .dragTo(page.locator(".sessions-section .sidebar-heading"));
+    .dragTo(
+      page
+        .getByRole("region", { name: "Sessions" })
+        .getByRole("heading", { name: "Sessions" }),
+    );
   await page
-    .locator(".sessions-section")
+    .getByRole("region", { name: "Sessions" })
     .getByRole("button", { name: title, exact: true })
     .waitFor();
   await page
-    .locator(".sessions-section")
+    .getByRole("region", { name: "Sessions" })
     .getByRole("button", { name: title, exact: true })
-    .dragTo(groupFolder.locator(".folder-row"));
+    .dragTo(
+      groupFolder.getByRole("button", {
+        name: `Collapse ${groupName}`,
+        exact: true,
+      }),
+    );
   await page
     .locator(`summary[aria-label="Group options for ${groupName}"]`)
     .click();
@@ -207,7 +221,10 @@ try {
   // TranscriptContent is keyed by session. Opening the old session's details
   // during a switch loses that open state when the selected session mounts.
   await page.getByRole("heading", { name: title, exact: true }).waitFor();
-  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor({ state: "hidden" });
   await page.locator("#session-materials > summary").click();
   const fileChooser = page
     .waitForEvent("filechooser", { timeout: 10000 })
@@ -233,7 +250,7 @@ try {
   await page.getByText(title, { exact: true }).first().waitFor();
   await page.getByText("v1", { exact: true }).waitFor();
   await page
-    .locator(".session-group")
+    .getByTestId("session-group")
     .filter({ hasText: groupName + " renamed" })
     .getByRole("button", { name: title })
     .waitFor();
@@ -346,7 +363,7 @@ try {
     [materialText],
   );
   const quietAudio = page
-    .locator(".quiet-section")
+    .getByTestId("silence-row")
     .filter({ hasText: "No audio" })
     .first();
   await quietAudio.locator("summary").waitFor({ timeout: 10_000 });
@@ -354,7 +371,7 @@ try {
   const savedAudio = page.waitForResponse((response) =>
     response.url().endsWith(`/api/chunks/${chunkId}/audio`),
   );
-  await page.locator(`.record-play[data-chunk-id="${chunkId}"]`).click();
+  await page.locator(`[data-chunk-id="${chunkId}"]`).click();
   assert.ok(
     [200, 206].includes((await savedAudio).status()),
     "Saved chunk must play from the real API",
@@ -418,12 +435,14 @@ try {
   await page.getByRole("heading", { name: "LLM edit log" }).waitFor();
   await page.getByText("v1 · Manual edit", { exact: true }).click();
   await page
-    .locator(".activity-edit pre")
+    .getByRole("region", { name: "AI activity history" })
+    .locator("pre")
     .filter({ hasText: "# Demo notes" })
     .waitFor();
   assert.equal(
     await page
-      .locator(".activity-content textarea, .activity-content input")
+      .getByRole("region", { name: "AI activity history" })
+      .locator("textarea, input")
       .count(),
     0,
     "Activity is read-only",
@@ -439,11 +458,11 @@ try {
       .getByRole("button", { name: "Delete group" })
       .click();
     await page
-      .locator(".sessions-section")
+      .getByRole("region", { name: "Sessions" })
       .getByRole("button", { name: title, exact: true })
       .waitFor();
     await page
-      .locator(".sessions-section")
+      .getByRole("region", { name: "Sessions" })
       .getByRole("button", { name: nestedTitle, exact: true })
       .waitFor();
     const retained = await (await fetch(`${api}/sessions/${sessionId}`)).json();
@@ -472,7 +491,14 @@ try {
     await page.getByRole("button", { name: "Toggle sessions" }).isVisible(),
   );
   assert.ok(
-    (await page.locator(".sidebar").boundingBox()).x <= -200,
+    (
+      await page
+        .getByRole("navigation", {
+          name: "Sessions and groups",
+          includeHidden: true,
+        })
+        .boundingBox()
+    ).x <= -200,
     "Closed narrow sidebar must be offscreen",
   );
   assert.equal(

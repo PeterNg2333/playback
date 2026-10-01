@@ -169,7 +169,7 @@ export function useNoteDraft(session: Session) {
 
 ### [Restructure] 以 window 事件和 CSS class 溝通 — `handlers.ts:197, 270-281`、`VirtualTranscript.tsx:40, 73`
 
-> 狀態：大部分完成。`playback-capture-level` 已刪，`useCapture` 直接回傳音量歷史（`b723471`）；`.timeline-day/.timeline-hour` 死碼與其 CSS 已刪（`c3758f8`）；執行時 class 查詢改用 ref 或 `data-transcript-id`／`data-transcript-scroller`／`data-markdown`（`b723471`、`1ef4895`）。保留：「跳到來源」仍是 window 事件，因 `web/test/notes-reading-sources.check.mjs` 直接 dispatch 它，現以 `REVEAL_SOURCE_EVENT` 常數連接兩端（`4fad8b5`）；`source-revealed` 的 classList 屬樣式，留待 Tailwind 遷移。
+> 狀態：大部分完成。`playback-capture-level` 已刪，`useCapture` 直接回傳音量歷史（`b723471`）；`.timeline-day/.timeline-hour` 死碼與其 CSS 已刪（`c3758f8`）；執行時 class 查詢改用 ref 或 `data-transcript-id`／`data-transcript-scroller`／`data-markdown`（`b723471`、`1ef4895`）。保留：「跳到來源」仍是 window 事件，因 `web/test/notes-reading-sources.check.mjs` 直接 dispatch 它，現以 `REVEAL_SOURCE_EVENT` 常數連接兩端（`4fad8b5`）；`source-revealed` 的 classList 已改為 `data-revealed` 屬性；測試改以 role、label 或 `data-testid` 找元素（Tailwind 遷移階段 0）。
 
 `playback-capture-level` 和 `playback-reveal-source` 兩個 window CustomEvent 是看不見的通道。`handlers.ts:276-281` 尋找 `.timeline-day`／`.timeline-hour`，但沒有任何元素 render 這兩個 class：是死碼（`transcript.css` 對應的規則也是）。另有 14 處執行時依賴 class 名（`captureSelection` 找 `.transcript-row`、`VirtualTranscript` 找 `.transcript-content`、`NotesPanel` 找 `.note-content h1`），換成 Tailwind 後這些 class 會消失。
 

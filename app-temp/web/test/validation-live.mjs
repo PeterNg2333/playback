@@ -88,16 +88,17 @@ try {
     await page
       .getByRole("button", { name: "Revise with AI", exact: true })
       .click();
-    await page.locator(".note-ai-status").waitFor({ timeout: 25000 });
+    await page.getByTestId("note-ai-status").waitFor({ timeout: 25000 });
     await screenshot("live-notes-running");
     await page.getByRole("button", { name: /^Live draft/ }).click();
     await page
-      .locator(".note-draft .markdown-preview")
+      .getByRole("region", { name: "Live note draft" })
+      .locator("[data-markdown]")
       .waitFor({ timeout: 80000 });
     await screenshot("live-notes-stream");
     assert.equal((await response).status(), 200);
     await page
-      .locator(".note-ai-status")
+      .getByTestId("note-ai-status")
       .waitFor({ state: "detached", timeout: 10000 });
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await page.waitForTimeout(4500);
@@ -105,11 +106,12 @@ try {
   }
   if (phase === "terms") {
     // Source events/background recovery trigger Jev; opening a saved explanation must remain read-only.
-    const term = page.locator(".term-highlight").first();
+    const term = page.getByRole("button", { name: /^Explain / }).first();
     await term.waitFor({ timeout: 145000 });
     await term.hover();
     await page
-      .locator(".term-explanation .markdown-preview")
+      .getByRole("dialog", { name: / explanation$/ })
+      .locator("[data-markdown]")
       .waitFor({ timeout: 145000 });
     await screenshot("live-term-hover");
     await page.keyboard.press("Escape");
@@ -126,7 +128,7 @@ try {
   }
   if (phase === "mismatch") {
     const row = page
-      .locator(".transcript-row")
+      .getByTestId("transcript-row")
       .filter({ hasText: "ashion" })
       .first();
     await row.waitFor();
@@ -142,14 +144,16 @@ try {
         window.getSelection().removeAllRanges();
         window.getSelection().addRange(range);
       });
-    await row.locator("summary.original").dispatchEvent("mouseup");
+    await row.locator("summary").dispatchEvent("mouseup");
     await page
       .getByRole("button", { name: /Ask Playback about selection/ })
       .click();
     await page
       .getByLabel("Your question", { exact: true })
       .fill("What is cache");
-    await page.locator(".web-toggle input").check();
+    await page
+      .getByRole("checkbox", { name: /Include public web search/ })
+      .check();
     const response = page.waitForResponse(
       (r) => r.url().endsWith("/ask/stream"),
       { timeout: 145000 },
@@ -157,9 +161,9 @@ try {
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await screenshot("live-mismatch-loading");
     assert.equal((await response).status(), 200);
-    await page.locator(".answer").waitFor({ timeout: 140000 });
+    await page.getByTestId("answer").waitFor({ timeout: 140000 });
     await page.getByText("Public web:", { exact: false }).waitFor();
-    const text = await page.locator(".answer").innerText();
+    const text = await page.getByTestId("answer").innerText();
     assert.match(text, /not enough verified lecture evidence/);
     assert.match(text, /hypothesis/);
     assert.match(text, /cache/i);
@@ -180,14 +184,19 @@ try {
       { timeout: 145000 },
     );
     await page.getByRole("button", { name: "Send", exact: true }).click();
-    await page.locator(".chat-form").dispatchEvent("submit"); // same-render duplicate must be refused
+    await page
+      .getByRole("region", { name: "Ask Playback" })
+      .locator("form")
+      .dispatchEvent("submit"); // same-render duplicate must be refused
     await page.getByRole("button", { name: "Working…", exact: true }).waitFor();
     await screenshot("live-chat-loading");
-    await page.locator(".provisional-answer").waitFor({ timeout: 100000 });
+    await page.getByText(/^Unverified draft ·/).waitFor({ timeout: 100000 });
     await screenshot("live-chat-stream");
     assert.equal((await response).status(), 200);
-    await page.locator(".answer").waitFor({ timeout: 20000 });
-    assert((await page.locator(".answer .citation").count()) > 0);
+    await page.getByTestId("answer").waitFor({ timeout: 20000 });
+    assert(
+      (await page.getByTestId("answer").locator("details button").count()) > 0,
+    );
     await screenshot("live-chat-lecture");
     assert.equal(
       requests.filter((x) => x.url.endsWith("/ask/stream")).length,
@@ -196,14 +205,16 @@ try {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.waitForTimeout(350);
     await screenshot("live-chat-narrow");
-    const box = await page.locator(".chat").boundingBox();
+    const box = await page
+      .getByRole("region", { name: "Ask Playback" })
+      .boundingBox();
     assert(box && box.x >= 0 && box.x + box.width <= 375 && box.y >= 0);
   }
   assert.deepEqual(errors, []);
   passed = true;
 } finally {
   const visibleAnswer = await page
-    .locator(".answer")
+    .getByTestId("answer")
     .innerText()
     .catch(() => null);
   // Consume the exact same request ID at the JSON endpoint: server reuses the completed task.

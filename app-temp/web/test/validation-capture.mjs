@@ -69,7 +69,7 @@ try {
   await page
     .getByRole("button", { name: "Start recording", exact: true })
     .click();
-  await page.locator(".record-indicator").waitFor();
+  await page.getByRole("banner").getByRole("status").waitFor();
   const start = Date.now();
   let pollBusy = false;
   timer = setInterval(async () => {
@@ -82,15 +82,20 @@ try {
         capture.activeSegments?.some((x) => x.interimText) &&
         !images.has("hardware-interim-visible")
       ) {
-        const interim = page.locator(".interim-text").first();
+        const interim = page.getByTestId("interim-text").first();
         if (await interim.isVisible()) {
           await interim.scrollIntoViewIfNeeded();
           await shot("hardware-interim-visible");
         }
       }
-      if (await page.locator(".note-ai-status").count()) {
+      if (await page.getByTestId("note-ai-status").count()) {
         await page.getByRole("button", { name: /^Live draft/ }).click();
-        if (await page.locator(".note-draft .markdown-preview").count())
+        if (
+          await page
+            .getByRole("region", { name: "Live note draft" })
+            .locator("[data-markdown]")
+            .count()
+        )
           await shot("hardware-note-stream");
       }
     } finally {
@@ -144,9 +149,14 @@ try {
   do {
     view = await get("/sessions/" + session.id);
     activity = await get("/sessions/" + session.id + "/activity");
-    if (await page.locator(".note-ai-status").count()) {
+    if (await page.getByTestId("note-ai-status").count()) {
       await page.getByRole("button", { name: /^Live draft/ }).click();
-      if (await page.locator(".note-draft .markdown-preview").count())
+      if (
+        await page
+          .getByRole("region", { name: "Live note draft" })
+          .locator("[data-markdown]")
+          .count()
+      )
         await shot("hardware-note-stream");
     }
     if (

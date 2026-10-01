@@ -95,7 +95,7 @@ export function AiFlowDialog({
               </p>
             )}
             {data.gate && (
-              <details className="flow-execution">
+              <details className="flow-execution" data-testid="flow-execution">
                 <summary>
                   Saved note gate · {data.gate.status}
                   {data.gate.decision ? " · " + data.gate.decision : ""}
@@ -161,7 +161,11 @@ export function AiFlowDialog({
               <p>No recorded executions for this session.</p>
             )}
             {data.executions.map((item) => (
-              <details className="flow-execution" key={item.id}>
+              <details
+                className="flow-execution"
+                data-testid="flow-execution"
+                key={item.id}
+              >
                 <summary>
                   <strong>{item.task}</strong>{" "}
                   <span data-status={item.status}>{item.status}</span> ·{" "}

@@ -65,7 +65,10 @@ function FormulaSource({
 }) {
   const Tag = display ? "div" : "span";
   return (
-    <Tag className={`math-formula${display ? " math-display" : ""}`}>
+    <Tag
+      className={`math-formula${display ? " math-display" : ""}`}
+      data-testid="formula"
+    >
       <code className="math-source" title={title}>
         {source}
       </code>

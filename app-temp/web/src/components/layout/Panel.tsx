@@ -1,11 +1,13 @@
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 
 export function Panel({
   className,
   children,
-}: {
-  className: string;
-  children: ReactNode;
-}) {
-  return <section className={`panel ${className}`}>{children}</section>;
+  ...props
+}: ComponentPropsWithoutRef<"section"> & { className: string }) {
+  return (
+    <section className={`panel ${className}`} {...props}>
+      {children}
+    </section>
+  );
 }

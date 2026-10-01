@@ -28,7 +28,7 @@ export function Recorder({ session }: { session: Session | null }) {
       ? "Restart the API before recording with the selected source"
       : "Choose which audio to record; stop recording to change it";
   return (
-    <div className="top-actions">
+    <div className="top-actions" data-testid="recorder">
       <select
         className="recording-mode"
         aria-label="Recording source"

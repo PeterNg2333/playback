@@ -112,10 +112,14 @@ const resources = () =>
 try {
   await page.goto(url);
   await page
-    .locator(".project-name")
+    .getByRole("banner")
+    .getByRole("heading", { level: 1 })
     .getByText(session.title, { exact: true })
     .waitFor();
-  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor({ state: "hidden" });
   const startup = await page.evaluate(() => ({
     appReadyMs: performance.now(),
     fcpMs: performance.getEntriesByName("first-contentful-paint")[0]?.startTime,
@@ -140,7 +144,8 @@ try {
       )
       .waitFor();
     const alertBounds = await page
-      .locator(".flowchart > p[role='alert']")
+      .getByRole("figure")
+      .getByRole("alert")
       .evaluate((el) => ({ client: el.clientWidth, scroll: el.scrollWidth }));
     assert(
       alertBounds.scroll <= alertBounds.client + 1,
@@ -155,13 +160,18 @@ try {
       diagramNote,
     );
     await page.reload();
-    await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+    await page
+      .getByRole("status")
+      .filter({ hasText: "Loading session…" })
+      .waitFor({ state: "hidden" });
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await page.getByLabel("Editable Markdown").fill(diagramNote);
     await page.getByRole("button", { name: "Preview", exact: true }).click();
   }
   await page
-    .locator(".note-content .flowchart svg")
+    .getByTestId("note-content")
+    .getByLabel("Rendered flowchart")
+    .locator("svg")
     .waitFor({ timeout: 30000 });
   const firstDiagramMs = Date.now() - diagramStart;
   const afterDiagramJs = await resources();

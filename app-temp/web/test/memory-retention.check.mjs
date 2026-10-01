@@ -438,7 +438,8 @@ async function snapshot(name) {
 async function select(title) {
   await page.getByRole("button", { name: title, exact: true }).click();
   await page
-    .locator(".project-name")
+    .getByRole("banner")
+    .getByRole("heading", { level: 1 })
     .getByText(title, { exact: true })
     .waitFor();
 }
@@ -449,40 +450,49 @@ async function edit(text) {
 }
 try {
   await page.goto(url);
-  await page.locator(".virtual-transcript").waitFor();
+  await page.locator("[data-total-rows]").waitFor();
   await page.waitForTimeout(1000);
   await metric("saved-737-warm");
   await page.screenshot({ path: `${folder}/warm.png` });
   const firstVisible = await page
-    .locator(".transcript-row")
+    .locator("[data-virtual-row] article")
     .first()
     .getAttribute("id");
-  await page.locator(".transcript-content").hover();
+  await page.locator("[data-transcript-scroller]").hover();
   await page.mouse.wheel(0, 6000);
   await page.waitForTimeout(350);
   wheelWorked =
-    (await page.locator(".transcript-row").count()) > 0 &&
-    (await page.locator(".transcript-row").first().getAttribute("id")) !==
-      firstVisible;
+    (await page.locator("[data-virtual-row] article").count()) > 0 &&
+    (await page
+      .locator("[data-virtual-row] article")
+      .first()
+      .getAttribute("id")) !== firstVisible;
   if (strict)
     assert(
       wheelWorked,
       "Native wheel scrolling did not replace the visible transcript rows",
     );
   await page.evaluate(() => {
-    document.querySelector(".transcript-content").scrollTop = 0;
+    document.querySelector("[data-transcript-scroller]").scrollTop = 0;
   });
   await page.waitForTimeout(250);
   await page.getByLabel("AI activity history", { exact: true }).click();
   await page.getByRole("heading", { name: "LLM edit log" }).waitFor();
-  await page.locator(".activity-content .activity-entry").first().waitFor();
+  await page
+    .getByRole("region", { name: "LLM edit log" })
+    .getByTestId("activity-entry")
+    .first()
+    .waitFor();
   await metric("saved-100-versions-activity-open");
   await page
-    .locator(".activity-content .activity-entry summary")
+    .getByRole("region", { name: "LLM edit log" })
+    .getByTestId("activity-entry")
     .first()
+    .locator("summary")
     .click();
   await page
-    .locator(".activity-content .activity-entry-body")
+    .getByRole("region", { name: "LLM edit log" })
+    .getByRole("button", { name: "Restore this version" })
     .first()
     .waitFor();
   await metric("saved-edit-version-expanded");
@@ -513,17 +523,19 @@ try {
   await page.waitForTimeout(750);
   for (
     let i = 0;
-    i < 24 && !(await page.locator(".live-segment .interim-text").count());
+    i < 24 &&
+    !(await page.getByTestId("live-row").getByTestId("interim-text").count());
     i++
   ) {
     await page.evaluate(() => {
-      const el = document.querySelector(".transcript-content");
+      const el = document.querySelector("[data-transcript-scroller]");
       el.scrollTop = el.scrollHeight;
     });
     await page.waitForTimeout(100);
   }
   interimMounted = !!(await page
-    .locator(".live-segment .interim-text")
+    .getByTestId("live-row")
+    .getByTestId("interim-text")
     .count());
   if (strict)
     assert(
@@ -547,7 +559,7 @@ try {
         0,
         "Recording finals fetched the whole unselected session",
       );
-    assert.equal(await page.locator(".transcript-row").count(), 0);
+    assert.equal(await page.locator("[data-virtual-row] article").count(), 0);
     await select(long.title);
     await page.waitForTimeout(400);
   }
@@ -564,7 +576,10 @@ try {
       await page
         .getByRole("button", { name: "Live draft", exact: false })
         .click();
-      await page.locator(".note-draft .markdown-preview").waitFor();
+      await page
+        .getByRole("region", { name: "Live note draft" })
+        .locator("[data-markdown]")
+        .waitFor();
       await page.waitForTimeout(800);
       await page.getByRole("button", { name: "Preview", exact: true }).click();
     }
@@ -572,9 +587,17 @@ try {
       long.noteMarkdown +
         `\n\nLocal edit ${cycle}\n\n\`\`\`mermaid\nflowchart LR\nA["Capacity R ${cycle % 36}"] --> B["R/n"]\n\`\`\`\n`,
     );
-    await page.locator(".note-content .flowchart svg").last().waitFor();
+    await page
+      .getByTestId("note-content")
+      .getByLabel("Rendered flowchart")
+      .locator("svg")
+      .last()
+      .waitFor();
     await page.getByRole("button", { name: "Sources", exact: true }).click();
-    const source = page.locator(".note-content button.note-ref").first();
+    const source = page
+      .getByTestId("note-content")
+      .getByRole("button", { name: /^Open audio sources/ })
+      .first();
     if (await source.count()) {
       await source.click();
       await page
@@ -589,7 +612,7 @@ try {
       await select(long.title);
       await page.waitForTimeout(500);
       await page.evaluate(() => {
-        const el = document.querySelector(".transcript-content");
+        const el = document.querySelector("[data-transcript-scroller]");
         el.scrollTop = el.scrollHeight;
       });
     }
@@ -604,15 +627,17 @@ try {
       await page.setViewportSize({ width: 760, height: 900 });
       const headerBounds = await page.evaluate(() => {
         const title = document
-            .querySelector(".project-name")
+            .querySelector("header h1")
             .getBoundingClientRect(),
           actions = document
-            .querySelector(".top-actions")
+            .querySelector('[data-testid="recorder"]')
             .getBoundingClientRect();
         const warning = document
-            .querySelector(".source-api-warning")
+            .querySelector('[data-testid="source-api-warning"]')
             ?.getBoundingClientRect(),
-          sidebar = document.querySelector(".sidebar").getBoundingClientRect();
+          sidebar = document
+            .querySelector('nav[aria-label="Sessions and groups"]')
+            .getBoundingClientRect();
         return {
           titleWidth: title.width,
           titleRight: title.right,

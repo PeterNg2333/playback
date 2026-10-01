@@ -304,7 +304,7 @@ try {
       : "http://127.0.0.1:5173");
   assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(web));
   await page.goto(web);
-  await page.locator(".audio-row").first().waitFor();
+  await page.getByTestId("audio-row").first().waitFor();
   await page
     .locator("#second")
     .getByText("廣東話：我哋學 FFT。", { exact: true })
@@ -322,41 +322,45 @@ try {
     });
   assert.equal(
     await page
-      .locator(".transcript-panel")
+      .getByTestId("transcript-panel")
       .getByRole("button", { name: "Sources" })
       .count(),
     0,
   );
   assert.equal(
-    await page.locator(".audio-row").count(),
+    await page.getByTestId("audio-row").count(),
     2,
     "Queued and failed audio should remain separate from collapsed quiet audio",
   );
-  assert.equal(await page.locator(".quiet-section").count(), 1);
+  assert.equal(await page.getByTestId("silence-row").count(), 1);
   assert.equal(
-    await page.locator(".quiet-section").first().getAttribute("open"),
+    await page.getByTestId("silence-row").first().getAttribute("open"),
     null,
   );
-  assert.equal(
-    await page.locator("#first .record-time").textContent(),
-    "08:10:00",
-  );
-  const play = page.locator(".audio-row .record-play").first();
+  assert.equal(await page.locator("#first time").textContent(), "08:10:00");
+  const play = page
+    .getByTestId("audio-row")
+    .first()
+    .getByRole("button", { name: /audio from/ });
   assert.equal(
     await play.isVisible(),
     true,
     "Saved audio should be playable without expanding a row",
   );
-  await page.locator(".audio-row .record-copy > summary").first().click();
+  await page.getByTestId("audio-row").first().locator("summary").click();
   assert.match(
-    await page.locator(".audio-row .record-extra").first().textContent(),
+    await page
+      .getByTestId("audio-row")
+      .first()
+      .locator("details")
+      .textContent(),
     /2 audio parts grouped/,
   );
   await play.click();
   await page.waitForFunction(
     () =>
       document
-        .querySelector(".audio-row .record-play")
+        .querySelector('[data-testid="audio-row"] [data-chunk-id]')
         ?.getAttribute("aria-pressed") === "true",
   );
   assert.equal(await play.getAttribute("aria-pressed"), "true");
@@ -376,7 +380,7 @@ try {
   );
   await page.getByLabel("Playback mode").click();
   assert.equal(
-    await page.locator(".player-mode-menu").isVisible(),
+    await page.getByRole("button", { name: "Full session" }).isVisible(),
     true,
     "Playback source dropdown must open above the footer",
   );
@@ -397,7 +401,10 @@ try {
     .selectOption("system");
   await systemAudio;
   assert.equal(
-    await page.locator(".playback-footer").getByText("Session audio").count(),
+    await page
+      .getByLabel("Audio player", { exact: true })
+      .getByText("Session audio")
+      .count(),
     1,
   );
   const selectedAudio = page.waitForRequest("**/api/chunks/one/audio");
@@ -413,25 +420,26 @@ try {
   );
   assert.equal(
     await page
-      .locator(".quiet-section > summary")
+      .getByTestId("silence-row")
+      .locator("summary")
       .filter({ hasText: "No audio" })
       .count(),
     1,
   );
   assert.equal(await page.getByText("No words returned by ASR").count(), 0);
-  await page.locator(".quiet-section > summary").click();
+  await page.getByTestId("silence-row").locator("summary").click();
   await page
-    .locator(".quiet-section")
+    .getByTestId("silence-row")
     .getByRole("button", { name: /Play audio/ })
     .first()
     .waitFor();
   await page
-    .locator(".audio-row")
+    .getByTestId("audio-row")
     .filter({ hasText: "ASR stopped" })
     .locator("summary")
     .click();
   await page.getByText("SenseVoice HTTP 503").waitFor();
-  await page.locator(".asr-manual-row .retry-asr").click();
+  await page.getByRole("button", { name: /^Retry ASR for/ }).click();
   assert.deepEqual(retryRequest, { chunkIds: ["failed"] });
   await page.getByText("First line").waitFor();
   assert.equal(
@@ -442,31 +450,29 @@ try {
     await page.getByRole("button", { name: "More actions" }).count(),
     0,
   );
-  assert.equal(
-    await page.locator(".timeline-toggle:not(.hour-toggle)").count(),
-    1,
-  );
-  assert.equal(await page.locator(".hour-toggle").count(), 2);
-  assert.equal(await page.locator(".timeline-minute").count(), 0);
+  assert.equal(await page.getByTestId("timeline-day").count(), 1);
+  assert.equal(await page.getByTestId("timeline-hour").count(), 2);
+
   assert.ok(
     (await page.locator("[data-virtual-row]").count()) < 30,
     "The short timeline should mount only its visible items",
   );
   assert.match(
-    await page.locator(".hour-toggle").first().textContent(),
+    await page.getByTestId("timeline-hour").first().textContent(),
     /08:00/,
   );
   for (const width of [1024, 768, 375, 320]) {
     await page.setViewportSize({ width, height: 720 });
     assert.ok(
-      (await page.locator(".playback-footer").boundingBox()).height <= 84,
+      (await page.getByLabel("Audio player", { exact: true }).boundingBox())
+        .height <= 84,
       `${width}px player must stay compact`,
     );
     const inset = await page
       .locator("[data-virtual-row]")
       .first()
       .evaluate((element) => {
-        const rows = element.closest(".rows");
+        const rows = element.closest('[data-testid="timeline-rows"]');
         return (
           element.getBoundingClientRect().left -
           rows.getBoundingClientRect().left -
@@ -578,7 +584,9 @@ try {
     language: "zh-Hant",
   });
   assert.equal(await page.getByText("First line").count(), 1);
-  const pendingTranslation = page.locator("#first .translation-pending");
+  const pendingTranslation = page
+    .locator("#first")
+    .getByText("Translation pending…", { exact: true });
   await pendingTranslation.waitFor();
   assert.equal(await pendingTranslation.isVisible(), true);
   assert.ok(
@@ -589,7 +597,10 @@ try {
     ) < 1,
   );
   assert.equal(
-    await page.locator("#second .translation-completed").textContent(),
+    await page
+      .locator("#second")
+      .getByText("第二句", { exact: true })
+      .textContent(),
     "第二句",
   );
   // Simulate the background Jev/LLM result arriving in the session snapshot.
@@ -612,7 +623,9 @@ try {
       evidence: [],
     },
   ];
-  const highlight = page.locator("#first .term-highlight");
+  const highlight = page
+    .locator("#first")
+    .getByRole("button", { name: "Explain Fourier Transform" });
   await highlight.waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await highlight.hover();
@@ -638,11 +651,12 @@ try {
     .click();
   await page.getByText("v1 · AI edit", { exact: true }).click();
   await page
-    .locator(".activity-edit pre")
+    .getByRole("region", { name: "AI activity history" })
+    .locator("pre")
     .filter({ hasText: "# Signal notes [first]" })
     .waitFor();
   const trace = page
-    .locator(".activity-entry")
+    .getByTestId("activity-entry")
     .filter({ hasText: "Fourier Transform" });
   await trace.locator("summary").click();
   await trace.getByText("84%", { exact: true }).waitFor();
@@ -650,11 +664,12 @@ try {
   await trace.getByText("high", { exact: true }).waitFor();
   assert.equal(
     await page
-      .locator(".activity-content input, .activity-content textarea")
+      .getByRole("region", { name: "AI activity history" })
+      .locator("input, textarea")
       .count(),
     0,
   );
-  await trace.locator(".decision-scores").scrollIntoViewIfNeeded();
+  await trace.locator("dl").scrollIntoViewIfNeeded();
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
     await page.screenshot({
       path: join(tmpdir(), "playback-activity-320.png"),
@@ -688,7 +703,7 @@ try {
     true,
   );
   assert.equal(dialogs, 0);
-  await page.locator(".record-indicator").waitFor();
+  await page.getByRole("banner").getByRole("status").waitFor();
   await page.getByLabel("Recording elapsed 00:01").waitFor();
   capture.recordingElapsedMs = 3661000;
   await page.getByLabel("Recording elapsed 01:01:01").waitFor();
@@ -708,7 +723,7 @@ try {
       },
     ],
   };
-  await page.locator(".live-segment").waitFor();
+  await page.getByTestId("live-row").waitFor();
   assert.ok(
     Date.now() - placeholderStarted < 1000,
     "Speech placeholder should appear within one second",
@@ -723,11 +738,11 @@ try {
   };
   await page.getByRole("img", { name: "Audio signal received" }).waitFor();
   await page.getByText("Speech active · recording audio").waitFor();
-  assert.match(await page.locator(".live-segment").textContent(), /08:11:00/);
+  assert.match(await page.getByTestId("live-row").textContent(), /08:11:00/);
   assert.ok(
     Number(
       await page
-        .locator(".live-segment")
+        .getByTestId("live-row")
         .evaluate((element) => getComputedStyle(element).opacity),
     ) < 1,
   );
@@ -738,7 +753,7 @@ try {
     ],
   };
   await page
-    .locator(".interim-text")
+    .getByTestId("interim-text")
     .getByText("我哋 study FFT", { exact: true })
     .waitFor();
   capture = {
@@ -751,14 +766,14 @@ try {
     ],
   };
   await page
-    .locator(".interim-text")
+    .getByTestId("interim-text")
     .getByText("我哋 study FFT and frequency", { exact: true })
     .waitFor();
-  assert.equal(await page.locator(".interim-text").count(), 1);
+  assert.equal(await page.getByTestId("interim-text").count(), 1);
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
-    await page.locator(".live-segment").scrollIntoViewIfNeeded();
+    await page.getByTestId("live-row").scrollIntoViewIfNeeded();
     await page
-      .locator(".live-segment")
+      .getByTestId("live-row")
       .screenshot({ path: join(tmpdir(), "playback-interim-row.png") });
   }
   session.chunks.push({
@@ -772,14 +787,14 @@ try {
   });
   capture = { ...capture, lastFinalizedAtMs: 61100 };
   await page
-    .locator(".live-segment")
+    .getByTestId("live-row")
     .getByText("我哋 study FFT and frequency", { exact: true })
     .waitFor();
   session.chunks.find((chunk) => chunk.id === "saved-live").status =
     "asr-error";
   await page.waitForTimeout(4300);
   await page
-    .locator(".live-segment")
+    .getByTestId("live-row")
     .getByText("我哋 study FFT and frequency", { exact: true })
     .waitFor();
   session.chunks.find((chunk) => chunk.id === "saved-live").status =
@@ -794,14 +809,14 @@ try {
     uncertain: false,
   });
   await page.locator("#saved-live").waitFor();
-  await page.locator(".live-segment").waitFor({ state: "detached" });
+  await page.getByTestId("live-row").waitFor({ state: "detached" });
   assert.equal(
     await page
       .getByText("我哋 study FFT and frequency", { exact: true })
       .count(),
     1,
   );
-  await page.locator(".record-row").filter({ hasText: "08:11:00" }).waitFor();
+  await page.getByRole("article").filter({ hasText: "08:11:00" }).waitFor();
   await page.setViewportSize({ width: 320, height: 720 });
   assert.equal(
     await page.evaluate(
@@ -873,7 +888,7 @@ try {
   await page.getByRole("button", { name: "Jump to 08:00:05" }).waitFor();
   await page.getByRole("button", { name: "Close sources" }).click();
   assert.equal(
-    await page.locator(".markdown-preview").getByText("c".repeat(32)).count(),
+    await page.locator("[data-markdown]").getByText("c".repeat(32)).count(),
     0,
   );
   await page.getByText("Changes in v1 · 1").click();
@@ -896,13 +911,13 @@ try {
   );
   assert.equal(
     await page
-      .locator(".notes-body")
+      .getByTestId("notes-body")
       .evaluate((element) => element.scrollHeight > element.clientHeight),
     true,
   );
   assert.equal(
     await page
-      .locator(".transcript-content")
+      .locator("[data-transcript-scroller]")
       .evaluate((element) => element.scrollHeight > element.clientHeight),
     true,
   );
@@ -911,7 +926,7 @@ try {
     true,
   );
   assert.ok(
-    (await page.locator(".record-row").count()) < 80,
+    (await page.locator("[data-virtual-row]").count()) < 80,
     "The 1,266-source fixture must use bounded mounted rows",
   );
   await page.setViewportSize({ width: 375, height: 720 });
@@ -956,9 +971,9 @@ try {
     true,
   );
   await page.getByRole("button", { name: "Revise with AI" }).click();
-  await page.locator(".global-error").waitFor();
+  await page.getByTestId("error-toast").waitFor();
   assert.match(
-    await page.locator(".global-error").textContent(),
+    await page.getByTestId("error-toast").textContent(),
     /Google AI Studio key is unavailable/,
   );
   assert.deepEqual(noteActions, ["save", "generate"]);
@@ -972,7 +987,8 @@ try {
   await page.getByRole("button", { name: "Send" }).click();
   assert.equal(questionRequest.question, "What happened?");
   await page
-    .locator(".chat-error")
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("alert")
     .getByText("Vertex AI key is unavailable")
     .waitFor();
   assert.equal(
@@ -982,10 +998,16 @@ try {
   askFailure = false;
   await page.getByRole("button", { name: "Send" }).click();
   await page
-    .locator(".answer")
+    .getByTestId("answer")
     .getByText(/The lecture introduced Fourier Transform/)
     .waitFor();
-  assert.equal(await page.locator(".chat-error").count(), 0);
+  assert.equal(
+    await page
+      .getByRole("region", { name: "Ask Playback" })
+      .getByRole("alert")
+      .count(),
+    0,
+  );
   assert.equal(dialogs, 0);
   await page.setViewportSize({ width: 320, height: 720 });
   assert.equal(

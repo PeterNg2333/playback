@@ -158,6 +158,7 @@ export function Timeline({
         render: () => (
           <button
             className="timeline-toggle"
+            data-testid="timeline-day"
             aria-expanded={!collapsed[day]}
             onClick={() =>
               setCollapsed((old) => ({ ...old, [day]: !old[day] }))
@@ -179,6 +180,7 @@ export function Timeline({
           render: () => (
             <button
               className="timeline-toggle hour-toggle"
+              data-testid="timeline-hour"
               aria-expanded={!collapsed[key]}
               onClick={() =>
                 setCollapsed((old) => ({ ...old, [key]: !old[key] }))
@@ -288,7 +290,7 @@ export function Timeline({
           {capture.interimError}
         </p>
       )}
-      <div className="rows">
+      <div className="rows" data-testid="timeline-rows">
         {capture &&
           capture.sessionId === session?.id &&
           capture.state !== "idle" &&

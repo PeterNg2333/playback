@@ -182,7 +182,7 @@ export function NotePreview({
     onPlaySources: onPlay,
   };
   return (
-    <div className="note-content" ref={ref}>
+    <div className="note-content" data-testid="note-content" ref={ref}>
       {sections?.length ? (
         sections.map((section) => {
           const ids = [...new Set(section.points.flatMap((x) => x.sourceIds))];

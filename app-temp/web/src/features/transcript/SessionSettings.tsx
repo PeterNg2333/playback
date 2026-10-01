@@ -50,7 +50,7 @@ export function SessionSettings({ session }: { session: Session | null }) {
         <Icon name="settings" />
       </button>
       {settingsOpen && (
-        <div className="settings-menu">
+        <div className="settings-menu" data-testid="settings-menu">
           <strong>Transcript settings</strong>
           {health?.asr && (
             <small>

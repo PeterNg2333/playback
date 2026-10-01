@@ -137,7 +137,7 @@ async function metric(label) {
 }
 try {
   await page.goto("http://127.0.0.1:5174");
-  await page.locator(".virtual-transcript").waitFor();
+  await page.locator("[data-total-rows]").waitFor();
   await page.waitForTimeout(600);
   await metric("737 saved snapshot idle");
   await page.screenshot({ path: `${folder}/saved-snapshot-737.png` });

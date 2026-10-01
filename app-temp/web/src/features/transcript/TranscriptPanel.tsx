@@ -16,7 +16,7 @@ export function TranscriptPanel({
   const health = useHealth();
   const status = asrSummary(session?.chunks ?? [], health?.asrPaused ?? false);
   return (
-    <Panel className="transcript-panel">
+    <Panel className="transcript-panel" data-testid="transcript-panel">
       <div className="panel-head">
         <h2>Transcript</h2>
         <div className="panel-actions">

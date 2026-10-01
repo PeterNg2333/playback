@@ -419,7 +419,8 @@ async function screenshot(name) {
 async function selectLecture(title) {
   await page.getByRole("button", { name: title, exact: true }).click();
   await page
-    .locator(".project-name")
+    .getByRole("banner")
+    .getByRole("heading", { level: 1 })
     .getByText(title, { exact: true })
     .waitFor();
 }
@@ -428,7 +429,7 @@ try {
   assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(testUrl));
   await page.goto(testUrl);
   await page
-    .locator(".note-content")
+    .getByTestId("note-content")
     .getByText("R/10", { exact: false })
     .first()
     .waitFor();
@@ -456,22 +457,31 @@ try {
     assert.equal(assembly.characters, largeSync.noteMarkdown.length);
     assert(assembly.sameIdentity, "Idle sync changed session identity");
   }
-  await page.locator(".flowchart svg").waitFor();
+  await page.getByLabel("Rendered flowchart").locator("svg").waitFor();
   await metric("1350 idle");
   await screenshot("reading-1350");
   assert.equal(
-    await page.locator(".note-content .note-ref").count(),
+    await page
+      .getByTestId("note-content")
+      .getByRole("button", { name: /^(Open audio sources|Jump to source at)/ })
+      .count(),
     0,
     "Reading did not hide references",
   );
   const writeCount = writes.length;
   await page.getByRole("button", { name: "Sources", exact: true }).click();
   assert.equal(
-    await page.locator(".note-content .note-ref").count(),
+    await page
+      .getByTestId("note-content")
+      .getByRole("button", { name: /^(Open audio sources|Jump to source at)/ })
+      .count(),
     1,
     "Section sources did not aggregate into one entry",
   );
-  await page.locator(".note-content .note-ref").click();
+  await page
+    .getByTestId("note-content")
+    .getByRole("button", { name: /^Open audio sources/ })
+    .click();
   const popup = page.getByRole("dialog", { name: "Grouped audio sources" });
   assert.equal(
     await popup.getByRole("button", { name: /^Jump to/ }).count(),
@@ -506,8 +516,8 @@ try {
     { id, target: key(0) },
   );
   await page.locator(`[id="${key(0)}"]`).waitFor();
-  await page.locator(".timeline-toggle").first().click();
-  assert.equal(await page.locator(".transcript-row").count(), 0);
+  await page.getByTestId("timeline-day").first().click();
+  assert.equal(await page.locator("[data-virtual-row] article").count(), 0);
   await page.evaluate(
     ({ id, target }) =>
       window.dispatchEvent(
@@ -520,7 +530,7 @@ try {
   await page.locator(`[id="${key(1200)}"]`).waitFor();
   await page.getByRole("button", { name: "Reading", exact: true }).click();
   await page
-    .locator(".note-content")
+    .getByTestId("note-content")
     .getByRole("button", { name: "Explain bottleneck", exact: true })
     .first()
     .hover();
@@ -572,7 +582,7 @@ try {
   await page.getByRole("button", { name: "View AI flow" }).click();
   const flow = page.getByRole("dialog", { name: "Study group · AI flow" });
   await flow.getByText("Configured pipeline", { exact: true }).waitFor();
-  await flow.locator(".flowchart svg").waitFor();
+  await flow.getByLabel("Rendered flowchart").locator("svg").waitFor();
   await flow
     .getByText("Saved note gate · wait · wait", { exact: true })
     .click();
@@ -580,8 +590,9 @@ try {
     .getByText("Input identity: saved-input", { exact: true })
     .waitFor();
   await flow
-    .locator(".flow-execution > summary")
+    .getByTestId("flow-execution")
     .filter({ hasText: "Jev note gate" })
+    .locator(":scope > summary")
     .click();
   await flow.getByText("Prompt note-gate-v1", { exact: false }).waitFor();
   assert(
@@ -701,19 +712,19 @@ try {
   await selectLecture("Three-hour lecture fixture");
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await page.getByLabel("Combine completed passages").uncheck();
-  await page.locator(".virtual-transcript[data-total-rows='2704']").waitFor();
+  await page.locator("[data-total-rows='2704']").waitFor();
   assert.equal(
-    await page.locator(".virtual-transcript").getAttribute("data-total-rows"),
+    await page.locator("[data-total-rows]").getAttribute("data-total-rows"),
     "2704",
   );
   await page.getByLabel("Combine completed passages").check();
   assert(
     Number(
-      await page.locator(".virtual-transcript").getAttribute("data-total-rows"),
+      await page.locator("[data-total-rows]").getAttribute("data-total-rows"),
     ) < 2704,
     "Completed transcripts did not consolidate",
   );
-  await page.locator(".flowchart svg").waitFor();
+  await page.getByLabel("Rendered flowchart").locator("svg").waitFor();
   await metric("2700 warmed idle");
   await screenshot("reading-2700");
   for (let cycle = 0; cycle < 8; cycle++) {
@@ -724,9 +735,12 @@ try {
       await editor.fill(value + `\n\nEditor iteration ${cycle}:${update}.`);
     await editor.fill(value);
     await page.getByRole("button", { name: "Preview", exact: true }).click();
-    await page.locator(".flowchart svg").waitFor();
+    await page.getByLabel("Rendered flowchart").locator("svg").waitFor();
     await page.getByRole("button", { name: "Sources", exact: true }).click();
-    await page.locator(".note-content .note-ref").click();
+    await page
+      .getByTestId("note-content")
+      .getByRole("button", { name: /^Open audio sources/ })
+      .click();
     await popup.getByRole("button", { name: "Close sources" }).click();
     await page.getByRole("button", { name: "Reading", exact: true }).click();
     await metric(`2700 edit/preview cycle ${cycle}`);
@@ -746,7 +760,7 @@ try {
   await selectLecture("Small lecture");
   await page.waitForTimeout(600);
   await metric("return to small session");
-  assert.equal(await page.locator(".transcript-row").count(), 0);
+  assert.equal(await page.locator("[data-virtual-row] article").count(), 0);
   assert.equal(await page.locator("[data-virtual-row]").count(), 0);
   assert.equal(
     writes.length,

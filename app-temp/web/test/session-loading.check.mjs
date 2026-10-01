@@ -106,10 +106,14 @@ try {
     .waitFor();
   await page.screenshot({ path: `${folder}/startup-loading.png` });
   await page
-    .locator(".project-name")
+    .getByRole("banner")
+    .getByRole("heading", { level: 1 })
     .getByText("Loading lecture A", { exact: true })
     .waitFor();
-  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page
     .getByLabel("Editable Markdown")
@@ -118,7 +122,10 @@ try {
   await page
     .getByRole("button", { name: "Loading lecture B", exact: true })
     .click();
-  await page.locator(".workspace-loading").waitFor();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor();
   assert(
     await page.getByRole("button", { name: "Save", exact: true }).isDisabled(),
   );
@@ -127,7 +134,10 @@ try {
     .getByRole("alert")
     .getByText("Session read unavailable; retry.")
     .waitFor();
-  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor({ state: "hidden" });
   assert.equal(
     await page.getByLabel("Editable Markdown").inputValue(),
     "My unsaved explanation must survive a failed session load.",
@@ -139,10 +149,14 @@ try {
     .getByRole("button", { name: "Loading lecture B", exact: true })
     .click();
   await page
-    .locator(".project-name")
+    .getByRole("banner")
+    .getByRole("heading", { level: 1 })
     .getByText("Loading lecture B", { exact: true })
     .waitFor();
-  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor({ state: "hidden" });
   assert.deepEqual(writes, []);
   assert.deepEqual(errors, []);
   await writeFile(

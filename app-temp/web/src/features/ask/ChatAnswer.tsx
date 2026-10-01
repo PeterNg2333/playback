@@ -12,7 +12,7 @@ export function ChatAnswer({
   sourceGroups?: Session["sourceGroups"];
 }) {
   return (
-    <div className="answer">
+    <div className="answer" data-testid="answer">
       <CitedMarkdown
         value={answer.answer}
         groups={sourceGroups}

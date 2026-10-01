@@ -230,7 +230,7 @@ try {
   const testUrl = process.env.PLAYBACK_WEB_TEST_URL ?? "http://127.0.0.1:5174";
   assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(testUrl));
   await page.goto(testUrl);
-  const content = page.locator(".note-content");
+  const content = page.getByTestId("note-content");
   await page.getByRole("button", { name: "Sources", exact: true }).click();
   await content
     .getByRole("button", {
@@ -277,7 +277,10 @@ try {
     "Player updates must not close the source popup",
   );
   await sourcePanel.getByRole("button", { name: "Close sources" }).click();
-  assert.equal(await content.locator(".unavailable-ref").count(), 2);
+  assert.equal(
+    await content.getByText("Source unavailable", { exact: true }).count(),
+    2,
+  );
   assert.equal(
     await content.locator("code").filter({ hasText: sourceId }).count(),
     1,
@@ -291,9 +294,9 @@ try {
     1,
   );
   await content.getByText("Uncertainty [unclear]", { exact: true }).waitFor();
-  await content.locator(".flowchart svg").waitFor();
+  await content.getByLabel("Rendered flowchart").locator("svg").waitFor();
   assert.match(
-    await content.locator(".flowchart svg").textContent(),
+    await content.getByLabel("Rendered flowchart").locator("svg").textContent(),
     /Identify bottleneck/,
   );
   const topics = page.getByRole("navigation", { name: "Note topics" });
@@ -354,11 +357,17 @@ try {
       sourceIds: [sourceId],
     },
   ];
-  await page.locator(".note-ai-status").getByText("Analyzing…").waitFor();
+  await page
+    .getByRole("status")
+    .getByText("Analyzing…", { exact: true })
+    .waitFor();
   activities[0].draft = `## Draft topic\n\n- A short point [01].`;
-  await page.locator(".note-ai-status").getByText("Editing…").waitFor();
+  await page
+    .getByRole("status")
+    .getByText("Editing…", { exact: true })
+    .waitFor();
   assert.equal(
-    await page.locator(".note-draft").count(),
+    await page.getByRole("region", { name: "Live note draft" }).count(),
     0,
     "Preview must not append the live draft",
   );
@@ -382,7 +391,7 @@ try {
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await page.getByLabel("Enable translation").waitFor();
   assert.match(
-    await page.locator(".settings-menu").textContent(),
+    await page.getByTestId("settings-menu").textContent(),
     /Traditional Chinese/,
   );
   await page.getByRole("button", { name: "Transcript settings" }).click();
@@ -393,7 +402,8 @@ try {
   await input.fill("What is the bottleneck?");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page
-    .locator(".chat-error")
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("alert")
     .getByText(/Cannot reach the Playback backend/)
     .waitFor();
   assert.equal(await input.inputValue(), "What is the bottleneck?");
@@ -402,7 +412,8 @@ try {
     mode = failure;
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await page
-      .locator(".chat-error")
+      .getByRole("region", { name: "Ask Playback" })
+      .getByRole("alert")
       .getByText(
         failure === "proxy-error"
           ? /backend is unavailable/
@@ -415,8 +426,14 @@ try {
   await input.press("Shift+Enter");
   assert.match(await input.inputValue(), /\n/);
   await input.press("Enter");
-  await page.locator(".answer").getByRole("listitem").waitFor();
-  assert.equal(await page.locator(".chat-error").count(), 0);
+  await page.getByTestId("answer").getByRole("listitem").waitFor();
+  assert.equal(
+    await page
+      .getByRole("region", { name: "Ask Playback" })
+      .getByRole("alert")
+      .count(),
+    0,
+  );
   assert.equal(asks, 4);
   const firstConversationId = [...conversations.keys()][0];
   await page.getByRole("button", { name: "Chat conversations" }).click();
@@ -429,12 +446,23 @@ try {
   await page
     .getByRole("button", { name: "＋ New conversation", exact: true })
     .click();
-  await page.locator(".chat-turn").first().waitFor({ state: "detached" });
-  assert.equal(await page.locator(".chat-turn").count(), 0);
+  await page
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("article")
+    .first()
+    .waitFor({ state: "detached" });
+  assert.equal(
+    await page
+      .getByRole("region", { name: "Ask Playback" })
+      .getByRole("article")
+      .count(),
+    0,
+  );
   await input.fill("How should resources be allocated?");
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page
-    .locator(".chat-question")
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("article")
     .getByText("How should resources be allocated?", { exact: true })
     .waitFor();
   await page.getByRole("button", { name: "Chat conversations" }).click();
@@ -446,7 +474,8 @@ try {
     })
     .click();
   await page
-    .locator(".chat-question")
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("article")
     .getByText("What is the bottleneck?", { exact: true })
     .waitFor();
   await page.reload();
@@ -454,7 +483,8 @@ try {
     .getByRole("button", { name: "◇ Ask Playback", exact: true })
     .click();
   await page
-    .locator(".chat-question")
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("article")
     .getByText("What is the bottleneck?", { exact: true })
     .waitFor();
   await page.getByRole("button", { name: "Chat conversations" }).click();
@@ -468,13 +498,17 @@ try {
     .getByText("No conversations in this session yet.", { exact: true })
     .waitFor();
   assert.equal(
-    await page.locator(".chat-turn").count(),
+    await page
+      .getByRole("region", { name: "Ask Playback" })
+      .getByRole("article")
+      .count(),
     0,
     "A different lecture must never show another lecture's conversation",
   );
   await page.getByLabel("Lecture session", { exact: true }).selectOption(id);
   await page
-    .locator(".chat-question")
+    .getByRole("region", { name: "Ask Playback" })
+    .getByRole("article")
     .getByText("What is the bottleneck?", { exact: true })
     .waitFor();
   await page.keyboard.press("Escape");
@@ -489,7 +523,9 @@ try {
     await page.locator("html").evaluate((el, value) => {
       el.style.zoom = String(value);
     }, zoom);
-    const chat = await page.locator(".chat").boundingBox();
+    const chat = await page
+      .getByRole("region", { name: "Ask Playback" })
+      .boundingBox();
     const field = await input.boundingBox();
     assert(
       chat &&
@@ -519,7 +555,7 @@ try {
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("button", { name: "Close chat" }).click();
-  await page.locator(".notes-body").evaluate((el) => {
+  await page.getByTestId("notes-body").evaluate((el) => {
     el.scrollTop = 0;
   });
   await page.screenshot({ path: "output/playwright/notes-topic-tree.png" });

@@ -176,9 +176,9 @@ async function metric(phase) {
     layoutDuration: after.LayoutDuration,
     ...(await cdp.send("Memory.getDOMCounters")),
     elements: await page.locator("*").count(),
-    formulas: await page.locator(".math-formula math").count(),
+    formulas: await page.locator("math").count(),
     temporaryDiagramHosts: await page
-      .locator("body > .diagram-render-host")
+      .locator("body > [data-diagram-render-host]")
       .count(),
   };
   metrics.push(row);
@@ -206,25 +206,33 @@ const resources = () =>
 async function select(title) {
   await page.getByRole("button", { name: title, exact: true }).click();
   await page
-    .locator(".project-name")
+    .getByRole("banner")
+    .getByRole("heading", { level: 1 })
     .getByText(title, { exact: true })
     .waitFor();
-  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor({ state: "hidden" });
 }
 async function edit(text) {
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Editable Markdown").fill(text);
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   if (!baseline && text.includes("$p$"))
-    await page.locator(".note-content .math-formula math").first().waitFor();
+    await page.getByTestId("note-content").locator("math").first().waitFor();
 }
 async function screenshot(name) {
-  await page.locator(".note-outline").evaluateAll((nodes) =>
-    nodes.forEach((node) => {
-      node.open = false;
-    }),
-  );
-  await page.locator(".notes-body").evaluate((el) => {
+  await page
+    .locator("details", {
+      has: page.getByRole("navigation", { name: "Note topics" }),
+    })
+    .evaluateAll((nodes) =>
+      nodes.forEach((node) => {
+        node.open = false;
+      }),
+    );
+  await page.getByTestId("notes-body").evaluate((el) => {
     el.scrollTop = 0;
   });
   await page.screenshot({ path: `${folder}/${name}.png` });
@@ -232,10 +240,14 @@ async function screenshot(name) {
 try {
   await page.goto(url);
   await page
-    .locator(".project-name")
+    .getByRole("banner")
+    .getByRole("heading", { level: 1 })
     .getByText(session.title, { exact: true })
     .waitFor();
-  await page.locator(".workspace-loading").waitFor({ state: "hidden" });
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Loading session…" })
+    .waitFor({ state: "hidden" });
   const plainAssets = await resources();
   assert(
     plainAssets.every((x) => !/MathFormula|mermaid|katex/i.test(x.name)),
@@ -245,28 +257,34 @@ try {
   await edit(formulaNote);
   if (!baseline) {
     assert.equal(
-      await page.locator(".note-content math").count(),
+      await page.getByTestId("note-content").locator("math").count(),
       10,
       "Screenshot equations were not rendered",
     );
     assert(
-      (await page.locator(".note-content mfrac").count()) >= 2,
+      (await page.getByTestId("note-content").locator("mfrac").count()) >= 2,
       "Fractions are missing",
     );
     assert(
-      (await page.locator(".note-content mtable").count()) >= 1,
+      (await page.getByTestId("note-content").locator("mtable").count()) >= 1,
       "Matrix is missing",
     );
-    assert.equal(await page.locator(".note-content table math").count(), 2);
+    assert.equal(
+      await page.getByTestId("note-content").locator("table math").count(),
+      2,
+    );
     assert(
       await page
-        .locator(".note-content code")
+        .getByTestId("note-content")
+        .locator("code")
         .filter({ hasText: "$p$" })
         .count(),
       "Code was interpreted as math",
     );
     assert(
-      (await page.locator(".note-content").innerText()).includes("$5 and $10"),
+      (await page.getByTestId("note-content").innerText()).includes(
+        "$5 and $10",
+      ),
       "Escaped currency was interpreted as math",
     );
     const mathAssets = await resources();
@@ -285,10 +303,16 @@ try {
   await screenshot("equations-desktop");
   await edit(formulaNote + diagram);
   await page
-    .locator(".note-content .flowchart svg")
+    .getByTestId("note-content")
+    .getByLabel("Rendered flowchart")
+    .locator("svg")
     .waitFor({ timeout: 30000 });
   await page.getByRole("button", { name: "Sources", exact: true }).click();
-  await page.locator(".note-content button.note-ref").first().click();
+  await page
+    .getByTestId("note-content")
+    .getByRole("button", { name: /^Open audio sources/ })
+    .first()
+    .click();
   await page.getByRole("dialog", { name: "Grouped audio sources" }).waitFor();
   await page.getByLabel("Close sources", { exact: true }).click();
   await page.getByRole("button", { name: "Reading", exact: true }).click();
@@ -306,8 +330,10 @@ try {
   const fit = await page.evaluate(() => ({
     width: innerWidth,
     pageWidth: document.documentElement.scrollWidth,
-    notesWidth: document.querySelector(".notes-body").clientWidth,
-    notesScrollWidth: document.querySelector(".notes-body").scrollWidth,
+    notesWidth: document.querySelector('[data-testid="notes-body"]')
+      .clientWidth,
+    notesScrollWidth: document.querySelector('[data-testid="notes-body"]')
+      .scrollWidth,
   }));
   assert(
     fit.pageWidth <= fit.width + 1 &&
@@ -319,12 +345,20 @@ try {
   const warmSmall = await metric("small-after-engines-warmed");
   await select(session.title);
   await edit(longNote + diagram);
-  await page.locator(".note-content .flowchart svg").waitFor();
+  await page
+    .getByTestId("note-content")
+    .getByLabel("Rendered flowchart")
+    .locator("svg")
+    .waitFor();
   const warmLong = await metric("long-warm");
   const soakStart = Date.now();
   for (let i = 1; i <= cycles; i++) {
     await edit(longNote + diagram + `\n\nUpdated example $x = ${i}$`);
-    await page.locator(".note-content .flowchart svg").waitFor();
+    await page
+      .getByTestId("note-content")
+      .getByLabel("Rendered flowchart")
+      .locator("svg")
+      .waitFor();
     if (i % 10 === 0) await metric(`edit-${i}`);
     if (i % 20 === 0) {
       await select(small.title);
@@ -335,7 +369,7 @@ try {
   await page.waitForTimeout(1000);
   const finalSmall = await metric("small-after-editing");
   assert.equal(
-    await page.locator(".math-formula").count(),
+    await page.getByTestId("formula").count(),
     0,
     "Previous-session formulas remain mounted",
   );
@@ -361,40 +395,42 @@ $$
         "x+".repeat(2500) +
         "\n$$",
     );
-    await page.locator(".math-source").first().waitFor();
+    await page.getByTestId("formula").locator("code").first().waitFor();
     assert.equal(
-      await page.locator(".note-content math").count(),
+      await page.getByTestId("note-content").locator("math").count(),
       0,
       "Invalid or oversized math should preserve source text",
     );
-    assert.equal(await page.locator(".math-source").count(), 2);
+    assert.equal(await page.getByTestId("formula").locator("code").count(), 2);
     await screenshot("invalid-math-source-preserved");
     await edit("```math\n\\frac{1}{2}\n```\n\n```text\n$literal$\n```");
-    await page.locator(".note-content math").waitFor();
+    await page.getByTestId("note-content").locator("math").waitFor();
     assert.equal(
-      await page.locator(".note-content .math-display math").count(),
+      await page
+        .getByTestId("note-content")
+        .locator('math[display="block"]')
+        .count(),
       1,
       "Math fences should render a block equation",
     );
     assert.equal(
-      await page.locator(".note-content pre code").textContent(),
+      await page.getByTestId("note-content").locator("pre code").textContent(),
       "$literal$\n",
       "Normal code fences must remain literal",
     );
     await edit(String.raw`$\def\loop{\loop}\loop$`);
-    await page.locator(".math-source").waitFor();
+    await page.getByTestId("formula").locator("code").waitFor();
     assert.equal(
-      await page.locator(".note-content math").count(),
+      await page.getByTestId("note-content").locator("math").count(),
       0,
       "Recursive macros must stop and preserve source",
     );
     await edit(String.raw`$\href{https://example.com/math}{x}$`);
-    await page.locator(".math-formula").waitFor();
+    await page.getByTestId("formula").waitFor();
     assert.equal(
       await page
-        .locator(
-          ".math-formula [href], .math-formula [src], .math-formula script",
-        )
+        .getByTestId("formula")
+        .locator("[href], [src], script")
         .count(),
       0,
       "Formula markup must not create external content",
@@ -413,10 +449,11 @@ $$
       .getByRole("button", { name: "Preview", exact: true })
       .click();
     await unavailable
-      .locator('.math-source[title*="could not load"]')
+      .getByTestId("formula")
+      .locator('code[title*="could not load"]')
       .waitFor();
     assert.equal(
-      await unavailable.locator(".math-source").textContent(),
+      await unavailable.getByTestId("formula").locator("code").textContent(),
       "p^{2}",
       "A failed lazy import must preserve the equation source",
     );

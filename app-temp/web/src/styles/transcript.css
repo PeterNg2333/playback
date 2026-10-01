@@ -570,7 +570,7 @@ body[data-language="original"] .translation {
 .hour-toggle {
   padding-left: 16px;
 }
-.source-revealed {
+[data-revealed] {
   background: var(--accent-soft);
   outline: 2px solid var(--accent);
   border-radius: 8px;

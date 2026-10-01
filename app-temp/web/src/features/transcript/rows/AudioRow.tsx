@@ -51,8 +51,9 @@ export function AudioRow({
     <article
       className={`record-row transcript-row audio-row ${stoppedIds.length ? "asr-manual-row" : ""}`}
       id={first.id}
+      data-testid="audio-row"
     >
-      <span className="record-time">{range.start}</span>
+      <time className="record-time">{range.start}</time>
       <div className="record-main">
         <div className="record-meta">
           <AudioSourceBadge sourceId={first.sourceId} />

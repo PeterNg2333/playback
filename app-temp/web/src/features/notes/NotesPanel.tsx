@@ -180,7 +180,7 @@ export function NotesPanel({
                       : "Pending decision…"
                     : null;
   return (
-    <Panel className="notes-panel">
+    <Panel className="notes-panel" data-testid="notes-panel">
       <div className="panel-head">
         <div className="note-title">
           <h2>Lecture notes</h2>
@@ -194,7 +194,11 @@ export function NotesPanel({
             onNotesRestored={() => refreshWorkspace(session!.id)}
           />
           {noteStatus && (
-            <span className="note-ai-status" role="status">
+            <span
+              className="note-ai-status"
+              role="status"
+              data-testid="note-ai-status"
+            >
               <Icon name="pen" />
               {noteStatus}
             </span>
@@ -230,7 +234,12 @@ export function NotesPanel({
           </div>
         </div>
       </div>
-      <div className="notes-body" ref={body} onScroll={rememberScroll}>
+      <div
+        className="notes-body"
+        data-testid="notes-body"
+        ref={body}
+        onScroll={rememberScroll}
+      >
         {noteMode === "preview" ? (
           markdown ? (
             <>

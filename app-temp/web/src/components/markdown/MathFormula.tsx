@@ -40,10 +40,14 @@ export default memo(function MathFormula({ source, display }: FormulaProps) {
   return rendered.html ? (
     <Tag
       className={`math-formula${display ? " math-display" : ""}`}
+      data-testid="formula"
       dangerouslySetInnerHTML={{ __html: rendered.html }}
     />
   ) : (
-    <Tag className={`math-formula${display ? " math-display" : ""}`}>
+    <Tag
+      className={`math-formula${display ? " math-display" : ""}`}
+      data-testid="formula"
+    >
       <code className="math-source" title={rendered.error}>
         {source}
       </code>

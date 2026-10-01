@@ -34,6 +34,7 @@ export function TermDecisionTrace({
   return decisions.map((decision) => (
     <LazyDetails
       className="activity-entry"
+      data-testid="activity-entry"
       key={decision.id}
       summary={
         <>
