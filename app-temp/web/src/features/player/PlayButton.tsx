@@ -22,14 +22,14 @@ export function PlayButton({
   const playing = playingKey === id;
   return (
     <button
-      className="record-play"
+      className="grid size-8 place-items-center rounded-[7px] border border-line bg-white text-accent hover:bg-accent-soft aria-pressed:bg-accent-soft xs:size-8.5"
       data-chunk-id={id}
       aria-label={`${playing ? "Pause" : "Play"} audio from ${startTime} to ${endTime}`}
       aria-pressed={playing}
       title={playing ? "Pause" : "Play"}
       onClick={() => onToggle(id, chunks)}
     >
-      <Icon name={playing ? "pause" : "play"} />
+      <Icon name={playing ? "pause" : "play"} className="size-3.75" />
     </button>
   );
 }

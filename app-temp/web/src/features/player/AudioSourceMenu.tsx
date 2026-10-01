@@ -1,5 +1,6 @@
 import { Menu } from "../../components/Menu";
 import { audioSourceLabel } from "../recording/AudioSourceBadge";
+import { PlayerButton, PlayerSelect } from "./PlayerControls";
 
 type AudioSourceMenuProps = {
   sources: string[];
@@ -32,17 +33,19 @@ export function AudioSourceMenu({
 
   return (
     <Menu
-      className="player-mode"
+      className="relative min-w-0"
+      summaryClassName="flex justify-between gap-1 rounded-[7px] border border-line p-1.25 text-[10px] font-bold whitespace-nowrap text-accent after:content-['▾'] md:px-1.75 md:text-[11px]"
       label="Playback mode"
       title={description}
       summary={label}
       dismissible
     >
       {(close) => (
-        <div className="player-mode-menu">
-          <span>{description}</span>
-          <button
-            className="player-session"
+        // Opens upwards, above the player bar.
+        <div className="absolute bottom-[calc(100%+8px)] left-0 z-25 grid w-50 gap-2.25 rounded-[10px] border border-line bg-white p-3 text-[11px] shadow-[0_8px_28px_#25243c22]">
+          <span className="text-muted">{description}</span>
+          <PlayerButton
+            className="px-2.25 py-1 text-[11px] aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent"
             type="button"
             aria-pressed={!selectedAudio}
             disabled={disabled}
@@ -52,10 +55,10 @@ export function AudioSourceMenu({
             }}
           >
             Full session
-          </button>
-          <label>
+          </PlayerButton>
+          <label className="grid gap-1.25">
             <span>Playback source</span>
-            <select
+            <PlayerSelect
               aria-label="Audio sources"
               value={sourceMode}
               disabled={disabled}
@@ -70,7 +73,7 @@ export function AudioSourceMenu({
                   {audioSourceLabel(source)}
                 </option>
               ))}
-            </select>
+            </PlayerSelect>
           </label>
         </div>
       )}

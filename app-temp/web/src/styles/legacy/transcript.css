@@ -213,9 +213,6 @@ body[data-language="original"] .translation {
 .record-extra .capture-error {
   margin: 4px 0;
 }
-.record-extra .record-play {
-  margin-top: 7px;
-}
 .rows {
   padding: 0 16px 60px;
 }
@@ -430,25 +427,6 @@ body[data-language="original"] .translation {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.record-play {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #fff;
-  color: var(--accent);
-}
-.record-play:hover,
-.record-play[aria-pressed="true"] {
-  background: var(--accent-soft);
-}
-.record-play svg {
-  width: 15px;
-  height: 15px;
-}
 .materials-section {
   border-bottom: 1px solid var(--line);
 }
@@ -525,10 +503,6 @@ body[data-language="original"] .translation {
   .record-row {
     grid-template-columns: 50px minmax(0, 1fr);
     gap: 7px;
-  }
-  .record-play {
-    width: 32px;
-    height: 32px;
   }
 }
 .virtual-transcript {
