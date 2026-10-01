@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatElapsed } from "../../lib/time";
+import { PopupHeader } from "../../components/PopupHeader";
 
 // Cited parts from one audio source within five minutes of each other show as one range.
 const MAX_RANGE_MS = 5 * 60_000;
@@ -115,12 +116,11 @@ export function SourceCitation({
             aria-label="Grouped audio sources"
             style={position}
           >
-            <div className="term-explanation-head">
-              <strong>Cited sources</strong>
-              <button aria-label="Close sources" onClick={() => setOpen(false)}>
-                ×
-              </button>
-            </div>
+            <PopupHeader
+              title="Cited sources"
+              closeLabel="Close sources"
+              onClose={() => setOpen(false)}
+            />
             <small>
               Session elapsed time · mm:ss (hh:mm:ss after one hour). Ranges
               contain only the cited sources; gaps are listed below.

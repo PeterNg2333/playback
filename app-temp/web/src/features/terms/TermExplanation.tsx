@@ -5,6 +5,10 @@ import type { TermInsight } from "../../lib/backend/schemas";
 import { Markdown } from "../../components/markdown/Markdown";
 import { api } from "../../lib/backend/client";
 import { TermInsightSchema } from "../../lib/backend/schemas";
+import { PopupHeader } from "../../components/PopupHeader";
+
+const followUpStyle =
+  "mt-3 block cursor-pointer rounded-[7px] border border-line bg-accent-soft px-2.5 py-1.75 text-[12px] text-accent";
 
 export function TermExplanation({
   insight,
@@ -69,10 +73,11 @@ export function TermExplanation({
       window.removeEventListener("resize", onClose);
     };
   }, [anchor, onClose]);
+  // The panel spaces its own paragraphs, including the explanation's Markdown.
   return createPortal(
     <aside
       ref={panel}
-      className="term-explanation"
+      className="fixed right-4.5 bottom-44.5 z-30 max-h-[min(380px,65vh)] w-[min(320px,calc(100vw-36px))] overflow-auto rounded-xl border border-line bg-white p-3.75 shadow-[0_18px_48px_#25243c33] md:bottom-41.25 [&_p]:my-2.5 [&_p]:text-[12px] [&_p]:leading-[1.6] [&_p]:whitespace-pre-wrap"
       role="dialog"
       aria-label={`${insight.term} explanation`}
       style={
@@ -83,12 +88,11 @@ export function TermExplanation({
       onFocus={onMouseEnter}
       onBlur={onMouseLeave}
     >
-      <div className="term-explanation-head">
-        <strong>{insight.term}</strong>
-        <button type="button" aria-label="Close explanation" onClick={onClose}>
-          ×
-        </button>
-      </div>
+      <PopupHeader
+        title={insight.term}
+        closeLabel="Close explanation"
+        onClose={onClose}
+      />
       {insight.explanation ? (
         <>
           <Markdown
@@ -101,7 +105,7 @@ export function TermExplanation({
           {shown.explanationSummary &&
             shown.explanationSummary !== shown.explanation && (
               <button
-                className="term-followup"
+                className={followUpStyle}
                 onClick={() => setExpanded((x) => !x)}
                 aria-expanded={expanded}
               >
@@ -110,7 +114,7 @@ export function TermExplanation({
             )}
           {shown.explanationVersion !== "term-detail-v2" && (
             <button
-              className="term-followup"
+              className={followUpStyle}
               disabled={detail.isPending}
               onClick={() =>
                 detail.mutate(undefined, { onSuccess: () => setExpanded(true) })
@@ -130,11 +134,12 @@ export function TermExplanation({
         </p>
       )}
       {shown.evidence.length > 0 && (
-        <div className="term-explanation-sources">
+        <div className="mb-2 flex flex-wrap gap-1.5">
           {shown.evidence
             .filter((source) => source.url.startsWith("https://"))
             .map((source) => (
               <a
+                className="text-[11px] [color:revert] underline"
                 key={source.url}
                 href={source.url}
                 target="_blank"
@@ -145,9 +150,11 @@ export function TermExplanation({
             ))}
         </div>
       )}
-      <small>AI/web supplement · separate from lecture evidence</small>
+      <small className="text-[10px] text-muted">
+        AI/web supplement · separate from lecture evidence
+      </small>
       {onAsk && (
-        <button className="term-followup" type="button" onClick={onAsk}>
+        <button className={followUpStyle} type="button" onClick={onAsk}>
           Ask a follow-up in chat
         </button>
       )}

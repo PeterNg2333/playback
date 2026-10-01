@@ -30,11 +30,11 @@ export function TermHighlight({
   };
   useEffect(() => () => cancelClose(), []);
   return (
-    <span className="term-wrap">
+    <span>
       <button
         ref={anchor}
         type="button"
-        className="term-highlight"
+        className="inline cursor-pointer rounded-sm bg-accent-soft px-0.75 font-[750] text-accent box-decoration-clone focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         aria-label={`Explain ${text}`}
         aria-expanded={open}
         onMouseEnter={show}

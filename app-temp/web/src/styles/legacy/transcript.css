@@ -383,22 +383,6 @@ body[data-language="original"] .translation {
   color: var(--ink);
   border-bottom-color: var(--accent);
 }
-.term-highlight {
-  display: inline;
-  margin: 0;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 3px;
-  background: #ebe7ff;
-  color: inherit;
-  font: inherit;
-  font-weight: 700;
-  cursor: context-menu;
-}
-.term-highlight:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 .materials-section {
   border-bottom: 1px solid var(--line);
 }
