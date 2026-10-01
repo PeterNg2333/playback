@@ -1,6 +1,8 @@
 import { usePlaybackStore } from "../../lib/store";
 import type { Session } from "../../lib/backend/schemas";
 import { askAboutTerm } from "../ask/askAbout";
+import { Button } from "../../components/Button";
+import { Tag } from "../../components/Tag";
 import { attachMaterial } from "./attachMaterial";
 
 const PREVIEW_CHARS = 180;
@@ -15,13 +17,12 @@ export function MaterialsList({ session }: { session: Session | null }) {
         Text materials <span>{session?.materials.length || 0}</span>
       </summary>
       <div className="materials-content">
-        <button
-          className="text-control"
+        <Button
           onClick={() => attachMaterial(session)}
           disabled={!session || !!busy || workspaceLoading}
         >
           Attach text material
-        </button>
+        </Button>
         {session?.materials.map((material) => (
           <article className="material-item" id={material.id} key={material.id}>
             <strong>{material.name}</strong>
@@ -31,13 +32,12 @@ export function MaterialsList({ session }: { session: Session | null }) {
                 candidate.materialIds.includes(material.id),
               )
               .map((candidate) => (
-                <button
-                  className="term-tag"
+                <Tag
                   key={candidate.text}
                   onClick={() => askAboutTerm(session, candidate)}
                 >
                   {candidate.text}
-                </button>
+                </Tag>
               ))}
           </article>
         ))}

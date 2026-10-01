@@ -2,6 +2,7 @@ import type { Evidence, Session, TermInsight } from "../../lib/backend/schemas";
 import { SourceLinks } from "../sources/SourceLinks";
 import { formatDateTime } from "../../lib/time";
 import { LazyDetails } from "../../components/LazyDetails";
+import { EmptyState } from "../../components/EmptyState";
 
 type TermDecisionTraceProps = {
   session: Session;
@@ -30,7 +31,7 @@ export function TermDecisionTrace({
     (b.rankedAt || "").localeCompare(a.rankedAt || ""),
   );
   if (!decisions.length)
-    return <p className="empty">No saved Jev decisions yet.</p>;
+    return <EmptyState>No saved Jev decisions yet.</EmptyState>;
   return decisions.map((decision) => (
     <LazyDetails
       className="activity-entry"

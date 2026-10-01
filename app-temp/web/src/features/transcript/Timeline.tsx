@@ -25,6 +25,7 @@ import { LiveRow } from "./rows/LiveRow";
 import { PassageRow } from "./rows/PassageRow";
 import { SilenceRow } from "./rows/SilenceRow";
 import { TranscriptRow } from "./rows/TranscriptRow";
+import { EmptyState } from "../../components/EmptyState";
 
 // While recording, the last minute of transcripts stays uncombined; older passages
 // settle in 30-second steps so a passage does not change while it is being read.
@@ -330,9 +331,9 @@ export function Timeline({
             />
           </>
         ) : capture?.sessionId !== session?.id || capture?.state === "idle" ? (
-          <p className="empty">
+          <EmptyState>
             No transcript yet. Record a session to see audio and text here.
-          </p>
+          </EmptyState>
         ) : null}
       </div>
     </div>

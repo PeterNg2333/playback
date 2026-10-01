@@ -6,6 +6,7 @@ import { api } from "../../lib/backend/client";
 import { NoteEditHistory } from "../notes/NoteEditHistory";
 import { TermDecisionTrace } from "../terms/TermDecisionTrace";
 import { restoreNoteVersion } from "../notes/restoreNoteVersion";
+import { EmptyState } from "../../components/EmptyState";
 
 const EDIT_LOG_TIMEOUT_MS = 30_000;
 
@@ -57,7 +58,7 @@ export function ActivityLog({
   }
 
   if (!session)
-    return <p className="empty">Choose a session to see its activity.</p>;
+    return <EmptyState>Choose a session to see its activity.</EmptyState>;
 
   let editHistory;
   if (edits.isPending) {

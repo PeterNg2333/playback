@@ -4,6 +4,8 @@ import { ActivityLog } from "./ActivityLog";
 import { formatElapsed } from "../../lib/time";
 import { LazyDetails } from "../../components/LazyDetails";
 import { useDismiss } from "../../components/Menu";
+import { IconButton } from "../../components/IconButton";
+import { Chip } from "../../components/Chip";
 
 export function ActivityPopover({
   session,
@@ -56,9 +58,8 @@ export function ActivityPopover({
         }
       }}
     >
-      <button
+      <IconButton
         ref={button}
-        className="icon-control"
         aria-label="AI activity history"
         aria-expanded={open}
         aria-controls="notes-activity"
@@ -69,7 +70,7 @@ export function ActivityPopover({
         }}
       >
         ↶
-      </button>
+      </IconButton>
       {open && (
         <section
           id="notes-activity"
@@ -116,8 +117,7 @@ export function ActivityPopover({
                         (x) => x.id === id,
                       );
                       return (
-                        <button
-                          className="citation"
+                        <Chip
                           key={id}
                           onClick={() =>
                             onSource({
@@ -130,7 +130,7 @@ export function ActivityPopover({
                             (transcript
                               ? `${transcript.sourceId} · ${formatElapsed(transcript.startMs)}–${formatElapsed(transcript.endMs)}`
                               : `Source ${id.slice(-8)}`)}
-                        </button>
+                        </Chip>
                       );
                     })}
                   </>

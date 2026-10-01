@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/backend/client";
 import type { Session } from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
+import { Button } from "../../components/Button";
 
 // Asks the AI to reorganise one saved notes section. Leaving the session cancels the request.
 export function OrganizeSection({
@@ -58,13 +59,12 @@ export function OrganizeSection({
           </option>
         ))}
       </select>
-      <button
-        className="text-control"
+      <Button
         disabled={!sectionId || pending || draftDirty}
         onClick={() => void organize()}
       >
         Organize section
-      </button>
+      </Button>
       {error && <p role="alert">{error}</p>}
     </>
   );

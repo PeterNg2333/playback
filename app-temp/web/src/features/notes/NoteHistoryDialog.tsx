@@ -11,6 +11,7 @@ import {
   type Session,
 } from "../../lib/backend/schemas";
 import { restoreNoteVersion } from "./restoreNoteVersion";
+import { Button } from "../../components/Button";
 
 // Browses saved note versions; restores one, or recovers chosen sections of it into the current notes.
 export function NoteHistoryDialog({
@@ -115,13 +116,12 @@ export function NoteHistoryDialog({
 
   return (
     <>
-      <button
-        className="text-control"
+      <Button
         disabled={!session || !health?.sectionNotes}
         onClick={() => setOpen(true)}
       >
         History & recovery
-      </button>
+      </Button>
       <dialog
         ref={dialog}
         className="notes-history-dialog"

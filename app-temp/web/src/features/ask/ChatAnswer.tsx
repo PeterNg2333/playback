@@ -1,6 +1,7 @@
 import type { Answer, Evidence, Session } from "../../lib/backend/schemas";
 import { Markdown } from "../../components/markdown/Markdown";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
+import { Chip } from "../../components/Chip";
 
 export function ChatAnswer({
   answer,
@@ -59,9 +60,9 @@ export function ChatAnswer({
           <summary>Sources · {answer.evidence.length}</summary>
           <div>
             {answer.evidence.map((ev, index) => (
-              <button className="citation" key={index} onClick={() => jump(ev)}>
+              <Chip onTint key={index} onClick={() => jump(ev)}>
                 {ev.title || ev.label || ev.kind}
-              </button>
+              </Chip>
             ))}
           </div>
         </details>

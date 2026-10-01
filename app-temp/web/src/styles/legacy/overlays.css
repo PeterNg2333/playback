@@ -131,9 +131,6 @@
 .answer p:last-child {
   margin-bottom: 0;
 }
-.answer .citation {
-  background: #fff;
-}
 .chat-form {
   display: flex;
   gap: 7px;
@@ -168,7 +165,9 @@ dialog {
 dialog::backdrop {
   background: #2429465c;
 }
-.global-error button { padding: revert; float: right;
+.global-error button {
+  padding: revert;
+  float: right;
   margin-left: 12px;
   border: 0;
   background: transparent;

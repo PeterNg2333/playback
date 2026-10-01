@@ -1,4 +1,6 @@
 import { Icon } from "../../components/Icon";
+import { IconButton } from "../../components/IconButton";
+import { Button } from "../../components/Button";
 import { useHealth } from "../../lib/useHealth";
 import { useCaptureStatus } from "../recording/captureQuery";
 import {
@@ -41,14 +43,13 @@ export function SessionSettings({ session }: { session: Session | null }) {
 
   return (
     <div className="settings-wrap">
-      <button
-        className="icon-control"
+      <IconButton
         aria-label="Transcript settings"
         aria-expanded={settingsOpen}
         onClick={() => setSettingsOpen(!settingsOpen)}
       >
         <Icon name="settings" />
-      </button>
+      </IconButton>
       {settingsOpen && (
         <div className="settings-menu" data-testid="settings-menu">
           <strong>Transcript settings</strong>
@@ -181,13 +182,12 @@ export function SessionSettings({ session }: { session: Session | null }) {
             background; originals remain unchanged.
           </small>
           {session?.translationEnabled && translationsFailed && (
-            <button
-              className="text-control"
+            <Button
               disabled={!!busy}
               onClick={() => session && retryTranslations(session)}
             >
               Retry failed translations
-            </button>
+            </Button>
           )}
           {!!session?.terms.length && (
             <div className="term-review-setting">

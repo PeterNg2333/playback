@@ -1,5 +1,6 @@
 import type { Evidence, Session } from "../../lib/backend/schemas";
 import { recordedRange } from "../../lib/time";
+import { Chip } from "../../components/Chip";
 
 type SourceLinksProps = {
   session: Session;
@@ -31,15 +32,14 @@ export function SourceLinks({
           transcript.endMs,
         );
         return (
-          <button
+          <Chip
             type="button"
-            className="citation"
             key={id}
             title={id}
             onClick={() => onSelect({ kind: "lecture", id })}
           >
             {range.start}
-          </button>
+          </Chip>
         );
       })}
       {materialIds.map((id) => {
@@ -51,14 +51,13 @@ export function SourceLinks({
             </span>
           );
         return (
-          <button
+          <Chip
             type="button"
-            className="citation"
             key={id}
             onClick={() => onSelect({ kind: "material", id })}
           >
             {material.name}
-          </button>
+          </Chip>
         );
       })}
     </div>

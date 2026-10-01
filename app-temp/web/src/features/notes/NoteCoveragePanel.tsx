@@ -11,6 +11,7 @@ import {
   type Session,
 } from "../../lib/backend/schemas";
 import { usePlaybackStore } from "../../lib/store";
+import { Button } from "../../components/Button";
 
 // How many transcript parts the saved notes cite, the gaps left, and repairing the earliest gap.
 export function NoteCoveragePanel({
@@ -105,8 +106,7 @@ export function NoteCoveragePanel({
           )}
           {report.gaps.slice(0, 12).map((gap) => (
             <div className="note-coverage-gap" key={gap.sourceIds[0]}>
-              <button
-                className="text-control"
+              <Button
                 onClick={() =>
                   onOpenSource({ kind: "transcript", id: gap.sourceIds[0] })
                 }
@@ -114,7 +114,7 @@ export function NoteCoveragePanel({
                 {formatMinutes(gap.startMs)}–{formatMinutes(gap.endMs)} ·{" "}
                 {gap.sourceId} · {gap.sourceIds.length} parts
                 {gap.large ? " · large gap" : ""}
-              </button>
+              </Button>
               {!!gap.deferred && (
                 <span>{gap.deferred} awaiting continuation</span>
               )}
@@ -127,8 +127,7 @@ export function NoteCoveragePanel({
             </p>
           )}
           {!!report.unreferenced && (
-            <button
-              className="text-control"
+            <Button
               disabled={
                 repairing ||
                 !!busy ||
@@ -141,7 +140,7 @@ export function NoteCoveragePanel({
               {repairing
                 ? "Repairing earliest gap…"
                 : "Repair earliest gap with AI"}
-            </button>
+            </Button>
           )}
           <p>
             Each repair generates one bounded batch and preserves existing

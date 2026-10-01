@@ -2,6 +2,8 @@ import type { Evidence, NoteEditLog, Session } from "../../lib/backend/schemas";
 import { SourceLinks } from "../sources/SourceLinks";
 import { formatDateTime } from "../../lib/time";
 import { LazyDetails } from "../../components/LazyDetails";
+import { Button } from "../../components/Button";
+import { EmptyState } from "../../components/EmptyState";
 
 type NoteEditHistoryProps = {
   session: Session;
@@ -18,7 +20,7 @@ export function NoteEditHistory({
   onRestore,
   onSource,
 }: NoteEditHistoryProps) {
-  if (!notes.length) return <p className="empty">No saved note edits yet.</p>;
+  if (!notes.length) return <EmptyState>No saved note edits yet.</EmptyState>;
   return [...notes].reverse().map((note) => {
     const authorLabel =
       note.author === "user"
@@ -45,13 +47,12 @@ export function NoteEditHistory({
       >
         {() => (
           <div className="activity-entry-body">
-            <button
-              className="text-control"
+            <Button
               disabled={restoring || note.version === session.noteVersion}
               onClick={() => onRestore(note.version)}
             >
               Restore this version
-            </button>
+            </Button>
             <p className="activity-help">
               {note.basedOnVersion == null
                 ? "First saved version"
@@ -72,7 +73,7 @@ export function NoteEditHistory({
               </div>
             )}
             {note.edits.length === 0 && (
-              <p className="empty">No recorded line changes in this version.</p>
+              <EmptyState>No recorded line changes in this version.</EmptyState>
             )}
             {note.edits.map((edit, index) => (
               <div className="activity-edit" data-kind={edit.kind} key={index}>

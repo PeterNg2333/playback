@@ -15,6 +15,7 @@ import {
   AudioSourceBadge,
   audioSourceLabel,
 } from "../../recording/AudioSourceBadge";
+import { Tag } from "../../../components/Tag";
 
 export function TranscriptRow({
   transcript,
@@ -138,14 +139,13 @@ export function TranscriptRow({
                 </p>
               )}
               {candidates.map((candidate) => (
-                <button
-                  className="term-tag"
+                <Tag
                   key={candidate.text}
                   onClick={() => onAskTerm(candidate, transcript.id)}
                   title="Ask Playback with this source"
                 >
                   {candidate.text}
-                </button>
+                </Tag>
               ))}
             </div>
           </details>

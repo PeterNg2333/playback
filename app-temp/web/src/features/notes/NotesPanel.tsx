@@ -17,6 +17,10 @@ import { ActivityPopover } from "../activity/ActivityPopover";
 import { useActivity } from "../activity/useActivity";
 import { Icon } from "../../components/Icon";
 import { LazyDetails } from "../../components/LazyDetails";
+import { Segment, Segmented } from "../../components/Segmented";
+import { Chip } from "../../components/Chip";
+import { EmptyState } from "../../components/EmptyState";
+import { Button } from "../../components/Button";
 
 export function NotesPanel({
   session,
@@ -205,33 +209,33 @@ export function NotesPanel({
           )}
         </div>
         <div className="panel-actions">
-          <div className="segmented">
-            <button
-              aria-pressed={noteMode === "preview"}
+          <Segmented>
+            <Segment
+              pressed={noteMode === "preview"}
               onClick={() => setNoteMode("preview")}
             >
               Preview
-            </button>
-            <button
-              aria-pressed={noteMode === "markdown"}
+            </Segment>
+            <Segment
+              pressed={noteMode === "markdown"}
               onClick={() => setNoteMode("markdown")}
             >
               Edit
-            </button>
-            <button aria-pressed={reading} onClick={() => setReading(true)}>
+            </Segment>
+            <Segment pressed={reading} onClick={() => setReading(true)}>
               Reading
-            </button>
-            <button aria-pressed={!reading} onClick={() => setReading(false)}>
+            </Segment>
+            <Segment pressed={!reading} onClick={() => setReading(false)}>
               Sources
-            </button>
-            <button
-              aria-pressed={noteMode === "draft"}
+            </Segment>
+            <Segment
+              pressed={noteMode === "draft"}
               onClick={() => setNoteMode("draft")}
             >
               Live draft
               {runningNote && <span className="draft-dot" aria-hidden="true" />}
-            </button>
-          </div>
+            </Segment>
+          </Segmented>
         </div>
       </div>
       <div
@@ -324,15 +328,14 @@ export function NotesPanel({
                                 );
                                 return (
                                   source && (
-                                    <button
-                                      className="citation"
+                                    <Chip
                                       key={id}
                                       onClick={() =>
                                         onOpenSource({ kind: "lecture", id })
                                       }
                                     >
                                       {String(source.startMs / 1000) + "s"}
-                                    </button>
+                                    </Chip>
                                   )
                                 );
                               })}
@@ -340,9 +343,9 @@ export function NotesPanel({
                           ))}
                         </ol>
                       ) : (
-                        <p className="empty">
+                        <EmptyState>
                           No recorded line changes in this version.
-                        </p>
+                        </EmptyState>
                       )
                     }
                   </LazyDetails>
@@ -350,10 +353,10 @@ export function NotesPanel({
               )}
             </>
           ) : (
-            <p className="empty">
+            <EmptyState>
               Notes will appear after enough speech is transcribed, or when you
               write them.
-            </p>
+            </EmptyState>
           )
         ) : noteMode === "draft" ? (
           <section className="note-draft" aria-label="Live note draft">
@@ -368,11 +371,11 @@ export function NotesPanel({
                 sources={draftSources}
               />
             ) : (
-              <p className="empty">
+              <EmptyState>
                 {runningNote
                   ? "Analyzing confirmed sources. The draft will appear as it is written."
                   : "No live revision is running. Saved notes are available in Preview."}
-              </p>
+              </EmptyState>
             )}
             {draftNote?.status === "failed" && (
               <p role="alert">This revision failed. The draft was not saved.</p>
@@ -459,20 +462,21 @@ export function NotesPanel({
         </div>
       )}
       <footer className="note-footer">
-        <button
-          className="save-button"
+        <Button
+          variant="primary"
+          className="disabled:cursor-not-allowed disabled:opacity-45"
           disabled={!session || !!busy || draft.conflict || !draft.isDirty}
           onClick={() => runAction("save", draft.save)}
         >
           Save
-        </button>
-        <button
-          className="secondary-action"
+        </Button>
+        <Button
+          className="disabled:cursor-not-allowed disabled:opacity-45"
           disabled={!session || !!busy || draft.conflict}
           onClick={() => runAction("generate", draft.reviseWithAi)}
         >
           Revise with AI
-        </button>
+        </Button>
       </footer>
       {reference && session && (
         <TermExplanation

@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { IconButton } from "../../components/IconButton";
 import { useHealth } from "../../lib/useHealth";
 import { formatElapsed } from "../../lib/time";
 import { usePlaybackField, usePlaybackStore } from "../../lib/store";
@@ -73,22 +74,20 @@ export function Recorder({ session }: { session: Session | null }) {
               speaking={streaming}
               paused={isPaused}
             />
-            <button
-              className="icon-control"
+            <IconButton
               disabled={!!busy}
               onClick={() => record(isPaused ? "resume" : "pause")}
               aria-label={isPaused ? "Resume recording" : "Pause recording"}
             >
               <Icon name={isPaused ? "record" : "pause"} />
-            </button>
-            <button
-              className="icon-control"
+            </IconButton>
+            <IconButton
               disabled={!!busy}
               onClick={() => record("stop")}
               aria-label="Stop recording"
             >
               <Icon name="stop" />
-            </button>
+            </IconButton>
           </>
         )}
       </div>
