@@ -193,6 +193,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             items={activity.items}
             error={activity.error}
             onSource={jump}
+            onNotesRestored={() => refresh(session!.id)}
           />
           {noteStatus && (
             <span className="note-ai-status" role="status">

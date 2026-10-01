@@ -9,11 +9,13 @@ export function ActivityPopover({
   items,
   error,
   onSource,
+  onNotesRestored,
 }: {
   session: Session | null;
   items: Activity[];
   error?: string;
   onSource: (source: Evidence) => void;
+  onNotesRestored: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -148,7 +150,11 @@ export function ActivityPopover({
               </LazyDetails>
             ))}
           </div>
-          <ActivityContent session={session} onSource={onSource} />
+          <ActivityContent
+            session={session}
+            onSource={onSource}
+            onNotesRestored={onNotesRestored}
+          />
         </section>
       )}
     </div>

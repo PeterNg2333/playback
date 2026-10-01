@@ -3,6 +3,7 @@ import { z } from "zod";
 import { api } from "./api";
 import type { PlaybackController } from "./handlers";
 import { Markdown } from "../Component/Markdown";
+import { restoreNoteVersion } from "../features/notes/restoreNoteVersion";
 
 const HistorySchema = z.object({
   items: z.array(
@@ -244,11 +245,10 @@ export function NoteTools({ model }: { model: PlaybackController }) {
                       }
                       onClick={() =>
                         load(async (signal) => {
-                          await api(
-                            `/sessions/${session!.id}/notes/${version}/restore?basedOnVersion=${session!.noteVersion}`,
-                            "POST",
-                            undefined,
-                            undefined,
+                          await restoreNoteVersion(
+                            session!.id,
+                            version,
+                            session!.noteVersion,
                             signal,
                           );
                           if (!signal.aborted) {

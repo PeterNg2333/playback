@@ -1,23 +1,23 @@
 import type { Evidence, NoteEditLog, Session } from "../types/api";
 import { SourceLinks } from "./SourceLinks";
 import { formatDateTime } from "./format";
-import { api } from "./api";
-import { useState } from "react";
 import { LazyDetails } from "../Component/LazyDetails";
 
 type NoteEditHistoryProps = {
   session: Session;
   notes: NoteEditLog[];
+  restoring: boolean;
+  onRestore: (version: number) => void;
   onSource: (source: Evidence) => void;
 };
 
 export function NoteEditHistory({
   session,
   notes,
+  restoring,
+  onRestore,
   onSource,
 }: NoteEditHistoryProps) {
-  const [restoring, setRestoring] = useState(false);
-  const [message, setMessage] = useState("");
   if (!notes.length) return <p className="empty">No saved note edits yet.</p>;
   return [...notes].reverse().map((note) => {
     const authorLabel =
@@ -47,29 +47,10 @@ export function NoteEditHistory({
             <button
               className="text-control"
               disabled={restoring || note.version === session.noteVersion}
-              onClick={async () => {
-                setRestoring(true);
-                setMessage("");
-                try {
-                  await api(
-                    `/sessions/${session.id}/notes/${note.version}/restore`,
-                    "POST",
-                  );
-                  setMessage(
-                    `Restored v${note.version} as a new version. Unsaved editor text is retained.`,
-                  );
-                } catch (error) {
-                  setMessage(
-                    error instanceof Error ? error.message : String(error),
-                  );
-                } finally {
-                  setRestoring(false);
-                }
-              }}
+              onClick={() => onRestore(note.version)}
             >
               Restore this version
             </button>
-            {message && <p role="status">{message}</p>}
             <p className="activity-help">
               {note.basedOnVersion == null
                 ? "First saved version"
