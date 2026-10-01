@@ -93,36 +93,6 @@ function merge(session: Session | null, delta: Delta): Session | null {
   if (!draft) return null;
   return draft as Session;
 }
-export function reuseSession(previous: Session | null, next: Session): Session {
-  if (!previous || previous.id !== next.id) return next;
-  const result = { ...next };
-  for (const field of [
-    "transcripts",
-    "chunks",
-    "materials",
-    "terms",
-    "termInsights",
-    "sourceGroups",
-  ] as const) {
-    const old = previous[field];
-    const current = next[field];
-    if (!old || !current) continue;
-    const index = new Map(old.map((x) => ["id" in x ? x.id : x.text, x]));
-    const shared = current.map((x) => {
-      const prior = index.get("id" in x ? x.id : x.text);
-      return prior && JSON.stringify(prior) === JSON.stringify(x) ? prior : x;
-    });
-    (result as Record<string, unknown>)[field] =
-      shared.length === old.length && shared.every((x, i) => x === old[i])
-        ? old
-        : shared;
-  }
-  if (JSON.stringify(previous.currentNote) === JSON.stringify(next.currentNote))
-    result.currentNote = previous.currentNote;
-  return JSON.stringify(previous) === JSON.stringify(result)
-    ? previous
-    : result;
-}
 export async function readSession(
   id: string,
   previous: Session | null,

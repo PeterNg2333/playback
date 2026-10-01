@@ -1,8 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { PlaybackController } from "./handlers";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Panel } from "../Component/Layout/Panel";
 import { Markdown } from "../Component/Markdown";
-import { api } from "./api";
+import { useHealth } from "../lib/useHealth";
+import { askAboutTerm } from "../features/ask/askAbout";
+import { refreshWorkspace } from "../features/library/refreshWorkspace";
+import { useNoteDraft } from "../features/notes/useNoteDraft";
+import type { Evidence, Session } from "../types/api";
+import { runAction, usePlaybackField, usePlaybackStore } from "./store";
+import type { AudioPlayer } from "./useAudioPlayback";
 import { NotePreview } from "./NotePreview";
 import { NoteTools } from "./NoteTools";
 import { NoteCoveragePanel } from "./NoteCoveragePanel";
@@ -12,30 +17,21 @@ import { useActivity } from "./useActivity";
 import { Icon } from "../Component/Icon";
 import { LazyDetails } from "../Component/LazyDetails";
 
-export function NotesPanel({ model }: { model: PlaybackController }) {
-  const {
-    session,
-    noteMode,
-    setNoteMode,
-    markdown,
-    setMarkdown,
-    savedMarkdown,
-    busy,
-    jump,
-    action,
-    refresh,
-  } = model;
+export function NotesPanel({
+  session,
+  player,
+  onOpenSource,
+}: {
+  session: Session | null;
+  player: AudioPlayer;
+  onOpenSource: (source: Evidence) => void;
+}) {
+  const [noteMode, setNoteMode] = usePlaybackField("noteMode");
+  const busy = usePlaybackStore((state) => state.busy);
+  const health = useHealth();
+  const draft = useNoteDraft(session);
+  const markdown = draft.text;
   const [reading, setReading] = useState(true);
-  const [previousDraft, setPreviousDraft] = useState<{
-    text: string;
-    version: number;
-  }>();
-  useEffect(() => setPreviousDraft(undefined), [session?.id]);
-  const editConflict =
-    !!session &&
-    markdown !== savedMarkdown.current &&
-    model.editorBaseVersion.current !== session.noteVersion;
-  const editorValue = useRef(markdown);
   const body = useRef<HTMLDivElement>(null);
   const [topics, setTopics] = useState<{ title: string; level: number }[]>([]);
   useLayoutEffect(() => {
@@ -75,7 +71,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
       offset: block ? block.getBoundingClientRect().top - top : 0,
     };
   };
-  const activity = useActivity(session?.id, model.health?.aiActivity);
+  const activity = useActivity(session?.id, health?.aiActivity);
   const runningNote = activity.items.find(
     (item) =>
       item.task === "Note revision" &&
@@ -176,11 +172,10 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                 : queued && latestNote?.summary?.startsWith("No section change")
                   ? "Waiting for continuation"
                   : queued
-                    ? model.health?.autoNotes === false
+                    ? health?.autoNotes === false
                       ? "Sources awaiting revision"
                       : "Pending decision…"
                     : null;
-  editorValue.current = markdown;
   return (
     <Panel className="notes-panel">
       <div className="panel-head">
@@ -192,8 +187,8 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             session={session}
             items={activity.items}
             error={activity.error}
-            onSource={jump}
-            onNotesRestored={() => refresh(session!.id)}
+            onSource={onOpenSource}
+            onNotesRestored={() => refreshWorkspace(session!.id)}
           />
           {noteStatus && (
             <span className="note-ai-status" role="status">
@@ -279,9 +274,12 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
               )}
               <NotePreview
                 key={session?.id}
-                model={model}
+                session={session}
+                markdown={markdown}
                 reading={reading}
                 onReference={setReferenceId}
+                onOpenSource={onOpenSource}
+                onPlay={player.togglePlayback}
               />
               {!!session?.currentNote && (
                 <>
@@ -320,7 +318,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
                                       className="citation"
                                       key={id}
                                       onClick={() =>
-                                        jump({ kind: "lecture", id })
+                                        onOpenSource({ kind: "lecture", id })
                                       }
                                     >
                                       {String(source.startMs / 1000) + "s"}
@@ -379,10 +377,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
               id="note-editor"
               className="markdown-editor"
               value={markdown}
-              onChange={(e) => {
-                editorValue.current = e.target.value;
-                setMarkdown(e.target.value);
-              }}
+              onChange={(e) => draft.setText(e.target.value)}
               placeholder="# Lecture notes&#10;&#10;```mermaid&#10;flowchart LR&#10;Audio --> Notes&#10;```"
             />
           </div>
@@ -400,9 +395,18 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           </p>
         )
       )}
-      <NoteCoveragePanel key={session?.id + ":coverage"} model={model} />
-      <NoteTools key={session?.id} model={model} />
-      {editConflict && (
+      <NoteCoveragePanel
+        key={session?.id + ":coverage"}
+        session={session}
+        draftDirty={draft.isDirty}
+        onOpenSource={onOpenSource}
+      />
+      <NoteTools
+        key={session?.id}
+        session={session}
+        draftDirty={draft.isDirty}
+      />
+      {draft.conflict && (
         <div className="note-conflict" role="alert">
           <p>
             Saved notes changed while you were editing. Your draft and caret are
@@ -414,35 +418,20 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
             </summary>
             <pre>{session!.noteMarkdown}</pre>
           </details>
-          <button
-            onClick={() => {
-              setPreviousDraft({
-                text: editorValue.current,
-                version: model.editorBaseVersion.current,
-              });
-              model.editorBaseVersion.current = session!.noteVersion;
-              setMarkdown(session!.noteMarkdown);
-            }}
-          >
+          <button onClick={draft.takeSavedVersion}>
             Load current notes and keep my draft for recovery
           </button>
         </div>
       )}
-      {previousDraft && (
+      {draft.setAside && (
         <div className="note-conflict">
-          <button
-            onClick={() => {
-              model.editorBaseVersion.current = previousDraft.version;
-              setMarkdown(previousDraft.text);
-              setPreviousDraft(undefined);
-            }}
-          >
+          <button onClick={draft.recoverSetAside}>
             Recover my previous draft
           </button>
           <button
             onClick={() =>
-              action("copy", () =>
-                navigator.clipboard.writeText(previousDraft.text),
+              runAction("copy", () =>
+                navigator.clipboard.writeText(draft.setAside!.text),
               )
             }
           >
@@ -453,54 +442,15 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
       <footer className="note-footer">
         <button
           className="save-button"
-          disabled={
-            !session ||
-            !!busy ||
-            editConflict ||
-            markdown === savedMarkdown.current
-          }
-          onClick={() =>
-            action("save", async () => {
-              const submittedMarkdown = editorValue.current;
-              const saved = await api<{ version: number }>(
-                `/sessions/${session!.id}/notes`,
-                "POST",
-                {
-                  markdown: submittedMarkdown,
-                  basedOnVersion: model.editorBaseVersion.current,
-                },
-              );
-              model.editorBaseVersion.current = saved.version;
-              savedMarkdown.current = submittedMarkdown;
-              await refresh(session!.id);
-            })
-          }
+          disabled={!session || !!busy || draft.conflict || !draft.isDirty}
+          onClick={() => runAction("save", draft.save)}
         >
           Save
         </button>
         <button
           className="secondary-action"
-          disabled={!session || !!busy || editConflict}
-          onClick={() =>
-            action("generate", async () => {
-              const currentMarkdown = editorValue.current;
-              if (currentMarkdown !== savedMarkdown.current) {
-                const saved = await api<{ version: number }>(
-                  `/sessions/${session!.id}/notes`,
-                  "POST",
-                  {
-                    markdown: currentMarkdown,
-                    basedOnVersion: model.editorBaseVersion.current,
-                  },
-                );
-                model.editorBaseVersion.current = saved.version;
-                savedMarkdown.current = currentMarkdown;
-                await refresh(session!.id);
-              }
-              await api(`/sessions/${session!.id}/notes/generate`, "POST");
-              await refresh(session!.id);
-            })
-          }
+          disabled={!session || !!busy || draft.conflict}
+          onClick={() => runAction("generate", draft.reviseWithAi)}
         >
           Revise with AI
         </button>
@@ -511,7 +461,7 @@ export function NotesPanel({ model }: { model: PlaybackController }) {
           sessionId={session.id}
           insight={reference}
           onAsk={() => {
-            model.askTerm({
+            askAboutTerm(session, {
               text: reference.term,
               transcriptIds: reference.transcriptIds,
               materialIds: reference.materialIds,

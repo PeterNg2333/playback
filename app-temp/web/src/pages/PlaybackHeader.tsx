@@ -1,39 +1,17 @@
-import { useEffect, useState } from "react";
-import type { PlaybackController } from "./handlers";
 import { Header } from "../Component/Layout/Header";
 import { Icon } from "../Component/Icon";
-import { RecordingModeSchema } from "../types/api";
+import { useHealth } from "../lib/useHealth";
+import { useCapture } from "../features/recording/useCapture";
+import { RecordingModeSchema, type Session } from "../types/api";
+import { usePlaybackField, usePlaybackStore } from "./store";
 import { time } from "./format";
 
-export function PlaybackHeader({ model }: { model: PlaybackController }) {
-  const {
-    session,
-    navOpen,
-    setSettingsOpen,
-    setNavOpen,
-    capture,
-    busy,
-    health,
-    record,
-    recordingMode,
-    setRecordingMode,
-  } = model;
-  const [wave, setWave] = useState<number[]>(Array(20).fill(0));
-  useEffect(() => {
-    if (capture?.state !== "recording") {
-      setWave(Array(20).fill(0));
-    }
-  }, [capture?.state]);
-  useEffect(() => {
-    const sample = (event: Event) => {
-      const { level, streaming } = (
-        event as CustomEvent<{ level: number; streaming: boolean }>
-      ).detail;
-      setWave((previous) => [...previous.slice(1), streaming ? level : 0]);
-    };
-    window.addEventListener("playback-capture-level", sample);
-    return () => window.removeEventListener("playback-capture-level", sample);
-  }, []);
+export function PlaybackHeader({ session }: { session: Session | null }) {
+  const [navOpen, setNavOpen] = usePlaybackField("navOpen");
+  const [recordingMode, setRecordingMode] = usePlaybackField("recordingMode");
+  const busy = usePlaybackStore((state) => state.busy);
+  const health = useHealth();
+  const { status: capture, levels: wave, record } = useCapture(session);
   const streaming =
     capture?.activeSegments?.some((segment) => segment.streaming) ?? false;
   const isIdle = (capture?.state ?? "idle") === "idle";
@@ -57,7 +35,7 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
           aria-label="Toggle sessions"
           aria-expanded={navOpen}
           onClick={() => {
-            setSettingsOpen(false);
+            usePlaybackStore.setState({ settingsOpen: false });
             setNavOpen(!navOpen);
           }}
         >

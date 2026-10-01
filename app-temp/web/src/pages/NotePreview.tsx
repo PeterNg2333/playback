@@ -1,6 +1,8 @@
 import { useMemo, useRef } from "react";
-import type { PlaybackController } from "./handlers";
 import { Markdown, indexMarkdownSources } from "../Component/Markdown";
+import { askAboutTerm } from "../features/ask/askAbout";
+import type { Evidence, Session } from "../types/api";
+import type { AudioPlayer } from "./useAudioPlayback";
 import { SourceCitation } from "../Component/SourceCitation";
 import { TermHighlight } from "./TermHighlight";
 import { recordedRange } from "./format";
@@ -23,15 +25,20 @@ function useCitedRows<T extends { id: string }>(
   }, [rows, ids]);
 }
 export function NotePreview({
-  model,
+  session,
+  markdown,
   reading,
   onReference,
+  onOpenSource,
+  onPlay: play,
 }: {
-  model: PlaybackController;
+  session: Session | null;
+  markdown: string;
   reading: boolean;
   onReference: (id: string) => void;
+  onOpenSource: (source: Evidence) => void;
+  onPlay: AudioPlayer["togglePlayback"];
 }) {
-  const { session, markdown, jump } = model;
   const groups = useMemo(
     () => [
       ...(session?.sourceGroups ?? []),
@@ -133,13 +140,13 @@ export function NotePreview({
   );
   const { sourceLabels: labels, sourceDetails: details } = references;
   const onPlay = (ids: string[]) =>
-    model.togglePlayback(
+    play(
       "note-passage-" + ids.join("-"),
       (session?.transcripts ?? []).filter((x) => ids.includes(x.id)),
     );
   const onSource = (id: string) => {
     const parent = /^([a-f0-9]{32})_p\d+_\d+_[a-f0-9]{12}$/.exec(id)?.[1] ?? id;
-    jump({
+    onOpenSource({
       kind: session?.materials.some((x) => x.id === parent)
         ? "material"
         : "lecture",
@@ -154,7 +161,7 @@ export function NotePreview({
         insight={insight}
         text={text}
         onAsk={() =>
-          model.askTerm({
+          askAboutTerm(session, {
             text: insight.term,
             transcriptIds: insight.transcriptIds,
             materialIds: insight.materialIds,

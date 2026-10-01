@@ -2,26 +2,26 @@ import { useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { Icon } from "../Component/Icon";
 import { SideNav } from "../Component/Layout/SideNav";
-import type { Group } from "../types/api";
-import type { PlaybackController } from "./handlers";
+import type { Group, Session } from "../types/api";
+import { useHealth } from "../lib/useHealth";
+import {
+  askForGroupName,
+  askForSessionName,
+  askToRenameGroup,
+  deleteGroup,
+  moveSession,
+  useLibrary,
+} from "../features/library/useLibrary";
+import { usePlaybackField, usePlaybackStore } from "./store";
 import { SessionItem } from "./SessionItem";
 import { GroupFlow } from "./GroupFlow";
 
-export function SessionNav({ model }: { model: PlaybackController }) {
-  const {
-    navOpen,
-    setNavOpen,
-    health,
-    busy,
-    error,
-    groups,
-    sessions,
-    create,
-    createGroup,
-    renameGroup,
-    deleteGroup,
-    moveSession,
-  } = model;
+export function SessionNav({ session }: { session: Session | null }) {
+  const [navOpen, setNavOpen] = usePlaybackField("navOpen");
+  const busy = usePlaybackStore((state) => state.busy);
+  const error = usePlaybackStore((state) => state.error);
+  const health = useHealth();
+  const { sessions, groups } = useLibrary();
   const disabled = !health?.mongo || !!busy;
   const [flowGroup, setFlowGroup] = useState<Group | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -72,7 +72,8 @@ export function SessionNav({ model }: { model: PlaybackController }) {
   }
 
   const sessionProps = {
-    model,
+    currentId: session?.id,
+    groups,
     onDragStart: dragStart,
     onDragEnd: () => {
       setDraggedId(null);
@@ -99,7 +100,7 @@ export function SessionNav({ model }: { model: PlaybackController }) {
             className="nav-icon-button sidebar-create"
             aria-label="New group"
             title="New group"
-            onClick={createGroup}
+            onClick={askForGroupName}
             disabled={disabled}
           >
             <Icon name="plus" />
@@ -137,7 +138,7 @@ export function SessionNav({ model }: { model: PlaybackController }) {
                   className="folder-create nav-icon-button"
                   aria-label={`New session in ${group.name}`}
                   title={`New session in ${group.name}`}
-                  onClick={() => create(group.id)}
+                  onClick={() => askForSessionName(group.id)}
                   disabled={disabled}
                 >
                   <Icon name="plus" />
@@ -165,7 +166,7 @@ export function SessionNav({ model }: { model: PlaybackController }) {
                         event.currentTarget
                           .closest("details")
                           ?.removeAttribute("open");
-                        renameGroup(group.id, group.name);
+                        askToRenameGroup(group.id, group.name);
                       }}
                     >
                       Rename group
@@ -215,7 +216,7 @@ export function SessionNav({ model }: { model: PlaybackController }) {
             className="nav-icon-button sidebar-create"
             aria-label="New session"
             title="New session"
-            onClick={() => create()}
+            onClick={() => askForSessionName()}
             disabled={disabled}
           >
             <Icon name="plus" />

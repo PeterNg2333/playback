@@ -1,33 +1,35 @@
 import type { DragEvent } from "react";
 import { Icon } from "../Component/Icon";
-import type { SessionSummary } from "../types/api";
-import type { PlaybackController } from "./handlers";
+import type { Group, SessionSummary } from "../types/api";
+import { moveSession, openSession } from "../features/library/useLibrary";
+import { usePlaybackStore } from "./store";
 
 export function SessionItem({
   item,
-  model,
+  currentId,
+  groups,
   onDragStart,
   onDragEnd,
 }: {
   item: SessionSummary;
-  model: PlaybackController;
+  currentId: string | undefined;
+  groups: Group[];
   onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void;
   onDragEnd: () => void;
 }) {
-  const { session, groups, action, refresh, setNavOpen, moveSession, busy } =
-    model;
+  const busy = usePlaybackStore((state) => state.busy);
   return (
     <div className="session-entry">
       <button
         className="session-link"
-        aria-current={session?.id === item.id ? "page" : undefined}
+        aria-current={currentId === item.id ? "page" : undefined}
         draggable={!busy}
         title="Open session or drag it to a group"
         onDragStart={(event) => onDragStart(event, item.id)}
         onDragEnd={onDragEnd}
         onClick={() => {
-          void action("load", () => refresh(item.id));
-          setNavOpen(false);
+          void openSession(item.id);
+          usePlaybackStore.setState({ navOpen: false });
         }}
       >
         <Icon name="document" />

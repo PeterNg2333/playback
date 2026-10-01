@@ -1,8 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import type { PlaybackController } from "./handlers";
 import { Icon } from "../Component/Icon";
+import { useHealth } from "../lib/useHealth";
+import type { ChatConversations } from "../features/ask/useChatConversations";
+import { refreshWorkspace } from "../features/library/refreshWorkspace";
+import { useLibrary } from "../features/library/useLibrary";
+import type { Session } from "../types/api";
+import { showError, usePlaybackStore } from "./store";
 
-export function ChatConversationMenu({ model }: { model: PlaybackController }) {
+export function ChatConversationMenu({
+  session,
+  conversations,
+  onNewConversation,
+  onSelectConversation,
+}: {
+  session: Session | null;
+  conversations: ChatConversations;
+  onNewConversation: () => Promise<void>;
+  onSelectConversation: (id: string) => Promise<void>;
+}) {
+  const { sessions, groups } = useLibrary();
+  const health = useHealth();
+  const busy = usePlaybackStore((state) => state.busy);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -36,20 +54,16 @@ export function ChatConversationMenu({ model }: { model: PlaybackController }) {
           <label htmlFor="chat-session">Lecture session</label>
           <select
             id="chat-session"
-            value={model.session?.id ?? ""}
-            disabled={!!model.busy || model.chatHistory.loading}
+            value={session?.id ?? ""}
+            disabled={!!busy || conversations.loading}
             onChange={(event) => {
-              void model
-                .refresh(event.target.value)
-                .catch((error) => model.setError(error.message));
+              void refreshWorkspace(event.target.value).catch(showError);
             }}
           >
-            {!model.session && (
-              <option value="">Select a lecture session</option>
-            )}
-            {model.groups.map((group) => (
+            {!session && <option value="">Select a lecture session</option>}
+            {groups.map((group) => (
               <optgroup key={group.id} label={group.name}>
-                {model.sessions
+                {sessions
                   .filter((item) => item.groupId === group.id)
                   .map((item) => (
                     <option key={item.id} value={item.id}>
@@ -59,7 +73,7 @@ export function ChatConversationMenu({ model }: { model: PlaybackController }) {
               </optgroup>
             ))}
             <optgroup label="Ungrouped sessions">
-              {model.sessions
+              {sessions
                 .filter((item) => !item.groupId)
                 .map((item) => (
                   <option key={item.id} value={item.id}>
@@ -73,30 +87,30 @@ export function ChatConversationMenu({ model }: { model: PlaybackController }) {
             type="button"
             className="new-conversation"
             disabled={
-              !model.session ||
-              !model.health?.chatConversations ||
-              !!model.busy ||
-              model.chatHistory.loading
+              !session ||
+              !health?.chatConversations ||
+              !!busy ||
+              conversations.loading
             }
             onClick={async () => {
-              await model.newConversation();
+              await onNewConversation();
               setOpen(false);
             }}
           >
             ＋ New conversation
           </button>
-          {model.chatHistory.loading ? (
+          {conversations.loading ? (
             <p role="status">Loading conversations…</p>
-          ) : model.chatHistory.list.length ? (
+          ) : conversations.list.length ? (
             <ul aria-label="Saved conversations">
-              {model.chatHistory.list.map((item) => (
+              {conversations.list.map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
-                    disabled={!!model.busy}
-                    aria-pressed={model.chatHistory.current?.id === item.id}
+                    disabled={!!busy}
+                    aria-pressed={conversations.current?.id === item.id}
                     onClick={async () => {
-                      await model.selectConversation(item.id);
+                      await onSelectConversation(item.id);
                       setOpen(false);
                     }}
                   >
@@ -108,7 +122,7 @@ export function ChatConversationMenu({ model }: { model: PlaybackController }) {
           ) : (
             <p>No conversations in this session yet.</p>
           )}
-          {model.health && !model.health.chatConversations && (
+          {health && !health.chatConversations && (
             <small>Restart the API to enable saved conversations.</small>
           )}
         </div>

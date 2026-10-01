@@ -55,7 +55,11 @@ export function TranscriptRow({
     transcript.translationLanguage === session.translationLanguage &&
     !!transcript.translation;
   return (
-    <article className="record-row transcript-row" id={transcript.id}>
+    <article
+      className="record-row transcript-row"
+      id={transcript.id}
+      data-transcript-id={transcript.id}
+    >
       <span className="record-time" title={`${range.start}–${range.end}`}>
         {range.start}
       </span>

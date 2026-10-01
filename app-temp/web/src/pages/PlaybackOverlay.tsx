@@ -1,35 +1,39 @@
-import type { PlaybackController } from "./handlers";
 import { TextInputDialog } from "../Component/Dialog/TextInputDialog";
+import { useHealth } from "../lib/useHealth";
+import { useAsk } from "../features/ask/useAsk";
+import { closeNameDialog, submitName } from "../features/library/useLibrary";
+import type { Evidence, Session } from "../types/api";
+import { usePlaybackField, usePlaybackStore } from "./store";
 import { recordedRange } from "./format";
 import { ChatAnswer } from "./ChatAnswer";
 import { ChatConversationMenu } from "./ChatConversationMenu";
 
-export function PlaybackOverlay({ model }: { model: PlaybackController }) {
+export function PlaybackOverlay({
+  session,
+  onOpenSource: jump,
+}: {
+  session: Session | null;
+  onOpenSource: (source: Evidence) => void;
+}) {
+  const [selection, setSelection] = usePlaybackField("selection");
+  const [chatOpen, setChatOpen] = usePlaybackField("chatOpen");
+  const [question, setQuestion] = usePlaybackField("question");
+  const [error, setError] = usePlaybackField("error");
+  const [focusMaterialId, setFocusMaterialId] =
+    usePlaybackField("focusMaterialId");
+  const [useWeb, setUseWeb] = usePlaybackField("useWeb");
+  const busy = usePlaybackStore((state) => state.busy);
+  const textDialog = usePlaybackStore((state) => state.textDialog);
+  const textDialogError = usePlaybackStore((state) => state.textDialogError);
+  const health = useHealth();
   const {
-    selection,
-    chatOpen,
-    setChatOpen,
-    question,
-    setQuestion,
-    error,
-    setError,
+    conversations,
     answer,
     answerDraft,
-    jump,
-    focusMaterialId,
-    setSelection,
-    setFocusMaterialId,
-    session,
-    useWeb,
-    setUseWeb,
     ask,
-    busy,
-    health,
-    textDialog,
-    textDialogError,
-    closeTextDialog,
-    submitTextDialog,
-  } = model;
+    newConversation,
+    selectConversation,
+  } = useAsk(session);
   const selectedTranscript = session?.transcripts.find(
     (entry) => entry.id === selection?.transcriptId,
   );
@@ -76,11 +80,16 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             <div>
               <div className="chat-title">
                 <strong>Ask Playback</strong>
-                <ChatConversationMenu model={model} />
+                <ChatConversationMenu
+                  session={session}
+                  conversations={conversations}
+                  onNewConversation={newConversation}
+                  onSelectConversation={selectConversation}
+                />
               </div>
               <small>
                 {session?.title ?? "Select a lecture session"} ·{" "}
-                {model.chatHistory.current?.title ?? "New conversation"}
+                {conversations.current?.title ?? "New conversation"}
               </small>
             </div>
             <button
@@ -126,12 +135,12 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
                 </p>
               )
             )}
-            {model.chatHistory.error && (
+            {conversations.error && (
               <p className="chat-error" role="alert">
-                {model.chatHistory.error}
+                {conversations.error}
               </p>
             )}
-            {model.chatHistory.current?.turns.map((turn) => (
+            {conversations.current?.turns.map((turn) => (
               <article className="chat-turn" key={turn.id}>
                 <p className="chat-question">{turn.question}</p>
                 <ChatAnswer
@@ -142,7 +151,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
               </article>
             ))}
             {answer &&
-            !model.chatHistory.current?.turns.some(
+            !conversations.current?.turns.some(
               (turn) =>
                 !!answer.questionId &&
                 turn.answer.questionId === answer.questionId,
@@ -153,7 +162,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
                 sourceGroups={session?.sourceGroups}
               />
             ) : (
-              !model.chatHistory.current?.turns.length &&
+              !conversations.current?.turns.length &&
               !answer && (
                 <p className="chat-hint">
                   Ask about processed lecture content.
@@ -217,10 +226,7 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             />
             <button
               disabled={
-                !session ||
-                !!busy ||
-                model.chatHistory.loading ||
-                !question.trim()
+                !session || !!busy || conversations.loading || !question.trim()
               }
             >
               {busy === "ask" ? "Working…" : "Send"}
@@ -244,8 +250,8 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
         maxLength={textDialog?.kind === "session" ? 120 : 80}
         busy={busy === "dialog"}
         error={textDialogError}
-        onCancel={closeTextDialog}
-        onSubmit={submitTextDialog}
+        onCancel={closeNameDialog}
+        onSubmit={submitName}
       />
     </>
   );

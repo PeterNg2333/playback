@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { api } from "./api";
-import type { PlaybackController } from "./handlers";
 import { Markdown } from "../Component/Markdown";
+import { useHealth } from "../lib/useHealth";
+import { refreshWorkspace } from "../features/library/refreshWorkspace";
+import type { Session } from "../types/api";
 import { restoreNoteVersion } from "../features/notes/restoreNoteVersion";
 
 const HistorySchema = z.object({
@@ -33,8 +35,14 @@ const RecoverySchema = z.object({
   ),
 });
 type Recovery = z.infer<typeof RecoverySchema>;
-export function NoteTools({ model }: { model: PlaybackController }) {
-  const { session } = model;
+export function NoteTools({
+  session,
+  draftDirty,
+}: {
+  session: Session | null;
+  draftDirty: boolean;
+}) {
+  const health = useHealth();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<z.infer<typeof HistorySchema>["items"]>(
     [],
@@ -103,7 +111,7 @@ export function NoteTools({ model }: { model: PlaybackController }) {
     <div className="note-tools">
       <button
         className="text-control"
-        disabled={!session || !model.health?.sectionNotes}
+        disabled={!session || !health?.sectionNotes}
         onClick={() => {
           setOpen(true);
           void history();
@@ -131,11 +139,7 @@ export function NoteTools({ model }: { model: PlaybackController }) {
           </select>
           <button
             className="text-control"
-            disabled={
-              !sectionId ||
-              pending ||
-              model.markdown !== model.savedMarkdown.current
-            }
+            disabled={!sectionId || pending || draftDirty}
             onClick={() =>
               load(async (signal) => {
                 await api(
@@ -145,7 +149,7 @@ export function NoteTools({ model }: { model: PlaybackController }) {
                   undefined,
                   signal,
                 );
-                if (!signal.aborted) await model.refresh(session.id);
+                if (!signal.aborted) await refreshWorkspace(session.id);
               })
             }
           >
@@ -239,10 +243,7 @@ export function NoteTools({ model }: { model: PlaybackController }) {
                     <h3>Saved v{version}</h3>
                     <pre className="historical-note">{historical}</pre>
                     <button
-                      disabled={
-                        pending ||
-                        model.markdown !== model.savedMarkdown.current
-                      }
+                      disabled={pending || draftDirty}
                       onClick={() =>
                         load(async (signal) => {
                           await restoreNoteVersion(
@@ -252,7 +253,7 @@ export function NoteTools({ model }: { model: PlaybackController }) {
                             signal,
                           );
                           if (!signal.aborted) {
-                            await model.refresh(session!.id);
+                            await refreshWorkspace(session!.id);
                             closeHistory();
                           }
                         })
@@ -333,11 +334,7 @@ export function NoteTools({ model }: { model: PlaybackController }) {
                       </article>
                     ))}
                     <button
-                      disabled={
-                        !selected.length ||
-                        pending ||
-                        model.markdown !== model.savedMarkdown.current
-                      }
+                      disabled={!selected.length || pending || draftDirty}
                       onClick={() =>
                         load(async (signal) => {
                           await api(
@@ -351,7 +348,7 @@ export function NoteTools({ model }: { model: PlaybackController }) {
                             signal,
                           );
                           if (!signal.aborted) {
-                            await model.refresh(session!.id);
+                            await refreshWorkspace(session!.id);
                             closeHistory();
                           }
                         })

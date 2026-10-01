@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import type { PassageEntry } from "./transcriptPassages";
-import type { PlaybackController } from "./handlers";
-import type { TermCandidate, TermInsight } from "../types/api";
+import type { Session, TermCandidate, TermInsight } from "../types/api";
+import {
+  askAboutTerm,
+  captureTranscriptSelection,
+} from "../features/ask/askAbout";
+import type { AudioPlayer } from "./useAudioPlayback";
 import { TranscriptRow } from "./TranscriptRow";
 import { RecordPlay } from "./RecordPlay";
 import { SourceTag } from "./SourceTag";
@@ -9,13 +13,17 @@ import { cleanAsrText, recordedRange } from "./format";
 
 export function TranscriptPassage({
   entry,
-  model,
+  session,
+  playingKey,
+  onTogglePlayback,
   revealId,
   insights,
   candidates,
 }: {
   entry: PassageEntry;
-  model: PlaybackController;
+  session: Session | null;
+  playingKey: string | null;
+  onTogglePlayback: AudioPlayer["togglePlayback"];
   revealId?: string;
   insights: Map<string, TermInsight[]>;
   candidates: Map<string, TermCandidate[]>;
@@ -26,15 +34,16 @@ export function TranscriptPassage({
   }, [revealId, entry.transcripts]);
   const first = entry.transcripts[0],
     last = entry.transcripts.at(-1)!;
+  const captureSelection = () => captureTranscriptSelection(session);
   const from = recordedRange(
     first.recordedAt,
-    model.session?.createdAt,
+    session?.createdAt,
     first.startMs,
     first.endMs,
   ).start;
   const through = recordedRange(
     last.recordedAt,
-    model.session?.createdAt,
+    session?.createdAt,
     last.startMs,
     last.endMs,
   ).end;
@@ -56,14 +65,14 @@ export function TranscriptPassage({
             chunks={entry.transcripts}
             startTime={from}
             endTime={through}
-            playingKey={model.playingKey}
-            onToggle={model.togglePlayback}
+            playingKey={playingKey}
+            onToggle={onTogglePlayback}
           />
         </div>
         <p
           className="passage-text"
-          onMouseUp={model.captureSelection}
-          onKeyUp={model.captureSelection}
+          onMouseUp={captureSelection}
+          onKeyUp={captureSelection}
         >
           {entry.transcripts.map((text) => (
             <span key={text.id} data-transcript-id={text.id}>
@@ -81,11 +90,13 @@ export function TranscriptPassage({
               <TranscriptRow
                 key={transcript.id}
                 transcript={transcript}
-                session={model.session}
-                playingKey={model.playingKey}
-                onTogglePlayback={model.togglePlayback}
-                onSelect={model.captureSelection}
-                onAskTerm={model.askTerm}
+                session={session}
+                playingKey={playingKey}
+                onTogglePlayback={onTogglePlayback}
+                onSelect={captureSelection}
+                onAskTerm={(candidate, transcriptId) =>
+                  askAboutTerm(session, candidate, transcriptId)
+                }
                 reveal={transcript.id === revealId}
                 insights={insights.get(transcript.id) ?? []}
                 candidates={candidates.get(transcript.id) ?? []}

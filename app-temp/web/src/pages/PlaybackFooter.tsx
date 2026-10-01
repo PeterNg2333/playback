@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import type { PlaybackController } from "./handlers";
+import { useHealth } from "../lib/useHealth";
+import type { Session } from "../types/api";
+import type { AudioPlayer } from "./useAudioPlayback";
 import { PlaybackModeMenu } from "./PlaybackModeMenu";
 
-export function PlaybackFooter({ model }: { model: PlaybackController }) {
-  const [position, setPosition] = useState(() => model.getPlaybackSnapshot());
+export function PlaybackFooter({
+  session,
+  player,
+}: {
+  session: Session | null;
+  player: AudioPlayer;
+}) {
+  const health = useHealth();
+  const [position, setPosition] = useState(() => player.getPlaybackSnapshot());
   useEffect(() => {
     const update = () => {
-      const next = model.getPlaybackSnapshot();
+      const next = player.getPlaybackSnapshot();
       setPosition((old) =>
         old.active === next.active &&
         old.playing === next.playing &&
@@ -23,20 +32,18 @@ export function PlaybackFooter({ model }: { model: PlaybackController }) {
     update();
     const timer = setInterval(update, 250);
     return () => clearInterval(timer);
-  }, [model.playingKey, model.session?.id, model.sourceMode]);
+  }, [player.playingKey, session?.id, player.sourceMode]);
 
   const sources = useMemo(
-    () => [
-      ...new Set(model.session?.chunks.map((chunk) => chunk.sourceId) || []),
-    ],
-    [model.session?.chunks],
+    () => [...new Set(session?.chunks.map((chunk) => chunk.sourceId) || [])],
+    [session?.chunks],
   );
   const available =
-    model.session?.chunks.some((chunk) => chunk.status !== "silent") || false;
-  const fullSessionSupported = model.health?.sessionAudioMix === true;
+    session?.chunks.some((chunk) => chunk.status !== "silent") || false;
+  const fullSessionSupported = health?.sessionAudioMix === true;
   const playerEnabled =
     available && (fullSessionSupported || position.kind === "row");
-  if (!model.session) return null;
+  if (!session) return null;
   const seekMaximum = Math.max(position.minimumMs + 1, position.maximumMs);
   const seekPosition = Math.max(
     position.minimumMs,
@@ -48,12 +55,12 @@ export function PlaybackFooter({ model }: { model: PlaybackController }) {
       <div className="player-top">
         <PlaybackModeMenu
           sources={sources}
-          sourceMode={model.sourceMode}
+          sourceMode={player.sourceMode}
           selectedAudio={position.kind === "row"}
           available={available}
           sessionPlaybackSupported={fullSessionSupported}
-          onPlaySession={model.startSessionPlayback}
-          onSelectSource={model.chooseSourceMode}
+          onPlaySession={player.startSessionPlayback}
+          onSelectSource={player.chooseSourceMode}
         />
         <input
           type="range"
@@ -63,7 +70,7 @@ export function PlaybackFooter({ model }: { model: PlaybackController }) {
           step="1000"
           value={seekPosition}
           disabled={!playerEnabled}
-          onChange={(event) => model.seekPlayback(Number(event.target.value))}
+          onChange={(event) => player.seekPlayback(Number(event.target.value))}
         />
         <div className="player-times" aria-label="Playback time">
           <time>{position.currentTime}</time>
@@ -74,8 +81,8 @@ export function PlaybackFooter({ model }: { model: PlaybackController }) {
           <span className="sr-only">Playback speed</span>
           <select
             aria-label="Playback speed"
-            value={model.speed}
-            onChange={(event) => model.chooseSpeed(Number(event.target.value))}
+            value={player.speed}
+            onChange={(event) => player.chooseSpeed(Number(event.target.value))}
           >
             {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
               <option key={rate} value={rate}>
@@ -91,7 +98,7 @@ export function PlaybackFooter({ model }: { model: PlaybackController }) {
             type="button"
             aria-label="Back 5 seconds"
             disabled={!playerEnabled}
-            onClick={() => model.skipPlayback(-5000)}
+            onClick={() => player.skipPlayback(-5000)}
           >
             ↶ 5
           </button>
@@ -100,7 +107,7 @@ export function PlaybackFooter({ model }: { model: PlaybackController }) {
             className="player-primary"
             aria-label={position.playing ? "Pause audio" : "Play audio"}
             disabled={!playerEnabled}
-            onClick={model.toggleCurrentPlayback}
+            onClick={player.toggleCurrentPlayback}
           >
             {position.playing ? "Ⅱ" : "▶"}
           </button>
@@ -108,7 +115,7 @@ export function PlaybackFooter({ model }: { model: PlaybackController }) {
             type="button"
             aria-label="Forward 5 seconds"
             disabled={!playerEnabled}
-            onClick={() => model.skipPlayback(5000)}
+            onClick={() => player.skipPlayback(5000)}
           >
             5 ↷
           </button>

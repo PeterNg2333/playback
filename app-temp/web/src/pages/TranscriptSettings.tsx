@@ -1,35 +1,37 @@
-import type { PlaybackController } from "./handlers";
 import { Icon } from "../Component/Icon";
-import { AsrLanguageSchema, NoteLanguageSchema } from "../types/api";
-
-type TranscriptSettingsProps = Pick<
-  PlaybackController,
-  | "session"
-  | "health"
-  | "busy"
-  | "capture"
-  | "settingsOpen"
-  | "setSettingsOpen"
-  | "setTranslation"
-  | "setLanguages"
-  | "retryTranslations"
->;
-
-export function TranscriptSettings({
-  session,
-  health,
-  busy,
-  capture,
-  settingsOpen,
-  setSettingsOpen,
-  setTranslation,
-  setLanguages,
+import { useHealth } from "../lib/useHealth";
+import { useCaptureStatus } from "../features/recording/captureQuery";
+import {
   retryTranslations,
-}: TranscriptSettingsProps) {
-  const streamActive =
-    health?.asrStreaming &&
-    capture?.state !== "idle" &&
-    capture?.sessionId === session?.id;
+  saveLanguages,
+  saveTranslation,
+} from "../features/transcript/sessionSettings";
+import {
+  AsrLanguageSchema,
+  NoteLanguageSchema,
+  type Session,
+} from "../types/api";
+import { usePlaybackField, usePlaybackStore } from "./store";
+
+export function TranscriptSettings({ session }: { session: Session | null }) {
+  const health = useHealth();
+  const busy = usePlaybackStore((state) => state.busy);
+  const [settingsOpen, setSettingsOpen] = usePlaybackField("settingsOpen");
+  const recordingThisSession = useCaptureStatus(
+    (status) => status.state !== "idle" && status.sessionId === session?.id,
+  );
+  const streamActive = health?.asrStreaming && recordingThisSession;
+  const setLanguages = (
+    asrLanguage: Session["asrLanguage"],
+    noteLanguage: Session["noteLanguage"],
+    asrModel?: string | null,
+  ) => {
+    if (session)
+      void saveLanguages(session, asrLanguage, noteLanguage, asrModel);
+  };
+  const setTranslation = (enabled: boolean, language?: string) => {
+    if (session) void saveTranslation(session, enabled, language);
+  };
   const translationsFailed =
     session?.transcripts.some(
       (entry) => entry.translationStatus === "failed",
@@ -182,7 +184,7 @@ export function TranscriptSettings({
             <button
               className="text-control"
               disabled={!!busy}
-              onClick={retryTranslations}
+              onClick={() => session && retryTranslations(session)}
             >
               Retry failed translations
             </button>

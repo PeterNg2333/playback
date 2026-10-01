@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { api } from "./api";
-import type { PlaybackController } from "./handlers";
+import { useHealth } from "../lib/useHealth";
+import { refreshWorkspace } from "../features/library/refreshWorkspace";
+import type { Evidence, Session } from "../types/api";
+import { usePlaybackStore } from "./store";
 
 const ReportSchema = z.object({
   version: z.number(),
@@ -29,8 +32,18 @@ type Report = z.infer<typeof ReportSchema>;
 const time = (ms: number) =>
   `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 
-export function NoteCoveragePanel({ model }: { model: PlaybackController }) {
-  const { session } = model;
+export function NoteCoveragePanel({
+  session,
+  draftDirty,
+  onOpenSource,
+}: {
+  session: Session | null;
+  draftDirty: boolean;
+  onOpenSource: (source: Evidence) => void;
+}) {
+  const health = useHealth();
+  const busy = usePlaybackStore((state) => state.busy);
+  const workspaceLoading = usePlaybackStore((state) => state.workspaceLoading);
   const [report, setReport] = useState<Report>();
   const [error, setError] = useState("");
   const [repairing, setRepairing] = useState(false);
@@ -44,7 +57,7 @@ export function NoteCoveragePanel({ model }: { model: PlaybackController }) {
     return () => repairRequest.current?.abort();
   }, [session?.id]);
   useEffect(() => {
-    if (!session || !model.health?.noteCoverage) return;
+    if (!session || !health?.noteCoverage) return;
     const controller = new AbortController();
     void api(
       `/sessions/${session.id}/notes/coverage`,
@@ -68,7 +81,7 @@ export function NoteCoveragePanel({ model }: { model: PlaybackController }) {
     session?.id,
     session?.noteVersion,
     session?.transcripts.length,
-    model.health?.noteCoverage,
+    health?.noteCoverage,
     revision,
   ]);
   async function repair() {
@@ -86,7 +99,7 @@ export function NoteCoveragePanel({ model }: { model: PlaybackController }) {
         controller.signal,
       );
       if (!controller.signal.aborted) {
-        await model.refresh(session.id);
+        await refreshWorkspace(session.id);
         setRevision((x) => x + 1);
       }
     } catch (e) {
@@ -97,8 +110,8 @@ export function NoteCoveragePanel({ model }: { model: PlaybackController }) {
     }
   }
   if (!session) return null;
-  if (!model.health?.noteCoverage)
-    return model.health?.sectionNotes ? (
+  if (!health?.noteCoverage)
+    return health?.sectionNotes ? (
       <aside className="note-coverage">
         Transcript reference checks need the updated API. Stop recording,
         restart the local backend, then reload.
@@ -131,7 +144,7 @@ export function NoteCoveragePanel({ model }: { model: PlaybackController }) {
               <button
                 className="text-control"
                 onClick={() =>
-                  model.jump({ kind: "transcript", id: gap.sourceIds[0] })
+                  onOpenSource({ kind: "transcript", id: gap.sourceIds[0] })
                 }
               >
                 {time(gap.startMs)}–{time(gap.endMs)} · {gap.sourceId} ·{" "}
@@ -153,10 +166,10 @@ export function NoteCoveragePanel({ model }: { model: PlaybackController }) {
               className="text-control"
               disabled={
                 repairing ||
-                !!model.busy ||
-                model.workspaceLoading ||
+                !!busy ||
+                workspaceLoading ||
                 report.version !== session.noteVersion ||
-                model.markdown !== model.savedMarkdown.current
+                draftDirty
               }
               onClick={() => void repair()}
             >

@@ -371,3 +371,5 @@ export function useAudioPlayback(
     getPlaybackSnapshot,
   };
 }
+
+export type AudioPlayer = ReturnType<typeof useAudioPlayback>;

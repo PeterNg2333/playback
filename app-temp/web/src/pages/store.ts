@@ -1,16 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { useCallback } from "react";
-import type {
-  Answer,
-  CaptureStatus,
-  Group,
-  Health,
-  RecordingMode,
-  Session,
-  SessionSummary,
-} from "../types/api";
+import type { RecordingMode } from "../types/api";
 
+// Browser-only UI state. Data read from the API lives in the TanStack Query cache.
 export type View = "notes" | "transcript";
 export type NoteMode = "preview" | "markdown" | "draft";
 export type Selection = {
@@ -25,6 +18,8 @@ export type TextDialogState =
   | { kind: "rename-group"; id: string; current: string };
 
 type PlaybackState = {
+  selectedSessionId: string | null;
+  workspaceLoading: boolean;
   settingsOpen: boolean;
   navOpen: boolean;
   view: View;
@@ -34,14 +29,7 @@ type PlaybackState = {
   chatOpen: boolean;
   selection: Selection | null;
   focusMaterialId: string | null;
-  session: Session | null;
-  sessions: SessionSummary[];
-  groups: Group[];
-  health: Health | null;
-  capture: CaptureStatus | null;
-  markdown: string;
   question: string;
-  answer: Answer | null;
   busy: string;
   error: string;
   useWeb: boolean;
@@ -50,6 +38,8 @@ type PlaybackState = {
 };
 
 export const usePlaybackStore = create<PlaybackState>(() => ({
+  selectedSessionId: null,
+  workspaceLoading: false,
   settingsOpen: false,
   navOpen: false,
   view: "transcript",
@@ -59,14 +49,7 @@ export const usePlaybackStore = create<PlaybackState>(() => ({
   chatOpen: false,
   selection: null,
   focusMaterialId: null,
-  session: null,
-  sessions: [],
-  groups: [],
-  health: null,
-  capture: null,
-  markdown: "",
   question: "",
-  answer: null,
   busy: "",
   error: "",
   useWeb: false,
@@ -93,4 +76,22 @@ export function usePlaybackField<K extends keyof PlaybackState>(
     [key],
   );
   return [value, update];
+}
+
+export function showError(error: unknown) {
+  usePlaybackStore.setState({
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+// A user action: buttons that check `busy` stay disabled until it finishes; failures show as the page error.
+export async function runAction(name: string, work: () => Promise<void>) {
+  usePlaybackStore.setState({ busy: name, error: "" });
+  try {
+    await work();
+  } catch (error) {
+    showError(error);
+  } finally {
+    usePlaybackStore.setState({ busy: "" });
+  }
 }
