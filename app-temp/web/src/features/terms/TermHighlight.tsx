@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { TermInsight } from "../types/api";
+import type { TermInsight } from "../../types/api";
 import { TermExplanation } from "./TermExplanation";
 
 export function TermHighlight({

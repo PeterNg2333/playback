@@ -8,6 +8,7 @@ import type {
 import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm, captureTranscriptSelection } from "../ask/askAbout";
 import { MaterialsList } from "../materials/MaterialsList";
+import { visibleTerms } from "../terms/visibleTerms";
 import { useCaptureStatus } from "../recording/captureQuery";
 import { retryAsr } from "./retryAsr";
 import { usePlaybackStore } from "../../pages/store";
@@ -60,16 +61,12 @@ export function Timeline({
   const termIndex = useMemo(() => {
     const insights = new Map<string, TermInsight[]>(),
       candidates = new Map<string, TermCandidate[]>();
-    for (const term of session?.termInsights ?? [])
-      if (
-        term.highlight &&
-        !["details", "detail", "okay", "information"].includes(
-          term.term.toLowerCase(),
-        ) &&
-        (!term.outputLanguage || term.outputLanguage === session?.noteLanguage)
-      )
-        for (const id of term.transcriptIds)
-          insights.set(id, [...(insights.get(id) ?? []), term]);
+    for (const term of visibleTerms(
+      session?.termInsights,
+      session?.noteLanguage,
+    ))
+      for (const id of term.transcriptIds)
+        insights.set(id, [...(insights.get(id) ?? []), term]);
     for (const term of session?.terms ?? [])
       for (const id of term.transcriptIds)
         candidates.set(id, [...(candidates.get(id) ?? []), term]);

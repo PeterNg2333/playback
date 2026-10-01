@@ -16,7 +16,7 @@ import { NotePreview } from "./NotePreview";
 import { NoteHistoryDialog } from "./NoteHistoryDialog";
 import { OrganizeSection } from "./OrganizeSection";
 import { NoteCoveragePanel } from "./NoteCoveragePanel";
-import { TermExplanation } from "../../pages/TermExplanation";
+import { TermExplanation } from "../terms/TermExplanation";
 import { ActivityPopover } from "../activity/ActivityPopover";
 import { useActivity } from "../activity/useActivity";
 import { Icon } from "../../Component/Icon";

@@ -16,7 +16,7 @@ import type { ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import { termSegments } from "./termSegments";
+import { termSegments } from "../features/terms/termMatching";
 import { SourceCitation } from "./SourceCitation";
 import { requestDiagram } from "./diagramRenderer";
 import "../styles/math.css";

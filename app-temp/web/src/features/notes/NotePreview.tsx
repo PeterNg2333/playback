@@ -1,10 +1,11 @@
 import { useMemo, useRef, type Ref } from "react";
 import { Markdown, indexMarkdownSources } from "../../Component/Markdown";
 import { askAboutTerm } from "../ask/askAbout";
+import { visibleTerms } from "../terms/visibleTerms";
 import type { Evidence, Session } from "../../types/api";
 import type { AudioPlayer } from "../player/useAudioPlayer";
 import { SourceCitation } from "../../Component/SourceCitation";
-import { TermHighlight } from "../../pages/TermHighlight";
+import { TermHighlight } from "../terms/TermHighlight";
 import { recordedRange } from "../../lib/time";
 
 const noRows: never[] = [];
@@ -121,15 +122,7 @@ export function NotePreview({
     ],
   );
   const terms = useMemo(
-    () =>
-      (session?.termInsights ?? []).filter(
-        (x) =>
-          x.highlight &&
-          !["details", "detail", "okay", "information"].includes(
-            x.term.toLowerCase(),
-          ) &&
-          (!x.outputLanguage || x.outputLanguage === session?.noteLanguage),
-      ),
+    () => visibleTerms(session?.termInsights, session?.noteLanguage),
     [session?.termInsights, session?.noteLanguage],
   );
   const termLabels = useMemo(

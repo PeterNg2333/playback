@@ -8,9 +8,9 @@ import type {
 import { recordedRange } from "../../../lib/time";
 import { cleanAsrText } from "../asrStatus";
 import { PlayButton } from "../../player/PlayButton";
-import { TermHighlight } from "../../../pages/TermHighlight";
+import { TermHighlight } from "../../terms/TermHighlight";
 import { useLayoutEffect, useRef } from "react";
-import { termSegments } from "../../../Component/termSegments";
+import { termSegments } from "../../terms/termMatching";
 import {
   AudioSourceBadge,
   audioSourceLabel,

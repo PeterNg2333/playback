@@ -4,7 +4,7 @@ import type { Evidence, Session } from "../../types/api";
 import { NoteEditLogSchema } from "../../types/api";
 import { api } from "../../pages/api";
 import { NoteEditHistory } from "../notes/NoteEditHistory";
-import { TermDecisionTrace } from "../../pages/TermDecisionTrace";
+import { TermDecisionTrace } from "../terms/TermDecisionTrace";
 import { restoreNoteVersion } from "../notes/restoreNoteVersion";
 
 const EDIT_LOG_TIMEOUT_MS = 30_000;

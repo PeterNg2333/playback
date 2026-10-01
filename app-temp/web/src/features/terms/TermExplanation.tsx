@@ -1,9 +1,10 @@
+import { useMutation } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { TermInsight } from "../types/api";
-import { Markdown } from "../Component/Markdown";
-import { api } from "./api";
-import { TermInsightSchema } from "../types/api";
+import type { TermInsight } from "../../types/api";
+import { Markdown } from "../../Component/Markdown";
+import { api } from "../../pages/api";
+import { TermInsightSchema } from "../../types/api";
 
 export function TermExplanation({
   insight,
@@ -25,12 +26,17 @@ export function TermExplanation({
   const panel = useRef<HTMLElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number }>();
   const [expanded, setExpanded] = useState(false);
-  const [detailed, setDetailed] = useState<TermInsight>();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
-  const request = useRef<AbortController | undefined>(undefined);
-  useEffect(() => () => request.current?.abort(), []);
-  const shown = detailed ?? insight;
+  // Generates and saves a longer explanation for this term once, on request.
+  const detail = useMutation({
+    mutationFn: () =>
+      api(
+        `/sessions/${sessionId}/terms/${insight.id}/explain?detail=true`,
+        "POST",
+        undefined,
+        TermInsightSchema,
+      ),
+  });
+  const shown = detail.data ?? insight;
   useLayoutEffect(() => {
     if (!anchor || !panel.current) return;
     const bounds = anchor.getBoundingClientRect();
@@ -106,37 +112,17 @@ export function TermExplanation({
           {shown.explanationVersion !== "term-detail-v2" && (
             <button
               className="term-followup"
-              disabled={pending}
-              onClick={async () => {
-                const controller = new AbortController();
-                request.current?.abort();
-                request.current = controller;
-                setPending(true);
-                setError("");
-                try {
-                  const result = await api(
-                    `/sessions/${sessionId}/terms/${insight.id}/explain?detail=true`,
-                    "POST",
-                    undefined,
-                    TermInsightSchema,
-                    controller.signal,
-                  );
-                  if (!controller.signal.aborted) {
-                    setDetailed(result);
-                    setExpanded(true);
-                  }
-                } catch (e) {
-                  if (!controller.signal.aborted)
-                    setError(e instanceof Error ? e.message : String(e));
-                } finally {
-                  if (!controller.signal.aborted) setPending(false);
-                }
-              }}
+              disabled={detail.isPending}
+              onClick={() =>
+                detail.mutate(undefined, { onSuccess: () => setExpanded(true) })
+              }
             >
-              {pending ? "Generating…" : "Generate saved detailed explanation"}
+              {detail.isPending
+                ? "Generating…"
+                : "Generate saved detailed explanation"}
             </button>
           )}
-          {error && <p role="alert">{error}</p>}
+          {detail.error && <p role="alert">{detail.error.message}</p>}
         </>
       ) : (
         <p>
