@@ -16,7 +16,7 @@ export function SourceLinks({
   onSelect,
 }: SourceLinksProps) {
   return (
-    <div className="activity-sources">
+    <div className="my-1.25 flex flex-wrap gap-1.25 text-[10px] text-muted">
       {transcriptIds.map((id) => {
         const transcript = session.transcripts.find((item) => item.id === id);
         if (!transcript)

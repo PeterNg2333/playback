@@ -2,10 +2,17 @@ import { useRef, useState } from "react";
 import type { Activity, Evidence, Session } from "../../lib/backend/schemas";
 import { ActivityLog } from "./ActivityLog";
 import { formatElapsed } from "../../lib/time";
-import { LazyDetails } from "../../components/LazyDetails";
+import { ActivityEntry } from "./ActivityEntry";
 import { useDismiss } from "../../components/Menu";
 import { IconButton } from "../../components/IconButton";
 import { Chip } from "../../components/Chip";
+
+// Running and queued calls are purple, failed ones red, finished ones muted.
+function statusColor(status: string) {
+  if (status === "running" || status === "queued") return "text-[#6845bb]";
+  if (status === "failed") return "text-[#b33242]";
+  return undefined;
+}
 
 export function ActivityPopover({
   session,
@@ -42,7 +49,7 @@ export function ActivityPopover({
   return (
     <div
       ref={anchor}
-      className="activity-anchor"
+      className="relative inline-flex"
       onMouseEnter={show}
       onMouseLeave={() => {
         if (!pinned) setOpen(false);
@@ -72,43 +79,45 @@ export function ActivityPopover({
         ↶
       </IconButton>
       {open && (
+        // Placed under the button by `position`, kept on screen by its own size limits.
         <section
           id="notes-activity"
-          className="activity-popover"
+          className="fixed z-30 max-h-[min(540px,calc(100dvh-190px))] w-[min(500px,calc(100vw-32px))] overflow-auto overscroll-contain rounded-lg border border-line bg-white p-3.5 text-[12px] shadow-[0_12px_35px_#26305030]"
           style={position}
           aria-label="AI activity history"
           tabIndex={-1}
         >
           <strong>AI activity</strong>
-          {error && <p role="alert">{error}</p>}
-          <div className="execution-history">
+          {error && (
+            <p className="mb-3" role="alert">
+              {error}
+            </p>
+          )}
+          <div>
             {items.length === 0 && (
-              <p>No model calls recorded by this API version yet.</p>
+              <p className="mb-3">
+                No model calls recorded by this API version yet.
+              </p>
             )}
             {items.map((item) => (
-              <LazyDetails
-                className="activity-entry"
-                data-testid="activity-entry"
+              <ActivityEntry
                 key={item.id}
-                summary={
-                  <>
-                    <strong>{item.task}</strong>
-                    <span data-status={item.status}>{item.status}</span>
-                  </>
-                }
+                title={item.task}
+                detail={item.status}
+                detailClassName={statusColor(item.status)}
               >
                 {() => (
                   <>
-                    <p>
+                    <p className="mb-3">
                       {item.provider} · {item.model}
                     </p>
-                    <small>
+                    <small className="text-[smaller]">
                       {new Date(item.startedAt).toLocaleTimeString()} ·{" "}
                       {item.durationMs == null
                         ? "in progress"
                         : `${(item.durationMs / 1000).toFixed(1)}s`}
                     </small>
-                    <p>{item.summary}</p>
+                    <p className="mb-3">{item.summary}</p>
                     {item.sourceIds.map((id) => {
                       const transcript = session?.transcripts.find(
                         (x) => x.id === id,
@@ -135,7 +144,7 @@ export function ActivityPopover({
                     })}
                   </>
                 )}
-              </LazyDetails>
+              </ActivityEntry>
             ))}
           </div>
           <ActivityLog

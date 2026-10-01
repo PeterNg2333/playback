@@ -1,7 +1,8 @@
 import type { Evidence, NoteEditLog, Session } from "../../lib/backend/schemas";
 import { SourceLinks } from "../sources/SourceLinks";
 import { formatDateTime } from "../../lib/time";
-import { LazyDetails } from "../../components/LazyDetails";
+import clsx from "clsx";
+import { ActivityEntry, ActivityHelp } from "../activity/ActivityEntry";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 
@@ -31,39 +32,29 @@ export function NoteEditHistory({
     const hasInputs =
       note.inputTranscriptIds.length > 0 || note.inputMaterialIds.length > 0;
     return (
-      <LazyDetails
-        className="activity-entry"
-        data-testid="activity-entry"
+      <ActivityEntry
         key={note.version}
-        summary={
-          <>
-            <strong>
-              v{note.version} · {authorLabel}
-            </strong>
-            <span>{formatDateTime(note.createdAt)}</span>
-            <small>{note.edits.length} changes</small>
-          </>
-        }
+        title={`v${note.version} · ${authorLabel}`}
+        detail={formatDateTime(note.createdAt)}
+        aside={`${note.edits.length} changes`}
       >
         {() => (
-          <div className="activity-entry-body">
+          <div className="px-3 pb-3">
             <Button
               disabled={restoring || note.version === session.noteVersion}
               onClick={() => onRestore(note.version)}
             >
               Restore this version
             </Button>
-            <p className="activity-help">
+            <ActivityHelp>
               {note.basedOnVersion == null
                 ? "First saved version"
                 : `Based on v${note.basedOnVersion}`}{" "}
               · {note.author}
-            </p>
+            </ActivityHelp>
             {hasInputs && (
               <div>
-                <strong className="activity-label">
-                  Inputs to this update
-                </strong>
+                <strong className="text-[11px]">Inputs to this update</strong>
                 <SourceLinks
                   session={session}
                   transcriptIds={note.inputTranscriptIds}
@@ -76,12 +67,23 @@ export function NoteEditHistory({
               <EmptyState>No recorded line changes in this version.</EmptyState>
             )}
             {note.edits.map((edit, index) => (
-              <div className="activity-edit" data-kind={edit.kind} key={index}>
-                <small>
+              // Added lines are green, removed lines red.
+              <div
+                className={clsx(
+                  "mt-2 border-l-2 px-2.5 py-1.75",
+                  edit.kind === "insert"
+                    ? "border-[#4c956d] bg-[#f3faf5]"
+                    : "border-[#c55c6c] bg-[#fff5f6]",
+                )}
+                key={index}
+              >
+                <small className="text-[10px] text-muted">
                   {edit.kind === "insert" ? "Added" : "Removed"} · line{" "}
                   {edit.line}
                 </small>
-                <pre>{edit.text || "(blank line)"}</pre>
+                <pre className="my-1 font-[inherit] text-[12px] leading-[1.55] whitespace-pre-wrap wrap-anywhere">
+                  {edit.text || "(blank line)"}
+                </pre>
                 <SourceLinks
                   session={session}
                   transcriptIds={edit.transcriptIds}
@@ -92,7 +94,7 @@ export function NoteEditHistory({
             ))}
           </div>
         )}
-      </LazyDetails>
+      </ActivityEntry>
     );
   });
 }

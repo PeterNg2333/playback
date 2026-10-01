@@ -4,6 +4,7 @@ import { useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 // Construct the expensive body only while expanded and release it on collapse.
 export function LazyDetails({
   summary,
+  summaryClassName,
   children,
   ...props
 }: Omit<
@@ -11,6 +12,7 @@ export function LazyDetails({
   "children" | "onToggle" | "open"
 > & {
   summary: ReactNode;
+  summaryClassName?: string;
   children: () => ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -19,7 +21,7 @@ export function LazyDetails({
       {...props}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
-      <summary>{summary}</summary>
+      <summary className={summaryClassName}>{summary}</summary>
       {expanded && children()}
     </details>
   );

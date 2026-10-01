@@ -1,13 +1,16 @@
 import type { Evidence, Session, TermInsight } from "../../lib/backend/schemas";
 import { SourceLinks } from "../sources/SourceLinks";
 import { formatDateTime } from "../../lib/time";
-import { LazyDetails } from "../../components/LazyDetails";
+import { ActivityEntry, ActivityHelp } from "../activity/ActivityEntry";
 import { EmptyState } from "../../components/EmptyState";
 
 type TermDecisionTraceProps = {
   session: Session;
   onSource: (source: Evidence) => void;
 };
+
+const scoreLabelStyle = "text-[10px] text-muted";
+const scoreStyle = "my-0.75 text-[13px] font-bold";
 
 function percentage(value?: number) {
   return value === undefined
@@ -33,49 +36,47 @@ export function TermDecisionTrace({
   if (!decisions.length)
     return <EmptyState>No saved Jev decisions yet.</EmptyState>;
   return decisions.map((decision) => (
-    <LazyDetails
-      className="activity-entry"
-      data-testid="activity-entry"
+    <ActivityEntry
       key={decision.id}
-      summary={
-        <>
-          <strong>{decision.term}</strong>
-          <span>{formatDateTime(decision.rankedAt)}</span>
-          <small
-            className="decision-outcome"
-            data-highlight={decision.highlight}
-          >
-            {decision.highlight ? "Highlighted" : "Not highlighted"}
-          </small>
-        </>
-      }
+      title={decision.term}
+      detail={formatDateTime(decision.rankedAt)}
+      aside={decision.highlight ? "Highlighted" : "Not highlighted"}
+      asideClassName={decision.highlight ? "text-accent" : undefined}
     >
       {() => (
-        <div className="activity-entry-body">
-          <dl className="decision-scores">
+        <div className="px-3 pb-3">
+          <dl className="my-2.5 flex flex-wrap gap-3">
             <div>
-              <dt>Explain probability</dt>
-              <dd title={decision.jevProbability?.toString()}>
+              <dt className={scoreLabelStyle}>Explain probability</dt>
+              <dd
+                className={scoreStyle}
+                title={decision.jevProbability?.toString()}
+              >
                 {percentage(decision.jevProbability)}
               </dd>
             </div>
             <div>
-              <dt>Category</dt>
-              <dd>{decision.jevRank || "Not recorded"}</dd>
+              <dt className={scoreLabelStyle}>Category</dt>
+              <dd className={scoreStyle}>
+                {decision.jevRank || "Not recorded"}
+              </dd>
             </div>
             <div>
-              <dt>Category confidence</dt>
-              <dd title={decision.jevConfidence?.toString()}>
+              <dt className={scoreLabelStyle}>Category confidence</dt>
+              <dd
+                className={scoreStyle}
+                title={decision.jevConfidence?.toString()}
+              >
                 {percentage(decision.jevConfidence)}
               </dd>
             </div>
           </dl>
-          <p className="activity-help">
+          <ActivityHelp>
             {decision.decisionRule ||
               "The rule was not recorded for this decision."}
-          </p>
+          </ActivityHelp>
           {decision.jevModel && (
-            <p className="activity-help">{modelLabel(decision)}</p>
+            <ActivityHelp>{modelLabel(decision)}</ActivityHelp>
           )}
           <SourceLinks
             session={session}
@@ -85,6 +86,6 @@ export function TermDecisionTrace({
           />
         </div>
       )}
-    </LazyDetails>
+    </ActivityEntry>
   ));
 }
