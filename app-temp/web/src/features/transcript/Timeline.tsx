@@ -7,7 +7,7 @@ import type {
 } from "../../types/api";
 import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm, captureTranscriptSelection } from "../ask/askAbout";
-import { attachMaterial } from "../materials/attachMaterial";
+import { MaterialsList } from "../materials/MaterialsList";
 import { useCaptureStatus } from "../recording/captureQuery";
 import { retryAsr } from "./retryAsr";
 import { usePlaybackStore } from "../../pages/store";
@@ -47,7 +47,6 @@ export function Timeline({
 }) {
   const health = useHealth();
   const busy = usePlaybackStore((state) => state.busy);
-  const workspaceLoading = usePlaybackStore((state) => state.workspaceLoading);
   const capture = useCaptureStatus(timelineCapture);
   const { playingKey, togglePlayback } = player;
   const captureSelection = () => captureTranscriptSelection(session);
@@ -449,43 +448,7 @@ export function Timeline({
 
   return (
     <div className="transcript-content" data-transcript-scroller>
-      <details className="materials-section" id="session-materials">
-        <summary>
-          Text materials <span>{session?.materials.length || 0}</span>
-        </summary>
-        <div className="materials-content">
-          <button
-            className="text-control"
-            onClick={() => attachMaterial(session)}
-            disabled={!session || !!busy || workspaceLoading}
-          >
-            Attach text material
-          </button>
-          {session?.materials.map((material) => (
-            <article
-              className="material-item"
-              id={material.id}
-              key={material.id}
-            >
-              <strong>{material.name}</strong>
-              <p>{material.text.slice(0, 180)}</p>
-              {session.terms
-                .filter((candidate) =>
-                  candidate.materialIds.includes(material.id),
-                )
-                .map((candidate) => (
-                  <button
-                    className="term-tag"
-                    key={candidate.text}
-                    onClick={() => askTerm(candidate)}
-                  >
-                    {candidate.text}
-                  </button>
-                ))}
-            </article>
-          ))}
-        </div>
-      </details>
+      <MaterialsList session={session} />
       {capture?.error && (
         <p className="capture-error" role="alert">
           {capture.error}
