@@ -19,7 +19,7 @@ Tailwind 遷移會改動每一行 JSX 的 `className`。如果先把檔案搬到
 
 不做這一步，Tailwind 會同時打破測試和執行時行為。
 
-- 測試：`src/test/*.mjs` 以約 60 個 class 選擇器找元素（`.note-content` 27 次、`.answer` 17 次、`.flowchart` 17 次……）。改用 Playwright 的 `getByRole`／`getByLabel`；沒有可用名稱的元素才加 `data-testid`。
+- 測試：`web/test/*.mjs` 以約 60 個 class 選擇器找元素（`.note-content` 27 次、`.answer` 17 次、`.flowchart` 17 次……）。改用 Playwright 的 `getByRole`／`getByLabel`；沒有可用名稱的元素才加 `data-testid`。
 - 執行時：14 處程式碼以 class 找元素，例如 `captureSelection` 找 `.transcript-row`、`VirtualTranscript` 找 `.transcript-content`、`NotesPanel` 找 `.note-content h1`、`.markdown-preview > *`，以及 `classList.add("source-revealed")`。改用 ref 或 `data-*` 屬性（見 review finding「以 window 事件和 CSS class 溝通」）。
 
 完成條件：`grep` 在 `src/` 與 `test/` 找不到以 class 名做選擇器的程式碼；所有現有檢查通過。
@@ -106,7 +106,7 @@ export default defineConfig({
 每個 feature 遷移後：
 
 - `npm --prefix app-temp/web run build`（`tsc -b` 加 Vite build）。
-- 離線 UI 檢查：`npm run test:web-ui`、`npm run test:browser`、`npm run test:notes-ui`、`npm run test:loading-ui`，以及 `node app-temp/web/src/test/sidebar-check.mjs`。這些攔截 API，不連網、不開咪。
+- 離線 UI 檢查：`npm run test:web-ui`、`npm run test:browser`、`npm run test:notes-ui`、`npm run test:loading-ui`，以及 `node app-temp/web/test/library-sidebar.check.mjs`。這些攔截 API，不連網、不開咪。
 - 視覺比較：遷移前先以 Playwright 在 1440、1024、390 寬度截圖（側欄展開／收合、notes Preview／Edit、transcript 有 live row 和靜音區、Ask 面板開啟、播放列）；每個 feature 完成後同條件再截一次並逐張比對。差異要麼是刻意的（例如統一 breakpoint），要麼要修正。
 
 完成標準：所有檢查通過；截圖差異都已解釋；`src/styles/` 只剩兩個檔；在刪除舊 CSS 前先抽出它的 class 名清單，逐一 grep，`src/` 內不再出現（`markdown.css` 用到的除外）。

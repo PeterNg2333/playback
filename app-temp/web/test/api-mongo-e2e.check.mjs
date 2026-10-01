@@ -35,7 +35,7 @@ let passed = false;
 let failure;
 let page;
 const evidence = fileURLToPath(
-  new URL("../../../data/validation/runs/2026-09-29-week3/", import.meta.url),
+  new URL("../../data/validation/runs/2026-09-29-week3/", import.meta.url),
 );
 await mkdir(evidence, { recursive: true });
 

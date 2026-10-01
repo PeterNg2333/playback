@@ -158,7 +158,7 @@ paid work disabled. `Week3StoreCheck.cs` retains exact first-hour text provenanc
 `playback_e2e`; `run-week3-live.mjs` and `run-week3-term.mjs` require explicit live opt-in
 and reuse saved results. `week3-report.mjs` combines saved usage from successful and
 failed calls without duplicating execution IDs. Its optional localhost snapshot is GET-only.
-`web/src/test/week3-e2e-check.mjs` distinguishes paid phases from saved read/restart phases.
+`web/test/week3-e2e.check.mjs` distinguishes paid phases from saved read/restart phases.
 
 ```powershell
 dotnet build app-temp/api/Playback.Api.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/
@@ -171,7 +171,7 @@ assets still exist before using `dotnet run --no-restore`. This catches restore
 assets left by another Windows account or sandbox. For an offline browser E2E
 that avoids recording from the local microphone, start the local API with
 `PLAYBACK_OFFLINE_TEST=yes` and the web server on port `5174`, then set
-`PLAYBACK_E2E_SKIP_CAPTURE=yes` when running `web/src/test/e2e-check.mjs`.
+`PLAYBACK_E2E_SKIP_CAPTURE=yes` when running `web/test/api-mongo-e2e.check.mjs`.
 For a sidebar-only check without MongoDB, run the web server on port `5174`
-and then `node app-temp/web/src/test/sidebar-check.mjs`; it intercepts API
+and then `node app-temp/web/test/library-sidebar.check.mjs`; it intercepts API
 requests in the browser and uses disposable fixture data.
