@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { Workspace } from "../Component/Layout/Workspace";
+import { Header } from "../Component/Layout/Header";
+import { Icon } from "../Component/Icon";
 import { ErrorToast } from "../Component/ErrorToast";
 import { useHealth } from "../lib/useHealth";
 import { AskPanel } from "../features/ask/AskPanel";
@@ -7,10 +9,10 @@ import { NameDialog } from "../features/library/NameDialog";
 import { refreshWorkspace } from "../features/library/refreshWorkspace";
 import { useSelectedSession } from "../features/library/useSelectedSession";
 import { useCaptureStatus } from "../features/recording/captureQuery";
+import { Recorder } from "../features/recording/Recorder";
 import { useRevealSource } from "../features/sources/useRevealSource";
 import { useAudioPlayback } from "./useAudioPlayback";
 import { showError, usePlaybackField, usePlaybackStore } from "./store";
-import { PlaybackHeader } from "./PlaybackHeader";
 import { SessionNav } from "./SessionNav";
 import { NotesPanel } from "./NotesPanel";
 import { TranscriptPanel } from "./TranscriptPanel";
@@ -20,6 +22,7 @@ export function PlaybackPage() {
   const session = useSelectedSession();
   const health = useHealth();
   const [view, setView] = usePlaybackField("view");
+  const [navOpen, setNavOpen] = usePlaybackField("navOpen");
   const [error, setError] = usePlaybackField("error");
   const chatOpen = usePlaybackStore((state) => state.chatOpen);
   const workspaceLoading = usePlaybackStore((state) => state.workspaceLoading);
@@ -41,7 +44,27 @@ export function PlaybackPage() {
       <a className="skip" href="#workspace">
         Skip to workspace
       </a>
-      <PlaybackHeader session={session} />
+      <Header>
+        <div className="brand">
+          <button
+            className="nav-toggle icon-control"
+            aria-label="Toggle sessions"
+            aria-expanded={navOpen}
+            onClick={() => {
+              usePlaybackStore.setState({ settingsOpen: false });
+              setNavOpen(!navOpen);
+            }}
+          >
+            <Icon name="menu" />
+          </button>
+          <span className="brand-icon">
+            <Icon name="pulse" />
+          </span>
+          <span className="brand-title">Playback</span>
+        </div>
+        <h1 className="project-name">{session?.title || "Choose a session"}</h1>
+        <Recorder session={session} />
+      </Header>
       {workspaceLoading && (
         <div className="workspace-loading" role="status" aria-live="polite">
           Loading session…
