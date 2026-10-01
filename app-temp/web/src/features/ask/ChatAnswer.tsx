@@ -1,5 +1,5 @@
-import type { Answer, Evidence, Session } from "../types/api";
-import { Markdown } from "../Component/Markdown";
+import type { Answer, Evidence, Session } from "../../types/api";
+import { Markdown } from "../../Component/Markdown";
 
 export function ChatAnswer({
   answer,

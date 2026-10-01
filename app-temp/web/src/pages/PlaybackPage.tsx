@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { Workspace } from "../Component/Layout/Workspace";
+import { ErrorToast } from "../Component/ErrorToast";
 import { useHealth } from "../lib/useHealth";
+import { AskPanel } from "../features/ask/AskPanel";
+import { NameDialog } from "../features/library/NameDialog";
 import { refreshWorkspace } from "../features/library/refreshWorkspace";
 import { useSelectedSession } from "../features/library/useSelectedSession";
 import { useCaptureStatus } from "../features/recording/captureQuery";
@@ -11,13 +14,14 @@ import { PlaybackHeader } from "./PlaybackHeader";
 import { SessionNav } from "./SessionNav";
 import { NotesPanel } from "./NotesPanel";
 import { TranscriptPanel } from "./TranscriptPanel";
-import { PlaybackOverlay } from "./PlaybackOverlay";
 import { PlaybackFooter } from "./PlaybackFooter";
 
 export function PlaybackPage() {
   const session = useSelectedSession();
   const health = useHealth();
   const [view, setView] = usePlaybackField("view");
+  const [error, setError] = usePlaybackField("error");
+  const chatOpen = usePlaybackStore((state) => state.chatOpen);
   const workspaceLoading = usePlaybackStore((state) => state.workspaceLoading);
   const noSoundWarning = useCaptureStatus((status) => !!status.noSoundWarning);
   const player = useAudioPlayback(session, showError);
@@ -82,7 +86,11 @@ export function PlaybackPage() {
         onEnded={player.audioEnded}
       />
       <PlaybackFooter session={session} player={player} />
-      <PlaybackOverlay session={session} onOpenSource={openSource} />
+      <AskPanel session={session} onOpenSource={openSource} />
+      {error && !chatOpen && (
+        <ErrorToast message={error} onDismiss={() => setError("")} />
+      )}
+      <NameDialog />
     </div>
   );
 }

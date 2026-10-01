@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "../Component/Icon";
-import { useHealth } from "../lib/useHealth";
-import type { ChatConversations } from "../features/ask/useChatConversations";
-import { refreshWorkspace } from "../features/library/refreshWorkspace";
-import { useLibrary } from "../features/library/useLibrary";
-import type { Session } from "../types/api";
-import { showError, usePlaybackStore } from "./store";
+import { Icon } from "../../Component/Icon";
+import { useHealth } from "../../lib/useHealth";
+import { showError, usePlaybackStore } from "../../pages/store";
+import type { Session } from "../../types/api";
+import { refreshWorkspace } from "../library/refreshWorkspace";
+import { useLibrary } from "../library/useLibrary";
+import type { ChatConversations } from "./useChatConversations";
 
 export function ChatConversationMenu({
   session,

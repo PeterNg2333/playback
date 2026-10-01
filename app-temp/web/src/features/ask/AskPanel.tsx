@@ -1,14 +1,14 @@
-import { TextInputDialog } from "../Component/Dialog/TextInputDialog";
-import { useHealth } from "../lib/useHealth";
-import { useAsk } from "../features/ask/useAsk";
-import { closeNameDialog, submitName } from "../features/library/useLibrary";
-import type { Evidence, Session } from "../types/api";
-import { usePlaybackField, usePlaybackStore } from "./store";
-import { recordedRange } from "../lib/time";
+import { useHealth } from "../../lib/useHealth";
+import { recordedRange } from "../../lib/time";
+import { usePlaybackField, usePlaybackStore } from "../../pages/store";
+import type { Evidence, Session } from "../../types/api";
 import { ChatAnswer } from "./ChatAnswer";
 import { ChatConversationMenu } from "./ChatConversationMenu";
+import { useAsk } from "./useAsk";
 
-export function PlaybackOverlay({
+// The Ask Playback button and panel: questions answered from the selected session's
+// sources, optionally about a selected passage or material.
+export function AskPanel({
   session,
   onOpenSource: jump,
 }: {
@@ -18,13 +18,11 @@ export function PlaybackOverlay({
   const [selection, setSelection] = usePlaybackField("selection");
   const [chatOpen, setChatOpen] = usePlaybackField("chatOpen");
   const [question, setQuestion] = usePlaybackField("question");
-  const [error, setError] = usePlaybackField("error");
+  const error = usePlaybackStore((state) => state.error);
   const [focusMaterialId, setFocusMaterialId] =
     usePlaybackField("focusMaterialId");
   const [useWeb, setUseWeb] = usePlaybackField("useWeb");
   const busy = usePlaybackStore((state) => state.busy);
-  const textDialog = usePlaybackStore((state) => state.textDialog);
-  const textDialogError = usePlaybackStore((state) => state.textDialogError);
   const health = useHealth();
   const {
     conversations,
@@ -61,14 +59,6 @@ export function PlaybackOverlay({
           Ask Playback about selection · {selectedTime?.start}–
           {selectedTime?.end}
         </button>
-      )}
-      {error && !chatOpen && (
-        <div className="global-error" role="alert">
-          {error}
-          <button aria-label="Dismiss error" onClick={() => setError("")}>
-            ×
-          </button>
-        </div>
       )}
       {!chatOpen ? (
         <button className="floating" onClick={() => setChatOpen(true)}>
@@ -234,25 +224,6 @@ export function PlaybackOverlay({
           </form>
         </section>
       )}
-      <TextInputDialog
-        open={textDialog !== null}
-        title={
-          textDialog?.kind === "session"
-            ? "New session"
-            : textDialog?.kind === "group"
-              ? "New group"
-              : "Rename group"
-        }
-        label={textDialog?.kind === "session" ? "Session title" : "Group name"}
-        initialValue={
-          textDialog?.kind === "rename-group" ? textDialog.current : ""
-        }
-        maxLength={textDialog?.kind === "session" ? 120 : 80}
-        busy={busy === "dialog"}
-        error={textDialogError}
-        onCancel={closeNameDialog}
-        onSubmit={submitName}
-      />
     </>
   );
 }
