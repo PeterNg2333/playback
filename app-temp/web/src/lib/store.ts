@@ -23,7 +23,6 @@ type PlaybackState = {
   settingsOpen: boolean;
   navOpen: boolean;
   view: View;
-  transcriptView: "transcript" | "activity";
   recordingMode: RecordingMode;
   noteMode: NoteMode;
   chatOpen: boolean;
@@ -43,7 +42,6 @@ export const usePlaybackStore = create<PlaybackState>(() => ({
   settingsOpen: false,
   navOpen: false,
   view: "transcript",
-  transcriptView: "transcript",
   recordingMode: "both",
   noteMode: "preview",
   chatOpen: false,

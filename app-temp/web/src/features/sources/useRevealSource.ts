@@ -10,7 +10,6 @@ export function useRevealSource(session: Session | null) {
     evidence: Evidence;
   } | null>(null);
   const view = usePlaybackStore((state) => state.view);
-  const transcriptView = usePlaybackStore((state) => state.transcriptView);
 
   useEffect(() => {
     if (!request) return;
@@ -18,7 +17,7 @@ export function useRevealSource(session: Session | null) {
       setRequest(null);
       return;
     }
-    if (view !== "transcript" || transcriptView !== "transcript") return;
+    if (view !== "transcript") return;
     const { evidence } = request;
     if (evidence.kind === "material") {
       document
@@ -30,16 +29,11 @@ export function useRevealSource(session: Session | null) {
         detail: { sessionId: session.id, id: evidence.id },
       }),
     );
-    const target = document.getElementById(evidence.id || "");
-    target
-      ?.closest<HTMLDetailsElement>(".timeline-day")
-      ?.setAttribute("open", "");
-    target
-      ?.closest<HTMLDetailsElement>(".timeline-hour")
-      ?.setAttribute("open", "");
-    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document
+      .getElementById(evidence.id || "")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
     setRequest(null);
-  }, [request, session?.id, view, transcriptView]);
+  }, [request, session?.id, view]);
 
   return function openSource(evidence: Evidence) {
     if (evidence.url) {
@@ -47,10 +41,7 @@ export function useRevealSource(session: Session | null) {
       return;
     }
     if (!session) return;
-    usePlaybackStore.setState({
-      view: "transcript",
-      transcriptView: "transcript",
-    });
+    usePlaybackStore.setState({ view: "transcript" });
     setRequest({ sessionId: session.id, evidence });
   };
 }
