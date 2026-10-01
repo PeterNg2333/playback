@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { Chunk, Session } from "../../lib/backend/schemas";
 import { clockTime } from "../../lib/time";
 
+// Full-session audio is served in 30-second segments, mixed or for one source.
+const SEGMENT_MS = 30_000;
+
 type PlayableChunk = Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">;
 type Part = {
   url: string;
@@ -36,8 +39,8 @@ function sessionParts(session: Session, source: string): Part[] {
       (source !== "mix" && chunk.sourceId !== source)
     )
       continue;
-    const first = Math.floor(chunk.startMs / 30_000);
-    const last = Math.floor((chunk.endMs - 1) / 30_000);
+    const first = Math.floor(chunk.startMs / SEGMENT_MS);
+    const last = Math.floor((chunk.endMs - 1) / SEGMENT_MS);
     for (let index = first; index <= last; index++) {
       if (!windows.has(index)) windows.set(index, []);
       windows.get(index)!.push(chunk);
@@ -46,7 +49,7 @@ function sessionParts(session: Session, source: string): Part[] {
   return [...windows.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([index, chunks]) => {
-      const startMs = index * 30_000;
+      const startMs = index * SEGMENT_MS;
       const anchor = chunks.find((chunk) => chunk.recordedAt) || chunks[0];
       return {
         url: `/api/sessions/${session.id}/audio/segments/${index}${source === "mix" ? "" : `?source=${encodeURIComponent(source)}`}`,
@@ -56,7 +59,7 @@ function sessionParts(session: Session, source: string): Part[] {
           Math.min(...chunks.map((chunk) => chunk.startMs)) - startMs,
         ),
         toMs: Math.min(
-          30_000,
+          SEGMENT_MS,
           Math.max(...chunks.map((chunk) => chunk.endMs)) - startMs,
         ),
         wallOriginMs: anchor.recordedAt

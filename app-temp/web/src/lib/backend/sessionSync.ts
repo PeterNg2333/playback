@@ -9,6 +9,16 @@ import {
 } from "./schemas";
 import { api } from "./client";
 
+// Reads a session as paged changes from a server cursor. A record too large for one change
+// arrives in fragments that are joined here. The limits match the server (Db/SessionSync.cs).
+const MAX_RECORD_CHARS = 8_000_000;
+const MAX_FRAGMENT_CHARS = 24_000;
+const MAX_FRAGMENTS_PER_RECORD = Math.ceil(
+  MAX_RECORD_CHARS / MAX_FRAGMENT_CHARS,
+);
+const MAX_RECORDS_BEING_JOINED = 8;
+const MAX_PAGES_PER_READ = 200;
+
 type Change = { kind: string; value: Record<string, unknown> | string };
 type Delta = {
   cursor: string;
@@ -104,7 +114,7 @@ export async function readSession(
     string,
     { kind: string; count: number; pieces: Map<number, string>; size: number }
   >();
-  for (let page = 0; page < 200; page++) {
+  for (let page = 0; page < MAX_PAGES_PER_READ; page++) {
     const delta = await api.get<Delta>(
       `/sessions/${id}/sync${cursor ? "?cursor=" + cursor : ""}`,
       undefined,
@@ -127,10 +137,10 @@ export async function readSession(
       if (
         !Number.isInteger(value.index) ||
         value.index < 0 ||
-        value.count > 334 ||
+        value.count > MAX_FRAGMENTS_PER_RECORD ||
         value.count < 1 ||
         value.index >= value.count ||
-        value.text.length > 24000
+        value.text.length > MAX_FRAGMENT_CHARS
       )
         throw new Error("Invalid session fragment");
       if (!fragments.has(value.key))
@@ -147,7 +157,10 @@ export async function readSession(
         item.pieces.set(value.index, value.text);
         item.size += value.text.length;
       }
-      if (item.size > 8000000 || fragments.size > 8)
+      if (
+        item.size > MAX_RECORD_CHARS ||
+        fragments.size > MAX_RECORDS_BEING_JOINED
+      )
         throw new Error("Session fragment budget exceeded");
       if (item.pieces.size === item.count) {
         changes.push({
