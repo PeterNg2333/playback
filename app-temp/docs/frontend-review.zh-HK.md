@@ -1,6 +1,6 @@
 # 前端可讀性與結構 review（2026-10-01）
 
-範圍：`app-temp/web/src`（不含 `test/` 的內容，只評其位置）。方法：`/human-review`——先由一個沒有讀過任何文件和歷史的 agent 冷讀畫出心智地圖，再逐檔檢查 file purpose 與 slop。本文件只報告，未修改程式碼。文中的 `檔案:行號` 以 Prettier 格式化之前的 commit `5a7fb5f` 為準（之後的 `64b3edb` 重新排版了 77 個檔）；對照時用 `git show 5a7fb5f:app-temp/web/src/<檔案>`，或按引用的程式碼內容搜尋。Tailwind 遷移計劃見 [tailwind-refactor-plan.zh-HK.md](tailwind-refactor-plan.zh-HK.md)。
+範圍：`app-temp/web/src`（不含 `test/` 的內容，只評其位置）。方法：`/human-review`——先由一個沒有讀過任何文件和歷史的 agent 冷讀畫出心智地圖，再逐檔檢查 file purpose 與 slop。本文件原為報告；各 finding 與搬移清單已按 branch `refactor/frontend-readability` 的結果標上「狀態」。文中的 `檔案:行號` 以 Prettier 格式化之前的 commit `5a7fb5f` 為準（之後的 `64b3edb` 重新排版了 77 個檔）；對照時用 `git show 5a7fb5f:app-temp/web/src/<檔案>`，或按引用的程式碼內容搜尋。Tailwind 遷移計劃見 [tailwind-refactor-plan.zh-HK.md](tailwind-refactor-plan.zh-HK.md)。
 
 ## 心智地圖
 
@@ -59,6 +59,8 @@
 
 ### [Blocker] 兩個 restore 鍵行為不一致 — `NoteEditHistory.tsx:43`
 
+> 狀態：前端已完成（`b3585ed`）。兩個入口都經 `features/notes/restoreNoteVersion.ts` 送出 `basedOnVersion`，完成後重新載入。後端改為必填未做：`api/integration-check.mjs` 的 restore 不帶 `basedOnVersion`，改了會令該 check 失敗。
+
 讀者以為兩處的「Restore」是同一操作。`NoteTools.tsx:79` 送出 `basedOnVersion` 並在完成後 refresh；`NoteEditHistory.tsx:43` 兩者都沒有。後端 `SectionNotes.cs:98` 在 `basedOnVersion` 為 null 時跳過版本衝突檢查，所以從 activity 面板 restore 會蓋過使用者未看到的 AI 新版本（舊版仍在歷史中，不會遺失），畫面要等下一次 4 秒 polling 才更新。
 
 → 人寫的版本：只保留一個 `restoreNoteVersion(sessionId, version, basedOnVersion)`，放在 `features/notes/`，兩個入口都呼叫它；後端把 `basedOnVersion` 改為必填。
@@ -66,6 +68,8 @@
 收益：少一條沒有衝突檢查的寫入路徑。
 
 ### [Restructure] 全 app controller 經 `model` 傳給每個 component — `handlers.ts:20`
+
+> 狀態：已完成（`b723471`、`2b6320f`）。`handlers.ts` 與 `PlaybackController` 已刪；component 以 props 取得 session 與 callback，feature hook 各自在 `features/*/`。
 
 讀者要知道 `NotesPanel` 需要甚麼，必須讀 600 行 `handlers.ts`；子 component 還直接改寫 controller 的 ref（`NotesPanel:259`：`model.editorBaseVersion.current = saved.version`）。
 
@@ -95,6 +99,8 @@ export function NotesPanel({ session, onOpenSource }: NotesPanelProps) {
 
 ### [Restructure] 手寫 polling 與「過期 session」防衛重複四次 — `handlers.ts:142-249`、`useActivity.ts`、`useChatConversations.ts`
 
+> 狀態：已完成（`b723471`、`be2b45a`），用已安裝的 TanStack Query。4 個 flight／version refs、8 處 session 判斷、`reuseSession`、`sameRecord`、capture 比較、`TranscriptContent` memo 比較、`useChatConversations` 的 `generation`／`activeSession` 已刪。剩下的都有單一名字：`refreshWorkspace` 的「最後一次呼叫決定顯示哪個 session」，以及三個寫入（organize、repair、歷史 restore／recovery）在面板關閉時取消，避免完成後切回已離開的 session。
+
 這是 accretion：每修一個 race 就多一個 ref 或判斷。`handlers.ts` 有 8 處 `usePlaybackStore.getState().session?.id !== id`，加上 `refreshVersion`、`snapshotFlight`、`workspaceFlight`、`questionFlight`；`useChatConversations` 有 `generation` 與 `activeSession`；為了避免重繪，又各自寫了比較函式（`reuseSession`、`sameRecord`、`handlers.ts:214-227` 的 10 欄 capture 比較、`TranscriptContent:290` 的 memo 比較）。
 
 缺少的概念是「以 session 為 key 的伺服器狀態」。
@@ -122,6 +128,8 @@ export function useSession(id: string) {
 
 ### [Simplify] 12 個永遠為 true 的 capability flag — `api/Endpoints/HealthEndpoints.cs:15-41`
 
+> 狀態：未做。`web/test/transcript-recording.check.mjs`（原 `asr-ui-check`）的 health 不含這些 flag，並使用它們保護的舊路徑：非 stream 的 `/ask`、沒有 `sessionSync` 時的整份 session 讀取、`recordingSourceSelection=false` 時的重啟提示與停用 Record。刪 flag 要先改這個 check。
+
 `sessionSync`、`groundedChatFallback`、`chatConversations`、`recordingSourceSelection`、`sessionAudioMix`、`sessionLanguageSettings`、`sectionNotes`、`noteCoverage`、`aiActivity`、`elapsedRecordingClock`、`manualAsrRetry`、`liveAsrPreview` 都寫死為 `true`。前端仍為 `false` 保留舊路徑和「Restart the API」提示——那是為了新前端連到未重啟的舊 API，而兩者在同一個 repo、同一個 `pnpm dev` 啟動。
 
 ```ts
@@ -141,6 +149,8 @@ const answer = await askStream(id, body, signal, setDraft);
 
 ### [Restructure] 筆記草稿狀態分散三處 — `handlers.ts:52-53`、`NotesPanel.tsx:254-278`
 
+> 狀態：已完成（`b723471`）。`features/notes/useNoteDraft.ts` 持有文字、基準版本與暫存的舊草稿；一條 save 路徑；子 component 只收 `draftDirty`。
+
 `markdown` 在 store，`savedMarkdown` 與 `editorBaseVersion` 是 controller 的 ref，由 `NotesPanel` 與 `NoteTools` 直接改寫。Save 的程式碼在 `NotesPanel:255-260` 與 `272-277` 一字不差地重複；「是否有未保存修改」的判斷 `model.markdown !== model.savedMarkdown.current` 寫了 4 次（`NotesPanel:252`、`NoteTools:55, 78, 95`）。`handlers.ts:128-138` 與 `158-162` 又各寫一次「伺服器新版本到達時要不要覆蓋草稿」。
 
 ```ts
@@ -159,6 +169,8 @@ export function useNoteDraft(session: Session) {
 
 ### [Restructure] 以 window 事件和 CSS class 溝通 — `handlers.ts:197, 270-281`、`VirtualTranscript.tsx:40, 73`
 
+> 狀態：大部分完成。`playback-capture-level` 已刪，`useCapture` 直接回傳音量歷史（`b723471`）；`.timeline-day/.timeline-hour` 死碼與其 CSS 已刪（`c3758f8`）；執行時 class 查詢改用 ref 或 `data-transcript-id`／`data-transcript-scroller`／`data-markdown`（`b723471`、`1ef4895`）。保留：「跳到來源」仍是 window 事件，因 `web/test/notes-reading-sources.check.mjs` 直接 dispatch 它，現以 `REVEAL_SOURCE_EVENT` 常數連接兩端（`4fad8b5`）；`source-revealed` 的 classList 屬樣式，留待 Tailwind 遷移。
+
 `playback-capture-level` 和 `playback-reveal-source` 兩個 window CustomEvent 是看不見的通道。`handlers.ts:276-281` 尋找 `.timeline-day`／`.timeline-hour`，但沒有任何元素 render 這兩個 class：是死碼（`transcript.css` 對應的規則也是）。另有 14 處執行時依賴 class 名（`captureSelection` 找 `.transcript-row`、`VirtualTranscript` 找 `.transcript-content`、`NotesPanel` 找 `.note-content h1`），換成 Tailwind 後這些 class 會消失。
 
 → 人寫的版本：`useCapture()` 直接回傳音量歷史，`<LevelMeter levels={capture.levels} />`；「跳到來源」寫入 store 的 `revealTarget`，由 transcript 讀取；DOM 查詢改用 ref 或 `data-*` 屬性。
@@ -166,6 +178,8 @@ export function useNoteDraft(session: Session) {
 收益：兩個隱藏通道和一段死碼消失；也是 Tailwind 遷移的前置條件。
 
 ### [Simplify] 業務規則藏在 UI 裏 — `NotesPanel.tsx:86-97`、`NotePreview.tsx:29, 38, 43, 49`、`TranscriptContent.tsx:38`
+
+> 狀態：部分完成。停用詞只剩 `features/terms/visibleTerms.ts` 一處（`276217d`）；片段 ID 正則只剩 `features/sources/passageId.ts` 一處（`4f892db`）。未做：筆記狀態的九層三元與 task 名 `z.enum`（不在搬移清單內）；停用詞移去後端、API 直接回傳片段結構（要改後端）。
 
 - 筆記狀態是 9 層巢狀三元運算，比對後端 task 名字串（`"Note revision"`、`"Jev note gate"`）和 summary 前綴（`"wait:"`）。
 - Term 停用詞 `["details", "detail", "okay", "information"]` 複製了兩次；後端已有 `highlight` 決定，這是在 UI 補丁後端的決定。
@@ -228,21 +242,21 @@ src/                                   src/
 
 每一步都不改行為，修正的 map break 列在後面。
 
-1. 拆 `handlers.ts` → `library/useLibrary.ts`、`recording/useCapture.ts`、`ask/useAsk.ts`、`notes/useNoteDraft.ts`、`materials/attachMaterial.ts`、`sources/useRevealSource.ts`；刪 `handlers.ts` 與 `PlaybackController` type。（god controller、`model` prop）
-2. `format.ts` 拆成 `transcript/timeline.ts`（`TimelineEntry`、`transcriptDays`，併入 `transcriptPassages.ts`）、`transcript/asrStatus.ts`、`lib/time.ts`。（format 名不副實）
-3. `PlaybackOverlay.tsx` 拆成 `ask/AskPanel.tsx`、`components/ErrorToast.tsx`、`library/NameDialog.tsx`。（三件事）
-4. `PlaybackHeader.tsx` → `pages/PlaybackPage` 的 header 部分＋`recording/Recorder.tsx`＋`recording/LevelMeter.tsx`。（Playback 三義）
-5. 改名：`PlaybackFooter` → `player/AudioPlayerBar`、`PlaybackModeMenu` → `player/AudioSourceMenu`、`useAudioPlayback` → `player/useAudioPlayer`、`RecordPlay` → `player/PlayButton`、`SourceTag` → `recording/AudioSourceBadge`、`NoteTools` → `notes/NoteHistoryDialog`（organize 移到 `notes/OrganizeSection.tsx`）、`GroupFlow` → `activity/AiFlowDialog`、`ActivityContent` → `activity/ActivityLog`、`TranscriptSettings` → `transcript/SessionSettings`、`TranscriptContent` → `transcript/Timeline`、`VirtualTranscript` → `transcript/VirtualList`。（file purpose broke）
-6. `TranscriptContent.tsx:222-258` → `materials/MaterialsList.tsx`。（materials 沒有家）
-7. `TranscriptContent.tsx:92-218` 的 `renderEntry` 拆成 `transcript/rows/{LiveRow,SilenceRow,AudioRow}.tsx`，與 `TranscriptRow`、`PassageRow` 並列。
-8. `Component/termSegments.ts` → `terms/termMatching.ts`；新增 `terms/visibleTerms.ts`（停用詞與語言過濾的唯一的家，之後移去後端）。（跨 folder、重複）
-9. `Component/SourceCitation.tsx`、`pages/SourceLinks.tsx` → `sources/`；片段 ID 解析集中到 `sources/passageId.ts`，之後改為 API 回傳結構。（通用依賴 feature、正則 ×3）
-10. `Component/Markdown.tsx` 拆出 notes 引用語法 → `notes/noteMarkdown.tsx`；`Markdown`、`MathFormula`、`diagramRenderer` → `components/markdown/`。（Markdown 名不副實）
-11. `pages/api.ts` → `lib/api/client.ts`，參數改為具名：`api.get(path, Schema, { signal })`、`api.post(path, body, Schema)`；`types/api.ts` 與 4 處內嵌 zod → `lib/api/schemas.ts`。（schema 兩個家）
-12. 側欄、Ask、播放、activity 等 8 處各自寫的「點外面／Esc 關閉」→ `components/Menu.tsx`。
-13. `Component/` → `components/`（小寫、與其他 folder 一致）；`Layout/` → `components/layout/`。
-14. `src/test/` → `web/test/`；以保護的行為命名（`notes-redesign-check` → `notes-reading-sources.check.mjs` 等）。
-15. 刪：`store.ts` 的 `transcriptView`（`"activity"` 從未被設定）、`handlers.ts:276-281` 與 `transcript.css` 的 `.timeline-day/.timeline-hour`、12 個 capability flag（finding 4）。
+1. **完成 `b723471`。** 拆 `handlers.ts` → `library/useLibrary.ts`、`recording/useCapture.ts`、`ask/useAsk.ts`、`notes/useNoteDraft.ts`、`materials/attachMaterial.ts`、`sources/useRevealSource.ts`；刪 `handlers.ts` 與 `PlaybackController` type。（god controller、`model` prop）
+2. **完成 `1225656`；時間線模型檔名為 `transcript/timelineEntries.ts`（`2b6320f`），因為在大小寫不分的 checkout 上 `./Timeline` 會同時對上 `timeline.ts`。** `format.ts` 拆成 `transcript/timeline.ts`（`TimelineEntry`、`transcriptDays`，併入 `transcriptPassages.ts`）、`transcript/asrStatus.ts`、`lib/time.ts`。（format 名不副實）
+3. **完成 `7019f70`；`ErrorToast` 先放 `Component/`，於第 13 步一併改名。** `PlaybackOverlay.tsx` 拆成 `ask/AskPanel.tsx`、`components/ErrorToast.tsx`、`library/NameDialog.tsx`。（三件事）
+4. **完成 `4a689bc`。** `PlaybackHeader.tsx` → `pages/PlaybackPage` 的 header 部分＋`recording/Recorder.tsx`＋`recording/LevelMeter.tsx`。（Playback 三義）
+5. **完成 `2b6320f`；其餘 `pages/` 檔案亦搬入各 feature。`sessionSettings.ts` 改名 `saveSettings.ts`，理由同第 2 步。** 改名：`PlaybackFooter` → `player/AudioPlayerBar`、`PlaybackModeMenu` → `player/AudioSourceMenu`、`useAudioPlayback` → `player/useAudioPlayer`、`RecordPlay` → `player/PlayButton`、`SourceTag` → `recording/AudioSourceBadge`、`NoteTools` → `notes/NoteHistoryDialog`（organize 移到 `notes/OrganizeSection.tsx`）、`GroupFlow` → `activity/AiFlowDialog`、`ActivityContent` → `activity/ActivityLog`、`TranscriptSettings` → `transcript/SessionSettings`、`TranscriptContent` → `transcript/Timeline`、`VirtualTranscript` → `transcript/VirtualList`。（file purpose broke）
+6. **完成 `0409b1d`；`MaterialsList` 仍由 `Timeline` 在同一捲動區內 render，沒有新增 `pages/TranscriptColumn`，以免改變版面。** `TranscriptContent.tsx:222-258` → `materials/MaterialsList.tsx`。（materials 沒有家）
+7. **完成 `7d1976f`。** `TranscriptContent.tsx:92-218` 的 `renderEntry` 拆成 `transcript/rows/{LiveRow,SilenceRow,AudioRow}.tsx`，與 `TranscriptRow`、`PassageRow` 並列。
+8. **完成 `276217d`。** `Component/termSegments.ts` → `terms/termMatching.ts`；新增 `terms/visibleTerms.ts`（停用詞與語言過濾的唯一的家，之後移去後端）。（跨 folder、重複）
+9. **完成 `4f892db`。** `Component/SourceCitation.tsx`、`pages/SourceLinks.tsx` → `sources/`；片段 ID 解析集中到 `sources/passageId.ts`，之後改為 API 回傳結構。（通用依賴 feature、正則 ×3）
+10. **完成 `cb4553b`；引用語法放在 `features/sources/CitedMarkdown.tsx` 而非 `notes/noteMarkdown.tsx`，因為 Ask 答案與歷史 recovery 預覽也用同一語法。** `Component/Markdown.tsx` 拆出 notes 引用語法 → `notes/noteMarkdown.tsx`；`Markdown`、`MathFormula`、`diagramRenderer` → `components/markdown/`。（Markdown 名不副實）
+11. **完成 `8aa8890`、`f4a8473`；folder 名為 `lib/backend/` 而非 `lib/api/`：UI checks 攔截 `**/api/**`，在 Vite dev 會連 `/src/lib/api/*.ts` 也攔住。`store.ts` → `lib/store.ts`。** `pages/api.ts` → `lib/api/client.ts`，參數改為具名：`api.get(path, Schema, { signal })`、`api.post(path, body, Schema)`；`types/api.ts` 與 4 處內嵌 zod → `lib/api/schemas.ts`。（schema 兩個家）
+12. **完成 `fdb1815`；`components/Menu.tsx` 的 `Menu` 與 `useDismiss`。側欄選單維持原行為：只在選了項目後關閉。** 側欄、Ask、播放、activity 等 8 處各自寫的「點外面／Esc 關閉」→ `components/Menu.tsx`。
+13. **完成 `aad7b91`；只有一個檔的 `Dialog/` 攤平為 `components/TextInputDialog.tsx`。** `Component/` → `components/`（小寫、與其他 folder 一致）；`Layout/` → `components/layout/`。
+14. **完成 `b7f9208`。** `src/test/` → `web/test/`；以保護的行為命名（`notes-redesign-check` → `notes-reading-sources.check.mjs` 等）。
+15. **部分完成 `c3758f8`：`transcriptView` 與 `.timeline-day/.timeline-hour` 已刪；capability flag 未刪，見 finding 4 的狀態。** 刪：`store.ts` 的 `transcriptView`（`"activity"` 從未被設定）、`handlers.ts:276-281` 與 `transcript.css` 的 `.timeline-day/.timeline-hour`、12 個 capability flag（finding 4）。
 
 ## Slop inventory
 
