@@ -1,4 +1,4 @@
-import { Menu } from "../../Component/Menu";
+import { Menu } from "../../components/Menu";
 import { audioSourceLabel } from "../recording/AudioSourceBadge";
 
 type AudioSourceMenuProps = {

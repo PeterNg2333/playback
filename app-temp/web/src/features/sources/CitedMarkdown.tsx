@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { Markdown } from "../../Component/markdown/Markdown";
+import { Markdown } from "../../components/markdown/Markdown";
 import { termSegments } from "../terms/termMatching";
 import { SourceCitation } from "./SourceCitation";
 

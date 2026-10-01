@@ -1,4 +1,4 @@
-import { Panel } from "../../Component/Layout/Panel";
+import { Panel } from "../../components/layout/Panel";
 import { useHealth } from "../../lib/useHealth";
 import type { Session } from "../../lib/backend/schemas";
 import type { AudioPlayer } from "../player/useAudioPlayer";

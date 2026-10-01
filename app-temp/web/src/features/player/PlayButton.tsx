@@ -1,5 +1,5 @@
 import type { Chunk } from "../../lib/backend/schemas";
-import { Icon } from "../../Component/Icon";
+import { Icon } from "../../components/Icon";
 
 export function PlayButton({
   id,

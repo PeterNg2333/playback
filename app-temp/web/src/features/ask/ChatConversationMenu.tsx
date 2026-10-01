@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { Icon } from "../../Component/Icon";
-import { useDismiss } from "../../Component/Menu";
+import { Icon } from "../../components/Icon";
+import { useDismiss } from "../../components/Menu";
 import { useHealth } from "../../lib/useHealth";
 import { showError, usePlaybackStore } from "../../lib/store";
 import type { Session } from "../../lib/backend/schemas";

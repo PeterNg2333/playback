@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { Workspace } from "../Component/Layout/Workspace";
-import { Header } from "../Component/Layout/Header";
-import { Icon } from "../Component/Icon";
-import { ErrorToast } from "../Component/ErrorToast";
+import { Workspace } from "../components/layout/Workspace";
+import { Header } from "../components/layout/Header";
+import { Icon } from "../components/Icon";
+import { ErrorToast } from "../components/ErrorToast";
 import { useHealth } from "../lib/useHealth";
 import { AskPanel } from "../features/ask/AskPanel";
 import { NameDialog } from "../features/library/NameDialog";

@@ -1,4 +1,4 @@
-import { Icon } from "../../Component/Icon";
+import { Icon } from "../../components/Icon";
 import { useHealth } from "../../lib/useHealth";
 import { formatElapsed } from "../../lib/time";
 import { usePlaybackField, usePlaybackStore } from "../../lib/store";

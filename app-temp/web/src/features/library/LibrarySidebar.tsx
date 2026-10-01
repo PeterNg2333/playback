@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
-import { Icon } from "../../Component/Icon";
-import { Menu } from "../../Component/Menu";
-import { SideNav } from "../../Component/Layout/SideNav";
+import { Icon } from "../../components/Icon";
+import { Menu } from "../../components/Menu";
+import { SideNav } from "../../components/layout/SideNav";
 import type { Group, Session } from "../../lib/backend/schemas";
 import { useHealth } from "../../lib/useHealth";
 import {

@@ -1,7 +1,7 @@
 import type { Evidence, NoteEditLog, Session } from "../../lib/backend/schemas";
 import { SourceLinks } from "../sources/SourceLinks";
 import { formatDateTime } from "../../lib/time";
-import { LazyDetails } from "../../Component/LazyDetails";
+import { LazyDetails } from "../../components/LazyDetails";
 
 type NoteEditHistoryProps = {
   session: Session;

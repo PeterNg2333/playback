@@ -1,6 +1,6 @@
 import type { DragEvent } from "react";
-import { Icon } from "../../Component/Icon";
-import { Menu } from "../../Component/Menu";
+import { Icon } from "../../components/Icon";
+import { Menu } from "../../components/Menu";
 import type { Group, SessionSummary } from "../../lib/backend/schemas";
 import { moveSession, openSession } from "./useLibrary";
 import { usePlaybackStore } from "../../lib/store";

@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import type { Activity, Evidence, Session } from "../../lib/backend/schemas";
 import { ActivityLog } from "./ActivityLog";
 import { formatElapsed } from "../../lib/time";
-import { LazyDetails } from "../../Component/LazyDetails";
-import { useDismiss } from "../../Component/Menu";
+import { LazyDetails } from "../../components/LazyDetails";
+import { useDismiss } from "../../components/Menu";
 
 export function ActivityPopover({
   session,

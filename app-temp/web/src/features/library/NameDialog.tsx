@@ -1,4 +1,4 @@
-import { TextInputDialog } from "../../Component/Dialog/TextInputDialog";
+import { TextInputDialog } from "../../components/TextInputDialog";
 import { usePlaybackStore } from "../../lib/store";
 import { closeNameDialog, submitName } from "./useLibrary";
 

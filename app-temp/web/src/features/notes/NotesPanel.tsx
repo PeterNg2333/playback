@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Panel } from "../../Component/Layout/Panel";
+import { Panel } from "../../components/layout/Panel";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm } from "../ask/askAbout";
@@ -15,8 +15,8 @@ import { NoteCoveragePanel } from "./NoteCoveragePanel";
 import { TermExplanation } from "../terms/TermExplanation";
 import { ActivityPopover } from "../activity/ActivityPopover";
 import { useActivity } from "../activity/useActivity";
-import { Icon } from "../../Component/Icon";
-import { LazyDetails } from "../../Component/LazyDetails";
+import { Icon } from "../../components/Icon";
+import { LazyDetails } from "../../components/LazyDetails";
 
 export function NotesPanel({
   session,

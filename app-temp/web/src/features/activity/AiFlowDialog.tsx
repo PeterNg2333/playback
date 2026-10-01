@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AiFlowSchema, type Group } from "../../lib/backend/schemas";
 import { api } from "../../lib/backend/client";
-import { Markdown } from "../../Component/markdown/Markdown";
+import { Markdown } from "../../components/markdown/Markdown";
 
 // A group's configured AI pipeline and the executions recorded for one of its sessions.
 export function AiFlowDialog({

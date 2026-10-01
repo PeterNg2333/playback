@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TermInsight } from "../../lib/backend/schemas";
-import { Markdown } from "../../Component/markdown/Markdown";
+import { Markdown } from "../../components/markdown/Markdown";
 import { api } from "../../lib/backend/client";
 import { TermInsightSchema } from "../../lib/backend/schemas";
 
