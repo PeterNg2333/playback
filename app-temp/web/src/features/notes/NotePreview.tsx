@@ -2,9 +2,10 @@ import { useMemo, useRef, type Ref } from "react";
 import { Markdown, indexMarkdownSources } from "../../Component/Markdown";
 import { askAboutTerm } from "../ask/askAbout";
 import { visibleTerms } from "../terms/visibleTerms";
+import { parseMaterialPassageId } from "../sources/passageId";
 import type { Evidence, Session } from "../../types/api";
 import type { AudioPlayer } from "../player/useAudioPlayer";
-import { SourceCitation } from "../../Component/SourceCitation";
+import { SourceCitation } from "../sources/SourceCitation";
 import { TermHighlight } from "../terms/TermHighlight";
 import { recordedRange } from "../../lib/time";
 
@@ -69,8 +70,8 @@ export function NotePreview({
       for (const point of section.points)
         for (const id of point.sourceIds) ids.add(id);
     for (const id of [...ids]) {
-      const parent = /^([a-f0-9]{32})_p\d+_\d+_[a-f0-9]{12}$/.exec(id)?.[1];
-      if (parent) ids.add(parent);
+      const material = parseMaterialPassageId(id)?.materialId;
+      if (material) ids.add(material);
     }
     return ids;
   }, [markdown, groups, session?.currentNote?.sections]);
@@ -101,14 +102,15 @@ export function NotePreview({
           session?.currentNote?.citations?.flatMap((c) => c.sourceIds) ?? [],
         ),
       ].flatMap((id) => {
-        const match = /^([a-f0-9]{32})_p(\d+)_(\d+)_[a-f0-9]{12}$/.exec(id);
-        const material = match && materials.find((x) => x.id === match[1]);
-        return material && match
+        const passage = parseMaterialPassageId(id);
+        const material =
+          passage && materials.find((x) => x.id === passage.materialId);
+        return material && passage
           ? [
               {
                 id,
-                label: `${material.name} · characters ${+match[2] + 1}–${match[3]}`,
-                text: material.text.slice(+match[2], +match[3]),
+                label: `${material.name} · characters ${passage.start + 1}–${passage.end}`,
+                text: material.text.slice(passage.start, passage.end),
               },
             ]
           : [];
@@ -140,7 +142,7 @@ export function NotePreview({
       (session?.transcripts ?? []).filter((x) => ids.includes(x.id)),
     );
   const onSource = (id: string) => {
-    const parent = /^([a-f0-9]{32})_p\d+_\d+_[a-f0-9]{12}$/.exec(id)?.[1] ?? id;
+    const parent = parseMaterialPassageId(id)?.materialId ?? id;
     onOpenSource({
       kind: session?.materials.some((x) => x.id === parent)
         ? "material"

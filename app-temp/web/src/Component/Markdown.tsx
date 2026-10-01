@@ -17,7 +17,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { termSegments } from "../features/terms/termMatching";
-import { SourceCitation } from "./SourceCitation";
+import { SourceCitation } from "../features/sources/SourceCitation";
 import { requestDiagram } from "./diagramRenderer";
 import "../styles/math.css";
 function Diagram({ source }: { source: string }) {

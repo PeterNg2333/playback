@@ -1,5 +1,5 @@
 import type { Evidence, NoteEditLog, Session } from "../../types/api";
-import { SourceLinks } from "../../pages/SourceLinks";
+import { SourceLinks } from "../sources/SourceLinks";
 import { formatDateTime } from "../../lib/time";
 import { LazyDetails } from "../../Component/LazyDetails";
 

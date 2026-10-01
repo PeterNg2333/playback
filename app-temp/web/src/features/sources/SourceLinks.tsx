@@ -1,5 +1,5 @@
-import type { Evidence, Session } from "../types/api";
-import { recordedRange } from "../lib/time";
+import type { Evidence, Session } from "../../types/api";
+import { recordedRange } from "../../lib/time";
 
 type SourceLinksProps = {
   session: Session;

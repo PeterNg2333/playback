@@ -1,7 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatElapsed } from "../lib/time";
+import { formatElapsed } from "../../lib/time";
 
+// Cited parts from one audio source within five minutes of each other show as one range.
+const MAX_RANGE_MS = 5 * 60_000;
+
+// A citation chip that opens the cited passages: their times, text, playback and a jump to each.
 export function SourceCitation({
   groups,
   labels,
@@ -41,7 +45,7 @@ export function SourceCitation({
       previous &&
       previous.sourceId === source.sourceId &&
       source.startMs >= previous.start &&
-      source.endMs - previous.start <= 300000
+      source.endMs - previous.start <= MAX_RANGE_MS
     ) {
       previous.end = Math.max(previous.end, source.endMs);
       previous.ids.push(id);
