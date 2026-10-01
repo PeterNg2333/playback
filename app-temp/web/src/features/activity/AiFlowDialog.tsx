@@ -56,11 +56,11 @@ export function AiFlowDialog({
   return (
     <dialog
       ref={dialog}
-      className="m-auto h-[90vh] max-h-[92vh] w-[calc(100vw-20px)] max-w-320 rounded-2xl border border-line bg-surface p-3 text-ink shadow-[0_20px_60px_#25305c30] backdrop:bg-[#20233866] open:flex open:flex-col open:overflow-hidden md:h-[75vh] md:w-[70vw] md:p-5.5 [&_[data-markdown]]:max-w-none"
+      className="m-auto h-[90vh] max-h-[92vh] w-[calc(100vw-20px)] max-w-7xl rounded-2xl border border-line bg-surface p-3 text-ink shadow-[0_20px_60px_#25305c30] backdrop:bg-[#20233866] open:flex open:flex-col open:overflow-hidden md:h-[75vh] md:w-[70vw] md:p-5.5 **:data-markdown:max-w-none"
       aria-labelledby="group-flow-title"
       onCancel={onClose}
     >
-      <header className="flex flex-shrink-0 items-start justify-between gap-5 bg-surface pb-2.5">
+      <header className="flex shrink-0 items-start justify-between gap-5 bg-surface pb-2.5">
         <div>
           <h2 id="group-flow-title" className="text-[15px] font-[750]">
             {group.name} · AI flow

@@ -21,7 +21,7 @@ import { usePlaybackField, usePlaybackStore } from "../../lib/store";
 const labelStyle = "text-[11px] text-muted";
 const noteStyle = "text-[10px] leading-[1.4] text-muted";
 const selectStyle =
-  "w-full rounded-[7px] border border-line bg-white p-1.75 text-[12px] text-ink [font-family:revert] [line-height:revert]";
+  "w-full rounded-[7px] border border-line bg-white p-1.75 text-[12px] text-ink font-[revert] leading-[revert]";
 
 export function SessionSettings({ session }: { session: Session | null }) {
   const health = useHealth();

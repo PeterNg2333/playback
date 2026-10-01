@@ -44,7 +44,7 @@ export function PlaybackPage() {
   return (
     <div className="flex h-dvh min-h-screen flex-col overflow-hidden">
       <a
-        className="fixed -top-20 left-4 z-50 bg-white px-[0.8rem] py-2 [color:revert] underline focus:top-2"
+        className="fixed -top-20 left-4 z-50 bg-white px-[0.8rem] py-2 text-[revert] underline focus:top-2"
         href="#workspace"
       >
         Skip to workspace
@@ -68,7 +68,7 @@ export function PlaybackPage() {
           {/* Phones drop the name while recording, to leave room for the recorder. */}
           <span
             className={clsx(
-              "truncate text-[14px] font-bold tracking-[-0.025em] max-xs:hidden md:text-[16px]",
+              "truncate text-[14px] font-bold tracking-tight max-xs:hidden md:text-[16px]",
               recording && "max-md:hidden",
             )}
           >

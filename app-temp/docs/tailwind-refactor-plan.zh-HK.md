@@ -2,7 +2,14 @@
 
 目標：`app-temp/web` 由 8 個手寫 CSS 檔（約 2,540 行、約 550 個規則區塊）改為 Tailwind CSS utilities，打開一個 component 就看到它的樣子，不必到另一個 CSS 檔找 class。版本以 2026-10-01 的 [Tailwind 官方 Vite 安裝文件](https://tailwindcss.com/docs/installation/using-vite) 為準：Tailwind v4.3，`tailwindcss` 與 `@tailwindcss/vite`。現有 Vite 6.4.3。
 
-本計劃尚未執行。先做 [frontend review](frontend-review.zh-HK.md) 的結構搬移，再按下列階段遷移樣式。
+先做 [frontend review](frontend-review.zh-HK.md) 的結構搬移，再按下列階段遷移樣式。
+
+> 狀態：已於 branch `refactor/frontend-readability` 完成（2026-10-02）。8 個舊 CSS 檔共 2,980 行已刪；`src/styles/` 只剩 `app.css`（Tailwind、theme、頁面 globals，83 行）與 `markdown.css`（173 行）。下面「需要你決定」兩項已按建議做：裝了三個套件；Markdown 用自己的 `markdown.css`。與計劃不同之處：
+>
+> - Breakpoint 統一到 Tailwind 預設（`md` 768、`lg` 1024、`xl` 1280），另定 `xs` = 24.4375rem（391px），讓 390px 及以下的手機保留緊湊版面。舊值與新值之間（701–767、901–1023、1101–1279px）的版面因此改變；1440、1024、390 三個寬度不變。
+> - 共用 component：`Button`、`IconButton`、`Segmented`、`Chip`、`Tag`、`CitationChip`、`EmptyState`、`Dialog`、`PopupHeader`、`Menu`。只在一個檔內重複的外觀用具名 class 字串。
+> - Preflight 拿走、而畫面依賴的瀏覽器預設（清單符號、monospace、連結底線、原生下拉選單）以 `revert` 取回。
+> - 驗證：每一步在 1440／1024／390 截 27 個場景共 81 張圖，與遷移前逐像素比較，並逐個元素比較 computed style。最後 81 張與遷移前完全相同。`test:browser`（`layout-live-api`）需要本機 API 與 MongoDB，沒有跑。
 
 ## 需要你決定
 

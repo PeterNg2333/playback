@@ -139,7 +139,7 @@ export function TermExplanation({
             .filter((source) => source.url.startsWith("https://"))
             .map((source) => (
               <a
-                className="text-[11px] [color:revert] underline"
+                className="text-[11px] text-[revert] underline"
                 key={source.url}
                 href={source.url}
                 target="_blank"

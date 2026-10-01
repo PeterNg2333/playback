@@ -20,9 +20,9 @@ player bar and the Ask panel, and hands each the session being shown.
 | `features/ask/` | Questions about the session, answers and saved conversations | `AskPanel.tsx` |
 | `features/activity/` | The AI execution log and a group's AI flow | `ActivityPopover.tsx` |
 | `features/sources/` | Citations: the AI's citation syntax, source chips and links, jumping to a source | `CitedMarkdown.tsx`, `useRevealSource.ts` |
-| `components/` | Generic UI that knows no feature: layout shells, `Menu`, the name dialog, `Icon`, the Markdown renderer (`markdown/`) | — |
+| `components/` | Generic UI that knows no feature: layout shells, shared controls (`Button`, `IconButton`, `Dialog`, `Menu`, …), `Icon`, the Markdown renderer (`markdown/`) | — |
 | `lib/` | The API client and response schemas (`backend/`), the query client, browser UI state, health, time formatting | `backend/client.ts` |
-| `styles/` | CSS by area, imported in order by `main.tsx` | — |
+| `styles/` | `app.css`: Tailwind, theme tokens and page globals; `markdown.css`: rendered Markdown | `app.css` |
 
 ### State
 
@@ -59,6 +59,24 @@ player bar and the Ask panel, and hands each the session being shown.
 - Open a citation: `sources/useRevealSource` switches to the transcript and
   dispatches `REVEAL_SOURCE_EVENT`; `transcript/VirtualList` mounts, opens and
   highlights the passage.
+
+### Styling
+
+Components draw themselves with Tailwind CSS v4 utilities in their `className`;
+no component has its own stylesheet. `styles/app.css` loads Tailwind and defines
+the theme tokens (the colours, the `xs` breakpoint just above 390 px phones, the
+recorder and note animations) and the few page globals Preflight does not cover:
+the page never scrolls, buttons show a pointer, focus shows an accent ring.
+`md`, `lg` and `xl` are Tailwind's defaults (768, 1024, 1280 px). Conditional
+classes go through `clsx`. A look repeated across files is a component in
+`components/` (`Button`, `IconButton`, `Segmented`, `Chip`, `Tag`,
+`CitationChip`, `Dialog`, `Menu`, `PopupHeader`, `EmptyState`); one repeated
+within a file is a named class string there. There is no `@apply`.
+
+`styles/markdown.css` is the exception. react-markdown, KaTeX and Mermaid create
+those elements, not our JSX, so their look stays CSS under the `[data-markdown]`
+root. A component that shows Markdown adjusts it from outside with a descendant
+variant, such as `**:data-markdown:max-w-[72ch]` on the notes body.
 
 ## .NET API
 

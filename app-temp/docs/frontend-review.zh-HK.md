@@ -1,6 +1,6 @@
 # 前端可讀性與結構 review（2026-10-01）
 
-範圍：`app-temp/web/src`（不含 `test/` 的內容，只評其位置）。方法：`/human-review`——先由一個沒有讀過任何文件和歷史的 agent 冷讀畫出心智地圖，再逐檔檢查 file purpose 與 slop。本文件原為報告；各 finding 與搬移清單已按 branch `refactor/frontend-readability` 的結果標上「狀態」。文中的 `檔案:行號` 以 Prettier 格式化之前的 commit `5a7fb5f` 為準（之後的 `64b3edb` 重新排版了 77 個檔）；對照時用 `git show 5a7fb5f:app-temp/web/src/<檔案>`，或按引用的程式碼內容搜尋。Tailwind 遷移計劃見 [tailwind-refactor-plan.zh-HK.md](tailwind-refactor-plan.zh-HK.md)。
+範圍：`app-temp/web/src`（不含 `test/` 的內容，只評其位置）。方法：`/human-review`——先由一個沒有讀過任何文件和歷史的 agent 冷讀畫出心智地圖，再逐檔檢查 file purpose 與 slop。本文件原為報告；各 finding 與搬移清單已按 branch `refactor/frontend-readability` 的結果標上「狀態」。文中的 `檔案:行號` 以 Prettier 格式化之前的 commit `5a7fb5f` 為準（之後的 `64b3edb` 重新排版了 77 個檔）；對照時用 `git show 5a7fb5f:app-temp/web/src/<檔案>`，或按引用的程式碼內容搜尋。Tailwind 遷移計劃見 [tailwind-refactor-plan.zh-HK.md](tailwind-refactor-plan.zh-HK.md)，已完成。
 
 ## 心智地圖
 
@@ -231,6 +231,7 @@ src/                                   src/
                                            store.ts        只放 UI 狀態
                                            time.ts         時間格式
                                          styles/app.css    Tailwind 入口與 theme
+                                           markdown.css    Markdown 內容的樣式
                                        web/test/           檢查移出 src，以保護的行為命名
 ```
 

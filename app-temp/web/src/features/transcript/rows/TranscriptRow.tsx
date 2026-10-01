@@ -163,7 +163,7 @@ export function TranscriptRow({
       {session?.translationEnabled && transcript.original && (
         <p
           className={clsx(
-            "mt-1 ml-4 text-[12px] leading-[1.5] text-[#5e637b]",
+            "mt-1 ml-4 text-[12px] leading-normal text-[#5e637b]",
             !translationReady && "opacity-60",
           )}
         >

@@ -1,9 +1,41 @@
 @import "tailwindcss" source("..");
-
-/* Until every feature uses utilities, the old stylesheets sit in the components layer,
-   so a utility on an element overrides them. Each file goes once its feature is migrated. */
-@import "./legacy/base.css" layer(components);
+/* Everything the app draws is utilities in its components; Markdown content is the exception. */
 @import "./markdown.css";
+
+/* The page fills the window and never scrolls; its panels scroll inside it. Preflight
+   leaves buttons with an arrow cursor and the browser's focus ring, so these are set here. */
+@layer base {
+  html {
+    min-width: 320px;
+    height: 100%;
+    overflow: hidden;
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+  body {
+    min-width: 320px;
+    height: 100%;
+    overflow: hidden;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+  button {
+    cursor: pointer;
+  }
+  :is(a, button, input, select, summary, textarea):focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
 
 /* Touch screens cannot hover, so controls revealed on hover stay visible there. */
 @custom-variant hover-none (@media (hover: none));

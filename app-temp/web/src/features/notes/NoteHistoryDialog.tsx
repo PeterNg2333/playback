@@ -211,7 +211,7 @@ export function NoteHistoryDialog({
                 {historical && shownVersion !== undefined && (
                   <>
                     <h3 className={heading}>Saved v{shownVersion}</h3>
-                    <pre className="my-3 max-h-[34vh] overflow-auto text-[12px] whitespace-pre-wrap wrap-anywhere [font-family:revert]">
+                    <pre className="my-3 max-h-[34vh] overflow-auto text-[12px] whitespace-pre-wrap wrap-anywhere font-[revert]">
                       {historical}
                     </pre>
                     <button

@@ -81,11 +81,11 @@ export function AskPanel({
           className={clsx(
             "fixed top-[max(75px,calc(100dvh-1210px))] right-3 bottom-22.5 z-10 flex max-h-280 w-[min(555px,calc(100vw-40px))] flex-col overflow-hidden rounded-[15px] border border-line bg-white shadow-[0_15px_45px_#27325f29] md:right-7",
             // Answers use the panel's whole width, with smaller headings than the notes.
-            "[&_[data-markdown]]:max-w-full [&_[data-markdown]_:is(h1,h2,h3)]:text-[14px] [&_[data-markdown]_:is(ul,ol)]:pl-5",
+            "**:data-markdown:max-w-full [&_[data-markdown]_:is(h1,h2,h3)]:text-[14px] [&_[data-markdown]_:is(ul,ol)]:pl-5",
           )}
           aria-label="Ask Playback"
         >
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-line px-4 py-3.5">
+          <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3.5">
             <div>
               <div className="flex items-center gap-2">
                 <strong className="block text-[13px]">Ask Playback</strong>
@@ -175,7 +175,7 @@ export function AskPanel({
             )}
           </div>
           {(selection || focusMaterialId) && (
-            <div className="flex flex-shrink-0 items-center justify-between gap-2 border-t border-line bg-[#f7f8fb] px-3.25 py-2 text-[10px] text-muted">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line bg-[#f7f8fb] px-3.25 py-2 text-[10px] text-muted">
               <span className="truncate">
                 {selection
                   ? `Selected transcript · ${selectedTime?.start}–${selectedTime?.end} · “${selection.text}”`
@@ -193,7 +193,7 @@ export function AskPanel({
               </button>
             </div>
           )}
-          <label className="flex-shrink-0 px-3.25 py-1.25 text-[10px] text-muted">
+          <label className="shrink-0 px-3.25 py-1.25 text-[10px] text-muted">
             <input
               type="checkbox"
               className="my-0.75 mr-0.75 ml-1"
@@ -203,7 +203,7 @@ export function AskPanel({
             Include public web search (sends this question to Gemini Search)
           </label>
           <form
-            className="flex flex-shrink-0 gap-1.75 border-t border-line p-3"
+            className="flex shrink-0 gap-1.75 border-t border-line p-3"
             onSubmit={(e) => {
               e.preventDefault();
               ask();
