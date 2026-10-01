@@ -211,10 +211,6 @@
     animation: none;
   }
 }
-.notes-panel .panel-head {
-  flex-wrap: wrap;
-  gap: 10px;
-}
 .notes-panel .note-title {
   flex-wrap: wrap;
   align-items: center;

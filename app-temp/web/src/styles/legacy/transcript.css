@@ -100,13 +100,6 @@ body[data-language="original"] .translation {
   color: var(--ink);
   font-size: 12px;
 }
-.transcript-panel .panel-head {
-  position: relative;
-  z-index: 9;
-}
-.transcript-panel .panel-head:has(.settings-menu) {
-  z-index: 20;
-}
 .processing-status {
   color: var(--muted);
   font-size: 11px;
@@ -116,9 +109,6 @@ body[data-language="original"] .translation {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-.transcript-panel {
-  overflow: hidden;
 }
 .record-row {
   display: grid;
@@ -507,20 +497,12 @@ body[data-language="original"] .translation {
   margin: 8px 0 0;
   white-space: pre-wrap;
 }
-@media (max-width: 1100px) {
-  .app-shell[data-view="notes"] .transcript-panel {
-    display: none;
-  }
-}
 @media (max-width: 900px) {
   .rows {
     padding-bottom: 50px;
   }
 }
 @media (max-width: 700px) {
-  body[data-view="notes"] .transcript-panel {
-    display: none;
-  }
   .quiet-part {
     grid-template-columns: minmax(90px, 1fr) auto 32px;
     gap: 5px;
@@ -594,10 +576,4 @@ body[data-language="original"] .translation {
 }
 .transcript-passage .record-main > details > .transcript-row {
   margin-top: 0.5rem;
-}
-.workspace-loading {
-  padding: 0.45rem 1rem;
-  background: #eef5ff;
-  color: #24558b;
-  font-size: 0.85rem;
 }

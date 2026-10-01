@@ -193,7 +193,7 @@ export function AskPanel({
               ask();
             }}
           >
-            <label className="skip" htmlFor="chat-input">
+            <label className="sr-only" htmlFor="chat-input">
               Your question
             </label>
             <textarea

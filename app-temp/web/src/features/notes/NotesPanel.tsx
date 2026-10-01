@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Panel } from "../../components/layout/Panel";
+import clsx from "clsx";
+import { Panel, PanelHeader } from "../../components/layout/Panel";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm } from "../ask/askAbout";
@@ -23,10 +24,12 @@ import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
 
 export function NotesPanel({
+  className,
   session,
   player,
   onOpenSource,
 }: {
+  className?: string;
   session: Session | null;
   player: AudioPlayer;
   onOpenSource: (source: Evidence) => void;
@@ -184,31 +187,34 @@ export function NotesPanel({
                       : "Pending decision…"
                     : null;
   return (
-    <Panel className="notes-panel" data-testid="notes-panel">
-      <div className="panel-head">
-        <div className="note-title">
-          <h2>Lecture notes</h2>
-          <span>v{session?.noteVersion || 0}</span>
-          <ActivityPopover
-            key={session?.id}
-            session={session}
-            items={activity.items}
-            error={activity.error}
-            onSource={onOpenSource}
-            onNotesRestored={() => refreshWorkspace(session!.id)}
-          />
-          {noteStatus && (
-            <span
-              className="note-ai-status"
-              role="status"
-              data-testid="note-ai-status"
-            >
-              <Icon name="pen" />
-              {noteStatus}
-            </span>
-          )}
-        </div>
-        <div className="panel-actions">
+    <Panel className={clsx("notes-panel", className)} data-testid="notes-panel">
+      <PanelHeader
+        wrap
+        title={
+          <div className="note-title">
+            <h2 className="text-[15px] font-[750]">Lecture notes</h2>
+            <span>v{session?.noteVersion || 0}</span>
+            <ActivityPopover
+              key={session?.id}
+              session={session}
+              items={activity.items}
+              error={activity.error}
+              onSource={onOpenSource}
+              onNotesRestored={() => refreshWorkspace(session!.id)}
+            />
+            {noteStatus && (
+              <span
+                className="note-ai-status"
+                role="status"
+                data-testid="note-ai-status"
+              >
+                <Icon name="pen" />
+                {noteStatus}
+              </span>
+            )}
+          </div>
+        }
+        actions={
           <Segmented>
             <Segment
               pressed={noteMode === "preview"}
@@ -236,8 +242,8 @@ export function NotesPanel({
               {runningNote && <span className="draft-dot" aria-hidden="true" />}
             </Segment>
           </Segmented>
-        </div>
-      </div>
+        }
+      />
       <div
         className="notes-body"
         data-testid="notes-body"

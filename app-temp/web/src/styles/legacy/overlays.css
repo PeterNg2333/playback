@@ -165,15 +165,6 @@ dialog {
 dialog::backdrop {
   background: #2429465c;
 }
-.global-error button {
-  padding: revert;
-  float: right;
-  margin-left: 12px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
 .chat-scroll {
   flex: 1;
   min-height: 0;
@@ -202,20 +193,6 @@ dialog::backdrop {
   display: block;
   margin: 9px 0;
   color: var(--muted);
-}
-.sound-warning {
-  position: fixed;
-  top: 70px;
-  right: 20px;
-  z-index: 25;
-  max-width: 380px;
-  padding: 12px 15px;
-  border: 1px solid #e7bf92;
-  border-radius: 9px;
-  background: #fff8ed;
-  color: #744515;
-  font-size: 12px;
-  box-shadow: 0 8px 24px #24263b15;
 }
 .delete-group-content {
   padding: 22px;
@@ -390,20 +367,6 @@ dialog::backdrop {
   font-weight: 700;
   bottom: 140px;
 }
-.global-error {
-  position: fixed;
-  left: 16px;
-  z-index: 30;
-  max-width: 480px;
-  padding: 10px 12px;
-  border: 1px solid #efb8c9;
-  border-radius: 9px;
-  background: #fff2f6;
-  color: #873859;
-  font-size: 12px;
-  box-shadow: 0 4px 22px #26284822;
-  bottom: 90px;
-}
 .chat-error {
   margin: 0 0 10px;
   padding: 9px;
@@ -527,7 +490,7 @@ dialog::backdrop {
   bottom: 165px;
 }
 @media (max-width: 1100px) {
-  .app-shell[data-view="notes"] .floating {
+  body[data-view="notes"] .floating {
     bottom: 82px;
   }
 }
@@ -540,30 +503,15 @@ dialog::backdrop {
     right: 12px;
     bottom: 90px;
   }
-  .global-error {
-    bottom: 90px;
-  }
   .selection-action {
     right: 14px;
     bottom: 138px;
   }
-  .app-shell[data-view="notes"] .floating {
+  body[data-view="notes"] .floating {
     bottom: 130px;
   }
   .term-explanation {
     bottom: 178px;
-  }
-}
-@media (max-width: 700px) {
-  .topbar .project-name {
-    width: 100%;
-    max-width: 100%;
-    left: auto;
-    text-align: center;
-  }
-  .sidebar:not(.is-open) {
-    visibility: hidden;
-    pointer-events: none;
   }
 }
 .chat [data-markdown] {

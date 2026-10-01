@@ -220,32 +220,17 @@
 .recording-mode:disabled {
   opacity: 0.6;
 }
-.source-api-warning {
-  flex: none;
-  margin-left: 248px;
-  padding: 7px 20px;
-  border-bottom: 1px solid var(--line);
-  background: #fff8ed;
-  color: var(--ink);
-  font-size: 12px;
-}
 @keyframes record-pulse {
   50% {
     opacity: 0.35;
   }
 }
 @media (max-width: 900px) {
-  .source-api-warning {
-    margin-left: 216px;
-  }
   .playback-footer {
     margin-left: 216px;
   }
 }
 @media (max-width: 700px) {
-  .source-api-warning {
-    margin-left: 0;
-  }
   .record-start {
     padding: 0 8px;
   }
@@ -254,9 +239,6 @@
   }
   .record-indicator .record-countdown {
     font-size: 11px;
-  }
-  .topbar:has(.record-actions:not([data-state="idle"])) .brand-title {
-    display: none;
   }
   .playback-footer {
     margin-left: 0;
