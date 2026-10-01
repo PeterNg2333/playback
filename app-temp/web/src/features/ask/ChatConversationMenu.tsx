@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { useDismiss } from "../../components/Menu";
@@ -7,6 +8,7 @@ import type { Session } from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 import { useLibrary } from "../library/useLibrary";
 import type { ChatConversations } from "./useChatConversations";
+import { ChatIconButton } from "./ChatControls";
 
 export function ChatConversationMenu({
   session,
@@ -26,21 +28,28 @@ export function ChatConversationMenu({
   const root = useRef<HTMLDivElement>(null);
   useDismiss(root, open, () => setOpen(false));
   return (
-    <div className="chat-conversation-picker" ref={root}>
-      <button
-        className="icon-button"
+    <div ref={root}>
+      <ChatIconButton
         type="button"
         aria-label="Chat conversations"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <Icon name="menu" />
-      </button>
+        <Icon name="menu" className="size-4" />
+      </ChatIconButton>
       {open && (
-        <div className="chat-conversation-menu">
-          <label htmlFor="chat-session">Lecture session</label>
+        // Drops down over the conversation, below the Ask panel's header.
+        <div className="absolute top-16 right-3 left-3 z-2 max-h-[min(350px,45dvh)] overflow-y-auto rounded-[10px] border border-line bg-surface p-3.5 shadow-[0_12px_35px_#25243c25]">
+          <label
+            htmlFor="chat-session"
+            className="mb-1.5 block text-[11px] font-bold"
+          >
+            Lecture session
+          </label>
+          {/* The browser's own drop-down font and text colour. */}
           <select
             id="chat-session"
+            className="w-full rounded-md border border-line bg-surface p-2 [font:revert] text-black"
             value={session?.id ?? ""}
             disabled={!!busy || conversations.loading}
             onChange={(event) => {
@@ -69,10 +78,12 @@ export function ChatConversationMenu({
                 ))}
             </optgroup>
           </select>
-          <small>Answers use only this lecture session.</small>
+          <small className={noteStyle}>
+            Answers use only this lecture session.
+          </small>
           <button
             type="button"
-            className="new-conversation"
+            className={clsx(itemStyle, "bg-accent-soft text-accent")}
             disabled={
               !session ||
               !health?.chatConversations ||
@@ -87,13 +98,19 @@ export function ChatConversationMenu({
             ＋ New conversation
           </button>
           {conversations.loading ? (
-            <p role="status">Loading conversations…</p>
+            <p className={messageStyle} role="status">
+              Loading conversations…
+            </p>
           ) : conversations.list.length ? (
-            <ul aria-label="Saved conversations">
+            <ul className="mt-2" aria-label="Saved conversations">
               {conversations.list.map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
+                    className={clsx(
+                      itemStyle,
+                      "text-ink aria-pressed:bg-accent-soft aria-pressed:text-accent",
+                    )}
                     disabled={!!busy}
                     aria-pressed={conversations.current?.id === item.id}
                     onClick={async () => {
@@ -107,13 +124,22 @@ export function ChatConversationMenu({
               ))}
             </ul>
           ) : (
-            <p>No conversations in this session yet.</p>
+            <p className={messageStyle}>
+              No conversations in this session yet.
+            </p>
           )}
           {health && !health.chatConversations && (
-            <small>Restart the API to enable saved conversations.</small>
+            <small className={noteStyle}>
+              Restart the API to enable saved conversations.
+            </small>
           )}
         </div>
       )}
     </div>
   );
 }
+
+const noteStyle = "my-1.5 block text-[10px] text-muted";
+const messageStyle = "mb-2.75 text-[11px] text-muted";
+const itemStyle =
+  "w-full cursor-pointer rounded-md p-2.25 text-left text-[12px]";

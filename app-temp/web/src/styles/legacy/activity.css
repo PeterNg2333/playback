@@ -160,11 +160,3 @@
   border: 1px dashed var(--accent);
   border-radius: 8px;
 }
-.provisional-answer {
-  opacity: 0.62;
-  white-space: pre-wrap;
-}
-.chat-progress {
-  padding: 10px 0;
-  color: var(--accent);
-}
