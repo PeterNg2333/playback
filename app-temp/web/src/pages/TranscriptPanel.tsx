@@ -4,7 +4,7 @@ import type { Session } from "../types/api";
 import type { AudioPlayer } from "./useAudioPlayback";
 import { TranscriptContent } from "./TranscriptContent";
 import { TranscriptSettings } from "./TranscriptSettings";
-import { asrSummary } from "./format";
+import { asrSummary } from "../features/transcript/asrStatus";
 
 export function TranscriptPanel({
   session,

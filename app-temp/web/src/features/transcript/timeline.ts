@@ -1,58 +1,12 @@
-import type { CaptureStatus, Chunk, Session, Transcript } from "../types/api";
+import type {
+  CaptureStatus,
+  Chunk,
+  Session,
+  Transcript,
+} from "../../types/api";
 
-export function formatDateTime(value?: string) {
-  return value ? new Date(value).toLocaleString() : "Time not recorded";
-}
-
-export const time = (ms: number) => {
-  const seconds = Math.floor(ms / 1000);
-  const clock = `${String(Math.floor((seconds % 3600) / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-  return seconds >= 3600
-    ? `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${clock}`
-    : clock;
-};
-export const clockTime = (date: Date) =>
-  `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
-export const recordedRange = (
-  recordedAt: string | null | undefined,
-  sessionCreatedAt: string | undefined,
-  startMs: number,
-  endMs: number,
-) => {
-  const start = recordedAt
-    ? new Date(recordedAt)
-    : new Date(new Date(sessionCreatedAt || 0).getTime() + startMs);
-  const end = new Date(start.getTime() + endMs - startMs);
-  return { start: clockTime(start), end: clockTime(end) };
-};
-export const cleanAsrText = (value: string) =>
-  value.replace(/<\|[^|>]*\|>/g, "").trim();
-export const chunkStatus = (status: string) =>
-  (
-    ({
-      silent: "Exact digital silence · ASR skipped",
-      "vad-silence": "VAD found no speech · audio retained",
-      "asr-empty": "ASR returned no words · audio retained",
-      "asr-error": "ASR failed · retrying",
-      "asr-manual": "ASR stopped · retry manually",
-      "awaiting-consent": "Queued for ASR · restart the API",
-      "pending-asr": "Queued for ASR",
-      transcribing: "Transcribing…",
-      transcribed: "Transcript ready",
-    }) as Record<string, string>
-  )[status] || status;
-
-// Show the most actionable ASR state when a session has several pending parts.
-export function asrSummary(chunks: Chunk[], paused: boolean) {
-  if (paused) return "ASR paused · audio saved locally";
-  const statuses = new Set(chunks.map((chunk) => chunk.status));
-  if (statuses.has("awaiting-consent")) return "ASR waiting · restart API";
-  if (statuses.has("asr-manual")) return "ASR stopped · manual retry available";
-  if (statuses.has("asr-error")) return "ASR failed · retrying";
-  if (statuses.has("transcribing")) return "Transcribing…";
-  if (statuses.has("pending-asr")) return "ASR queued";
-  return null;
-}
+// The transcript timeline: a session's audio parts and transcripts grouped by day and
+// hour, with quiet audio folded together and settled passages combined for reading.
 
 export type TimelineEntry =
   | { kind: "audio"; chunks: Chunk[]; transcript?: Transcript; at: Date }
@@ -208,4 +162,71 @@ export function transcriptDays(
     } else hours.get(hour)!.push(entry);
   }
   return days;
+}
+
+export type PassageEntry = {
+  kind: "passage";
+  transcripts: Transcript[];
+  at: Date;
+};
+export type DisplayEntry = TimelineEntry | PassageEntry;
+
+// Display consolidation only: original identity/timing/audio survives. Recent finals stay separate.
+export function combineTranscriptEntries(
+  entries: TimelineEntry[],
+  settledThrough: number,
+): DisplayEntry[] {
+  const result: DisplayEntry[] = [],
+    active = new Map<string, PassageEntry>();
+  for (const entry of entries) {
+    const text =
+      entry.kind === "transcript"
+        ? entry.transcript
+        : entry.kind === "audio"
+          ? entry.transcript
+          : undefined;
+    if (
+      !text ||
+      text.endMs > settledThrough ||
+      text.uncertain ||
+      !text.original ||
+      text.recognitionStatus === "asr-empty"
+    ) {
+      if (entry.kind === "audio" || entry.kind === "silence")
+        for (const chunk of entry.chunks) active.delete(chunk.sourceId);
+      result.push(entry);
+      continue;
+    }
+    const prior = active.get(text.sourceId),
+      last = prior?.transcripts.at(-1);
+    const chars =
+      prior?.transcripts.reduce(
+        (sum, x) => sum + (x.displayOriginal ?? x.original).length,
+        0,
+      ) ?? 0;
+    if (
+      prior &&
+      last &&
+      text.startMs >= last.endMs - 1000 &&
+      text.startMs <= last.endMs + 1500 &&
+      text.endMs - prior.transcripts[0].startMs <= 120000 &&
+      prior.transcripts.length < 16 &&
+      chars + (text.displayOriginal ?? text.original).length <= 3200
+    )
+      prior.transcripts.push(text);
+    else {
+      const passage: PassageEntry = {
+        kind: "passage",
+        transcripts: [text],
+        at: entry.at,
+      };
+      active.set(text.sourceId, passage);
+      result.push(passage);
+    }
+  }
+  return result.map((entry) =>
+    entry.kind === "passage" && entry.transcripts.length === 1
+      ? { kind: "transcript", transcript: entry.transcripts[0], at: entry.at }
+      : entry,
+  );
 }

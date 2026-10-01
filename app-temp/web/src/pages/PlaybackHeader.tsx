@@ -4,7 +4,7 @@ import { useHealth } from "../lib/useHealth";
 import { useCapture } from "../features/recording/useCapture";
 import { RecordingModeSchema, type Session } from "../types/api";
 import { usePlaybackField, usePlaybackStore } from "./store";
-import { time } from "./format";
+import { formatElapsed } from "../lib/time";
 
 export function PlaybackHeader({ session }: { session: Session | null }) {
   const [navOpen, setNavOpen] = usePlaybackField("navOpen");
@@ -19,7 +19,7 @@ export function PlaybackHeader({ session }: { session: Session | null }) {
   const elapsed =
     capture?.recordingElapsedMs == null
       ? "Restart API for timer"
-      : time(capture.recordingElapsedMs);
+      : formatElapsed(capture.recordingElapsedMs);
   const selectedMode = isIdle ? recordingMode : (capture?.sourceMode ?? "both");
   const sourceSelectionSupported = health?.recordingSourceSelection === true;
   const sourceSelectionTitle =

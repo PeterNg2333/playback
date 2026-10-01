@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Chunk, Session } from "../types/api";
-import { clockTime } from "./format";
+import { clockTime } from "../lib/time";
 
 type PlayableChunk = Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">;
 type Part = {

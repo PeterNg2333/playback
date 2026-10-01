@@ -5,7 +5,8 @@ import type {
   Transcript,
   TermInsight,
 } from "../types/api";
-import { cleanAsrText, recordedRange } from "./format";
+import { recordedRange } from "../lib/time";
+import { cleanAsrText } from "../features/transcript/asrStatus";
 import { RecordPlay } from "./RecordPlay";
 import { TermHighlight } from "./TermHighlight";
 import { useLayoutEffect, useRef } from "react";

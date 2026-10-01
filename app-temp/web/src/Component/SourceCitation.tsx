@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { time } from "../pages/format";
+import { formatElapsed } from "../lib/time";
 
 export function SourceCitation({
   groups,
@@ -54,7 +54,7 @@ export function SourceCitation({
       });
   }
   const label = ranges.length
-    ? `${time(ranges[0].start)}–${time(ranges[0].end)}${ranges.length > 1 ? ` +${ranges.length - 1}` : ""}`
+    ? `${formatElapsed(ranges[0].start)}–${formatElapsed(ranges[0].end)}${ranges.length > 1 ? ` +${ranges.length - 1}` : ""}`
     : `${ids.length} cited source${ids.length === 1 ? "" : "s"}`;
   useLayoutEffect(() => {
     if (!open || !anchor.current || !panel.current) return;
@@ -123,8 +123,8 @@ export function SourceCitation({
             </small>
             {ranges.map((range, index) => (
               <p key={index}>
-                {range.sourceId} · {time(range.start)}–{time(range.end)} ·{" "}
-                {range.ids.length} cited parts
+                {range.sourceId} · {formatElapsed(range.start)}–
+                {formatElapsed(range.end)} · {range.ids.length} cited parts
               </p>
             ))}
             {groups.map((group) => (
@@ -161,8 +161,9 @@ export function SourceCitation({
                       {details.get(id)?.startMs != null && (
                         <small>
                           {details.get(id)!.sourceId} ·{" "}
-                          {time(details.get(id)!.startMs!)}–
-                          {time(details.get(id)!.endMs!)} · exact cited part
+                          {formatElapsed(details.get(id)!.startMs!)}–
+                          {formatElapsed(details.get(id)!.endMs!)} · exact cited
+                          part
                         </small>
                       )}
                     </div>

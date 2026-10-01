@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PassageEntry } from "./transcriptPassages";
+import type { PassageEntry } from "../features/transcript/timeline";
 import type { Session, TermCandidate, TermInsight } from "../types/api";
 import {
   askAboutTerm,
@@ -9,7 +9,8 @@ import type { AudioPlayer } from "./useAudioPlayback";
 import { TranscriptRow } from "./TranscriptRow";
 import { RecordPlay } from "./RecordPlay";
 import { SourceTag } from "./SourceTag";
-import { cleanAsrText, recordedRange } from "./format";
+import { recordedRange } from "../lib/time";
+import { cleanAsrText } from "../features/transcript/asrStatus";
 
 export function TranscriptPassage({
   entry,

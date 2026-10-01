@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { api } from "./api";
+import { formatMinutes } from "../lib/time";
 import { useHealth } from "../lib/useHealth";
 import { refreshWorkspace } from "../features/library/refreshWorkspace";
 import type { Evidence, Session } from "../types/api";
@@ -29,8 +30,6 @@ const ReportSchema = z.object({
   ),
 });
 type Report = z.infer<typeof ReportSchema>;
-const time = (ms: number) =>
-  `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 
 export function NoteCoveragePanel({
   session,
@@ -147,8 +146,9 @@ export function NoteCoveragePanel({
                   onOpenSource({ kind: "transcript", id: gap.sourceIds[0] })
                 }
               >
-                {time(gap.startMs)}–{time(gap.endMs)} · {gap.sourceId} ·{" "}
-                {gap.sourceIds.length} parts{gap.large ? " · large gap" : ""}
+                {formatMinutes(gap.startMs)}–{formatMinutes(gap.endMs)} ·{" "}
+                {gap.sourceId} · {gap.sourceIds.length} parts
+                {gap.large ? " · large gap" : ""}
               </button>
               {!!gap.deferred && (
                 <span>{gap.deferred} awaiting continuation</span>

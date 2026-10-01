@@ -4,7 +4,7 @@ import { useAsk } from "../features/ask/useAsk";
 import { closeNameDialog, submitName } from "../features/library/useLibrary";
 import type { Evidence, Session } from "../types/api";
 import { usePlaybackField, usePlaybackStore } from "./store";
-import { recordedRange } from "./format";
+import { recordedRange } from "../lib/time";
 import { ChatAnswer } from "./ChatAnswer";
 import { ChatConversationMenu } from "./ChatConversationMenu";
 

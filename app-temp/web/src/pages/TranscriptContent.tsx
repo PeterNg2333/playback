@@ -16,15 +16,17 @@ import { retryAsr } from "../features/transcript/retryAsr";
 import { usePlaybackStore } from "./store";
 import type { AudioPlayer } from "./useAudioPlayback";
 import { VirtualTranscript, type VirtualItem } from "./VirtualTranscript";
-import type { TimelineEntry } from "./format";
-import { chunkStatus, recordedRange, transcriptDays } from "./format";
+import { recordedRange } from "../lib/time";
+import { chunkStatus } from "../features/transcript/asrStatus";
+import {
+  combineTranscriptEntries,
+  transcriptDays,
+  type DisplayEntry,
+  type TimelineEntry,
+} from "../features/transcript/timeline";
 import { TranscriptRow } from "./TranscriptRow";
 import { RecordPlay } from "./RecordPlay";
 import { SourceTag, sourceLabel } from "./SourceTag";
-import {
-  combineTranscriptEntries,
-  type DisplayEntry,
-} from "./transcriptPassages";
 import { TranscriptPassage } from "./TranscriptPassage";
 
 // The recorder fields the timeline shows; input levels change every poll and are left out.

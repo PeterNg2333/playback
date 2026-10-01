@@ -1,6 +1,6 @@
 import type { Evidence, Session, TermInsight } from "../types/api";
 import { SourceLinks } from "./SourceLinks";
-import { formatDateTime } from "./format";
+import { formatDateTime } from "../lib/time";
 import { LazyDetails } from "../Component/LazyDetails";
 
 type TermDecisionTraceProps = {

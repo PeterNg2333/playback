@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Activity, Evidence, Session } from "../types/api";
 import { ActivityContent } from "./ActivityContent";
-import { time } from "./format";
+import { formatElapsed } from "../lib/time";
 import { LazyDetails } from "../Component/LazyDetails";
 
 export function ActivityPopover({
@@ -140,7 +140,7 @@ export function ActivityPopover({
                         >
                           {material?.name ??
                             (transcript
-                              ? `${transcript.sourceId} · ${time(transcript.startMs)}–${time(transcript.endMs)}`
+                              ? `${transcript.sourceId} · ${formatElapsed(transcript.startMs)}–${formatElapsed(transcript.endMs)}`
                               : `Source ${id.slice(-8)}`)}
                         </button>
                       );
