@@ -13,6 +13,7 @@
 }
 .activity-intro,
 .activity-help {
+  margin-bottom: revert;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.6;
@@ -23,6 +24,7 @@
 .activity-content h3 {
   margin: 0 0 6px;
   font-size: 14px;
+  font-weight: revert;
 }
 .activity-entry {
   margin-top: 8px;
@@ -139,6 +141,12 @@
 }
 .activity-popover .activity-content {
   padding: 8px 0;
+}
+.activity-popover p {
+  margin-bottom: revert;
+}
+.activity-popover small {
+  font-size: revert;
 }
 .activity-popover [data-status="running"],
 .activity-popover [data-status="queued"] {

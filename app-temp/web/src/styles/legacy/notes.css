@@ -20,76 +20,6 @@
   color: var(--accent);
   box-shadow: 0 1px 4px #2628481b;
 }
-.markdown-preview {
-  max-width: 64ch;
-}
-.markdown-preview h4 {
-  margin: 23px 0 9px;
-  font-size: 13px;
-  font-weight: 760;
-}
-.markdown-preview li {
-  color: #495065;
-  font-size: 13px;
-  line-height: 1.65;
-}
-.markdown-preview p {
-  color: #495065;
-  font-size: 13px;
-  line-height: 1.65;
-  margin: 0 0 13px;
-}
-.markdown-preview ul {
-  display: grid;
-  gap: 7px;
-  margin: 0 0 15px;
-  padding-left: 20px;
-}
-.markdown-preview li::marker {
-  color: var(--pink);
-}
-.markdown-preview blockquote {
-  color: #495065;
-  font-size: 13px;
-  line-height: 1.65;
-  margin: 19px 0 0;
-  padding: 9px 14px;
-  border-left: 3px solid var(--pink);
-  border-radius: 0 8px 8px 0;
-  background: var(--pink-soft);
-}
-.markdown-preview code {
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 12px;
-}
-.flowchart {
-  margin: 15px 0 18px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fcfbff;
-}
-.flowchart figcaption {
-  margin-bottom: 8px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 750;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-.flowchart > p {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.flowchart-scroll {
-  overflow-x: auto;
-}
 .notes-body > button {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -106,33 +36,6 @@
 .notes-body button:disabled {
   opacity: 0.48;
   cursor: not-allowed;
-}
-.markdown-preview a {
-  color: var(--accent);
-}
-.markdown-preview pre {
-  max-width: 100%;
-  overflow: auto;
-}
-.markdown-preview .flowchart svg {
-  max-width: 100%;
-  height: auto;
-}
-.markdown-preview h1 {
-  margin: 0 0 15px;
-  font-size: 24px;
-  line-height: 1.2;
-}
-.markdown-preview h2 {
-  margin: 22px 0 9px;
-  font-size: 17px;
-}
-.markdown-preview h3 {
-  font-weight: 720;
-  letter-spacing: -0.035em;
-  line-height: 1.2;
-  margin: 18px 0 8px;
-  font-size: 14px;
 }
 .notes-body label:not(.skip) {
   display: block;
@@ -152,7 +55,7 @@
   font-size: 11px;
   font-weight: 600;
 }
-.notes-body .markdown-preview {
+.notes-body [data-markdown] {
   max-width: 72ch;
 }
 .note-footer button {
@@ -187,6 +90,9 @@
 .note-sources .citation {
   margin-bottom: 5px;
 }
+.coverage-summary {
+  margin-bottom: revert;
+}
 .note-status {
   margin: 0 18px 10px;
   color: #9a591c;
@@ -213,6 +119,9 @@
   flex: 1;
   min-height: 0;
   height: 100%;
+}
+.markdown-editor::placeholder {
+  color: revert;
 }
 .markdown-editor {
   display: block;
@@ -242,6 +151,7 @@
   font-weight: 700;
 }
 .note-changes ol {
+  list-style: revert;
   display: grid;
   gap: 10px;
   margin: 10px 0;
@@ -355,28 +265,6 @@
   flex-wrap: wrap;
   align-items: center;
 }
-.markdown-preview table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
-  border-collapse: collapse;
-  margin-bottom: 16px;
-  font-size: 12px;
-}
-.markdown-preview th,
-.markdown-preview td {
-  border: 1px solid var(--line);
-  padding: 8px 10px;
-  text-align: left;
-}
-.markdown-preview th {
-  background: var(--accent-soft);
-}
-.markdown-preview li > ul,
-.markdown-preview li > ol {
-  margin: 7px 0;
-  border-left: 2px solid var(--line);
-}
 @media (max-width: 700px) {
   .note-footer {
     padding: 10px 14px;
@@ -399,6 +287,7 @@
   border-top: 1px solid var(--line);
 }
 .note-tools select {
+  all: revert;
   min-width: 0;
   max-width: 220px;
 }
@@ -430,6 +319,7 @@
   margin-right: 8px;
 }
 .notes-history-dialog {
+  margin: revert;
   width: 70vw;
   max-width: 1200px;
   height: 75vh;
@@ -483,12 +373,24 @@
   min-width: 0;
 }
 .historical-note {
+  margin: revert;
+  font-family: revert;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 34vh;
   overflow: auto;
   font-size: 12px;
 }
+.notes-history-dialog > p,
+.history-layout :is(section, article) > p {
+  margin-bottom: revert;
+}
+.history-layout :is(main, section) > h3 {
+  margin-bottom: revert;
+  font-size: revert;
+  font-weight: revert;
+}
+.history-layout article input { margin: revert; }
 .history-layout article {
   padding: 12px;
   border: 1px solid var(--line);

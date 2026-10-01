@@ -46,6 +46,8 @@
   margin-bottom: 6px;
 }
 .chat-conversation-menu select {
+  font: revert;
+  color: revert;
   width: 100%;
   padding: 8px;
   border: 1px solid var(--line);
@@ -101,6 +103,7 @@
   font-size: 10px;
 }
 .icon-button {
+  padding: revert;
   display: grid;
   place-items: center;
   width: 27px;
@@ -165,8 +168,7 @@ dialog {
 dialog::backdrop {
   background: #2429465c;
 }
-.global-error button {
-  float: right;
+.global-error button { padding: revert; float: right;
   margin-left: 12px;
   border: 0;
   background: transparent;
@@ -187,12 +189,17 @@ dialog::backdrop {
   border: 0;
   background: #fff;
 }
+.web-toggle input {
+  margin: revert;
+  color: revert;
+}
 .web-toggle {
   padding: 5px 13px;
   color: var(--muted);
   font-size: 10px;
 }
 .answer small {
+  font-size: revert;
   display: block;
   margin: 9px 0;
   color: var(--muted);
@@ -244,12 +251,14 @@ dialog::backdrop {
   white-space: nowrap;
 }
 .selected-source button {
+  padding: revert;
   border: 0;
   background: none;
   color: var(--muted);
   font-size: 16px;
 }
 .text-dialog {
+  margin: revert;
   width: min(420px, calc(100vw - 32px));
   max-width: none;
   padding: 0;
@@ -350,7 +359,12 @@ dialog::backdrop {
 .selected-source {
   flex-shrink: 0;
 }
+.chat-form textarea::placeholder {
+  color: revert;
+}
 .chat-form textarea {
+  color: revert;
+  background-color: revert;
   min-width: 0;
   flex: 1;
   min-height: 64px;
@@ -410,6 +424,7 @@ dialog::backdrop {
   font-size: 14px;
 }
 .term-explanation-head button {
+  padding: revert;
   border: 0;
   background: none;
   font-size: 19px;
@@ -433,6 +448,8 @@ dialog::backdrop {
   margin-bottom: 8px;
 }
 .term-explanation-sources a {
+  color: revert;
+  text-decoration: revert;
   font-size: 11px;
 }
 .term-highlight {
@@ -473,6 +490,12 @@ dialog::backdrop {
   background: var(--surface);
   box-shadow: 0 12px 35px #25243c25;
   font-size: 12px;
+}
+.source-citation-panel p {
+  margin-bottom: revert;
+}
+.source-citation-panel small {
+  font-size: revert;
 }
 .source-citation-panel section {
   margin-top: 12px;
@@ -544,19 +567,20 @@ dialog::backdrop {
     pointer-events: none;
   }
 }
-.chat .markdown-preview {
+.chat [data-markdown] {
   max-width: 100%;
 }
-.chat .markdown-preview h1,
-.chat .markdown-preview h2,
-.chat .markdown-preview h3 {
+.chat [data-markdown] h1,
+.chat [data-markdown] h2,
+.chat [data-markdown] h3 {
   font-size: 14px;
 }
-.chat .markdown-preview ul,
-.chat .markdown-preview ol {
+.chat [data-markdown] ul,
+.chat [data-markdown] ol {
   padding-left: 20px;
 }
 .group-flow-dialog {
+  margin: revert;
   width: 70vw;
   max-width: 1280px;
   height: 75vh;
@@ -609,14 +633,27 @@ dialog::backdrop {
   line-height: 1.6;
   font-size: 12px;
 }
+.group-flow-dialog :is(header p, .flow-body > p, details > p, dl) {
+  margin-bottom: revert;
+}
+.group-flow-dialog dl {
+  margin-top: revert;
+}
+.group-flow-dialog .flow-body > h3 {
+  margin-bottom: revert;
+  font-size: revert;
+  font-weight: revert;
+}
 .group-flow-dialog pre {
+  margin: revert;
+  font-family: revert;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 300px;
   overflow: auto;
   font-size: 11px;
 }
-.group-flow-dialog .markdown-preview {
+.group-flow-dialog [data-markdown] {
   max-width: none;
 }
 .flow-controls {

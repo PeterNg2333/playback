@@ -1,0 +1,29 @@
+@import "tailwindcss" source("..");
+
+/* Until every feature uses utilities, the old stylesheets sit in the components layer,
+   so a utility on an element overrides them. Each file goes once its feature is migrated. */
+@import "./legacy/base.css" layer(components);
+@import "./legacy/layout.css" layer(components);
+@import "./markdown.css";
+@import "./legacy/notes.css" layer(components);
+@import "./legacy/transcript.css" layer(components);
+@import "./legacy/controls.css" layer(components);
+@import "./legacy/activity.css" layer(components);
+@import "./legacy/overlays.css" layer(components);
+
+@theme {
+  --color-canvas: #f8f9fc;
+  --color-surface: #fff;
+  --color-ink: #24263b;
+  --color-muted: #697185;
+  --color-line: #e5e7ef;
+  --color-accent: #6059bc;
+  --color-accent-soft: #f0effa;
+  --color-pink: #c475a5;
+  --color-pink-soft: #fbf0f6;
+  --color-blue: #769bd1;
+  --font-sans: Inter, "Segoe UI", system-ui, sans-serif;
+  /* Phones up to 390px wide (most current iPhones) get the compact header and rows;
+     xs starts just above them. */
+  --breakpoint-xs: 24.4375rem;
+}

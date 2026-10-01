@@ -85,10 +85,14 @@ body[data-language="original"] .translation {
 }
 .settings-check input {
   flex: none;
+  margin: revert;
   margin-top: 2px;
+  color: revert;
 }
 .settings-menu select {
   width: 100%;
+  font-family: revert;
+  line-height: revert;
   padding: 7px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -225,6 +229,9 @@ body[data-language="original"] .translation {
 }
 .record-extra p {
   margin: 3px 0;
+}
+.record-extra small {
+  font-size: revert;
 }
 .record-extra .capture-error {
   margin: 4px 0;
@@ -585,6 +592,8 @@ body[data-language="original"] .translation {
 }
 .combine-transcript input {
   width: auto;
+  margin: revert;
+  color: revert;
 }
 .transcript-passage .passage-text {
   line-height: 1.7;

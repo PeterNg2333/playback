@@ -15,7 +15,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { requestDiagram } from "./diagramRenderer";
-import "../../styles/math.css";
+
 function Diagram({ source }: { source: string }) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
@@ -204,7 +204,7 @@ const MarkdownBody = memo(function MarkdownBody({
   components: Components;
 }) {
   return (
-    <div className="markdown-preview" data-markdown>
+    <div data-markdown>
       <ReactMarkdown
         remarkPlugins={plugins as never}
         rehypePlugins={sanitizePlugins}

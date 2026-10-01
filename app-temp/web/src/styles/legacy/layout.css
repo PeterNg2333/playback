@@ -80,6 +80,9 @@
 .nav-close {
   display: none;
 }
+.nav-close {
+  letter-spacing: revert;
+}
 .sidebar {
   position: fixed;
   top: 64px;
@@ -413,6 +416,7 @@
   }
   .mobile-nav button {
     min-height: 38px;
+    padding: revert;
     border: 0;
     border-bottom: 2px solid transparent;
     background: transparent;

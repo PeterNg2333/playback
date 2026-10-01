@@ -177,6 +177,8 @@
   width: 100%;
   min-width: 0;
   margin: 0;
+  background-color: revert;
+  color: revert;
   accent-color: var(--accent);
   cursor: pointer;
 }

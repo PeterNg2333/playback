@@ -32,6 +32,8 @@ a:focus-visible {
   z-index: 50;
   padding: 0.5rem 0.8rem;
   background: #fff;
+  color: revert;
+  text-decoration: revert;
 }
 .skip:focus {
   top: 0.5rem;
