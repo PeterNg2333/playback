@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { recordedRange } from "../../../lib/time";
 import type { Chunk } from "../../../lib/backend/schemas";
 import type { AudioPlayer } from "../../player/useAudioPlayer";
@@ -7,6 +8,13 @@ import {
   audioSourceLabel,
 } from "../../recording/AudioSourceBadge";
 import { chunkStatus } from "../asrStatus";
+import {
+  RetryButton,
+  RowDetails,
+  RowLine,
+  RowMeta,
+  TimelineRow,
+} from "./TimelineRow";
 
 // Saved audio that has no transcript yet: its ASR status, playback, and a manual retry once
 // automatic retries stopped. Neighbouring parts with the same status share one row.
@@ -48,57 +56,57 @@ export function AudioRow({
     ? "ASR stopped · audio saved"
     : chunkStatus(first.status);
   return (
-    <article
-      className={`record-row transcript-row audio-row ${stoppedIds.length ? "asr-manual-row" : ""}`}
+    // Audio whose recognition stopped is marked with an orange edge.
+    <TimelineRow
+      time={range.start}
+      className={clsx(
+        stoppedIds.length && "border-l-3 border-l-[#d38a4c] pl-2",
+      )}
       id={first.id}
       data-testid="audio-row"
     >
-      <time className="record-time">{range.start}</time>
-      <div className="record-main">
-        <div className="record-meta">
-          <AudioSourceBadge sourceId={first.sourceId} />
+      <RowMeta>
+        <AudioSourceBadge sourceId={first.sourceId} />
+        <span>
+          {range.start}–{range.end}
+        </span>
+      </RowMeta>
+      <RowLine>
+        <RowDetails muted summary={label}>
           <span>
             {range.start}–{range.end}
           </span>
-        </div>
-        <div className="record-line">
-          <details className="record-copy">
-            <summary className="record-summary">{label}</summary>
-            <div className="record-extra">
-              <span>
-                {range.start}–{range.end}
-              </span>
-              <span className="speaker">
-                {audioSourceLabel(first.sourceId)}
-              </span>
-              {chunks.length > 1 && <p>{chunks.length} audio parts grouped</p>}
-              {first.error && (
-                <p className="capture-error" role="alert">
-                  {first.error}
-                </p>
-              )}
-            </div>
-          </details>
-          <PlayButton
-            id={first.id}
-            chunks={chunks}
-            startTime={range.start}
-            endTime={range.end}
-            playingKey={playingKey}
-            onToggle={onTogglePlayback}
-          />
-        </div>
-        {stoppedIds.length > 0 && (
-          <button
-            className="retry-asr"
-            disabled={retryDisabled}
-            onClick={() => onRetry(stoppedIds)}
-          >
-            Retry ASR for {stoppedIds.length} saved audio part
-            {stoppedIds.length === 1 ? "" : "s"}
-          </button>
-        )}
-      </div>
-    </article>
+          <span className="mb-0.75 block text-[11px] font-bold text-muted">
+            {audioSourceLabel(first.sourceId)}
+          </span>
+          {chunks.length > 1 && (
+            <p className="my-0.75">{chunks.length} audio parts grouped</p>
+          )}
+          {first.error && (
+            <p className="my-1 text-[12px] text-[#a32828]" role="alert">
+              {first.error}
+            </p>
+          )}
+        </RowDetails>
+        <PlayButton
+          id={first.id}
+          chunks={chunks}
+          startTime={range.start}
+          endTime={range.end}
+          playingKey={playingKey}
+          onToggle={onTogglePlayback}
+        />
+      </RowLine>
+      {stoppedIds.length > 0 && (
+        <RetryButton
+          className="mt-1.25 mb-0.5"
+          disabled={retryDisabled}
+          onClick={() => onRetry(stoppedIds)}
+        >
+          Retry ASR for {stoppedIds.length} saved audio part
+          {stoppedIds.length === 1 ? "" : "s"}
+        </RetryButton>
+      )}
+    </TimelineRow>
   );
 }

@@ -21,10 +21,7 @@ export function TranscriptPanel({
   const settingsOpen = usePlaybackStore((state) => state.settingsOpen);
   const status = asrSummary(session?.chunks ?? [], health?.asrPaused ?? false);
   return (
-    <Panel
-      className={clsx("transcript-panel", className)}
-      data-testid="transcript-panel"
-    >
+    <Panel className={className} data-testid="transcript-panel">
       {/* Raised above the timeline so the settings menu can overlap it. */}
       <PanelHeader
         className={clsx("relative", settingsOpen ? "z-20" : "z-9")}
@@ -32,7 +29,10 @@ export function TranscriptPanel({
         actions={
           <>
             {status && (
-              <span className="processing-status" role="status">
+              <span
+                className="text-[11px] text-muted max-md:max-w-22.5 max-md:text-[9px]"
+                role="status"
+              >
                 {status}
               </span>
             )}
@@ -40,7 +40,7 @@ export function TranscriptPanel({
           </>
         }
       />
-      <div className="transcript-view" id="transcript-view">
+      <div className="flex min-h-0 flex-1 overflow-hidden" id="transcript-view">
         <Timeline key={session?.id} session={session} player={player} />
       </div>
     </Panel>

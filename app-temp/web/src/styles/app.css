@@ -5,7 +5,6 @@
 @import "./legacy/base.css" layer(components);
 @import "./markdown.css";
 @import "./legacy/notes.css" layer(components);
-@import "./legacy/transcript.css" layer(components);
 @import "./legacy/activity.css" layer(components);
 @import "./legacy/overlays.css" layer(components);
 
@@ -33,6 +32,14 @@
   @keyframes record-pulse {
     50% {
       opacity: 0.35;
+    }
+  }
+
+  /* The live dot on speech being recorded breathes while sound comes in. */
+  --animate-record-breathe: record-breathe 1.8s ease-in-out infinite;
+  @keyframes record-breathe {
+    50% {
+      box-shadow: 0 0 0 8px #f8dbe866;
     }
   }
 }

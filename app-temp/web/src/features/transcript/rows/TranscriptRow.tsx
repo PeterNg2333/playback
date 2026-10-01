@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type {
   Chunk,
   Session,
@@ -16,6 +17,7 @@ import {
   audioSourceLabel,
 } from "../../recording/AudioSourceBadge";
 import { Tag } from "../../../components/Tag";
+import { RowDetails, RowLine, RowMeta, TimelineRow } from "./TimelineRow";
 
 export function TranscriptRow({
   transcript,
@@ -60,116 +62,118 @@ export function TranscriptRow({
     transcript.translationLanguage === session.translationLanguage &&
     !!transcript.translation;
   return (
-    <article
-      className="record-row transcript-row"
+    <TimelineRow
+      time={range.start}
+      timeTitle={`${range.start}–${range.end}`}
       id={transcript.id}
       data-testid="transcript-row"
       data-transcript-id={transcript.id}
     >
-      <time className="record-time" title={`${range.start}–${range.end}`}>
-        {range.start}
-      </time>
-      <div className="record-main">
-        <div className="record-meta">
-          <AudioSourceBadge sourceId={transcript.sourceId} />
+      <RowMeta>
+        <AudioSourceBadge sourceId={transcript.sourceId} />
+        <span>
+          {range.start}–{range.end}
+        </span>
+      </RowMeta>
+      <RowLine>
+        <RowDetails
+          detailsRef={details}
+          onSelectText={onSelect}
+          summary={termSegments(original, insights).map((segment, index) =>
+            segment.term && session ? (
+              <TermHighlight
+                key={index}
+                sessionId={session.id}
+                insight={segment.term}
+                text={segment.text}
+                onAsk={() =>
+                  onAskTerm(
+                    {
+                      text: segment.term!.term,
+                      transcriptIds: segment.term!.transcriptIds,
+                      materialIds: segment.term!.materialIds,
+                    },
+                    transcript.id,
+                  )
+                }
+              />
+            ) : (
+              <span key={index}>{segment.text}</span>
+            ),
+          )}
+        >
           <span>
             {range.start}–{range.end}
           </span>
-        </div>
-        <div className="record-line">
-          <details className="record-copy" ref={details}>
-            <summary
-              className="record-summary original"
-              onMouseUp={onSelect}
-              onKeyUp={onSelect}
+          <span className="mb-0.75 block text-[11px] font-bold text-muted">
+            {audioSourceLabel(transcript.sourceId)}
+          </span>
+          {transcript.asrModel && (
+            <small className="text-[smaller]">
+              Recognized by {transcript.asrProvider} / {transcript.asrModel} ·
+              hint {transcript.asrLanguageHint ?? "auto"}
+            </small>
+          )}
+          {transcript.displayOriginal != null &&
+            transcript.displayOriginal !== transcript.original && (
+              <p className="my-0.75">
+                Provider original: {transcript.original}
+              </p>
+            )}
+          {transcript.uncertain && (
+            <span className="mt-2 inline-block rounded-[5px] bg-pink-soft px-1.75 py-0.75 text-[10px] font-bold text-[#ac4c79]">
+              Unclear · review audio
+            </span>
+          )}
+          {transcript.recognitionStatus === "asr-empty" && (
+            <span className="text-[11px] text-muted max-md:text-[9px]">
+              ASR returned no text · audio retained
+            </span>
+          )}
+          {transcript.revision && (
+            // Shown only while translation is on, as before.
+            <p
+              className={clsx(
+                "my-0.75 text-[11px] leading-[1.6] text-[#5e637b]",
+                !session?.translationEnabled && "hidden",
+              )}
             >
-              {termSegments(original, insights).map((segment, index) =>
-                segment.term && session ? (
-                  <TermHighlight
-                    key={index}
-                    sessionId={session.id}
-                    insight={segment.term}
-                    text={segment.text}
-                    onAsk={() =>
-                      onAskTerm(
-                        {
-                          text: segment.term!.term,
-                          transcriptIds: segment.term!.transcriptIds,
-                          materialIds: segment.term!.materialIds,
-                        },
-                        transcript.id,
-                      )
-                    }
-                  />
-                ) : (
-                  <span key={index}>{segment.text}</span>
-                ),
-              )}
-            </summary>
-            <div className="record-extra">
-              <span>
-                {range.start}–{range.end}
-              </span>
-              <span className="speaker">
-                {audioSourceLabel(transcript.sourceId)}
-              </span>
-              {transcript.asrModel && (
-                <small>
-                  Recognized by {transcript.asrProvider} / {transcript.asrModel}{" "}
-                  · hint {transcript.asrLanguageHint ?? "auto"}
-                </small>
-              )}
-              {transcript.displayOriginal != null &&
-                transcript.displayOriginal !== transcript.original && (
-                  <p className="raw-asr">
-                    Provider original: {transcript.original}
-                  </p>
-                )}
-              {transcript.uncertain && (
-                <span className="uncertain">Unclear · review audio</span>
-              )}
-              {transcript.recognitionStatus === "asr-empty" && (
-                <span className="processing-status">
-                  ASR returned no text · audio retained
-                </span>
-              )}
-              {transcript.revision && (
-                <p className="translation">
-                  Suggested revision: {transcript.revision}
-                </p>
-              )}
-              {candidates.map((candidate) => (
-                <Tag
-                  key={candidate.text}
-                  onClick={() => onAskTerm(candidate, transcript.id)}
-                  title="Ask Playback with this source"
-                >
-                  {candidate.text}
-                </Tag>
-              ))}
-            </div>
-          </details>
-          <PlayButton
-            id={transcript.id}
-            chunks={[transcript]}
-            startTime={range.start}
-            endTime={range.end}
-            playingKey={playingKey}
-            onToggle={onTogglePlayback}
-          />
-        </div>
-        {session?.translationEnabled && transcript.original && (
-          <p
-            className={`translation ${translationReady ? "translation-completed" : "translation-pending"}`}
-          >
-            {translationReady
-              ? transcript.translation
-              : transcript.translationStatus === "failed"
-                ? "Translation failed · retry in settings"
-                : "Translation pending…"}
-          </p>
-        )}
-      </div>
-    </article>
+              Suggested revision: {transcript.revision}
+            </p>
+          )}
+          {candidates.map((candidate) => (
+            <Tag
+              key={candidate.text}
+              onClick={() => onAskTerm(candidate, transcript.id)}
+              title="Ask Playback with this source"
+            >
+              {candidate.text}
+            </Tag>
+          ))}
+        </RowDetails>
+        <PlayButton
+          id={transcript.id}
+          chunks={[transcript]}
+          startTime={range.start}
+          endTime={range.end}
+          playingKey={playingKey}
+          onToggle={onTogglePlayback}
+        />
+      </RowLine>
+      {session?.translationEnabled && transcript.original && (
+        <p
+          className={clsx(
+            "mt-1 ml-4 text-[12px] leading-[1.5] text-[#5e637b]",
+            !translationReady && "opacity-60",
+          )}
+        >
+          {translationReady
+            ? transcript.translation
+            : transcript.translationStatus === "failed"
+              ? "Translation failed · retry in settings"
+              : "Translation pending…"}
+        </p>
+      )}
+    </TimelineRow>
   );
 }

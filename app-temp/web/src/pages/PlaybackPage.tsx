@@ -32,15 +32,14 @@ export function PlaybackPage() {
   const recording = useCaptureStatus((status) => status.state !== "idle");
   const player = useAudioPlayer(session, showError);
   const openSource = useRevealSource(session);
-  const language = session?.translationEnabled ? "bilingual" : "original";
 
   useEffect(() => {
     refreshWorkspace().catch(showError);
   }, []);
+  // The browser checks read which tab is shown from <body>.
   useEffect(() => {
     document.body.dataset.view = view;
-    document.body.dataset.language = language;
-  }, [view, language]);
+  }, [view]);
 
   return (
     <div className="flex h-dvh min-h-screen flex-col overflow-hidden">

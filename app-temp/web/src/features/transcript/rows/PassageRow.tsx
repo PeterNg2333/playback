@@ -12,6 +12,7 @@ import { PlayButton } from "../../player/PlayButton";
 import { AudioSourceBadge } from "../../recording/AudioSourceBadge";
 import { recordedRange } from "../../../lib/time";
 import { cleanAsrText } from "../asrStatus";
+import { RowMeta, TimelineRow } from "./TimelineRow";
 
 export function PassageRow({
   entry,
@@ -50,62 +51,62 @@ export function PassageRow({
     last.endMs,
   ).end;
   return (
-    <article
-      className="record-row transcript-row transcript-passage"
+    <TimelineRow
+      time={from}
       id={"passage-" + first.id}
       data-passage-sources={entry.transcripts.length}
     >
-      <time className="record-time">{from}</time>
-      <div className="record-main">
-        <div className="record-meta">
-          <AudioSourceBadge sourceId={first.sourceId} />
-          <span>
-            {from}–{through} · {entry.transcripts.length} original parts
+      <RowMeta>
+        <AudioSourceBadge sourceId={first.sourceId} />
+        <span>
+          {from}–{through} · {entry.transcripts.length} original parts
+        </span>
+        <PlayButton
+          id={"passage-" + first.id}
+          chunks={entry.transcripts}
+          startTime={from}
+          endTime={through}
+          playingKey={playingKey}
+          onToggle={onTogglePlayback}
+        />
+      </RowMeta>
+      <p
+        className="my-2 leading-[1.7] whitespace-pre-wrap"
+        onMouseUp={captureSelection}
+        onKeyUp={captureSelection}
+      >
+        {entry.transcripts.map((text) => (
+          <span key={text.id} data-transcript-id={text.id}>
+            {cleanAsrText(text.displayOriginal ?? text.original)}{" "}
           </span>
-          <PlayButton
-            id={"passage-" + first.id}
-            chunks={entry.transcripts}
-            startTime={from}
-            endTime={through}
-            playingKey={playingKey}
-            onToggle={onTogglePlayback}
-          />
-        </div>
-        <p
-          className="passage-text"
-          onMouseUp={captureSelection}
-          onKeyUp={captureSelection}
-        >
-          {entry.transcripts.map((text) => (
-            <span key={text.id} data-transcript-id={text.id}>
-              {cleanAsrText(text.displayOriginal ?? text.original)}{" "}
-            </span>
+        ))}
+      </p>
+      <details
+        className="[&>article]:mt-2"
+        open={open}
+        onToggle={(event) => setOpen(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-[0.76rem] text-muted">
+          Original parts, translations and individual audio
+        </summary>
+        {open &&
+          entry.transcripts.map((transcript) => (
+            <TranscriptRow
+              key={transcript.id}
+              transcript={transcript}
+              session={session}
+              playingKey={playingKey}
+              onTogglePlayback={onTogglePlayback}
+              onSelect={captureSelection}
+              onAskTerm={(candidate, transcriptId) =>
+                askAboutTerm(session, candidate, transcriptId)
+              }
+              reveal={transcript.id === revealId}
+              insights={insights.get(transcript.id) ?? []}
+              candidates={candidates.get(transcript.id) ?? []}
+            />
           ))}
-        </p>
-        <details
-          open={open}
-          onToggle={(event) => setOpen(event.currentTarget.open)}
-        >
-          <summary>Original parts, translations and individual audio</summary>
-          {open &&
-            entry.transcripts.map((transcript) => (
-              <TranscriptRow
-                key={transcript.id}
-                transcript={transcript}
-                session={session}
-                playingKey={playingKey}
-                onTogglePlayback={onTogglePlayback}
-                onSelect={captureSelection}
-                onAskTerm={(candidate, transcriptId) =>
-                  askAboutTerm(session, candidate, transcriptId)
-                }
-                reveal={transcript.id === revealId}
-                insights={insights.get(transcript.id) ?? []}
-                candidates={candidates.get(transcript.id) ?? []}
-              />
-            ))}
-        </details>
-      </div>
-    </article>
+      </details>
+    </TimelineRow>
   );
 }

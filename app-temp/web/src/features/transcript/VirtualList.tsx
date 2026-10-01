@@ -223,7 +223,7 @@ export function VirtualList({
   }, [target, start, end, items, revision]);
   return (
     <div
-      className="virtual-transcript"
+      className="[overflow-anchor:none]"
       ref={list}
       data-total-rows={items.length}
     >

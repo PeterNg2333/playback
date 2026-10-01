@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type {
   CaptureStatus,
@@ -21,7 +22,7 @@ import {
   type TimelineEntry,
 } from "./timelineEntries";
 import { AudioRow } from "./rows/AudioRow";
-import { LiveRow } from "./rows/LiveRow";
+import { LiveDot, LiveRow } from "./rows/LiveRow";
 import { PassageRow } from "./rows/PassageRow";
 import { SilenceRow } from "./rows/SilenceRow";
 import { TranscriptRow } from "./rows/TranscriptRow";
@@ -31,6 +32,9 @@ import { EmptyState } from "../../components/EmptyState";
 // settle in 30-second steps so a passage does not change while it is being read.
 const UNSETTLED_MS = 60_000;
 const SETTLE_STEP_MS = 30_000;
+
+const toggleStyle = "w-full py-2.5 pr-1 text-left text-[12px] text-muted";
+const captureErrorStyle = "mx-5 my-2.5 text-[12px] text-[#a32828]";
 
 // The recorder fields the timeline shows; input levels change every poll and are left out.
 const timelineCapture = (status: CaptureStatus) => ({
@@ -158,7 +162,7 @@ export function Timeline({
         estimate: 38,
         render: () => (
           <button
-            className="timeline-toggle"
+            className={clsx(toggleStyle, "pl-1")}
             data-testid="timeline-day"
             aria-expanded={!collapsed[day]}
             onClick={() =>
@@ -180,7 +184,7 @@ export function Timeline({
           estimate: 36,
           render: () => (
             <button
-              className="timeline-toggle hour-toggle"
+              className={clsx(toggleStyle, "pl-4")}
               data-testid="timeline-hour"
               aria-expanded={!collapsed[key]}
               onClick={() =>
@@ -279,29 +283,40 @@ export function Timeline({
   }
 
   return (
-    <div className="transcript-content" data-transcript-scroller>
+    // A passage the reader jumped to (VirtualList marks it data-revealed) is outlined briefly.
+    <div
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain **:data-revealed:rounded-lg **:data-revealed:bg-accent-soft **:data-revealed:outline-2 **:data-revealed:outline-accent"
+      data-transcript-scroller
+    >
       <MaterialsList session={session} />
       {capture?.error && (
-        <p className="capture-error" role="alert">
+        <p className={captureErrorStyle} role="alert">
           {capture.error}
         </p>
       )}
       {capture?.sessionId === session?.id && capture?.interimError && (
-        <p className="capture-error" role="status">
+        <p className={captureErrorStyle} role="status">
           {capture.interimError}
         </p>
       )}
-      <div className="rows" data-testid="timeline-rows">
+      <div
+        className="px-3 pb-12.5 md:px-4 lg:pb-15"
+        data-testid="timeline-rows"
+      >
         {capture &&
           capture.sessionId === session?.id &&
           capture.state !== "idle" &&
           !capture.activeSegments?.length && (
             <div
-              className="live-audio-row"
-              data-state={capture.state}
+              className={clsx(
+                "mt-3 flex items-center gap-2.25 rounded-[9px] border px-3 py-2.5 text-[13px]",
+                capture.state === "paused"
+                  ? "border-line bg-[#f6f7fa] text-muted"
+                  : "border-[#eac9da] bg-[#fff7fa] text-[#943e67]",
+              )}
               role="status"
             >
-              <span className="live-dot" />
+              <LiveDot breathing paused={capture.state === "paused"} />
               <span>
                 {capture.state === "paused"
                   ? "Recording paused"
@@ -315,9 +330,10 @@ export function Timeline({
           (capture?.sessionId === session.id &&
             !!capture.activeSegments?.length)) ? (
           <>
-            <label className="combine-transcript">
+            <label className="mt-[0.3rem] mb-3 flex items-center gap-[0.4rem] text-[0.78rem] text-muted">
               <input
                 type="checkbox"
+                className="my-0.75 mr-0.75 ml-1 w-auto"
                 checked={combine}
                 onChange={(event) => setCombine(event.target.checked)}
               />
