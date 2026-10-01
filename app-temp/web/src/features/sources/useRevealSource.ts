@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { usePlaybackStore } from "../../lib/store";
 import type { Evidence, Session } from "../../lib/backend/schemas";
 
+// Asks the transcript to show one passage, even one its virtual list has not mounted.
+// The browser checks dispatch this event directly, so it stays a window event.
+export const REVEAL_SOURCE_EVENT = "playback-reveal-source";
+export type RevealSourceDetail = { sessionId: string; id: string };
+
 // Opens a cited source: a web page in a new tab, or the transcript passage or
 // teaching material it points to, once the transcript view is showing.
 export function useRevealSource(session: Session | null) {
@@ -25,8 +30,8 @@ export function useRevealSource(session: Session | null) {
         ?.setAttribute("open", "");
     }
     window.dispatchEvent(
-      new CustomEvent("playback-reveal-source", {
-        detail: { sessionId: session.id, id: evidence.id },
+      new CustomEvent<RevealSourceDetail>(REVEAL_SOURCE_EVENT, {
+        detail: { sessionId: session.id, id: evidence.id ?? "" },
       }),
     );
     document

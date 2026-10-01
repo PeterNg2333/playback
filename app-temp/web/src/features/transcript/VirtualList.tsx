@@ -6,6 +6,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  REVEAL_SOURCE_EVENT,
+  type RevealSourceDetail,
+} from "../sources/useRevealSource";
 
 export type VirtualItem = {
   key: string;
@@ -164,14 +168,13 @@ export function VirtualList({
   }, [viewport.top]);
   useEffect(() => {
     const reveal = (event: Event) => {
-      const detail = (event as CustomEvent<{ sessionId: string; id: string }>)
-        .detail;
+      const detail = (event as CustomEvent<RevealSourceDetail>).detail;
       if (detail.sessionId !== sessionId) return;
       onReveal?.(detail.id);
       setTarget(detail.id);
     };
-    window.addEventListener("playback-reveal-source", reveal);
-    return () => window.removeEventListener("playback-reveal-source", reveal);
+    window.addEventListener(REVEAL_SOURCE_EVENT, reveal);
+    return () => window.removeEventListener(REVEAL_SOURCE_EVENT, reveal);
   }, [sessionId, onReveal]);
   useLayoutEffect(() => {
     if (!target) return;
