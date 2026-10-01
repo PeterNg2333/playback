@@ -1,11 +1,11 @@
 import { useMemo, useRef } from "react";
-import { Markdown, indexMarkdownSources } from "../Component/Markdown";
-import { askAboutTerm } from "../features/ask/askAbout";
-import type { Evidence, Session } from "../types/api";
-import type { AudioPlayer } from "./useAudioPlayback";
-import { SourceCitation } from "../Component/SourceCitation";
-import { TermHighlight } from "./TermHighlight";
-import { recordedRange } from "../lib/time";
+import { Markdown, indexMarkdownSources } from "../../Component/Markdown";
+import { askAboutTerm } from "../ask/askAbout";
+import type { Evidence, Session } from "../../types/api";
+import type { AudioPlayer } from "../player/useAudioPlayer";
+import { SourceCitation } from "../../Component/SourceCitation";
+import { TermHighlight } from "../../pages/TermHighlight";
+import { recordedRange } from "../../lib/time";
 
 const noRows: never[] = [];
 function useCitedRows<T extends { id: string }>(

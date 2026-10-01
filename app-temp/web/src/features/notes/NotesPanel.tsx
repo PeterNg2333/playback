@@ -1,21 +1,26 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Panel } from "../Component/Layout/Panel";
-import { Markdown } from "../Component/Markdown";
-import { useHealth } from "../lib/useHealth";
-import { askAboutTerm } from "../features/ask/askAbout";
-import { refreshWorkspace } from "../features/library/refreshWorkspace";
-import { useNoteDraft } from "../features/notes/useNoteDraft";
-import type { Evidence, Session } from "../types/api";
-import { runAction, usePlaybackField, usePlaybackStore } from "./store";
-import type { AudioPlayer } from "./useAudioPlayback";
+import { Panel } from "../../Component/Layout/Panel";
+import { Markdown } from "../../Component/Markdown";
+import { useHealth } from "../../lib/useHealth";
+import { askAboutTerm } from "../ask/askAbout";
+import { refreshWorkspace } from "../library/refreshWorkspace";
+import { useNoteDraft } from "./useNoteDraft";
+import type { Evidence, Session } from "../../types/api";
+import {
+  runAction,
+  usePlaybackField,
+  usePlaybackStore,
+} from "../../pages/store";
+import type { AudioPlayer } from "../player/useAudioPlayer";
 import { NotePreview } from "./NotePreview";
-import { NoteTools } from "./NoteTools";
+import { NoteHistoryDialog } from "./NoteHistoryDialog";
+import { OrganizeSection } from "./OrganizeSection";
 import { NoteCoveragePanel } from "./NoteCoveragePanel";
-import { TermExplanation } from "./TermExplanation";
-import { ActivityPopover } from "./ActivityPopover";
-import { useActivity } from "./useActivity";
-import { Icon } from "../Component/Icon";
-import { LazyDetails } from "../Component/LazyDetails";
+import { TermExplanation } from "../../pages/TermExplanation";
+import { ActivityPopover } from "../activity/ActivityPopover";
+import { useActivity } from "../activity/useActivity";
+import { Icon } from "../../Component/Icon";
+import { LazyDetails } from "../../Component/LazyDetails";
 
 export function NotesPanel({
   session,
@@ -401,11 +406,20 @@ export function NotesPanel({
         draftDirty={draft.isDirty}
         onOpenSource={onOpenSource}
       />
-      <NoteTools
-        key={session?.id}
-        session={session}
-        draftDirty={draft.isDirty}
-      />
+      <div className="note-tools">
+        <NoteHistoryDialog
+          key={session?.id}
+          session={session}
+          draftDirty={draft.isDirty}
+        />
+        {session && (
+          <OrganizeSection
+            key={session.id}
+            session={session}
+            draftDirty={draft.isDirty}
+          />
+        )}
+      </div>
       {draft.conflict && (
         <div className="note-conflict" role="alert">
           <p>

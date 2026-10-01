@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import { ActivitySchema, type Group } from "../types/api";
-import { api } from "./api";
-import { Markdown } from "../Component/Markdown";
+import { ActivitySchema, type Group } from "../../types/api";
+import { api } from "../../pages/api";
+import { Markdown } from "../../Component/Markdown";
 
 const FlowSchema = z.object({
   selectedSessionId: z.string().nullish(),
@@ -41,7 +41,7 @@ const FlowSchema = z.object({
     })
     .nullish(),
 });
-export function GroupFlow({
+export function AiFlowDialog({
   group,
   onClose,
 }: {

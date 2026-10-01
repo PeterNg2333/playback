@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { Activity, Evidence, Session } from "../types/api";
-import { ActivityContent } from "./ActivityContent";
-import { formatElapsed } from "../lib/time";
-import { LazyDetails } from "../Component/LazyDetails";
+import type { Activity, Evidence, Session } from "../../types/api";
+import { ActivityLog } from "./ActivityLog";
+import { formatElapsed } from "../../lib/time";
+import { LazyDetails } from "../../Component/LazyDetails";
 
 export function ActivityPopover({
   session,
@@ -150,7 +150,7 @@ export function ActivityPopover({
               </LazyDetails>
             ))}
           </div>
-          <ActivityContent
+          <ActivityLog
             session={session}
             onSource={onSource}
             onNotesRestored={onNotesRestored}

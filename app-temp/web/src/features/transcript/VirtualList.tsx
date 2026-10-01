@@ -36,7 +36,7 @@ function Measured({
     </div>
   );
 }
-export function VirtualTranscript({
+export function VirtualList({
   items,
   sessionId,
   onReveal,

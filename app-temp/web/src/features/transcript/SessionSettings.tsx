@@ -1,19 +1,19 @@
-import { Icon } from "../Component/Icon";
-import { useHealth } from "../lib/useHealth";
-import { useCaptureStatus } from "../features/recording/captureQuery";
+import { Icon } from "../../Component/Icon";
+import { useHealth } from "../../lib/useHealth";
+import { useCaptureStatus } from "../recording/captureQuery";
 import {
   retryTranslations,
   saveLanguages,
   saveTranslation,
-} from "../features/transcript/sessionSettings";
+} from "./saveSettings";
 import {
   AsrLanguageSchema,
   NoteLanguageSchema,
   type Session,
-} from "../types/api";
-import { usePlaybackField, usePlaybackStore } from "./store";
+} from "../../types/api";
+import { usePlaybackField, usePlaybackStore } from "../../pages/store";
 
-export function TranscriptSettings({ session }: { session: Session | null }) {
+export function SessionSettings({ session }: { session: Session | null }) {
   const health = useHealth();
   const busy = usePlaybackStore((state) => state.busy);
   const [settingsOpen, setSettingsOpen] = usePlaybackField("settingsOpen");

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { api } from "./api";
-import { Markdown } from "../Component/Markdown";
-import { useHealth } from "../lib/useHealth";
-import { refreshWorkspace } from "../features/library/refreshWorkspace";
-import type { Session } from "../types/api";
-import { restoreNoteVersion } from "../features/notes/restoreNoteVersion";
+import { api } from "../../pages/api";
+import { Markdown } from "../../Component/Markdown";
+import { useHealth } from "../../lib/useHealth";
+import { refreshWorkspace } from "../library/refreshWorkspace";
+import type { Session } from "../../types/api";
+import { restoreNoteVersion } from "./restoreNoteVersion";
 
 const HistorySchema = z.object({
   items: z.array(
@@ -35,7 +35,9 @@ const RecoverySchema = z.object({
   ),
 });
 type Recovery = z.infer<typeof RecoverySchema>;
-export function NoteTools({
+
+// Browses saved note versions; restores one, or recovers chosen sections of it into the current notes.
+export function NoteHistoryDialog({
   session,
   draftDirty,
 }: {
@@ -52,7 +54,6 @@ export function NoteTools({
   const [historical, setHistorical] = useState("");
   const [preview, setPreview] = useState<Recovery>();
   const [selected, setSelected] = useState<string[]>([]);
-  const [sectionId, setSectionId] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
@@ -108,7 +109,7 @@ export function NoteTools({
     });
   }
   return (
-    <div className="note-tools">
+    <>
       <button
         className="text-control"
         disabled={!session || !health?.sectionNotes}
@@ -119,45 +120,6 @@ export function NoteTools({
       >
         History & recovery
       </button>
-      {!!session?.currentNote?.sections?.length && (
-        <>
-          <label className="sr-only" htmlFor="organize-section">
-            Section to organize
-          </label>
-          <select
-            id="organize-section"
-            value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
-          >
-            <option value="">Select section…</option>
-            {session.currentNote.sections.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.title}
-                {x.userEdited ? " (user edited)" : ""}
-              </option>
-            ))}
-          </select>
-          <button
-            className="text-control"
-            disabled={!sectionId || pending || draftDirty}
-            onClick={() =>
-              load(async (signal) => {
-                await api(
-                  `/sessions/${session.id}/notes/organize`,
-                  "POST",
-                  { sectionId, basedOnVersion: session.noteVersion },
-                  undefined,
-                  signal,
-                );
-                if (!signal.aborted) await refreshWorkspace(session.id);
-              })
-            }
-          >
-            Organize section
-          </button>
-        </>
-      )}
-      {!open && error && <p role="alert">{error}</p>}
       <dialog
         ref={dialog}
         className="notes-history-dialog"
@@ -363,6 +325,6 @@ export function NoteTools({
           </>
         )}
       </dialog>
-    </div>
+    </>
   );
 }

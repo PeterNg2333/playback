@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { Chunk, Session } from "../types/api";
-import { clockTime } from "../lib/time";
+import type { Chunk, Session } from "../../types/api";
+import { clockTime } from "../../lib/time";
 
 type PlayableChunk = Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">;
 type Part = {
@@ -95,7 +95,7 @@ function partAt(parts: Part[], positionMs: number) {
   };
 }
 
-export function useAudioPlayback(
+export function useAudioPlayer(
   session: Session | null,
   setError: (message: string) => void,
 ) {
@@ -372,4 +372,4 @@ export function useAudioPlayback(
   };
 }
 
-export type AudioPlayer = ReturnType<typeof useAudioPlayback>;
+export type AudioPlayer = ReturnType<typeof useAudioPlayer>;

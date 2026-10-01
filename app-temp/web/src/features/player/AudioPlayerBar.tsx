@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useHealth } from "../lib/useHealth";
-import type { Session } from "../types/api";
-import type { AudioPlayer } from "./useAudioPlayback";
-import { PlaybackModeMenu } from "./PlaybackModeMenu";
+import { useHealth } from "../../lib/useHealth";
+import type { Session } from "../../types/api";
+import type { AudioPlayer } from "./useAudioPlayer";
+import { AudioSourceMenu } from "./AudioSourceMenu";
 
-export function PlaybackFooter({
+export function AudioPlayerBar({
   session,
   player,
 }: {
@@ -53,7 +53,7 @@ export function PlaybackFooter({
   return (
     <footer className="playback-footer" aria-label="Audio player">
       <div className="player-top">
-        <PlaybackModeMenu
+        <AudioSourceMenu
           sources={sources}
           sourceMode={player.sourceMode}
           selectedAudio={position.kind === "row"}

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
-import { Icon } from "../Component/Icon";
-import { SideNav } from "../Component/Layout/SideNav";
-import type { Group, Session } from "../types/api";
-import { useHealth } from "../lib/useHealth";
+import { Icon } from "../../Component/Icon";
+import { SideNav } from "../../Component/Layout/SideNav";
+import type { Group, Session } from "../../types/api";
+import { useHealth } from "../../lib/useHealth";
 import {
   askForGroupName,
   askForSessionName,
@@ -11,12 +11,12 @@ import {
   deleteGroup,
   moveSession,
   useLibrary,
-} from "../features/library/useLibrary";
-import { usePlaybackField, usePlaybackStore } from "./store";
+} from "./useLibrary";
+import { usePlaybackField, usePlaybackStore } from "../../pages/store";
 import { SessionItem } from "./SessionItem";
-import { GroupFlow } from "./GroupFlow";
+import { AiFlowDialog } from "../activity/AiFlowDialog";
 
-export function SessionNav({ session }: { session: Session | null }) {
+export function LibrarySidebar({ session }: { session: Session | null }) {
   const [navOpen, setNavOpen] = usePlaybackField("navOpen");
   const busy = usePlaybackStore((state) => state.busy);
   const error = usePlaybackStore((state) => state.error);
@@ -231,7 +231,7 @@ export function SessionNav({ session }: { session: Session | null }) {
       </section>
 
       {flowGroup && (
-        <GroupFlow
+        <AiFlowDialog
           key={flowGroup.id}
           group={flowGroup}
           onClose={() => setFlowGroup(null)}

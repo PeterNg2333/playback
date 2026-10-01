@@ -1,27 +1,27 @@
 import { useEffect, useState } from "react";
-import type { Evidence, NoteEditLog, Session } from "../types/api";
-import { NoteEditLogSchema } from "../types/api";
-import { api } from "./api";
-import { NoteEditHistory } from "./NoteEditHistory";
-import { TermDecisionTrace } from "./TermDecisionTrace";
-import { restoreNoteVersion } from "../features/notes/restoreNoteVersion";
+import type { Evidence, NoteEditLog, Session } from "../../types/api";
+import { NoteEditLogSchema } from "../../types/api";
+import { api } from "../../pages/api";
+import { NoteEditHistory } from "../notes/NoteEditHistory";
+import { TermDecisionTrace } from "../../pages/TermDecisionTrace";
+import { restoreNoteVersion } from "../notes/restoreNoteVersion";
 
 type HistoryState =
   | { status: "loading"; sessionId: string }
   | { status: "loaded"; sessionId: string; notes: NoteEditLog[] }
   | { status: "failed"; sessionId: string; message: string };
 
-type ActivityContentProps = {
+type ActivityLogProps = {
   session: Session | null;
   onSource: (source: Evidence) => void;
   onNotesRestored: () => Promise<void>;
 };
 
-export function ActivityContent({
+export function ActivityLog({
   session,
   onSource,
   onNotesRestored,
-}: ActivityContentProps) {
+}: ActivityLogProps) {
   const [history, setHistory] = useState<HistoryState | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState("");

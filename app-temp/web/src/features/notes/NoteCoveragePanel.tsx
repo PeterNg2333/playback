@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { api } from "./api";
-import { formatMinutes } from "../lib/time";
-import { useHealth } from "../lib/useHealth";
-import { refreshWorkspace } from "../features/library/refreshWorkspace";
-import type { Evidence, Session } from "../types/api";
-import { usePlaybackStore } from "./store";
+import { api } from "../../pages/api";
+import { formatMinutes } from "../../lib/time";
+import { useHealth } from "../../lib/useHealth";
+import { refreshWorkspace } from "../library/refreshWorkspace";
+import type { Evidence, Session } from "../../types/api";
+import { usePlaybackStore } from "../../pages/store";
 
 const ReportSchema = z.object({
   version: z.number(),

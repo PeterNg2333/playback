@@ -4,14 +4,17 @@ import type {
   TermCandidate,
   Transcript,
   TermInsight,
-} from "../types/api";
-import { recordedRange } from "../lib/time";
-import { cleanAsrText } from "../features/transcript/asrStatus";
-import { RecordPlay } from "./RecordPlay";
-import { TermHighlight } from "./TermHighlight";
+} from "../../types/api";
+import { recordedRange } from "../../lib/time";
+import { cleanAsrText } from "./asrStatus";
+import { PlayButton } from "../player/PlayButton";
+import { TermHighlight } from "../../pages/TermHighlight";
 import { useLayoutEffect, useRef } from "react";
-import { termSegments } from "../Component/termSegments";
-import { SourceTag, sourceLabel } from "./SourceTag";
+import { termSegments } from "../../Component/termSegments";
+import {
+  AudioSourceBadge,
+  audioSourceLabel,
+} from "../recording/AudioSourceBadge";
 
 export function TranscriptRow({
   transcript,
@@ -66,7 +69,7 @@ export function TranscriptRow({
       </span>
       <div className="record-main">
         <div className="record-meta">
-          <SourceTag sourceId={transcript.sourceId} />
+          <AudioSourceBadge sourceId={transcript.sourceId} />
           <span>
             {range.start}–{range.end}
           </span>
@@ -106,7 +109,7 @@ export function TranscriptRow({
                 {range.start}–{range.end}
               </span>
               <span className="speaker">
-                {sourceLabel(transcript.sourceId)}
+                {audioSourceLabel(transcript.sourceId)}
               </span>
               {transcript.asrModel && (
                 <small>
@@ -145,7 +148,7 @@ export function TranscriptRow({
               ))}
             </div>
           </details>
-          <RecordPlay
+          <PlayButton
             id={transcript.id}
             chunks={[transcript]}
             startTime={range.start}

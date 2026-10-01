@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
-import type { PassageEntry } from "../features/transcript/timeline";
-import type { Session, TermCandidate, TermInsight } from "../types/api";
-import {
-  askAboutTerm,
-  captureTranscriptSelection,
-} from "../features/ask/askAbout";
-import type { AudioPlayer } from "./useAudioPlayback";
+import type { PassageEntry } from "./timelineEntries";
+import type { Session, TermCandidate, TermInsight } from "../../types/api";
+import { askAboutTerm, captureTranscriptSelection } from "../ask/askAbout";
+import type { AudioPlayer } from "../player/useAudioPlayer";
 import { TranscriptRow } from "./TranscriptRow";
-import { RecordPlay } from "./RecordPlay";
-import { SourceTag } from "./SourceTag";
-import { recordedRange } from "../lib/time";
-import { cleanAsrText } from "../features/transcript/asrStatus";
+import { PlayButton } from "../player/PlayButton";
+import { AudioSourceBadge } from "../recording/AudioSourceBadge";
+import { recordedRange } from "../../lib/time";
+import { cleanAsrText } from "./asrStatus";
 
 export function TranscriptPassage({
   entry,
@@ -57,11 +54,11 @@ export function TranscriptPassage({
       <span className="record-time">{from}</span>
       <div className="record-main">
         <div className="record-meta">
-          <SourceTag sourceId={first.sourceId} />
+          <AudioSourceBadge sourceId={first.sourceId} />
           <span>
             {from}–{through} · {entry.transcripts.length} original parts
           </span>
-          <RecordPlay
+          <PlayButton
             id={"passage-" + first.id}
             chunks={entry.transcripts}
             startTime={from}

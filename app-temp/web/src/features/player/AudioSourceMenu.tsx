@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { sourceLabel } from "./SourceTag";
+import { audioSourceLabel } from "../recording/AudioSourceBadge";
 
-type PlaybackModeMenuProps = {
+type AudioSourceMenuProps = {
   sources: string[];
   sourceMode: string;
   selectedAudio: boolean;
@@ -11,7 +11,7 @@ type PlaybackModeMenuProps = {
   onSelectSource: (source: string) => void;
 };
 
-export function PlaybackModeMenu({
+export function AudioSourceMenu({
   sources,
   sourceMode,
   selectedAudio,
@@ -19,14 +19,14 @@ export function PlaybackModeMenu({
   sessionPlaybackSupported,
   onPlaySession,
   onSelectSource,
-}: PlaybackModeMenuProps) {
+}: AudioSourceMenuProps) {
   const menu = useRef<HTMLDetailsElement>(null);
   const disabled = !available || !sessionPlaybackSupported;
   const label = selectedAudio
     ? "Selected audio"
     : sourceMode === "mix"
       ? "Both sources"
-      : sourceLabel(sourceMode);
+      : audioSourceLabel(sourceMode);
   let description = selectedAudio ? "Selected audio" : "Session audio";
   if (!selectedAudio && !sessionPlaybackSupported)
     description = "Restart API for session audio";
@@ -87,7 +87,7 @@ export function PlaybackModeMenu({
             <option value="mix">Mix sources</option>
             {sources.map((source) => (
               <option key={source} value={source}>
-                {sourceLabel(source)}
+                {audioSourceLabel(source)}
               </option>
             ))}
           </select>

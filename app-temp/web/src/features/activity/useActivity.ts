@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ActivitySchema, type Activity } from "../types/api";
-import { api } from "./api";
+import { ActivitySchema, type Activity } from "../../types/api";
+import { api } from "../../pages/api";
 
 const ACTIVITY_POLL_MS = 700;
 const ACTIVITY_TIMEOUT_MS = 30_000;

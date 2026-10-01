@@ -11,12 +11,12 @@ import { useSelectedSession } from "../features/library/useSelectedSession";
 import { useCaptureStatus } from "../features/recording/captureQuery";
 import { Recorder } from "../features/recording/Recorder";
 import { useRevealSource } from "../features/sources/useRevealSource";
-import { useAudioPlayback } from "./useAudioPlayback";
+import { useAudioPlayer } from "../features/player/useAudioPlayer";
 import { showError, usePlaybackField, usePlaybackStore } from "./store";
-import { SessionNav } from "./SessionNav";
-import { NotesPanel } from "./NotesPanel";
-import { TranscriptPanel } from "./TranscriptPanel";
-import { PlaybackFooter } from "./PlaybackFooter";
+import { LibrarySidebar } from "../features/library/LibrarySidebar";
+import { NotesPanel } from "../features/notes/NotesPanel";
+import { TranscriptPanel } from "../features/transcript/TranscriptPanel";
+import { AudioPlayerBar } from "../features/player/AudioPlayerBar";
 
 export function PlaybackPage() {
   const session = useSelectedSession();
@@ -27,7 +27,7 @@ export function PlaybackPage() {
   const chatOpen = usePlaybackStore((state) => state.chatOpen);
   const workspaceLoading = usePlaybackStore((state) => state.workspaceLoading);
   const noSoundWarning = useCaptureStatus((status) => !!status.noSoundWarning);
-  const player = useAudioPlayback(session, showError);
+  const player = useAudioPlayer(session, showError);
   const openSource = useRevealSource(session);
   const language = session?.translationEnabled ? "bilingual" : "original";
 
@@ -82,7 +82,7 @@ export function PlaybackPage() {
           system audio source.
         </div>
       )}
-      <SessionNav session={session} />
+      <LibrarySidebar session={session} />
       <Workspace>
         <nav className="mobile-nav" aria-label="Workspace views">
           {(["notes", "transcript"] as const).map((v) => (
@@ -108,7 +108,7 @@ export function PlaybackPage() {
         onLoadedMetadata={player.audioLoaded}
         onEnded={player.audioEnded}
       />
-      <PlaybackFooter session={session} player={player} />
+      <AudioPlayerBar session={session} player={player} />
       <AskPanel session={session} onOpenSource={openSource} />
       {error && !chatOpen && (
         <ErrorToast message={error} onDismiss={() => setError("")} />

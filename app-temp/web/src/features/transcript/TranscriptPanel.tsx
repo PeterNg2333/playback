@@ -1,10 +1,10 @@
-import { Panel } from "../Component/Layout/Panel";
-import { useHealth } from "../lib/useHealth";
-import type { Session } from "../types/api";
-import type { AudioPlayer } from "./useAudioPlayback";
-import { TranscriptContent } from "./TranscriptContent";
-import { TranscriptSettings } from "./TranscriptSettings";
-import { asrSummary } from "../features/transcript/asrStatus";
+import { Panel } from "../../Component/Layout/Panel";
+import { useHealth } from "../../lib/useHealth";
+import type { Session } from "../../types/api";
+import type { AudioPlayer } from "../player/useAudioPlayer";
+import { Timeline } from "./Timeline";
+import { SessionSettings } from "./SessionSettings";
+import { asrSummary } from "./asrStatus";
 
 export function TranscriptPanel({
   session,
@@ -25,15 +25,11 @@ export function TranscriptPanel({
               {status}
             </span>
           )}
-          <TranscriptSettings session={session} />
+          <SessionSettings session={session} />
         </div>
       </div>
       <div className="transcript-view" id="transcript-view">
-        <TranscriptContent
-          key={session?.id}
-          session={session}
-          player={player}
-        />
+        <Timeline key={session?.id} session={session} player={player} />
       </div>
     </Panel>
   );

@@ -4,29 +4,29 @@ import type {
   Session,
   TermCandidate,
   TermInsight,
-} from "../types/api";
-import { useHealth } from "../lib/useHealth";
-import {
-  askAboutTerm,
-  captureTranscriptSelection,
-} from "../features/ask/askAbout";
-import { attachMaterial } from "../features/materials/attachMaterial";
-import { useCaptureStatus } from "../features/recording/captureQuery";
-import { retryAsr } from "../features/transcript/retryAsr";
-import { usePlaybackStore } from "./store";
-import type { AudioPlayer } from "./useAudioPlayback";
-import { VirtualTranscript, type VirtualItem } from "./VirtualTranscript";
-import { recordedRange } from "../lib/time";
-import { chunkStatus } from "../features/transcript/asrStatus";
+} from "../../types/api";
+import { useHealth } from "../../lib/useHealth";
+import { askAboutTerm, captureTranscriptSelection } from "../ask/askAbout";
+import { attachMaterial } from "../materials/attachMaterial";
+import { useCaptureStatus } from "../recording/captureQuery";
+import { retryAsr } from "./retryAsr";
+import { usePlaybackStore } from "../../pages/store";
+import type { AudioPlayer } from "../player/useAudioPlayer";
+import { VirtualList, type VirtualItem } from "./VirtualList";
+import { recordedRange } from "../../lib/time";
+import { chunkStatus } from "./asrStatus";
 import {
   combineTranscriptEntries,
   transcriptDays,
   type DisplayEntry,
   type TimelineEntry,
-} from "../features/transcript/timeline";
+} from "./timelineEntries";
 import { TranscriptRow } from "./TranscriptRow";
-import { RecordPlay } from "./RecordPlay";
-import { SourceTag, sourceLabel } from "./SourceTag";
+import { PlayButton } from "../player/PlayButton";
+import {
+  AudioSourceBadge,
+  audioSourceLabel,
+} from "../recording/AudioSourceBadge";
 import { TranscriptPassage } from "./TranscriptPassage";
 
 // The recorder fields the timeline shows; input levels change every poll and are left out.
@@ -38,7 +38,7 @@ const timelineCapture = (status: CaptureStatus) => ({
   activeSegments: status.activeSegments,
 });
 
-export function TranscriptContent({
+export function Timeline({
   session,
   player,
 }: {
@@ -259,7 +259,7 @@ export function TranscriptContent({
           <span className="record-time">{range.start}</span>
           <div className="record-main">
             <div className="record-meta">
-              <SourceTag sourceId={segment.sourceId} />
+              <AudioSourceBadge sourceId={segment.sourceId} />
               <span>Started {range.start}</span>
             </div>
             <div className="record-line">
@@ -338,7 +338,9 @@ export function TranscriptContent({
                 : ""}
               Saved audio from{" "}
               {Array.from(
-                new Set(chunks.map((chunk) => sourceLabel(chunk.sourceId))),
+                new Set(
+                  chunks.map((chunk) => audioSourceLabel(chunk.sourceId)),
+                ),
               ).join(" + ")}
             </span>
             {emptyIds.length > 0 && (
@@ -360,11 +362,11 @@ export function TranscriptContent({
                 );
                 return (
                   <div className="quiet-part" id={chunk.id} key={chunk.id}>
-                    <SourceTag sourceId={chunk.sourceId} />
+                    <AudioSourceBadge sourceId={chunk.sourceId} />
                     <span>
                       {part.start}–{part.end}
                     </span>
-                    <RecordPlay
+                    <PlayButton
                       id={chunk.id}
                       chunks={[chunk]}
                       startTime={part.start}
@@ -396,7 +398,7 @@ export function TranscriptContent({
         <span className="record-time">{range.start}</span>
         <div className="record-main">
           <div className="record-meta">
-            <SourceTag sourceId={first.sourceId} />
+            <AudioSourceBadge sourceId={first.sourceId} />
             <span>
               {range.start}–{range.end}
             </span>
@@ -408,7 +410,9 @@ export function TranscriptContent({
                 <span>
                   {range.start}–{range.end}
                 </span>
-                <span className="speaker">{sourceLabel(first.sourceId)}</span>
+                <span className="speaker">
+                  {audioSourceLabel(first.sourceId)}
+                </span>
                 {chunks.length > 1 && (
                   <p>{chunks.length} audio parts grouped</p>
                 )}
@@ -419,7 +423,7 @@ export function TranscriptContent({
                 )}
               </div>
             </details>
-            <RecordPlay
+            <PlayButton
               id={first.id}
               chunks={chunks}
               startTime={range.start}
@@ -524,7 +528,7 @@ export function TranscriptContent({
               />
               Combine completed passages
             </label>
-            <VirtualTranscript
+            <VirtualList
               key={session.id}
               items={entries}
               sessionId={session.id}

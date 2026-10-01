@@ -1,7 +1,7 @@
-import type { Chunk } from "../types/api";
-import { Icon } from "../Component/Icon";
+import type { Chunk } from "../../types/api";
+import { Icon } from "../../Component/Icon";
 
-export function RecordPlay({
+export function PlayButton({
   id,
   chunks,
   startTime,
