@@ -38,14 +38,16 @@ export function NotesPanel({
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
   const body = useRef<HTMLDivElement>(null);
+  const renderedNotes = useRef<HTMLDivElement>(null);
+  const headings = () =>
+    renderedNotes.current?.querySelectorAll<HTMLElement>("h1, h2, h3") ?? [];
+  const markdownBlocks = (element: HTMLElement) =>
+    element.querySelectorAll<HTMLElement>("[data-markdown] > *");
   const [topics, setTopics] = useState<{ title: string; level: number }[]>([]);
   useLayoutEffect(() => {
-    const headings = body.current?.querySelectorAll<HTMLElement>(
-      ".note-content h1, .note-content h2, .note-content h3",
-    );
     setTopics(
-      noteMode === "preview" && headings
-        ? Array.from(headings, (heading) => ({
+      noteMode === "preview"
+        ? Array.from(headings(), (heading) => ({
             title: heading.textContent ?? "",
             level: Number(heading.tagName.slice(1)),
           }))
@@ -63,9 +65,9 @@ export function NotesPanel({
     const element = body.current;
     if (!element) return;
     const top = element.getBoundingClientRect().top;
-    const block = Array.from(
-      element.querySelectorAll<HTMLElement>(".markdown-preview > *"),
-    ).find((item) => item.getBoundingClientRect().bottom > top);
+    const block = Array.from(markdownBlocks(element)).find(
+      (item) => item.getBoundingClientRect().bottom > top,
+    );
     scroll.current = {
       sessionId: session?.id,
       top: element.scrollTop,
@@ -90,9 +92,9 @@ export function NotesPanel({
     if (previous.sessionId !== session?.id) element.scrollTop = 0;
     else if (previous.follow) element.scrollTop = element.scrollHeight;
     else {
-      const anchor = Array.from(
-        element.querySelectorAll<HTMLElement>(".markdown-preview > *"),
-      ).find((item) => item.textContent === previous.text);
+      const anchor = Array.from(markdownBlocks(element)).find(
+        (item) => item.textContent === previous.text,
+      );
       element.scrollTop = anchor
         ? element.scrollTop +
           anchor.getBoundingClientRect().top -
@@ -255,10 +257,7 @@ export function NotesPanel({
                             type="button"
                             onClick={() => {
                               const element = body.current;
-                              const heading =
-                                element?.querySelectorAll<HTMLElement>(
-                                  ".note-content h1, .note-content h2, .note-content h3",
-                                )[index];
+                              const heading = headings()[index];
                               if (element && heading) {
                                 element.scrollTop +=
                                   heading.getBoundingClientRect().top -
@@ -279,6 +278,7 @@ export function NotesPanel({
               )}
               <NotePreview
                 key={session?.id}
+                ref={renderedNotes}
                 session={session}
                 markdown={markdown}
                 reading={reading}

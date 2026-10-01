@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type Ref } from "react";
 import { Markdown, indexMarkdownSources } from "../../Component/Markdown";
 import { askAboutTerm } from "../ask/askAbout";
 import type { Evidence, Session } from "../../types/api";
@@ -25,6 +25,7 @@ function useCitedRows<T extends { id: string }>(
   }, [rows, ids]);
 }
 export function NotePreview({
+  ref,
   session,
   markdown,
   reading,
@@ -32,6 +33,7 @@ export function NotePreview({
   onOpenSource,
   onPlay: play,
 }: {
+  ref?: Ref<HTMLDivElement>;
   session: Session | null;
   markdown: string;
   reading: boolean;
@@ -185,7 +187,7 @@ export function NotePreview({
     onPlaySources: onPlay,
   };
   return (
-    <div className="note-content">
+    <div className="note-content" ref={ref}>
       {sections?.length ? (
         sections.map((section) => {
           const ids = [...new Set(section.points.flatMap((x) => x.sourceIds))];

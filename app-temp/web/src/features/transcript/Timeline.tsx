@@ -448,7 +448,7 @@ export function Timeline({
   }
 
   return (
-    <div className="transcript-content">
+    <div className="transcript-content" data-transcript-scroller>
       <details className="materials-section" id="session-materials">
         <summary>
           Text materials <span>{session?.materials.length || 0}</span>

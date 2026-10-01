@@ -102,7 +102,9 @@ export function VirtualList({
     [],
   );
   useLayoutEffect(() => {
-    const parent = list.current?.closest<HTMLElement>(".transcript-content");
+    const parent = list.current?.closest<HTMLElement>(
+      "[data-transcript-scroller]",
+    );
     if (!parent || !list.current) return;
     let frame = 0;
     const update = () => {
@@ -129,7 +131,9 @@ export function VirtualList({
     };
   }, [sessionId]);
   useLayoutEffect(() => {
-    const parent = list.current?.closest<HTMLElement>(".transcript-content");
+    const parent = list.current?.closest<HTMLElement>(
+      "[data-transcript-scroller]",
+    );
     if (!parent || !list.current) return;
     const previous = anchor.current;
     const index = previous.key
@@ -172,7 +176,9 @@ export function VirtualList({
   useLayoutEffect(() => {
     if (!target) return;
     const index = items.findIndex((x) => x.sourceIds.includes(target));
-    const parent = list.current?.closest<HTMLElement>(".transcript-content");
+    const parent = list.current?.closest<HTMLElement>(
+      "[data-transcript-scroller]",
+    );
     if (
       index >= 0 &&
       (index < start || index >= end) &&

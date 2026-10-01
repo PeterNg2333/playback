@@ -495,7 +495,7 @@ const MarkdownBody = memo(function MarkdownBody({
   plugins: unknown[];
 }) {
   return (
-    <div className="markdown-preview">
+    <div className="markdown-preview" data-markdown>
       <ReactMarkdown
         remarkPlugins={plugins as never}
         rehypePlugins={sanitizePlugins}
