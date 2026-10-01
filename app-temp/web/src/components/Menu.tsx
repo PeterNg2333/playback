@@ -1,4 +1,11 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import clsx from "clsx";
+import {
+  useEffect,
+  useRef,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 // While `open`, calls `close` when the user presses Escape or points outside `element`.
 export function useDismiss(
@@ -28,6 +35,7 @@ export function useDismiss(
 // the summary.
 export function Menu({
   className,
+  summaryClassName,
   label,
   title = label,
   summary,
@@ -35,6 +43,7 @@ export function Menu({
   children,
 }: {
   className: string;
+  summaryClassName?: string;
   label: string;
   title?: string;
   summary: ReactNode;
@@ -54,10 +63,43 @@ export function Menu({
   });
   return (
     <details className={className} ref={menu}>
-      <summary ref={opener} aria-label={label} title={title}>
+      <summary
+        ref={opener}
+        className={clsx(
+          "cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+          summaryClassName,
+        )}
+        aria-label={label}
+        title={title}
+      >
         {summary}
       </summary>
       {children(close)}
     </details>
+  );
+}
+
+// The panel of an action menu: a short scrolling list under the summary, right-aligned.
+export function MenuList({ children }: { children: ReactNode }) {
+  return (
+    <div className="absolute top-7 right-0 z-20 max-h-57.5 w-max max-w-56.25 min-w-38.75 overflow-y-auto rounded-lg border border-line bg-white p-1 shadow-[0_8px_24px_#24263b20]">
+      {children}
+    </div>
+  );
+}
+
+// One action in a MenuList; `danger` marks one that deletes something.
+export function MenuItem({
+  danger = false,
+  ...props
+}: ComponentProps<"button"> & { danger?: boolean }) {
+  return (
+    <button
+      className={clsx(
+        "block w-full rounded-[5px] px-2.25 py-1.75 text-left text-[11px] hover:bg-[#f0f1f6]",
+        danger ? "text-[#a43f47]" : "text-ink",
+      )}
+      {...props}
+    />
   );
 }

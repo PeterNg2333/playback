@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Dialog, DialogActions, DialogButton } from "./Dialog";
 
 type Props = {
   open: boolean;
@@ -40,9 +41,8 @@ export function TextInputDialog({
   }, [open]);
 
   return (
-    <dialog
+    <Dialog
       ref={dialog}
-      className="text-dialog"
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onCancel();
@@ -50,16 +50,22 @@ export function TextInputDialog({
       aria-labelledby="text-dialog-title"
     >
       <form
+        className="grid gap-3 p-5.5"
         onSubmit={(event) => {
           event.preventDefault();
           void onSubmit(value);
         }}
       >
-        <h2 id="text-dialog-title">{title}</h2>
-        <label htmlFor="text-dialog-input">{label}</label>
+        <h2 id="text-dialog-title" className="mb-1 text-[17px] font-[750]">
+          {title}
+        </h2>
+        <label htmlFor="text-dialog-input" className="text-[12px] font-bold">
+          {label}
+        </label>
         <input
           ref={input}
           id="text-dialog-input"
+          className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-ink"
           value={value}
           maxLength={maxLength}
           required
@@ -67,19 +73,23 @@ export function TextInputDialog({
           aria-describedby={error ? "text-dialog-error" : undefined}
         />
         {error && (
-          <p id="text-dialog-error" role="alert">
+          <p
+            id="text-dialog-error"
+            className="text-[12px] text-[#a13232]"
+            role="alert"
+          >
             {error}
           </p>
         )}
-        <div className="text-dialog-actions">
-          <button type="button" onClick={onCancel} disabled={busy}>
+        <DialogActions>
+          <DialogButton type="button" onClick={onCancel} disabled={busy}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy}>
+          </DialogButton>
+          <DialogButton variant="primary" type="submit" disabled={busy}>
             {busy ? "Saving…" : "Save"}
-          </button>
-        </div>
+          </DialogButton>
+        </DialogActions>
       </form>
-    </dialog>
+    </Dialog>
   );
 }

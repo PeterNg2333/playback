@@ -1,9 +1,11 @@
+import clsx from "clsx";
 import type { DragEvent } from "react";
 import { Icon } from "../../components/Icon";
-import { Menu } from "../../components/Menu";
+import { MenuItem } from "../../components/Menu";
 import type { Group, SessionSummary } from "../../lib/backend/schemas";
 import { moveSession, openSession } from "./useLibrary";
 import { usePlaybackStore } from "../../lib/store";
+import { RowMenu, SidebarRow } from "./SidebarControls";
 
 export function SessionItem({
   item,
@@ -20,9 +22,12 @@ export function SessionItem({
 }) {
   const busy = usePlaybackStore((state) => state.busy);
   return (
-    <div className="session-entry">
+    <SidebarRow>
       <button
-        className="session-link"
+        className={clsx(
+          "flex min-w-0 flex-1 items-center gap-2.25 rounded-lg px-2.5 py-2 text-left text-[12px] text-ink aria-[current=page]:bg-[#e3e6ef] aria-[current=page]:font-bold",
+          !busy && "cursor-grab active:cursor-grabbing",
+        )}
         aria-current={currentId === item.id ? "page" : undefined}
         draggable={!busy}
         title="Open session or drag it to a group"
@@ -33,30 +38,26 @@ export function SessionItem({
           usePlaybackStore.setState({ navOpen: false });
         }}
       >
-        <Icon name="document" />
-        <span>{item.title}</span>
+        <Icon name="document" className="size-3.75 flex-none text-[#858fa1]" />
+        <span className="min-w-0 truncate">{item.title}</span>
       </button>
-      <Menu
-        className="nav-menu entry-menu"
-        label={`Move ${item.title}`}
-        summary={<Icon name="more" />}
-      >
+      <RowMenu label={`Move ${item.title}`}>
         {(close) => (
-          <div className="nav-menu-popover">
+          <>
             {item.groupId && (
-              <button
+              <MenuItem
                 onClick={() => {
                   close();
                   void moveSession(item.id, null);
                 }}
               >
                 Move to Sessions
-              </button>
+              </MenuItem>
             )}
             {groups
               .filter((group) => group.id !== item.groupId)
               .map((group) => (
-                <button
+                <MenuItem
                   key={group.id}
                   onClick={() => {
                     close();
@@ -64,16 +65,16 @@ export function SessionItem({
                   }}
                 >
                   Move to {group.name}
-                </button>
+                </MenuItem>
               ))}
             {!item.groupId && groups.length === 0 && (
-              <span className="nav-menu-hint">
+              <span className="block p-2 text-[11px] text-muted">
                 Create a group to move this session.
               </span>
             )}
-          </div>
+          </>
         )}
-      </Menu>
-    </div>
+      </RowMenu>
+    </SidebarRow>
   );
 }

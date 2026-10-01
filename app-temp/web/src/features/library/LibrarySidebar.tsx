@@ -1,8 +1,12 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { Icon } from "../../components/Icon";
-import { Menu } from "../../components/Menu";
+import { IconButton } from "../../components/IconButton";
+import { MenuItem } from "../../components/Menu";
+import { Dialog, DialogActions, DialogButton } from "../../components/Dialog";
 import { SideNav } from "../../components/layout/SideNav";
+import { RowMenu, SidebarButton, SidebarRow } from "./SidebarControls";
 import type { Group, Session } from "../../lib/backend/schemas";
 import { useHealth } from "../../lib/useHealth";
 import {
@@ -84,35 +88,38 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
 
   return (
     <SideNav open={navOpen} label="Sessions and groups">
-      <div className="sidebar-top">
+      <div className="mx-2.5 mt-px mb-3.5 flex items-center justify-between text-[10px] font-bold tracking-[0.09em] text-muted uppercase">
         <span>Workspace</span>
-        <button
-          className="nav-close icon-control"
+        <IconButton
+          small
+          className="tracking-[normal] md:hidden"
           aria-label="Close sessions"
           onClick={() => setNavOpen(false)}
         >
           ×
-        </button>
+        </IconButton>
       </div>
-      <section className="sidebar-section" aria-labelledby="groups-heading">
-        <div className="sidebar-heading">
-          <h2 id="groups-heading">Groups</h2>
-          <button
-            className="nav-icon-button sidebar-create"
+      <section className={sectionStyle} aria-labelledby="groups-heading">
+        <div className={headingStyle}>
+          <h2 id="groups-heading" className={headingTextStyle}>
+            Groups
+          </h2>
+          <SidebarButton
+            create
             aria-label="New group"
             title="New group"
             onClick={askForGroupName}
             disabled={disabled}
           >
-            <Icon name="plus" />
-          </button>
+            <Icon name="plus" className="size-3.75" />
+          </SidebarButton>
         </div>
         {groups.map((group) => {
           const open = expanded[group.id] !== false;
           const members = sessions.filter((item) => item.groupId === group.id);
           return (
             <div
-              className="session-group"
+              className={dropTargetStyle}
               data-testid="session-group"
               data-drop-target={dropTarget === group.id || undefined}
               key={group.id}
@@ -120,9 +127,9 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
               onDragLeave={dragLeave}
               onDrop={(event) => drop(event, group.id)}
             >
-              <div className="folder-row">
+              <SidebarRow>
                 <button
-                  className="folder-toggle"
+                  className="flex min-w-0 flex-1 items-center gap-2.25 px-2.25 py-2 text-left text-[12px] font-[620] text-ink"
                   aria-expanded={open}
                   aria-label={`${open ? "Collapse" : "Expand"} ${group.name}`}
                   onClick={() =>
@@ -132,57 +139,59 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
                     }))
                   }
                 >
-                  <Icon name="folder" />
-                  <span>{group.name}</span>
-                  <Icon name={open ? "chevron-down" : "chevron-right"} />
+                  <Icon
+                    name="folder"
+                    className="size-4 flex-none text-[#5e697b]"
+                  />
+                  <span className="min-w-0 truncate">{group.name}</span>
+                  <Icon
+                    name={open ? "chevron-down" : "chevron-right"}
+                    className="ml-auto size-3.25 flex-none text-[#8b94a3]"
+                  />
                 </button>
-                <button
-                  className="folder-create nav-icon-button"
+                <SidebarButton
+                  reveal
                   aria-label={`New session in ${group.name}`}
                   title={`New session in ${group.name}`}
                   onClick={() => askForSessionName(group.id)}
                   disabled={disabled}
                 >
-                  <Icon name="plus" />
-                </button>
-                <Menu
-                  className="nav-menu group-menu"
-                  label={`Group options for ${group.name}`}
-                  summary={<Icon name="more" />}
-                >
+                  <Icon name="plus" className="size-3.75" />
+                </SidebarButton>
+                <RowMenu label={`Group options for ${group.name}`}>
                   {(close) => (
-                    <div className="nav-menu-popover">
-                      <button
+                    <>
+                      <MenuItem
                         onClick={() => {
                           close();
                           setFlowGroup(group);
                         }}
                       >
                         View AI flow
-                      </button>
-                      <button
+                      </MenuItem>
+                      <MenuItem
                         onClick={() => {
                           close();
                           askToRenameGroup(group.id, group.name);
                         }}
                       >
                         Rename group
-                      </button>
-                      <button
-                        className="danger-action"
+                      </MenuItem>
+                      <MenuItem
+                        danger
                         onClick={() => {
                           close();
                           setDeleteCandidate(group);
                         }}
                       >
                         Delete group
-                      </button>
-                    </div>
+                      </MenuItem>
+                    </>
                   )}
-                </Menu>
-              </div>
+                </RowMenu>
+              </SidebarRow>
               {open && (
-                <div className="group-children">
+                <div className="mt-0.5 mb-1.25 ml-3.25 border-l border-[#dfe3ec] pl-1.75">
                   {members.map((item) => (
                     <SessionItem key={item.id} item={item} {...sessionProps} />
                   ))}
@@ -192,37 +201,40 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
           );
         })}
         {groups.length === 0 && (
-          <p className="nav-empty">Create a group to organise sessions.</p>
+          <p className={emptyStyle}>Create a group to organise sessions.</p>
         )}
       </section>
 
       <section
-        className="sidebar-section sessions-section"
+        className={clsx(sectionStyle, dropTargetStyle, "pb-2.5")}
         aria-labelledby="sessions-heading"
         data-drop-target={dropTarget === "sessions" || undefined}
         onDragOver={(event) => dragOver(event, null)}
         onDragLeave={dragLeave}
         onDrop={(event) => drop(event, null)}
       >
-        <div className="sidebar-heading">
-          <h2 id="sessions-heading">
-            <Icon name="folder" /> Sessions
+        <div className={headingStyle}>
+          <h2
+            id="sessions-heading"
+            className={clsx(headingTextStyle, "flex items-center gap-1.75")}
+          >
+            <Icon name="folder" className="size-3.75" /> Sessions
           </h2>
-          <button
-            className="nav-icon-button sidebar-create"
+          <SidebarButton
+            create
             aria-label="New session"
             title="New session"
             onClick={() => askForSessionName()}
             disabled={disabled}
           >
-            <Icon name="plus" />
-          </button>
+            <Icon name="plus" className="size-3.75" />
+          </SidebarButton>
         </div>
         {ungrouped.map((item) => (
           <SessionItem key={item.id} item={item} {...sessionProps} />
         ))}
         {ungrouped.length === 0 && (
-          <p className="nav-empty">Sessions without a group appear here.</p>
+          <p className={emptyStyle}>Sessions without a group appear here.</p>
         )}
       </section>
 
@@ -233,28 +245,36 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
           onClose={() => setFlowGroup(null)}
         />
       )}
-      <dialog
+      <Dialog
         ref={deleteDialog}
-        className="text-dialog delete-group-dialog"
         aria-labelledby="delete-group-title"
         onCancel={(event) => {
           event.preventDefault();
           if (!busy) setDeleteCandidate(null);
         }}
       >
-        <div className="delete-group-content">
-          <h2 id="delete-group-title">Delete {deleteCandidate?.name}?</h2>
-          <p>
+        <div className="p-5.5">
+          <h2 id="delete-group-title" className="mb-1 text-[17px] font-[750]">
+            Delete {deleteCandidate?.name}?
+          </h2>
+          <p className="mt-2 mb-4.5 text-[12px] text-muted">
             Sessions in this group will move to Sessions. Their notes and
             transcripts will stay intact.
           </p>
-          {error && <p role="alert">{error}</p>}
-          <div className="text-dialog-actions">
-            <button onClick={() => setDeleteCandidate(null)} disabled={!!busy}>
+          {error && (
+            <p className="text-[12px] text-[#a13232]" role="alert">
+              {error}
+            </p>
+          )}
+          <DialogActions>
+            <DialogButton
+              onClick={() => setDeleteCandidate(null)}
+              disabled={!!busy}
+            >
               Cancel
-            </button>
-            <button
-              className="danger-action"
+            </DialogButton>
+            <DialogButton
+              variant="danger"
               onClick={async () => {
                 if (deleteCandidate && (await deleteGroup(deleteCandidate.id)))
                   setDeleteCandidate(null);
@@ -262,10 +282,20 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
               disabled={!!busy}
             >
               Delete group
-            </button>
-          </div>
+            </DialogButton>
+          </DialogActions>
         </div>
-      </dialog>
+      </Dialog>
     </SideNav>
   );
 }
+
+// The Groups and Sessions sections share their spacing and heading.
+const sectionStyle = "mt-6.25 min-h-9.5 rounded-[9px]";
+const headingStyle =
+  "mx-1.75 mb-1.75 flex min-h-7 items-center justify-between px-1 text-muted";
+const headingTextStyle = "text-[11px] font-bold tracking-[0.02em]";
+const emptyStyle = "mx-2.5 my-1 text-[11px] leading-[1.4] text-muted";
+// A group or the Sessions list, highlighted while a dragged session is over it.
+const dropTargetStyle =
+  "data-drop-target:bg-[#e9e8f8] data-drop-target:outline-2 data-drop-target:-outline-offset-2 data-drop-target:outline-accent";

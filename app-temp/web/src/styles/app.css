@@ -11,6 +11,9 @@
 @import "./legacy/activity.css" layer(components);
 @import "./legacy/overlays.css" layer(components);
 
+/* Touch screens cannot hover, so controls revealed on hover stay visible there. */
+@custom-variant hover-none (@media (hover: none));
+
 @theme {
   --color-canvas: #f8f9fc;
   --color-surface: #fff;

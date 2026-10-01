@@ -37,21 +37,6 @@ h2 {
   font-size: 15px;
   font-weight: 750;
 }
-.icon-control {
-  display: inline-grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: #fff;
-  color: var(--ink);
-}
-.icon-control svg {
-  width: 17px;
-  height: 17px;
-}
 .sr-only {
   position: absolute;
   width: 1px;

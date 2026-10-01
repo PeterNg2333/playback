@@ -1,4 +1,10 @@
-export function Icon({ name }: { name: string }) {
+export function Icon({
+  name,
+  className,
+}: {
+  name: string;
+  className?: string;
+}) {
   const path =
     name === "record" ? (
       <circle cx="12" cy="12" r="6" fill="currentColor" stroke="none" />
@@ -70,6 +76,7 @@ export function Icon({ name }: { name: string }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      className={className}
     >
       {path}
     </svg>
