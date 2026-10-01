@@ -19,7 +19,10 @@ export function Icon({ name }: { name: string }) {
     ) : name === "play" ? (
       <path d="m8 5 11 7-11 7z" fill="currentColor" stroke="none" />
     ) : name === "pen" ? (
-      <><path d="m15 4 5 5M4 20l4-1 12-12a2 2 0 0 0-5-5L3 14l-1 6z" /><path d="M12 20h9" /></>
+      <>
+        <path d="m15 4 5 5M4 20l4-1 12-12a2 2 0 0 0-5-5L3 14l-1 6z" />
+        <path d="M12 20h9" />
+      </>
     ) : name === "settings" ? (
       <>
         <circle cx="12" cy="12" r="3" />

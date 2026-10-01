@@ -52,14 +52,32 @@ export function usePlaybackController() {
   const editorBaseVersion = useRef(0);
   const textDialogSubmitting = useRef(false);
   const refreshVersion = useRef(0);
-  const syncCursor = useRef<{ id: string; cursor: string } | undefined>(undefined);
-  const snapshotFlight = useRef<{ id: string; controller: AbortController; task: Promise<void> } | null>(null);
-  const workspaceFlight = useRef<{ controller: AbortController; task: Promise<void> } | null>(null);
+  const syncCursor = useRef<{ id: string; cursor: string } | undefined>(
+    undefined,
+  );
+  const snapshotFlight = useRef<{
+    id: string;
+    controller: AbortController;
+    task: Promise<void>;
+  } | null>(null);
+  const workspaceFlight = useRef<{
+    controller: AbortController;
+    task: Promise<void>;
+  } | null>(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
-  useEffect(() => () => { snapshotFlight.current?.controller.abort(); workspaceFlight.current?.controller.abort(); }, []);
+  useEffect(
+    () => () => {
+      snapshotFlight.current?.controller.abort();
+      workspaceFlight.current?.controller.abort();
+    },
+    [],
+  );
   const questionFlight = useRef<AbortController | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
-  const chatHistory = useChatConversations(session?.id, health?.chatConversations);
+  const chatHistory = useChatConversations(
+    session?.id,
+    health?.chatConversations,
+  );
   useEffect(() => {
     document.body.dataset.view = view;
     document.body.dataset.language = session?.translationEnabled
@@ -81,21 +99,39 @@ export function usePlaybackController() {
     setWorkspaceLoading(true);
     workspaceFlight.current?.controller.abort();
     const controller = new AbortController();
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]);
-    const task = refreshWorkspace(id, signal).catch(error => { if (!controller.signal.aborted) throw error; }).finally(() => {
-      if (workspaceFlight.current?.controller === controller) { workspaceFlight.current = null; setWorkspaceLoading(false); }
-    });
-    workspaceFlight.current = { controller, task }; return task;
+    const signal = AbortSignal.any([
+      controller.signal,
+      AbortSignal.timeout(30000),
+    ]);
+    const task = refreshWorkspace(id, signal)
+      .catch((error) => {
+        if (!controller.signal.aborted) throw error;
+      })
+      .finally(() => {
+        if (workspaceFlight.current?.controller === controller) {
+          workspaceFlight.current = null;
+          setWorkspaceLoading(false);
+        }
+      });
+    workspaceFlight.current = { controller, task };
+    return task;
   }
   async function refreshWorkspace(id: string | undefined, signal: AbortSignal) {
     const version = ++refreshVersion.current;
     if (snapshotFlight.current) syncCursor.current = undefined;
-    snapshotFlight.current?.controller.abort(); snapshotFlight.current = null;
+    snapshotFlight.current?.controller.abort();
+    snapshotFlight.current = null;
     const h = await api("/health", "GET", undefined, HealthSchema, signal);
     if (signal.aborted) return;
     setHealth(h);
     setCapture(
-      await api("/capture/status", "GET", undefined, CaptureStatusSchema, signal),
+      await api(
+        "/capture/status",
+        "GET",
+        undefined,
+        CaptureStatusSchema,
+        signal,
+      ),
     );
     if (!h.mongo) {
       setError(
@@ -112,7 +148,9 @@ export function usePlaybackController() {
     );
     if (signal.aborted) return;
     setSessions(list);
-    setGroups(await api("/groups", "GET", undefined, GroupSchema.array(), signal));
+    setGroups(
+      await api("/groups", "GET", undefined, GroupSchema.array(), signal),
+    );
     const chosen = [
       id,
       localStorage.getItem("playback-session"),
@@ -120,15 +158,39 @@ export function usePlaybackController() {
     ].find((candidate) => list.some((item) => item.id === candidate));
     if (chosen) {
       const previous = usePlaybackStore.getState().session;
-      const synced = h.sessionSync ? await readSession(chosen, previous?.id === chosen ? previous : null,
-        syncCursor.current?.id === chosen ? syncCursor.current.cursor : undefined, signal) : null;
-      const item = synced?.session ?? reuseSession(previous, await api("/sessions/" + chosen, "GET", undefined, SessionSchema, signal));
+      const synced = h.sessionSync
+        ? await readSession(
+            chosen,
+            previous?.id === chosen ? previous : null,
+            syncCursor.current?.id === chosen
+              ? syncCursor.current.cursor
+              : undefined,
+            signal,
+          )
+        : null;
+      const item =
+        synced?.session ??
+        reuseSession(
+          previous,
+          await api(
+            "/sessions/" + chosen,
+            "GET",
+            undefined,
+            SessionSchema,
+            signal,
+          ),
+        );
       if (signal.aborted || version !== refreshVersion.current) return;
       if (synced) syncCursor.current = { id: chosen, cursor: synced.cursor };
       const previousSessionId = usePlaybackStore.getState().session?.id;
       const previousSavedMarkdown = savedMarkdown.current;
       const currentDraft = usePlaybackStore.getState().markdown;
-      if (previousSessionId !== item.id || currentDraft === previousSavedMarkdown || currentDraft === item.noteMarkdown) editorBaseVersion.current = item.noteVersion;
+      if (
+        previousSessionId !== item.id ||
+        currentDraft === previousSavedMarkdown ||
+        currentDraft === item.noteMarkdown
+      )
+        editorBaseVersion.current = item.noteVersion;
       setSession(item);
       savedMarkdown.current = item.noteMarkdown;
       setMarkdown((current) =>
@@ -142,33 +204,74 @@ export function usePlaybackController() {
   function refreshSessionSnapshot(id: string): Promise<void> {
     // Capture continues across navigation. A final from an unselected recording
     // must not bootstrap its whole transcript only to discard the result later.
-    if (usePlaybackStore.getState().session?.id !== id) return Promise.resolve();
+    if (usePlaybackStore.getState().session?.id !== id)
+      return Promise.resolve();
     if (workspaceFlight.current) return workspaceFlight.current.task;
     if (snapshotFlight.current?.id === id) return snapshotFlight.current.task;
     snapshotFlight.current?.controller.abort();
-    const controller = new AbortController(); const version = refreshVersion.current;
+    const controller = new AbortController();
+    const version = refreshVersion.current;
     const task = (async () => {
       const previousSession = usePlaybackStore.getState().session;
       const synced = usePlaybackStore.getState().health?.sessionSync
-        ? await readSession(id, previousSession, syncCursor.current?.id === id ? syncCursor.current.cursor : undefined, controller.signal) : null;
-      const item = synced?.session ?? reuseSession(previousSession, await api("/sessions/" + id, "GET", undefined, SessionSchema, controller.signal));
-      if (controller.signal.aborted || version !== refreshVersion.current || usePlaybackStore.getState().session?.id !== id) return;
-      if (item.noteVersion < (usePlaybackStore.getState().session?.noteVersion ?? 0)) return;
+        ? await readSession(
+            id,
+            previousSession,
+            syncCursor.current?.id === id
+              ? syncCursor.current.cursor
+              : undefined,
+            controller.signal,
+          )
+        : null;
+      const item =
+        synced?.session ??
+        reuseSession(
+          previousSession,
+          await api(
+            "/sessions/" + id,
+            "GET",
+            undefined,
+            SessionSchema,
+            controller.signal,
+          ),
+        );
+      if (
+        controller.signal.aborted ||
+        version !== refreshVersion.current ||
+        usePlaybackStore.getState().session?.id !== id
+      )
+        return;
+      if (
+        item.noteVersion <
+        (usePlaybackStore.getState().session?.noteVersion ?? 0)
+      )
+        return;
       if (synced) syncCursor.current = { id, cursor: synced.cursor };
       const previous = savedMarkdown.current;
       const currentDraft = usePlaybackStore.getState().markdown;
-      if (currentDraft === previous || currentDraft === item.noteMarkdown) editorBaseVersion.current = item.noteVersion;
+      if (currentDraft === previous || currentDraft === item.noteMarkdown)
+        editorBaseVersion.current = item.noteVersion;
       savedMarkdown.current = item.noteMarkdown;
-      setMarkdown(current => current === previous ? item.noteMarkdown : current);
+      setMarkdown((current) =>
+        current === previous ? item.noteMarkdown : current,
+      );
       setSession(item);
-    })().catch(error => { if (syncCursor.current?.id === id && version === refreshVersion.current) syncCursor.current = undefined;
-      if (!controller.signal.aborted) throw error; }).finally(() => {
-      if (snapshotFlight.current?.controller === controller) snapshotFlight.current = null;
-    });
+    })()
+      .catch((error) => {
+        if (syncCursor.current?.id === id && version === refreshVersion.current)
+          syncCursor.current = undefined;
+        if (!controller.signal.aborted) throw error;
+      })
+      .finally(() => {
+        if (snapshotFlight.current?.controller === controller)
+          snapshotFlight.current = null;
+      });
     snapshotFlight.current = { id, controller, task };
     return task;
   }
-  useEffect(() => { refresh().catch((e) => setError(e.message)); }, []);
+  useEffect(() => {
+    refresh().catch((e) => setError(e.message));
+  }, []);
   useEffect(() => {
     const timer = setInterval(() => {
       if (session)
@@ -220,7 +323,8 @@ export function usePlaybackController() {
           status.noSoundWarning !== previous.noSoundWarning ||
           status.lastFinalizedAtMs !== previous.lastFinalizedAtMs ||
           status.recordingId !== previous.recordingId ||
-          Math.floor((status.recordingElapsedMs ?? 0) / 1000) !== Math.floor((previous.recordingElapsedMs ?? 0) / 1000) ||
+          Math.floor((status.recordingElapsedMs ?? 0) / 1000) !==
+            Math.floor((previous.recordingElapsedMs ?? 0) / 1000) ||
           segmentKeys(status) !== segmentKeys(previous) ||
           Math.floor((status.capturedThroughMs || 0) / 1000) !==
             Math.floor((previous.capturedThroughMs || 0) / 1000)
@@ -271,7 +375,11 @@ export function usePlaybackController() {
         .querySelector<HTMLDetailsElement>("#session-materials")
         ?.setAttribute("open", "");
     }
-    window.dispatchEvent(new CustomEvent("playback-reveal-source", { detail: { sessionId: session.id, id: evidence.id } }));
+    window.dispatchEvent(
+      new CustomEvent("playback-reveal-source", {
+        detail: { sessionId: session.id, id: evidence.id },
+      }),
+    );
     const target = document.getElementById(evidence.id || "");
     target
       ?.closest<HTMLDetailsElement>(".timeline-day")
@@ -305,8 +413,15 @@ export function usePlaybackController() {
       input.accept = ".txt,.md,text/plain,text/markdown";
       input.hidden = true;
       document.body.append(input);
-      input.onchange = () => { const selected = input.files?.[0] || null; input.remove(); resolve(selected); };
-      input.oncancel = () => { input.remove(); resolve(null); };
+      input.onchange = () => {
+        const selected = input.files?.[0] || null;
+        input.remove();
+        resolve(selected);
+      };
+      input.oncancel = () => {
+        input.remove();
+        resolve(null);
+      };
       input.click();
     });
     if (!file) return;
@@ -328,55 +443,92 @@ export function usePlaybackController() {
     }
     const controller = new AbortController();
     questionFlight.current = controller;
-    setAnswerDraft(""); setBusy("ask"); setError("");
+    setAnswerDraft("");
+    setBusy("ask");
+    setError("");
     const id = session.id;
     try {
-      const conversation = health?.chatConversations ? chatHistory.current ?? await chatHistory.create() : undefined;
-      if (controller.signal.aborted || usePlaybackStore.getState().session?.id !== id) return;
+      const conversation = health?.chatConversations
+        ? (chatHistory.current ?? (await chatHistory.create()))
+        : undefined;
+      if (
+        controller.signal.aborted ||
+        usePlaybackStore.getState().session?.id !== id
+      )
+        return;
       const body = {
-            question: parsed.data,
-            useWeb,
-            transcriptId: selection?.transcriptId,
-            selectedText: selection?.text,
-            materialId: focusMaterialId,
-            requestId: crypto.randomUUID(),
-            conversationId: conversation?.id,
-          };
+        question: parsed.data,
+        useWeb,
+        transcriptId: selection?.transcriptId,
+        selectedText: selection?.text,
+        materialId: focusMaterialId,
+        requestId: crypto.randomUUID(),
+        conversationId: conversation?.id,
+      };
       const result = health?.groundedChatFallback
-        ? await askStream(id, body, controller.signal, text => {
-            if (usePlaybackStore.getState().session?.id === id) setAnswerDraft(text);
+        ? await askStream(id, body, controller.signal, (text) => {
+            if (usePlaybackStore.getState().session?.id === id)
+              setAnswerDraft(text);
           })
         : await api(`/sessions/${id}/ask`, "POST", body, AnswerSchema);
-      if (usePlaybackStore.getState().session?.id !== id || controller.signal.aborted) return;
+      if (
+        usePlaybackStore.getState().session?.id !== id ||
+        controller.signal.aborted
+      )
+        return;
       setAnswer(result);
       if (conversation) {
-        try { await chatHistory.reload(conversation.id); }
-        catch {
-          if (usePlaybackStore.getState().session?.id === id && !controller.signal.aborted)
-            setError("The answer is available, but conversation history could not be refreshed. Reopen it after the backend reconnects.");
+        try {
+          await chatHistory.reload(conversation.id);
+        } catch {
+          if (
+            usePlaybackStore.getState().session?.id === id &&
+            !controller.signal.aborted
+          )
+            setError(
+              "The answer is available, but conversation history could not be refreshed. Reopen it after the backend reconnects.",
+            );
         }
       }
-      if (usePlaybackStore.getState().session?.id !== id || controller.signal.aborted) return;
-      setSelection(null); setFocusMaterialId(null);
+      if (
+        usePlaybackStore.getState().session?.id !== id ||
+        controller.signal.aborted
+      )
+        return;
+      setSelection(null);
+      setFocusMaterialId(null);
     } catch (reason) {
-      if (usePlaybackStore.getState().session?.id === id && !controller.signal.aborted)
+      if (
+        usePlaybackStore.getState().session?.id === id &&
+        !controller.signal.aborted
+      )
         setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       if (questionFlight.current === controller) {
-        questionFlight.current = null; setBusy(""); setAnswerDraft("");
+        questionFlight.current = null;
+        setBusy("");
+        setAnswerDraft("");
       }
     }
   }
   async function newConversation() {
     await action("conversation", async () => {
       await chatHistory.create();
-      setAnswer(null); setAnswerDraft(""); setQuestion(""); setSelection(null); setFocusMaterialId(null);
+      setAnswer(null);
+      setAnswerDraft("");
+      setQuestion("");
+      setSelection(null);
+      setFocusMaterialId(null);
     });
   }
   async function selectConversation(id: string) {
     await action("conversation", async () => {
       await chatHistory.select(id);
-      setAnswer(null); setAnswerDraft(""); setQuestion(""); setSelection(null); setFocusMaterialId(null);
+      setAnswer(null);
+      setAnswerDraft("");
+      setQuestion("");
+      setSelection(null);
+      setFocusMaterialId(null);
     });
   }
   async function retryAsr(ids: string[]) {
@@ -389,10 +541,18 @@ export function usePlaybackController() {
       await refresh(session.id);
     });
   }
-  async function setLanguages(asrLanguage: Session["asrLanguage"], noteLanguage: Session["noteLanguage"], asrModel: string | null = session?.asrModel ?? null) {
+  async function setLanguages(
+    asrLanguage: Session["asrLanguage"],
+    noteLanguage: Session["noteLanguage"],
+    asrModel: string | null = session?.asrModel ?? null,
+  ) {
     if (!session) return;
     await action("languages", async () => {
-      await api(`/sessions/${session.id}/languages`, "PUT", { asrLanguage, noteLanguage, asrModel });
+      await api(`/sessions/${session.id}/languages`, "PUT", {
+        asrLanguage,
+        noteLanguage,
+        asrModel,
+      });
       await refresh(session.id);
     });
   }
@@ -432,11 +592,18 @@ export function usePlaybackController() {
     const text = selected?.toString().trim();
     const node = selected?.anchorNode?.parentElement;
     const row = node?.closest(".transcript-row");
-    const transcriptId = node?.closest<HTMLElement>("[data-transcript-id]")?.dataset.transcriptId ?? row?.id;
+    const transcriptId =
+      node?.closest<HTMLElement>("[data-transcript-id]")?.dataset
+        .transcriptId ?? row?.id;
     const transcript = session?.transcripts.find(
       (entry) => entry.id === transcriptId,
     );
-    if (text && text.length <= 1000 && transcript && (transcript.displayOriginal ?? transcript.original).includes(text))
+    if (
+      text &&
+      text.length <= 1000 &&
+      transcript &&
+      (transcript.displayOriginal ?? transcript.original).includes(text)
+    )
       setSelection({
         transcriptId: transcript.id,
         text,
@@ -451,7 +618,9 @@ export function usePlaybackController() {
       session?.transcripts.find((entry) =>
         candidate.transcriptIds.includes(entry.id),
       );
-    const matched = (transcript?.displayOriginal ?? transcript?.original)?.match(
+    const matched = (
+      transcript?.displayOriginal ?? transcript?.original
+    )?.match(
       new RegExp(candidate.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
     )?.[0];
     setSelection(
@@ -471,7 +640,9 @@ export function usePlaybackController() {
     if (command === "start" && !session) return;
     await action("capture", async () => {
       if (command === "start" && !health?.recordingSourceSelection)
-        throw new Error("Restart the API to record with the selected audio source");
+        throw new Error(
+          "Restart the API to record with the selected audio source",
+        );
       const status = await api(
         `/capture/${command}`,
         "POST",

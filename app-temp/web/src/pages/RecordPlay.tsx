@@ -14,7 +14,10 @@ export function RecordPlay({
   startTime: string;
   endTime: string;
   playingKey: string | null;
-  onToggle: (key: string, chunks: Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">[]) => void;
+  onToggle: (
+    key: string,
+    chunks: Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">[],
+  ) => void;
 }) {
   const playing = playingKey === id;
   return (

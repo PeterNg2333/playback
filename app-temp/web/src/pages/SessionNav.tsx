@@ -150,7 +150,16 @@ export function SessionNav({ model }: { model: PlaybackController }) {
                     <Icon name="more" />
                   </summary>
                   <div className="nav-menu-popover">
-                    <button onClick={event => { event.currentTarget.closest("details")?.removeAttribute("open"); setFlowGroup(group); }}>View AI flow</button>
+                    <button
+                      onClick={(event) => {
+                        event.currentTarget
+                          .closest("details")
+                          ?.removeAttribute("open");
+                        setFlowGroup(group);
+                      }}
+                    >
+                      View AI flow
+                    </button>
                     <button
                       onClick={(event) => {
                         event.currentTarget
@@ -199,7 +208,9 @@ export function SessionNav({ model }: { model: PlaybackController }) {
         onDrop={(event) => drop(event, null)}
       >
         <div className="sidebar-heading">
-          <h2 id="sessions-heading"><Icon name="folder" /> Sessions</h2>
+          <h2 id="sessions-heading">
+            <Icon name="folder" /> Sessions
+          </h2>
           <button
             className="nav-icon-button sidebar-create"
             aria-label="New session"
@@ -218,7 +229,13 @@ export function SessionNav({ model }: { model: PlaybackController }) {
         )}
       </section>
 
-      {flowGroup && <GroupFlow key={flowGroup.id} group={flowGroup} onClose={() => setFlowGroup(null)} />}
+      {flowGroup && (
+        <GroupFlow
+          key={flowGroup.id}
+          group={flowGroup}
+          onClose={() => setFlowGroup(null)}
+        />
+      )}
       <dialog
         ref={deleteDialog}
         className="text-dialog delete-group-dialog"

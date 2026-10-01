@@ -5,17 +5,32 @@ import { PlaybackModeMenu } from "./PlaybackModeMenu";
 export function PlaybackFooter({ model }: { model: PlaybackController }) {
   const [position, setPosition] = useState(() => model.getPlaybackSnapshot());
   useEffect(() => {
-    const update = () => { const next = model.getPlaybackSnapshot(); setPosition(old =>
-      old.active === next.active && old.playing === next.playing && old.kind === next.kind && old.positionMs === next.positionMs &&
-      old.minimumMs === next.minimumMs && old.maximumMs === next.maximumMs && old.currentTime === next.currentTime && old.endTime === next.endTime ? old : next); };
+    const update = () => {
+      const next = model.getPlaybackSnapshot();
+      setPosition((old) =>
+        old.active === next.active &&
+        old.playing === next.playing &&
+        old.kind === next.kind &&
+        old.positionMs === next.positionMs &&
+        old.minimumMs === next.minimumMs &&
+        old.maximumMs === next.maximumMs &&
+        old.currentTime === next.currentTime &&
+        old.endTime === next.endTime
+          ? old
+          : next,
+      );
+    };
     update();
     const timer = setInterval(update, 250);
     return () => clearInterval(timer);
   }, [model.playingKey, model.session?.id, model.sourceMode]);
 
-  const sources = useMemo(() => [
-    ...new Set(model.session?.chunks.map((chunk) => chunk.sourceId) || []),
-  ], [model.session?.chunks]);
+  const sources = useMemo(
+    () => [
+      ...new Set(model.session?.chunks.map((chunk) => chunk.sourceId) || []),
+    ],
+    [model.session?.chunks],
+  );
   const available =
     model.session?.chunks.some((chunk) => chunk.status !== "silent") || false;
   const fullSessionSupported = model.health?.sessionAudioMix === true;

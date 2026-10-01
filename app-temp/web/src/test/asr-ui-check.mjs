@@ -171,8 +171,17 @@ try {
         sessionLanguageSettings: true,
         liveAsrPreview: true,
         audioChunkMilliseconds: 8000,
-        asrModels: ["qwen/qwen3-asr-1.7b", "openai/whisper-large-v3", "openai/whisper-large-v3-turbo"],
-        asr: { provider: "openrouter", model: "qwen/qwen3-asr-1.7b", transport: "rest", supportsLanguageHint: true },
+        asrModels: [
+          "qwen/qwen3-asr-1.7b",
+          "openai/whisper-large-v3",
+          "openai/whisper-large-v3-turbo",
+        ],
+        asr: {
+          provider: "openrouter",
+          model: "qwen/qwen3-asr-1.7b",
+          transport: "rest",
+          supportsLanguageHint: true,
+        },
       };
     else if (path === "/api/capture/status") data = capture;
     else if (path === "/api/capture/start") {
@@ -288,20 +297,36 @@ try {
     });
   });
 
-  const web = process.env.PLAYBACK_WEB_TEST_URL ?? (
-    process.env.PLAYBACK_OFFLINE_TEST === "yes"
+  const web =
+    process.env.PLAYBACK_WEB_TEST_URL ??
+    (process.env.PLAYBACK_OFFLINE_TEST === "yes"
       ? "http://127.0.0.1:5174"
       : "http://127.0.0.1:5173");
   assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(web));
   await page.goto(web);
   await page.locator(".audio-row").first().waitFor();
-  await page.locator("#second").getByText("廣東話：我哋學 FFT。", { exact: true }).waitFor();
-  assert.equal(await page.locator("#second").getByText("广东话：我哋学 FFT。", { exact: true }).count(), 0);
+  await page
+    .locator("#second")
+    .getByText("廣東話：我哋學 FFT。", { exact: true })
+    .waitFor();
+  assert.equal(
+    await page
+      .locator("#second")
+      .getByText("广东话：我哋学 FFT。", { exact: true })
+      .count(),
+    0,
+  );
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
     await page.screenshot({
       path: join(tmpdir(), "playback-transcript-default-1280.png"),
     });
-  assert.equal(await page.locator(".transcript-panel").getByRole("button", { name: "Sources" }).count(), 0);
+  assert.equal(
+    await page
+      .locator(".transcript-panel")
+      .getByRole("button", { name: "Sources" })
+      .count(),
+    0,
+  );
   assert.equal(
     await page.locator(".audio-row").count(),
     2,
@@ -350,10 +375,15 @@ try {
     request.url().endsWith(`/api/sessions/${id}/audio/segments/0`),
   );
   await page.getByLabel("Playback mode").click();
-  assert.equal(await page.locator(".player-mode-menu").isVisible(), true,
-    "Playback source dropdown must open above the footer");
+  assert.equal(
+    await page.locator(".player-mode-menu").isVisible(),
+    true,
+    "Playback source dropdown must open above the footer",
+  );
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
-    await page.screenshot({ path: join(tmpdir(), "playback-source-dropdown.png") });
+    await page.screenshot({
+      path: join(tmpdir(), "playback-source-dropdown.png"),
+    });
   await page.getByRole("button", { name: "Full session" }).click();
   await mixedAudio;
   const systemAudio = page.waitForRequest((request) =>
@@ -412,10 +442,16 @@ try {
     await page.getByRole("button", { name: "More actions" }).count(),
     0,
   );
-  assert.equal(await page.locator(".timeline-toggle:not(.hour-toggle)").count(), 1);
+  assert.equal(
+    await page.locator(".timeline-toggle:not(.hour-toggle)").count(),
+    1,
+  );
   assert.equal(await page.locator(".hour-toggle").count(), 2);
   assert.equal(await page.locator(".timeline-minute").count(), 0);
-  assert.ok(await page.locator("[data-virtual-row]").count() < 30, "The short timeline should mount only its visible items");
+  assert.ok(
+    (await page.locator("[data-virtual-row]").count()) < 30,
+    "The short timeline should mount only its visible items",
+  );
   assert.match(
     await page.locator(".hour-toggle").first().textContent(),
     /08:00/,
@@ -479,29 +515,58 @@ try {
   }
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await page.getByText("ASR: qwen/qwen3-asr-1.7b (openrouter, rest)").waitFor();
-  const asrLanguage = page.getByRole("combobox", { name: "ASR spoken language" });
-  const noteLanguage = page.getByRole("combobox", { name: "Notes output language" });
+  const asrLanguage = page.getByRole("combobox", {
+    name: "ASR spoken language",
+  });
+  const noteLanguage = page.getByRole("combobox", {
+    name: "Notes output language",
+  });
   await asrLanguage.selectOption("yue");
-  assert.deepEqual(languagesRequest, { asrLanguage: "yue", noteLanguage: "zh-Hant", asrModel: null });
+  assert.deepEqual(languagesRequest, {
+    asrLanguage: "yue",
+    noteLanguage: "zh-Hant",
+    asrModel: null,
+  });
   await noteLanguage.selectOption("en");
-  assert.deepEqual(languagesRequest, { asrLanguage: "yue", noteLanguage: "en", asrModel: null });
-  await page.getByRole("combobox", { name: "ASR model" }).selectOption("openai/whisper-large-v3-turbo");
-  assert.deepEqual(languagesRequest, { asrLanguage: "yue", noteLanguage: "en", asrModel: "openai/whisper-large-v3-turbo" });
+  assert.deepEqual(languagesRequest, {
+    asrLanguage: "yue",
+    noteLanguage: "en",
+    asrModel: null,
+  });
+  await page
+    .getByRole("combobox", { name: "ASR model" })
+    .selectOption("openai/whisper-large-v3-turbo");
+  assert.deepEqual(languagesRequest, {
+    asrLanguage: "yue",
+    noteLanguage: "en",
+    asrModel: "openai/whisper-large-v3-turbo",
+  });
   await asrLanguage.selectOption("yue-en");
   await page.reload();
   await page.getByRole("button", { name: "Transcript settings" }).click();
   assert.equal(await asrLanguage.inputValue(), "yue-en");
-  assert.equal(await page.getByRole("combobox", { name: "ASR model" }).inputValue(), "openai/whisper-large-v3-turbo");
+  assert.equal(
+    await page.getByRole("combobox", { name: "ASR model" }).inputValue(),
+    "openai/whisper-large-v3-turbo",
+  );
   assert.equal(await noteLanguage.inputValue(), "en");
-  const translationLanguage = page.getByRole("combobox", { name: "Translation target language" });
+  const translationLanguage = page.getByRole("combobox", {
+    name: "Translation target language",
+  });
   for (const language of ["yue-Hant", "zh-Hans", "en", "zh-Hant"]) {
     await translationLanguage.selectOption(language);
     assert.deepEqual(translationRequest, { enabled: false, language });
   }
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
-    await page.screenshot({ path: join(tmpdir(), "playback-language-settings-320.png") });
-  const translation = page.getByRole("checkbox", { name: "Enable translation" });
-  await page.waitForFunction(() => !document.querySelector('input[type="checkbox"]')?.disabled);
+    await page.screenshot({
+      path: join(tmpdir(), "playback-language-settings-320.png"),
+    });
+  const translation = page.getByRole("checkbox", {
+    name: "Enable translation",
+  });
+  await page.waitForFunction(
+    () => !document.querySelector('input[type="checkbox"]')?.disabled,
+  );
   assert.equal(await translation.isDisabled(), false);
   assert.equal(
     await page.getByRole("checkbox", { name: /I confirm lecturer/ }).count(),
@@ -528,11 +593,25 @@ try {
     "第二句",
   );
   // Simulate the background Jev/LLM result arriving in the session snapshot.
-  session.termInsights = [{ id: insightId, term: "Fourier Transform", highlight: true,
-    jevProbability: 0.84, jevRank: "high", jevConfidence: 0.53, jevModel: "test-model", jevCached: false,
-    decisionRule: "Explain probability >= 75%; rank high or medium; category confidence >= 50%.",
-    rankedAt: "2026-09-26T08:16:00Z", transcriptIds: ["first"], materialIds: [],
-    explanation: "A transform that represents a signal by frequency.", evidence: [] }];
+  session.termInsights = [
+    {
+      id: insightId,
+      term: "Fourier Transform",
+      highlight: true,
+      jevProbability: 0.84,
+      jevRank: "high",
+      jevConfidence: 0.53,
+      jevModel: "test-model",
+      jevCached: false,
+      decisionRule:
+        "Explain probability >= 75%; rank high or medium; category confidence >= 50%.",
+      rankedAt: "2026-09-26T08:16:00Z",
+      transcriptIds: ["first"],
+      materialIds: [],
+      explanation: "A transform that represents a signal by frequency.",
+      evidence: [],
+    },
+  ];
   const highlight = page.locator("#first .term-highlight");
   await highlight.waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
@@ -544,10 +623,19 @@ try {
     await page.screenshot({
       path: join(tmpdir(), "playback-term-explanation-320.png"),
     });
-  assert.equal(explanationRequests, 0, "Hover must only read the automatically saved explanation");
+  assert.equal(
+    explanationRequests,
+    0,
+    "Hover must only read the automatically saved explanation",
+  );
   await page.getByRole("button", { name: "Close explanation" }).click();
-  await page.getByRole("navigation", { name: "Workspace views" }).getByRole("button", { name: "Notes", exact: true }).click();
-  await page.getByRole("button", { name: "AI activity history", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Notes", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "AI activity history", exact: true })
+    .click();
   await page.getByText("v1 · AI edit", { exact: true }).click();
   await page
     .locator(".activity-edit pre")
@@ -574,8 +662,13 @@ try {
   await trace.getByRole("button", { name: "08:10:00", exact: true }).click();
   await page.locator("#first").waitFor();
   await page.keyboard.press("Escape");
-  await page.getByRole("navigation", { name: "Workspace views" }).getByRole("button", { name: "Notes", exact: true }).click();
-  await page.getByRole("button", { name: "AI activity history", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Workspace views" })
+    .getByRole("button", { name: "Notes", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "AI activity history", exact: true })
+    .click();
   await page.getByText("v1 · AI edit", { exact: true }).click();
   await page.getByRole("button", { name: "Tutorial.txt", exact: true }).click();
   await page.locator("#activity-material").waitFor();
@@ -638,14 +731,35 @@ try {
         .evaluate((element) => getComputedStyle(element).opacity),
     ) < 1,
   );
-  capture = { ...capture, activeSegments: [{ ...capture.activeSegments[0], interimText: "我哋 study FFT" }] };
-  await page.locator(".interim-text").getByText("我哋 study FFT", { exact: true }).waitFor();
-  capture = { ...capture, activeSegments: [{ ...capture.activeSegments[0], interimText: "我哋 study FFT and frequency" }] };
-  await page.locator(".interim-text").getByText("我哋 study FFT and frequency", { exact: true }).waitFor();
+  capture = {
+    ...capture,
+    activeSegments: [
+      { ...capture.activeSegments[0], interimText: "我哋 study FFT" },
+    ],
+  };
+  await page
+    .locator(".interim-text")
+    .getByText("我哋 study FFT", { exact: true })
+    .waitFor();
+  capture = {
+    ...capture,
+    activeSegments: [
+      {
+        ...capture.activeSegments[0],
+        interimText: "我哋 study FFT and frequency",
+      },
+    ],
+  };
+  await page
+    .locator(".interim-text")
+    .getByText("我哋 study FFT and frequency", { exact: true })
+    .waitFor();
   assert.equal(await page.locator(".interim-text").count(), 1);
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
     await page.locator(".live-segment").scrollIntoViewIfNeeded();
-    await page.locator(".live-segment").screenshot({ path: join(tmpdir(), "playback-interim-row.png") });
+    await page
+      .locator(".live-segment")
+      .screenshot({ path: join(tmpdir(), "playback-interim-row.png") });
   }
   session.chunks.push({
     id: "saved-live",
@@ -657,16 +771,36 @@ try {
     status: "pending-asr",
   });
   capture = { ...capture, lastFinalizedAtMs: 61100 };
-  await page.locator(".live-segment").getByText("我哋 study FFT and frequency", { exact: true }).waitFor();
-  session.chunks.find(chunk => chunk.id === "saved-live").status = "asr-error";
+  await page
+    .locator(".live-segment")
+    .getByText("我哋 study FFT and frequency", { exact: true })
+    .waitFor();
+  session.chunks.find((chunk) => chunk.id === "saved-live").status =
+    "asr-error";
   await page.waitForTimeout(4300);
-  await page.locator(".live-segment").getByText("我哋 study FFT and frequency", { exact: true }).waitFor();
-  session.chunks.find(chunk => chunk.id === "saved-live").status = "transcribed";
-  session.transcripts.push({ id: "saved-live", sourceId: "microphone", startMs: 60000, endMs: 61100,
-    recordedAt: "2026-09-26T08:11:00Z", original: "我哋 study FFT and frequency", uncertain: false });
+  await page
+    .locator(".live-segment")
+    .getByText("我哋 study FFT and frequency", { exact: true })
+    .waitFor();
+  session.chunks.find((chunk) => chunk.id === "saved-live").status =
+    "transcribed";
+  session.transcripts.push({
+    id: "saved-live",
+    sourceId: "microphone",
+    startMs: 60000,
+    endMs: 61100,
+    recordedAt: "2026-09-26T08:11:00Z",
+    original: "我哋 study FFT and frequency",
+    uncertain: false,
+  });
   await page.locator("#saved-live").waitFor();
   await page.locator(".live-segment").waitFor({ state: "detached" });
-  assert.equal(await page.getByText("我哋 study FFT and frequency", { exact: true }).count(), 1);
+  assert.equal(
+    await page
+      .getByText("我哋 study FFT and frequency", { exact: true })
+      .count(),
+    1,
+  );
   await page.locator(".record-row").filter({ hasText: "08:11:00" }).waitFor();
   await page.setViewportSize({ width: 320, height: 720 });
   assert.equal(
@@ -732,10 +866,11 @@ try {
   await page.reload();
   await page.getByText("Note paragraph 80.").waitFor();
   await page.getByRole("button", { name: "Sources", exact: true }).click();
-  await page.getByRole("button", { name: /Open audio sources/ }).first().click();
   await page
-    .getByRole("button", { name: "Jump to 08:00:05" })
-    .waitFor();
+    .getByRole("button", { name: /Open audio sources/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Jump to 08:00:05" }).waitFor();
   await page.getByRole("button", { name: "Close sources" }).click();
   assert.equal(
     await page.locator(".markdown-preview").getByText("c".repeat(32)).count(),
@@ -775,7 +910,10 @@ try {
     await page.getByRole("button", { name: "Save", exact: true }).isVisible(),
     true,
   );
-  assert.ok(await page.locator(".record-row").count() < 80, "The 1,266-source fixture must use bounded mounted rows");
+  assert.ok(
+    (await page.locator(".record-row").count()) < 80,
+    "The 1,266-source fixture must use bounded mounted rows",
+  );
   await page.setViewportSize({ width: 375, height: 720 });
   assert.equal(
     await page.evaluate(
@@ -844,7 +982,8 @@ try {
   askFailure = false;
   await page.getByRole("button", { name: "Send" }).click();
   await page
-    .locator(".answer").getByText(/The lecture introduced Fourier Transform/)
+    .locator(".answer")
+    .getByText(/The lecture introduced Fourier Transform/)
     .waitFor();
   assert.equal(await page.locator(".chat-error").count(), 0);
   assert.equal(dialogs, 0);
@@ -866,12 +1005,21 @@ try {
     false,
     "Source preference must remain selectable with an old API",
   );
-  await page.getByRole("combobox", { name: "Recording source" }).selectOption("system");
-  assert.equal(await page.getByRole("button", { name: "Start recording" }).isDisabled(), true,
-    "Old APIs must not silently record both sources instead of the selected source");
-  await page.getByText(/Recording source selection needs the updated API/).waitFor();
+  await page
+    .getByRole("combobox", { name: "Recording source" })
+    .selectOption("system");
+  assert.equal(
+    await page.getByRole("button", { name: "Start recording" }).isDisabled(),
+    true,
+    "Old APIs must not silently record both sources instead of the selected source",
+  );
+  await page
+    .getByText(/Recording source selection needs the updated API/)
+    .waitFor();
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes")
-    await page.screenshot({ path: join(tmpdir(), "playback-source-old-api.png") });
+    await page.screenshot({
+      path: join(tmpdir(), "playback-source-old-api.png"),
+    });
   console.log(
     "ASR UI fixture passed: flat timeline, compact player, read-only edit/Jev activity, recording mode and old API compatibility, manual retry, live meter, Ask Playback states, responsive viewport",
   );

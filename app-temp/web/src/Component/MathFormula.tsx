@@ -10,21 +10,43 @@ type FormulaProps = { source: string; display: boolean };
 export default memo(function MathFormula({ source, display }: FormulaProps) {
   const rendered = useMemo(() => {
     try {
-      if (source.length > 4096) throw new Error("Formula is too long to render; its source is preserved.");
+      if (source.length > 4096)
+        throw new Error(
+          "Formula is too long to render; its source is preserved.",
+        );
       const markup = katex.renderToString(source, {
-        displayMode: display, output: "mathml", trust: false, throwOnError: true,
-        strict: "ignore", maxExpand: 1000, maxSize: 20,
+        displayMode: display,
+        output: "mathml",
+        trust: false,
+        throwOnError: true,
+        strict: "ignore",
+        maxExpand: 1000,
+        maxSize: 20,
       });
-      if (markup.length > 128_000) throw new Error("Formula output limit reached; its source is preserved.");
-      return { html: DOMPurify.sanitize(markup, { USE_PROFILES: { mathMl: true } }) };
+      if (markup.length > 128_000)
+        throw new Error(
+          "Formula output limit reached; its source is preserved.",
+        );
+      return {
+        html: DOMPurify.sanitize(markup, { USE_PROFILES: { mathMl: true } }),
+      };
     } catch {
-      return { error: "Formula cannot be rendered yet; its source is preserved." };
+      return {
+        error: "Formula cannot be rendered yet; its source is preserved.",
+      };
     }
   }, [source, display]);
   const Tag = display ? "div" : "span";
-  return rendered.html
-    ? <Tag className={`math-formula${display ? " math-display" : ""}`} dangerouslySetInnerHTML={{ __html: rendered.html }} />
-    : <Tag className={`math-formula${display ? " math-display" : ""}`}>
-        <code className="math-source" title={rendered.error}>{source}</code>
-      </Tag>;
+  return rendered.html ? (
+    <Tag
+      className={`math-formula${display ? " math-display" : ""}`}
+      dangerouslySetInnerHTML={{ __html: rendered.html }}
+    />
+  ) : (
+    <Tag className={`math-formula${display ? " math-display" : ""}`}>
+      <code className="math-source" title={rendered.error}>
+        {source}
+      </code>
+    </Tag>
+  );
 });

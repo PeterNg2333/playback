@@ -26,7 +26,10 @@ export function TranscriptRow({
   transcript: Transcript;
   session: Session | null;
   playingKey: string | null;
-  onTogglePlayback: (key: string, chunks: Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">[]) => void;
+  onTogglePlayback: (
+    key: string,
+    chunks: Pick<Chunk, "id" | "startMs" | "endMs" | "recordedAt">[],
+  ) => void;
   onSelect: () => void;
   onAskTerm: (candidate: TermCandidate, transcriptId?: string) => void;
   insights: TermInsight[];
@@ -34,10 +37,18 @@ export function TranscriptRow({
   reveal?: boolean;
 }) {
   const details = useRef<HTMLDetailsElement>(null);
-  useLayoutEffect(() => { if (reveal && details.current) details.current.open = true; }, [reveal]);
+  useLayoutEffect(() => {
+    if (reveal && details.current) details.current.open = true;
+  }, [reveal]);
   const original =
-    cleanAsrText(transcript.displayOriginal ?? transcript.original) || "No words returned by ASR";
-  const range = recordedRange(transcript.recordedAt, session?.createdAt, transcript.startMs, transcript.endMs);
+    cleanAsrText(transcript.displayOriginal ?? transcript.original) ||
+    "No words returned by ASR";
+  const range = recordedRange(
+    transcript.recordedAt,
+    session?.createdAt,
+    transcript.startMs,
+    transcript.endMs,
+  );
   const translationReady =
     session?.translationEnabled &&
     transcript.translationStatus === "completed" &&
@@ -45,16 +56,15 @@ export function TranscriptRow({
     !!transcript.translation;
   return (
     <article className="record-row transcript-row" id={transcript.id}>
-      <span
-        className="record-time"
-        title={`${range.start}–${range.end}`}
-      >
+      <span className="record-time" title={`${range.start}–${range.end}`}>
         {range.start}
       </span>
       <div className="record-main">
         <div className="record-meta">
           <SourceTag sourceId={transcript.sourceId} />
-          <span>{range.start}–{range.end}</span>
+          <span>
+            {range.start}–{range.end}
+          </span>
         </div>
         <div className="record-line">
           <details className="record-copy" ref={details}>
@@ -65,9 +75,22 @@ export function TranscriptRow({
             >
               {termSegments(original, insights).map((segment, index) =>
                 segment.term && session ? (
-                  <TermHighlight key={index} sessionId={session.id} insight={segment.term} text={segment.text}
-                    onAsk={() => onAskTerm({ text: segment.term!.term, transcriptIds: segment.term!.transcriptIds,
-                      materialIds: segment.term!.materialIds }, transcript.id)} />
+                  <TermHighlight
+                    key={index}
+                    sessionId={session.id}
+                    insight={segment.term}
+                    text={segment.text}
+                    onAsk={() =>
+                      onAskTerm(
+                        {
+                          text: segment.term!.term,
+                          transcriptIds: segment.term!.transcriptIds,
+                          materialIds: segment.term!.materialIds,
+                        },
+                        transcript.id,
+                      )
+                    }
+                  />
                 ) : (
                   <span key={index}>{segment.text}</span>
                 ),
@@ -77,9 +100,21 @@ export function TranscriptRow({
               <span>
                 {range.start}–{range.end}
               </span>
-              <span className="speaker">{sourceLabel(transcript.sourceId)}</span>
-              {transcript.asrModel && <small>Recognized by {transcript.asrProvider} / {transcript.asrModel} · hint {transcript.asrLanguageHint ?? "auto"}</small>}
-              {transcript.displayOriginal != null && transcript.displayOriginal !== transcript.original && <p className="raw-asr">Provider original: {transcript.original}</p>}
+              <span className="speaker">
+                {sourceLabel(transcript.sourceId)}
+              </span>
+              {transcript.asrModel && (
+                <small>
+                  Recognized by {transcript.asrProvider} / {transcript.asrModel}{" "}
+                  · hint {transcript.asrLanguageHint ?? "auto"}
+                </small>
+              )}
+              {transcript.displayOriginal != null &&
+                transcript.displayOriginal !== transcript.original && (
+                  <p className="raw-asr">
+                    Provider original: {transcript.original}
+                  </p>
+                )}
               {transcript.uncertain && (
                 <span className="uncertain">Unclear · review audio</span>
               )}
@@ -93,17 +128,16 @@ export function TranscriptRow({
                   Suggested revision: {transcript.revision}
                 </p>
               )}
-              {candidates
-                .map((candidate) => (
-                  <button
-                    className="term-tag"
-                    key={candidate.text}
-                    onClick={() => onAskTerm(candidate, transcript.id)}
-                    title="Ask Playback with this source"
-                  >
-                    {candidate.text}
-                  </button>
-                ))}
+              {candidates.map((candidate) => (
+                <button
+                  className="term-tag"
+                  key={candidate.text}
+                  onClick={() => onAskTerm(candidate, transcript.id)}
+                  title="Ask Playback with this source"
+                >
+                  {candidate.text}
+                </button>
+              ))}
             </div>
           </details>
           <RecordPlay

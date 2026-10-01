@@ -30,8 +30,17 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
     closeTextDialog,
     submitTextDialog,
   } = model;
-  const selectedTranscript = session?.transcripts.find((entry) => entry.id === selection?.transcriptId);
-  const selectedTime = selection && recordedRange(selectedTranscript?.recordedAt, session?.createdAt, selection.startMs, selection.endMs);
+  const selectedTranscript = session?.transcripts.find(
+    (entry) => entry.id === selection?.transcriptId,
+  );
+  const selectedTime =
+    selection &&
+    recordedRange(
+      selectedTranscript?.recordedAt,
+      session?.createdAt,
+      selection.startMs,
+      selection.endMs,
+    );
   return (
     <>
       {selection && !chatOpen && (
@@ -45,7 +54,8 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             setChatOpen(true);
           }}
         >
-          Ask Playback about selection · {selectedTime?.start}–{selectedTime?.end}
+          Ask Playback about selection · {selectedTime?.start}–
+          {selectedTime?.end}
         </button>
       )}
       {error && !chatOpen && (
@@ -64,8 +74,14 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
         <section className="chat open" aria-label="Ask Playback">
           <div className="chat-head">
             <div>
-              <div className="chat-title"><strong>Ask Playback</strong><ChatConversationMenu model={model} /></div>
-              <small>{session?.title ?? "Select a lecture session"} · {model.chatHistory.current?.title ?? "New conversation"}</small>
+              <div className="chat-title">
+                <strong>Ask Playback</strong>
+                <ChatConversationMenu model={model} />
+              </div>
+              <small>
+                {session?.title ?? "Select a lecture session"} ·{" "}
+                {model.chatHistory.current?.title ?? "New conversation"}
+              </small>
             </div>
             <button
               className="icon-button"
@@ -76,31 +92,74 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
             </button>
           </div>
           <div className="chat-scroll">
-            {busy === "ask" && <div className="chat-progress" role="status">
-              <strong>Checking sources{useWeb ? " and public web" : ""}…</strong>
-              {answerDraft && <p className="provisional-answer">Unverified draft · {answerDraft.replace("INSUFFICIENT_SOURCE", "Lecture evidence is insufficient; checking the allowed sources…")}</p>}
-            </div>}
+            {busy === "ask" && (
+              <div className="chat-progress" role="status">
+                <strong>
+                  Checking sources{useWeb ? " and public web" : ""}…
+                </strong>
+                {answerDraft && (
+                  <p className="provisional-answer">
+                    Unverified draft ·{" "}
+                    {answerDraft.replace(
+                      "INSUFFICIENT_SOURCE",
+                      "Lecture evidence is insufficient; checking the allowed sources…",
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
             {error && (
               <p className="chat-error" role="alert">
                 {error}
               </p>
             )}
-            {!health ? <p className="chat-hint" role="status">
-              Backend connection is unavailable. Start the Playback server, then reload to reconnect. Your question stays here.
-            </p> : !health.gemini && (
-              <p className="chat-hint">
-                Gemini is unavailable; questions and translations can be retried
-                when configured.
+            {!health ? (
+              <p className="chat-hint" role="status">
+                Backend connection is unavailable. Start the Playback server,
+                then reload to reconnect. Your question stays here.
+              </p>
+            ) : (
+              !health.gemini && (
+                <p className="chat-hint">
+                  Gemini is unavailable; questions and translations can be
+                  retried when configured.
+                </p>
+              )
+            )}
+            {model.chatHistory.error && (
+              <p className="chat-error" role="alert">
+                {model.chatHistory.error}
               </p>
             )}
-            {model.chatHistory.error && <p className="chat-error" role="alert">{model.chatHistory.error}</p>}
-            {model.chatHistory.current?.turns.map(turn => <article className="chat-turn" key={turn.id}>
-              <p className="chat-question">{turn.question}</p>
-              <ChatAnswer answer={turn.answer} jump={jump} sourceGroups={session?.sourceGroups} />
-            </article>)}
-            {answer && !model.chatHistory.current?.turns.some(turn => !!answer.questionId && turn.answer.questionId === answer.questionId)
-              ? <ChatAnswer answer={answer} jump={jump} sourceGroups={session?.sourceGroups} />
-              : !model.chatHistory.current?.turns.length && !answer && <p className="chat-hint">Ask about processed lecture content.</p>}
+            {model.chatHistory.current?.turns.map((turn) => (
+              <article className="chat-turn" key={turn.id}>
+                <p className="chat-question">{turn.question}</p>
+                <ChatAnswer
+                  answer={turn.answer}
+                  jump={jump}
+                  sourceGroups={session?.sourceGroups}
+                />
+              </article>
+            ))}
+            {answer &&
+            !model.chatHistory.current?.turns.some(
+              (turn) =>
+                !!answer.questionId &&
+                turn.answer.questionId === answer.questionId,
+            ) ? (
+              <ChatAnswer
+                answer={answer}
+                jump={jump}
+                sourceGroups={session?.sourceGroups}
+              />
+            ) : (
+              !model.chatHistory.current?.turns.length &&
+              !answer && (
+                <p className="chat-hint">
+                  Ask about processed lecture content.
+                </p>
+              )
+            )}
           </div>
           {(selection || focusMaterialId) && (
             <div className="selected-source">
@@ -146,13 +205,26 @@ export function PlaybackOverlay({ model }: { model: PlaybackController }) {
               rows={2}
               maxLength={1000}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
                   event.preventDefault();
                   if (session && !busy && question.trim()) ask();
                 }
               }}
             />
-            <button disabled={!session || !!busy || model.chatHistory.loading || !question.trim()}>{busy === "ask" ? "Working…" : "Send"}</button>
+            <button
+              disabled={
+                !session ||
+                !!busy ||
+                model.chatHistory.loading ||
+                !question.trim()
+              }
+            >
+              {busy === "ask" ? "Working…" : "Send"}
+            </button>
           </form>
         </section>
       )}

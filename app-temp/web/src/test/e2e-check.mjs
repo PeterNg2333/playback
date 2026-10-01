@@ -34,7 +34,9 @@ const captureErrors = [];
 let passed = false;
 let failure;
 let page;
-const evidence = fileURLToPath(new URL("../../../data/validation/runs/2026-09-29-week3/", import.meta.url));
+const evidence = fileURLToPath(
+  new URL("../../../data/validation/runs/2026-09-29-week3/", import.meta.url),
+);
 await mkdir(evidence, { recursive: true });
 
 try {
@@ -207,10 +209,15 @@ try {
   await page.getByRole("heading", { name: title, exact: true }).waitFor();
   await page.locator(".workspace-loading").waitFor({ state: "hidden" });
   await page.locator("#session-materials > summary").click();
-  const fileChooser = page.waitForEvent("filechooser", { timeout: 10000 }).catch(() => null);
+  const fileChooser = page
+    .waitForEvent("filechooser", { timeout: 10000 })
+    .catch(() => null);
   await page.getByRole("button", { name: "Attach text material" }).click();
   const picked = await fileChooser;
-  assert(picked, "Materials file picker did not open after session loading completed");
+  assert(
+    picked,
+    "Materials file picker did not open after session loading completed",
+  );
   await picked.setFiles({
     name: "demo-lecture.txt",
     mimeType: "text/plain",
@@ -236,18 +243,35 @@ try {
   await page.getByText(materialText).waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await page.getByLabel("ASR spoken language").selectOption("yue-en");
-  await page.getByLabel("ASR model", { exact: true }).selectOption("openai/whisper-large-v3-turbo");
+  await page
+    .getByLabel("ASR model", { exact: true })
+    .selectOption("openai/whisper-large-v3-turbo");
   await page.getByLabel("Notes output language").selectOption("zh-Hans");
   await page.waitForFunction(async (id) => {
     const saved = await (await fetch(`/api/sessions/${id}`)).json();
-    return saved.asrLanguage === "yue-en" && saved.noteLanguage === "zh-Hans" && saved.asrModel === "openai/whisper-large-v3-turbo";
+    return (
+      saved.asrLanguage === "yue-en" &&
+      saved.noteLanguage === "zh-Hans" &&
+      saved.asrModel === "openai/whisper-large-v3-turbo"
+    );
   }, sessionId);
   await page.reload();
   await page.getByRole("button", { name: "Transcript settings" }).click();
-  await page.waitForFunction(() => document.getElementById("asr-language")?.disabled === false);
-  assert.equal(await page.getByLabel("ASR spoken language").inputValue(), "yue-en");
-  assert.equal(await page.getByLabel("ASR model", { exact: true }).inputValue(), "openai/whisper-large-v3-turbo");
-  assert.equal(await page.getByLabel("Notes output language").inputValue(), "zh-Hans");
+  await page.waitForFunction(
+    () => document.getElementById("asr-language")?.disabled === false,
+  );
+  assert.equal(
+    await page.getByLabel("ASR spoken language").inputValue(),
+    "yue-en",
+  );
+  assert.equal(
+    await page.getByLabel("ASR model", { exact: true }).inputValue(),
+    "openai/whisper-large-v3-turbo",
+  );
+  assert.equal(
+    await page.getByLabel("Notes output language").inputValue(),
+    "zh-Hans",
+  );
   await page.getByLabel("Enable translation").check();
   await page.getByLabel("Translation target language").selectOption("en");
   await page.waitForFunction(async (id) => {
@@ -388,7 +412,9 @@ try {
     "Source selection must use the same footer player",
   );
   assert.equal(await page.locator("audio").count(), 1);
-  await page.getByRole("button", { name: "AI activity history", exact: true }).click();
+  await page
+    .getByRole("button", { name: "AI activity history", exact: true })
+    .click();
   await page.getByRole("heading", { name: "LLM edit log" }).waitFor();
   await page.getByText("v1 · Manual edit", { exact: true }).click();
   await page
@@ -404,34 +430,35 @@ try {
   );
   await page.keyboard.press("Escape");
   if (!retain) {
-  await page
-    .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
-    .click();
-  await page.getByRole("button", { name: "Delete group" }).click();
-  await page
-    .getByRole("dialog", { name: `Delete ${groupName} renamed?` })
-    .getByRole("button", { name: "Delete group" })
-    .click();
-  await page
-    .locator(".sessions-section")
-    .getByRole("button", { name: title, exact: true })
-    .waitFor();
-  await page
-    .locator(".sessions-section")
-    .getByRole("button", { name: nestedTitle, exact: true })
-    .waitFor();
-  const retained = await (await fetch(`${api}/sessions/${sessionId}`)).json();
-  assert.equal(retained.groupId, null);
-  assert.equal(retained.noteMarkdown, markdown);
-  assert.deepEqual(
-    retained.materials.map((material) => material.text),
-    [materialText],
-  );
-  assert.equal(
-    (await (await fetch(`${api}/sessions/${nestedSessionId}`)).json()).groupId,
-    null,
-  );
-  groupId = null;
+    await page
+      .locator(`summary[aria-label="Group options for ${groupName} renamed"]`)
+      .click();
+    await page.getByRole("button", { name: "Delete group" }).click();
+    await page
+      .getByRole("dialog", { name: `Delete ${groupName} renamed?` })
+      .getByRole("button", { name: "Delete group" })
+      .click();
+    await page
+      .locator(".sessions-section")
+      .getByRole("button", { name: title, exact: true })
+      .waitFor();
+    await page
+      .locator(".sessions-section")
+      .getByRole("button", { name: nestedTitle, exact: true })
+      .waitFor();
+    const retained = await (await fetch(`${api}/sessions/${sessionId}`)).json();
+    assert.equal(retained.groupId, null);
+    assert.equal(retained.noteMarkdown, markdown);
+    assert.deepEqual(
+      retained.materials.map((material) => material.text),
+      [materialText],
+    );
+    assert.equal(
+      (await (await fetch(`${api}/sessions/${nestedSessionId}`)).json())
+        .groupId,
+      null,
+    );
+    groupId = null;
   }
   if (process.env.PLAYBACK_CAPTURE_SCREENSHOTS === "yes") {
     const path = join(evidence, "offline-e2e-desktop.png");
@@ -475,7 +502,9 @@ try {
     );
 } catch (error) {
   failure = error.message;
-  await page?.screenshot({ path: join(evidence, "offline-e2e-failure.png") }).catch(() => {});
+  await page
+    ?.screenshot({ path: join(evidence, "offline-e2e-failure.png") })
+    .catch(() => {});
   throw error;
 } finally {
   const cleanupFailures = [];
@@ -541,7 +570,29 @@ try {
     }
   }
   if (cleanupFailures.length) throw new Error(cleanupFailures.join("; "));
-  await writeFile(join(evidence, "offline-e2e.json"), JSON.stringify({ testedAt: new Date().toISOString(), passed, failure, offline, skipCapture, retain,
-    sessionId, nestedSessionId, groupId, captureErrors, evidence: "Production browser, real localhost API/MongoDB; synthetic local WAV only, no providers or microphone/system capture." }, null, 2));
-  if (retain) console.log(`Test sessions and group retained: ${sessionId}, ${nestedSessionId}, ${groupId}`);
+  await writeFile(
+    join(evidence, "offline-e2e.json"),
+    JSON.stringify(
+      {
+        testedAt: new Date().toISOString(),
+        passed,
+        failure,
+        offline,
+        skipCapture,
+        retain,
+        sessionId,
+        nestedSessionId,
+        groupId,
+        captureErrors,
+        evidence:
+          "Production browser, real localhost API/MongoDB; synthetic local WAV only, no providers or microphone/system capture.",
+      },
+      null,
+      2,
+    ),
+  );
+  if (retain)
+    console.log(
+      `Test sessions and group retained: ${sessionId}, ${nestedSessionId}, ${groupId}`,
+    );
 }

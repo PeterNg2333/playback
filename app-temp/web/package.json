@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --configLoader runner",
     "build": "tsc -b && vite build --configLoader runner",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test:notes": "node src/test/notes-redesign-check.mjs",
     "test:math": "node src/test/markdown-math-check.mjs",
     "test:loading": "node src/test/session-loading-check.mjs",

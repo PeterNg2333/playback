@@ -233,13 +233,17 @@
   }
 }
 @media (max-width: 900px) {
-  .source-api-warning { margin-left: 216px; }
+  .source-api-warning {
+    margin-left: 216px;
+  }
   .playback-footer {
     margin-left: 216px;
   }
 }
 @media (max-width: 700px) {
-  .source-api-warning { margin-left: 0; }
+  .source-api-warning {
+    margin-left: 0;
+  }
   .record-start {
     padding: 0 8px;
   }

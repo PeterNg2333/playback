@@ -78,7 +78,8 @@ export function ActivityContent({ session, onSource }: ActivityContentProps) {
   return (
     <div className="activity-content">
       <p className="activity-intro">
-        Saved edits and decisions for this session. Restoring creates a new note version.
+        Saved edits and decisions for this session. Restoring creates a new note
+        version.
       </p>
       <section aria-labelledby="llm-log-title">
         <h3 id="llm-log-title">LLM edit log</h3>

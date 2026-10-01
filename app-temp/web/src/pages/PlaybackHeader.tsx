@@ -38,7 +38,10 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
     capture?.activeSegments?.some((segment) => segment.streaming) ?? false;
   const isIdle = (capture?.state ?? "idle") === "idle";
   const isPaused = capture?.state === "paused";
-  const elapsed = capture?.recordingElapsedMs == null ? "Restart API for timer" : time(capture.recordingElapsedMs);
+  const elapsed =
+    capture?.recordingElapsedMs == null
+      ? "Restart API for timer"
+      : time(capture.recordingElapsedMs);
   const selectedMode = isIdle ? recordingMode : (capture?.sourceMode ?? "both");
   const sourceSelectionSupported = health?.recordingSourceSelection === true;
   const sourceSelectionTitle =
@@ -85,7 +88,12 @@ export function PlaybackHeader({ model }: { model: PlaybackController }) {
           {isIdle ? (
             <button
               className="record-start"
-              disabled={!session || !!busy || !health?.mongo || !sourceSelectionSupported}
+              disabled={
+                !session ||
+                !!busy ||
+                !health?.mongo ||
+                !sourceSelectionSupported
+              }
               onClick={() => record("start")}
               aria-label="Start recording"
             >

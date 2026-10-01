@@ -17,9 +17,14 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("http://127.0.0.1:5173/");
   await page.getByRole("heading", { name: "Lecture notes" }).waitFor();
-  const health = await page.evaluate(() => fetch("/api/health").then((response) => response.json()));
+  const health = await page.evaluate(() =>
+    fetch("/api/health").then((response) => response.json()),
+  );
   if (!health.mongo)
-    await page.getByRole("alert").filter({ hasText: "Local MongoDB is unavailable" }).waitFor();
+    await page
+      .getByRole("alert")
+      .filter({ hasText: "Local MongoDB is unavailable" })
+      .waitFor();
   await page.getByRole("button", { name: "Start recording" }).waitFor();
   const columns = await page
     .locator(".panel")
@@ -56,7 +61,11 @@ try {
   await page.getByRole("button", { name: "Toggle sessions" }).click();
   assert.ok(await page.locator(".sidebar.is-open").isVisible());
   await page.getByRole("button", { name: "Close sessions" }).click();
-  await page.locator(".sidebar").evaluate((element) => element.getAnimations().map((animation) => animation.finish()));
+  await page
+    .locator(".sidebar")
+    .evaluate((element) =>
+      element.getAnimations().map((animation) => animation.finish()),
+    );
   await page
     .getByRole("navigation", { name: "Workspace views" })
     .getByRole("button", { name: "Notes" })
