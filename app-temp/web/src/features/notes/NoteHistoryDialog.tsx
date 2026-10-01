@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { api } from "../../pages/api";
@@ -34,7 +35,7 @@ const RecoverySchema = z.object({
     }),
   ),
 });
-type Recovery = z.infer<typeof RecoverySchema>;
+const SavedNoteSchema = z.object({ markdown: z.string() });
 
 // Browses saved note versions; restores one, or recovers chosen sections of it into the current notes.
 export function NoteHistoryDialog({
@@ -46,77 +47,111 @@ export function NoteHistoryDialog({
 }) {
   const health = useHealth();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<z.infer<typeof HistorySchema>["items"]>(
-    [],
-  );
-  const [before, setBefore] = useState<number | null>(null);
-  const [version, setVersion] = useState(1);
-  const [historical, setHistorical] = useState("");
-  const [preview, setPreview] = useState<Recovery>();
+  const [olderThan, setOlderThan] = useState<number>();
+  const [typedVersion, setTypedVersion] = useState(1);
+  const [shownVersion, setShownVersion] = useState<number>();
+  const [recoveryVersion, setRecoveryVersion] = useState<number>();
   const [selected, setSelected] = useState<string[]>([]);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
-  const request = useRef<AbortController | undefined>(undefined);
-  function closeHistory() {
-    request.current?.abort();
-    request.current = undefined;
-    setOpen(false);
-    setItems([]);
-    setBefore(null);
-    setHistorical("");
-    setPreview(undefined);
-    setSelected([]);
-    setPending(false);
-    setError("");
-  }
-  useEffect(() => {
-    closeHistory();
-  }, [session?.id]);
-  useEffect(() => {
-    if (open) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [open]);
-  useEffect(() => () => request.current?.abort(), []);
-  async function load(work: (signal: AbortSignal) => Promise<void>) {
-    if (!session) return;
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setPending(true);
-    setError("");
-    try {
-      await work(controller.signal);
-    } catch (e) {
-      if (!controller.signal.aborted)
-        setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      if (request.current === controller) setPending(false);
-    }
-  }
-  async function history(cursor?: number) {
-    await load(async (signal) => {
-      const page = await api(
-        `/sessions/${session!.id}/notes/history${cursor ? "?before=" + cursor : ""}`,
+  // A restore still running when the dialog closes must not reload the notes afterwards.
+  const write = useRef<AbortController | undefined>(undefined);
+  const id = session?.id;
+
+  const page = useQuery({
+    queryKey: ["noteHistory", id, olderThan],
+    queryFn: ({ signal }) =>
+      api(
+        `/sessions/${id}/notes/history${olderThan ? "?before=" + olderThan : ""}`,
         "GET",
         undefined,
         HistorySchema,
         signal,
-      );
-      if (signal.aborted) return;
-      setItems(page.items);
-      setBefore(page.nextBefore);
-    });
+      ),
+    enabled: open && !!id,
+  });
+  const shown = useQuery({
+    queryKey: ["noteVersion", id, shownVersion],
+    queryFn: ({ signal }) =>
+      api(
+        `/sessions/${id}/notes/${shownVersion}`,
+        "GET",
+        undefined,
+        SavedNoteSchema,
+        signal,
+      ),
+    enabled: open && !!id && shownVersion !== undefined,
+  });
+  const recovery = useQuery({
+    queryKey: ["noteRecovery", id, recoveryVersion],
+    queryFn: ({ signal }) =>
+      api(
+        `/sessions/${id}/notes/${recoveryVersion}/recovery`,
+        "GET",
+        undefined,
+        RecoverySchema,
+        signal,
+      ),
+    enabled: open && !!id && recoveryVersion !== undefined,
+  });
+  const items = page.data?.items ?? [];
+  const before = page.data?.nextBefore;
+  const historical = shown.data?.markdown;
+  const preview = recovery.data;
+  const pending =
+    saving || page.isFetching || shown.isFetching || recovery.isFetching;
+  const error =
+    saveError || (page.error ?? shown.error ?? recovery.error)?.message;
+
+  function closeHistory() {
+    write.current?.abort();
+    setOpen(false);
+    setOlderThan(undefined);
+    setShownVersion(undefined);
+    setRecoveryVersion(undefined);
+    setSelected([]);
+    setSaving(false);
+    setSaveError("");
   }
+  useEffect(() => {
+    if (open) dialog.current?.showModal();
+    else dialog.current?.close();
+  }, [open]);
+  useEffect(() => () => write.current?.abort(), []);
+
+  function show(version: number) {
+    setShownVersion(version);
+    setRecoveryVersion(undefined);
+  }
+
+  // Saves a new version from history, then shows the current notes.
+  async function saveFromHistory(
+    work: (signal: AbortSignal) => Promise<unknown>,
+  ) {
+    const controller = new AbortController();
+    write.current = controller;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await work(controller.signal);
+      if (controller.signal.aborted) return;
+      await refreshWorkspace(session!.id);
+      closeHistory();
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (!controller.signal.aborted) setSaving(false);
+    }
+  }
+
   return (
     <>
       <button
         className="text-control"
         disabled={!session || !health?.sectionNotes}
-        onClick={() => {
-          setOpen(true);
-          void history();
-        }}
+        onClick={() => setOpen(true)}
       >
         History & recovery
       </button>
@@ -147,25 +182,18 @@ export function NoteHistoryDialog({
                   <button
                     key={x.version}
                     onClick={() => {
-                      setVersion(x.version);
-                      setPreview(undefined);
-                      void load(async (signal) => {
-                        const note = await api<{ markdown: string }>(
-                          `/sessions/${session!.id}/notes/${x.version}`,
-                          "GET",
-                          undefined,
-                          undefined,
-                          signal,
-                        );
-                        if (!signal.aborted) setHistorical(note.markdown);
-                      });
+                      setTypedVersion(x.version);
+                      show(x.version);
                     }}
                   >
                     v{x.version} · {x.author}
                   </button>
                 ))}
                 {before && (
-                  <button disabled={pending} onClick={() => history(before)}>
+                  <button
+                    disabled={pending}
+                    onClick={() => setOlderThan(before)}
+                  >
                     Load older versions
                   </button>
                 )}
@@ -174,72 +202,43 @@ export function NoteHistoryDialog({
                   <input
                     type="number"
                     min={1}
-                    value={version}
-                    onChange={(e) => setVersion(Number(e.target.value))}
+                    value={typedVersion}
+                    onChange={(e) => setTypedVersion(Number(e.target.value))}
                   />
                 </label>
                 <button
-                  disabled={pending || version < 1}
-                  onClick={() =>
-                    load(async (signal) => {
-                      const note = await api<{ markdown: string }>(
-                        `/sessions/${session!.id}/notes/${version}`,
-                        "GET",
-                        undefined,
-                        undefined,
-                        signal,
-                      );
-                      if (!signal.aborted) {
-                        setHistorical(note.markdown);
-                        setPreview(undefined);
-                      }
-                    })
-                  }
+                  disabled={pending || typedVersion < 1}
+                  onClick={() => show(typedVersion)}
                 >
                   Read version
                 </button>
               </nav>
               <main>
-                {historical && (
+                {historical && shownVersion !== undefined && (
                   <>
-                    <h3>Saved v{version}</h3>
+                    <h3>Saved v{shownVersion}</h3>
                     <pre className="historical-note">{historical}</pre>
                     <button
                       disabled={pending || draftDirty}
                       onClick={() =>
-                        load(async (signal) => {
-                          await restoreNoteVersion(
+                        saveFromHistory((signal) =>
+                          restoreNoteVersion(
                             session!.id,
-                            version,
+                            shownVersion,
                             session!.noteVersion,
                             signal,
-                          );
-                          if (!signal.aborted) {
-                            await refreshWorkspace(session!.id);
-                            closeHistory();
-                          }
-                        })
+                          ),
+                        )
                       }
                     >
                       Restore this version as a new protected version
                     </button>
                     <button
                       disabled={pending}
-                      onClick={() =>
-                        load(async (signal) => {
-                          const result = await api(
-                            `/sessions/${session!.id}/notes/${version}/recovery`,
-                            "GET",
-                            undefined,
-                            RecoverySchema,
-                            signal,
-                          );
-                          if (!signal.aborted) {
-                            setPreview(result);
-                            setSelected([]);
-                          }
-                        })
-                      }
+                      onClick={() => {
+                        setRecoveryVersion(shownVersion);
+                        setSelected([]);
+                      }}
                     >
                       Preview recovery into current notes
                     </button>
@@ -298,8 +297,8 @@ export function NoteHistoryDialog({
                     <button
                       disabled={!selected.length || pending || draftDirty}
                       onClick={() =>
-                        load(async (signal) => {
-                          await api(
+                        saveFromHistory((signal) =>
+                          api(
                             `/sessions/${session!.id}/notes/${preview.historicalVersion}/recovery`,
                             "POST",
                             {
@@ -308,12 +307,8 @@ export function NoteHistoryDialog({
                             },
                             undefined,
                             signal,
-                          );
-                          if (!signal.aborted) {
-                            await refreshWorkspace(session!.id);
-                            closeHistory();
-                          }
-                        })
+                          ),
+                        )
                       }
                     >
                       Save selected recovery as a new version

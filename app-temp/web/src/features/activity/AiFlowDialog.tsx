@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { ActivitySchema, type Group } from "../../types/api";
@@ -41,6 +42,7 @@ const FlowSchema = z.object({
     })
     .nullish(),
 });
+// A group's configured AI pipeline and the executions recorded for one of its sessions.
 export function AiFlowDialog({
   group,
   onClose,
@@ -50,37 +52,23 @@ export function AiFlowDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [sessionId, setSessionId] = useState<string>();
-  const [state, setState] = useState<{
-    groupId: string;
-    data?: z.infer<typeof FlowSchema>;
-    error?: string;
-    pending?: boolean;
-  }>();
-  const [reload, setReload] = useState(0);
+  const flow = useQuery({
+    queryKey: ["aiFlow", group.id, sessionId],
+    queryFn: ({ signal }) =>
+      api(
+        `/groups/${group.id}/flow${sessionId ? "?sessionId=" + sessionId : ""}`,
+        "GET",
+        undefined,
+        FlowSchema,
+        signal,
+      ),
+  });
+  // Only a completed read is shown; a reload or a failure hides the previous result.
+  const data = flow.isFetching || flow.isError ? undefined : flow.data;
   useEffect(() => {
     dialog.current?.showModal();
     return () => dialog.current?.close();
   }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    setState({ groupId: group.id, pending: true });
-    api(
-      `/groups/${group.id}/flow${sessionId ? "?sessionId=" + sessionId : ""}`,
-      "GET",
-      undefined,
-      FlowSchema,
-      controller.signal,
-    )
-      .then((data) => {
-        if (!controller.signal.aborted) setState({ groupId: group.id, data });
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted)
-          setState({ groupId: group.id, error: e.message });
-      });
-    return () => controller.abort();
-  }, [group.id, sessionId, reload]);
-  const data = state?.groupId === group.id ? state.data : undefined;
   const graph = useMemo(() => {
     if (!data) return "";
     const lines = data.agents.map(
@@ -111,13 +99,13 @@ export function AiFlowDialog({
         </button>
       </header>
       <div className="flow-body">
-        {state?.pending && (
+        {flow.isFetching && (
           <p role="status">Loading flow and recorded executions…</p>
         )}
-        {state?.error && (
+        {flow.isError && !flow.isFetching && (
           <p role="alert">
-            {state.error}{" "}
-            <button onClick={() => setReload((x) => x + 1)}>Retry</button>
+            {flow.error.message}{" "}
+            <button onClick={() => void flow.refetch()}>Retry</button>
           </p>
         )}
         {data && (
@@ -136,7 +124,7 @@ export function AiFlowDialog({
                   ))}
                 </select>
               </label>
-              <button onClick={() => setReload((x) => x + 1)}>
+              <button onClick={() => void flow.refetch()}>
                 Refresh executions
               </button>
             </div>

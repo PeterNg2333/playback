@@ -1,15 +1,13 @@
-import { useEffect, useState } from "react";
-import type { Evidence, NoteEditLog, Session } from "../../types/api";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import type { Evidence, Session } from "../../types/api";
 import { NoteEditLogSchema } from "../../types/api";
 import { api } from "../../pages/api";
 import { NoteEditHistory } from "../notes/NoteEditHistory";
 import { TermDecisionTrace } from "../../pages/TermDecisionTrace";
 import { restoreNoteVersion } from "../notes/restoreNoteVersion";
 
-type HistoryState =
-  | { status: "loading"; sessionId: string }
-  | { status: "loaded"; sessionId: string; notes: NoteEditLog[] }
-  | { status: "failed"; sessionId: string; message: string };
+const EDIT_LOG_TIMEOUT_MS = 30_000;
 
 type ActivityLogProps = {
   session: Session | null;
@@ -17,16 +15,26 @@ type ActivityLogProps = {
   onNotesRestored: () => Promise<void>;
 };
 
+// What was saved for this session: each note version's changes, and Jev's term decisions.
 export function ActivityLog({
   session,
   onSource,
   onNotesRestored,
 }: ActivityLogProps) {
-  const [history, setHistory] = useState<HistoryState | null>(null);
+  const edits = useQuery({
+    queryKey: ["noteEdits", session?.id, session?.noteVersion],
+    queryFn: ({ signal }) =>
+      api(
+        `/sessions/${session!.id}/notes/edits`,
+        "GET",
+        undefined,
+        NoteEditLogSchema.array(),
+        AbortSignal.any([signal, AbortSignal.timeout(EDIT_LOG_TIMEOUT_MS)]),
+      ),
+    enabled: !!session,
+  });
   const [restoring, setRestoring] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState("");
-  const sessionId = session?.id;
-  const noteVersion = session?.noteVersion;
 
   async function restore(version: number) {
     if (!session) return;
@@ -45,56 +53,23 @@ export function ActivityLog({
     }
   }
 
-  useEffect(() => {
-    if (!sessionId) return;
-    let active = true;
-    const request = new AbortController();
-    setHistory({ status: "loading", sessionId });
-    api(
-      `/sessions/${sessionId}/notes/edits`,
-      "GET",
-      undefined,
-      NoteEditLogSchema.array(),
-      AbortSignal.any([request.signal, AbortSignal.timeout(30000)]),
-    )
-      .then((notes) => {
-        if (active) setHistory({ status: "loaded", sessionId, notes });
-      })
-      .catch((error) => {
-        if (active)
-          setHistory({
-            status: "failed",
-            sessionId,
-            message: error instanceof Error ? error.message : String(error),
-          });
-      });
-    return () => {
-      active = false;
-      request.abort();
-    };
-  }, [sessionId, noteVersion]);
-
   if (!session)
     return <p className="empty">Choose a session to see its activity.</p>;
 
   let editHistory;
-  if (
-    !history ||
-    history.sessionId !== session.id ||
-    history.status === "loading"
-  ) {
+  if (edits.isPending) {
     editHistory = <p role="status">Loading edit history…</p>;
-  } else if (history.status === "failed") {
+  } else if (edits.isError) {
     editHistory = (
       <p className="capture-error" role="alert">
-        Could not load edit history: {history.message}
+        Could not load edit history: {edits.error.message}
       </p>
     );
   } else {
     editHistory = (
       <NoteEditHistory
         session={session}
-        notes={history.notes}
+        notes={edits.data}
         restoring={restoring}
         onRestore={restore}
         onSource={onSource}
