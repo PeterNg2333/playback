@@ -1,5 +1,6 @@
 import type { DragEvent } from "react";
 import { Icon } from "../../Component/Icon";
+import { Menu } from "../../Component/Menu";
 import type { Group, SessionSummary } from "../../lib/backend/schemas";
 import { moveSession, openSession } from "./useLibrary";
 import { usePlaybackStore } from "../../lib/store";
@@ -35,43 +36,44 @@ export function SessionItem({
         <Icon name="document" />
         <span>{item.title}</span>
       </button>
-      <details className="nav-menu entry-menu">
-        <summary aria-label={`Move ${item.title}`} title={`Move ${item.title}`}>
-          <Icon name="more" />
-        </summary>
-        <div className="nav-menu-popover">
-          {item.groupId && (
-            <button
-              onClick={(event) => {
-                event.currentTarget.closest("details")?.removeAttribute("open");
-                void moveSession(item.id, null);
-              }}
-            >
-              Move to Sessions
-            </button>
-          )}
-          {groups
-            .filter((group) => group.id !== item.groupId)
-            .map((group) => (
+      <Menu
+        className="nav-menu entry-menu"
+        label={`Move ${item.title}`}
+        summary={<Icon name="more" />}
+      >
+        {(close) => (
+          <div className="nav-menu-popover">
+            {item.groupId && (
               <button
-                key={group.id}
-                onClick={(event) => {
-                  event.currentTarget
-                    .closest("details")
-                    ?.removeAttribute("open");
-                  void moveSession(item.id, group.id);
+                onClick={() => {
+                  close();
+                  void moveSession(item.id, null);
                 }}
               >
-                Move to {group.name}
+                Move to Sessions
               </button>
-            ))}
-          {!item.groupId && groups.length === 0 && (
-            <span className="nav-menu-hint">
-              Create a group to move this session.
-            </span>
-          )}
-        </div>
-      </details>
+            )}
+            {groups
+              .filter((group) => group.id !== item.groupId)
+              .map((group) => (
+                <button
+                  key={group.id}
+                  onClick={() => {
+                    close();
+                    void moveSession(item.id, group.id);
+                  }}
+                >
+                  Move to {group.name}
+                </button>
+              ))}
+            {!item.groupId && groups.length === 0 && (
+              <span className="nav-menu-hint">
+                Create a group to move this session.
+              </span>
+            )}
+          </div>
+        )}
+      </Menu>
     </div>
   );
 }

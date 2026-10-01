@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "../../Component/Icon";
+import { useDismiss } from "../../Component/Menu";
 import { useHealth } from "../../lib/useHealth";
 import { showError, usePlaybackStore } from "../../lib/store";
 import type { Session } from "../../lib/backend/schemas";
@@ -23,21 +24,7 @@ export function ChatConversationMenu({
   const busy = usePlaybackStore((state) => state.busy);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
+  useDismiss(root, open, () => setOpen(false));
   return (
     <div className="chat-conversation-picker" ref={root}>
       <button

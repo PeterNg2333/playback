@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Menu } from "../../Component/Menu";
 import { audioSourceLabel } from "../recording/AudioSourceBadge";
 
 type AudioSourceMenuProps = {
@@ -20,7 +20,6 @@ export function AudioSourceMenu({
   onPlaySession,
   onSelectSource,
 }: AudioSourceMenuProps) {
-  const menu = useRef<HTMLDetailsElement>(null);
   const disabled = !available || !sessionPlaybackSupported;
   const label = selectedAudio
     ? "Selected audio"
@@ -31,68 +30,50 @@ export function AudioSourceMenu({
   if (!selectedAudio && !sessionPlaybackSupported)
     description = "Restart API for session audio";
 
-  function close() {
-    if (menu.current) menu.current.open = false;
-  }
-
-  useEffect(() => {
-    function closeOutside(event: PointerEvent) {
-      const element = menu.current;
-      if (element && !element.contains(event.target as Node))
-        element.open = false;
-    }
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape" || !menu.current?.open) return;
-      menu.current.open = false;
-      menu.current.querySelector<HTMLElement>("summary")?.focus();
-    }
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, []);
-
   return (
-    <details className="player-mode" ref={menu}>
-      <summary aria-label="Playback mode" title={description}>
-        {label}
-      </summary>
-      <div className="player-mode-menu">
-        <span>{description}</span>
-        <button
-          className="player-session"
-          type="button"
-          aria-pressed={!selectedAudio}
-          disabled={disabled}
-          onClick={() => {
-            onPlaySession();
-            close();
-          }}
-        >
-          Full session
-        </button>
-        <label>
-          <span>Playback source</span>
-          <select
-            aria-label="Audio sources"
-            value={sourceMode}
+    <Menu
+      className="player-mode"
+      label="Playback mode"
+      title={description}
+      summary={label}
+      dismissible
+    >
+      {(close) => (
+        <div className="player-mode-menu">
+          <span>{description}</span>
+          <button
+            className="player-session"
+            type="button"
+            aria-pressed={!selectedAudio}
             disabled={disabled}
-            onChange={(event) => {
-              onSelectSource(event.target.value);
+            onClick={() => {
+              onPlaySession();
               close();
             }}
           >
-            <option value="mix">Mix sources</option>
-            {sources.map((source) => (
-              <option key={source} value={source}>
-                {audioSourceLabel(source)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-    </details>
+            Full session
+          </button>
+          <label>
+            <span>Playback source</span>
+            <select
+              aria-label="Audio sources"
+              value={sourceMode}
+              disabled={disabled}
+              onChange={(event) => {
+                onSelectSource(event.target.value);
+                close();
+              }}
+            >
+              <option value="mix">Mix sources</option>
+              {sources.map((source) => (
+                <option key={source} value={source}>
+                  {audioSourceLabel(source)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+    </Menu>
   );
 }

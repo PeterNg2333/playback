@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { Icon } from "../../Component/Icon";
+import { Menu } from "../../Component/Menu";
 import { SideNav } from "../../Component/Layout/SideNav";
 import type { Group, Session } from "../../lib/backend/schemas";
 import { useHealth } from "../../lib/useHealth";
@@ -143,47 +144,41 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
                 >
                   <Icon name="plus" />
                 </button>
-                <details className="nav-menu group-menu">
-                  <summary
-                    aria-label={`Group options for ${group.name}`}
-                    title={`Group options for ${group.name}`}
-                  >
-                    <Icon name="more" />
-                  </summary>
-                  <div className="nav-menu-popover">
-                    <button
-                      onClick={(event) => {
-                        event.currentTarget
-                          .closest("details")
-                          ?.removeAttribute("open");
-                        setFlowGroup(group);
-                      }}
-                    >
-                      View AI flow
-                    </button>
-                    <button
-                      onClick={(event) => {
-                        event.currentTarget
-                          .closest("details")
-                          ?.removeAttribute("open");
-                        askToRenameGroup(group.id, group.name);
-                      }}
-                    >
-                      Rename group
-                    </button>
-                    <button
-                      className="danger-action"
-                      onClick={(event) => {
-                        event.currentTarget
-                          .closest("details")
-                          ?.removeAttribute("open");
-                        setDeleteCandidate(group);
-                      }}
-                    >
-                      Delete group
-                    </button>
-                  </div>
-                </details>
+                <Menu
+                  className="nav-menu group-menu"
+                  label={`Group options for ${group.name}`}
+                  summary={<Icon name="more" />}
+                >
+                  {(close) => (
+                    <div className="nav-menu-popover">
+                      <button
+                        onClick={() => {
+                          close();
+                          setFlowGroup(group);
+                        }}
+                      >
+                        View AI flow
+                      </button>
+                      <button
+                        onClick={() => {
+                          close();
+                          askToRenameGroup(group.id, group.name);
+                        }}
+                      >
+                        Rename group
+                      </button>
+                      <button
+                        className="danger-action"
+                        onClick={() => {
+                          close();
+                          setDeleteCandidate(group);
+                        }}
+                      >
+                        Delete group
+                      </button>
+                    </div>
+                  )}
+                </Menu>
               </div>
               {open && (
                 <div className="group-children">

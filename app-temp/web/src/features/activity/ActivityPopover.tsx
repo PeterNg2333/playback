@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { Activity, Evidence, Session } from "../../lib/backend/schemas";
 import { ActivityLog } from "./ActivityLog";
 import { formatElapsed } from "../../lib/time";
 import { LazyDetails } from "../../Component/LazyDetails";
+import { useDismiss } from "../../Component/Menu";
 
 export function ActivityPopover({
   session,
@@ -35,21 +36,7 @@ export function ActivityPopover({
     setOpen(false);
     setPinned(false);
   };
-  useEffect(() => {
-    if (!open) return;
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close();
-    };
-    const outside = (event: PointerEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) close();
-    };
-    document.addEventListener("keydown", escape);
-    document.addEventListener("pointerdown", outside);
-    return () => {
-      document.removeEventListener("keydown", escape);
-      document.removeEventListener("pointerdown", outside);
-    };
-  }, [open]);
+  useDismiss(anchor, open, close);
   return (
     <div
       ref={anchor}
