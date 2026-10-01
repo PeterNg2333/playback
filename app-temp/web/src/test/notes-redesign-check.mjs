@@ -435,7 +435,7 @@ try {
   // Vite preview serves compiled assets; source-module identity checks require dev.
   if (process.env.PLAYBACK_UI_PRODUCTION !== "yes") {
     const assembly = await page.evaluate(async () => {
-      const { readSession } = await import("/src/pages/sessionSync.ts");
+      const { readSession } = await import("/src/lib/backend/sessionSync.ts");
       const result = await readSession(
         "large-sync",
         null,

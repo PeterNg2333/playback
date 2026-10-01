@@ -1,36 +1,16 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { z } from "zod";
 import { queryClient } from "../../lib/queryClient";
-import { api } from "../../pages/api";
+import { api } from "../../lib/backend/client";
 import { formatMinutes } from "../../lib/time";
 import { useHealth } from "../../lib/useHealth";
 import { refreshWorkspace } from "../library/refreshWorkspace";
-import type { Evidence, Session } from "../../types/api";
-import { usePlaybackStore } from "../../pages/store";
-
-const ReportSchema = z.object({
-  version: z.number(),
-  total: z.number(),
-  referenced: z.number(),
-  suppressed: z.number(),
-  unreferenced: z.number(),
-  completedWithoutReference: z.number(),
-  largeGaps: z.number(),
-  largeGapMs: z.number(),
-  gaps: z.array(
-    z.object({
-      sourceId: z.string(),
-      startMs: z.number(),
-      endMs: z.number(),
-      speechMs: z.number(),
-      sourceIds: z.array(z.string()),
-      deferred: z.number(),
-      completedWithoutReference: z.number(),
-      large: z.boolean(),
-    }),
-  ),
-});
+import {
+  NoteCoverageSchema,
+  type Evidence,
+  type Session,
+} from "../../lib/backend/schemas";
+import { usePlaybackStore } from "../../lib/store";
 
 // How many transcript parts the saved notes cite, the gaps left, and repairing the earliest gap.
 export function NoteCoveragePanel({
@@ -53,13 +33,9 @@ export function NoteCoveragePanel({
       session?.transcripts.length,
     ],
     queryFn: ({ signal }) =>
-      api(
-        `/sessions/${session!.id}/notes/coverage`,
-        "GET",
-        undefined,
-        ReportSchema,
+      api.get(`/sessions/${session!.id}/notes/coverage`, NoteCoverageSchema, {
         signal,
-      ),
+      }),
     enabled: !!session && !!health?.noteCoverage,
     placeholderData: keepPreviousData,
   });
@@ -78,12 +54,11 @@ export function NoteCoveragePanel({
     setRepairing(true);
     setRepairError("");
     try {
-      await api(
+      await api.post(
         `/sessions/${session.id}/notes/repair`,
-        "POST",
         { basedOnVersion: report.version },
         undefined,
-        controller.signal,
+        { signal: controller.signal },
       );
       if (!controller.signal.aborted) {
         await refreshWorkspace(session.id);

@@ -1,7 +1,7 @@
 import { useHealth } from "../../lib/useHealth";
 import { recordedRange } from "../../lib/time";
-import { usePlaybackField, usePlaybackStore } from "../../pages/store";
-import type { Evidence, Session } from "../../types/api";
+import { usePlaybackField, usePlaybackStore } from "../../lib/store";
+import type { Evidence, Session } from "../../lib/backend/schemas";
 import { ChatAnswer } from "./ChatAnswer";
 import { ChatConversationMenu } from "./ChatConversationMenu";
 import { useAsk } from "./useAsk";

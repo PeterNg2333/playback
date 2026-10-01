@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { Icon } from "../../Component/Icon";
 import { SideNav } from "../../Component/Layout/SideNav";
-import type { Group, Session } from "../../types/api";
+import type { Group, Session } from "../../lib/backend/schemas";
 import { useHealth } from "../../lib/useHealth";
 import {
   askForGroupName,
@@ -12,7 +12,7 @@ import {
   moveSession,
   useLibrary,
 } from "./useLibrary";
-import { usePlaybackField, usePlaybackStore } from "../../pages/store";
+import { usePlaybackField, usePlaybackStore } from "../../lib/store";
 import { SessionItem } from "./SessionItem";
 import { AiFlowDialog } from "../activity/AiFlowDialog";
 

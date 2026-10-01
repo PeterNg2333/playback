@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { queryClient } from "../../lib/queryClient";
-import { showError, usePlaybackStore } from "../../pages/store";
-import type { Session } from "../../types/api";
+import { showError, usePlaybackStore } from "../../lib/store";
+import type { Session } from "../../lib/backend/schemas";
 import { useCaptureStatus } from "../recording/captureQuery";
 import { sessionQuery } from "./libraryQueries";
 

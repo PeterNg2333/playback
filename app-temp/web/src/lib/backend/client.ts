@@ -1,5 +1,35 @@
 import type { ZodType } from "zod";
-import { AnswerSchema } from "../types/api";
+import { AnswerSchema } from "./schemas";
+
+// Calls to the local Playback API. Each request has a time limit and a readable error, and a
+// response is checked against its schema here, at the boundary.
+
+const REQUEST_TIMEOUT_MS = 150_000;
+const MAX_ANSWER_STREAM_BYTES = 8_000_000;
+
+type RequestOptions = { signal?: AbortSignal };
+
+export const api = {
+  get: <T = unknown>(
+    path: string,
+    schema?: ZodType<T>,
+    options?: RequestOptions,
+  ) => request("GET", path, undefined, schema, options?.signal),
+  post: <T = unknown>(
+    path: string,
+    body?: unknown,
+    schema?: ZodType<T>,
+    options?: RequestOptions,
+  ) => request("POST", path, body, schema, options?.signal),
+  put: <T = unknown>(
+    path: string,
+    body: unknown,
+    schema?: ZodType<T>,
+    options?: RequestOptions,
+  ) => request("PUT", path, body, schema, options?.signal),
+  delete: (path: string, options?: RequestOptions) =>
+    request("DELETE", path, undefined, undefined, options?.signal),
+};
 
 function requestScope(signal?: AbortSignal) {
   const controller = new AbortController();
@@ -9,7 +39,7 @@ function requestScope(signal?: AbortSignal) {
   const timer = setTimeout(
     () =>
       controller.abort(new DOMException("Request timed out", "TimeoutError")),
-    150_000,
+    REQUEST_TIMEOUT_MS,
   );
   return {
     signal: controller.signal,
@@ -41,12 +71,12 @@ async function responseError(response: Response) {
   );
 }
 
-export async function api<T = unknown>(
+async function request<T>(
+  method: string,
   path: string,
-  method = "GET",
-  body?: unknown,
-  schema?: ZodType<T>,
-  signal?: AbortSignal,
+  body: unknown,
+  schema: ZodType<T> | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<T> {
   const scope = requestScope(signal);
   try {
@@ -102,7 +132,7 @@ export async function askStream(
         const { value, done } = await reader.read();
         if (done) break;
         size += value.length;
-        if (size > 8_000_000)
+        if (size > MAX_ANSWER_STREAM_BYTES)
           throw new Error("Answer stream exceeded the size limit");
         buffer += decoder.decode(value, { stream: true });
         let end;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../../pages/api";
-import type { Session } from "../../types/api";
+import { api } from "../../lib/backend/client";
+import type { Session } from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 
 // Asks the AI to reorganise one saved notes section. Leaving the session cancels the request.
@@ -24,12 +24,11 @@ export function OrganizeSection({
     setPending(true);
     setError("");
     try {
-      await api(
+      await api.post(
         `/sessions/${session.id}/notes/organize`,
-        "POST",
         { sectionId, basedOnVersion: session.noteVersion },
         undefined,
-        controller.signal,
+        { signal: controller.signal },
       );
       if (!controller.signal.aborted) await refreshWorkspace(session.id);
     } catch (e) {

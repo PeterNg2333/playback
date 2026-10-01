@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// Shapes of what the Playback API returns and accepts. Responses are checked against these
+// in lib/backend/client.ts; the rest of the app trusts the parsed data.
+
 export const SessionTitleSchema = z.string().trim().min(1).max(120);
 export const GroupNameSchema = z.string().trim().min(1).max(80);
 export const QuestionSchema = z.string().trim().min(1).max(1000);
@@ -286,6 +289,105 @@ export const CaptureStatusSchema = z.object({
       }),
     )
     .optional(),
+});
+
+// A group's configured AI pipeline and the executions recorded for one of its sessions.
+export const AiFlowSchema = z.object({
+  selectedSessionId: z.string().nullish(),
+  sessions: z.array(z.object({ id: z.string(), title: z.string() })),
+  agents: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      provider: z.string(),
+      model: z.string(),
+      status: z.string(),
+      promptVersion: z.string(),
+      prompt: z.string(),
+      trigger: z.string(),
+      lifecycle: z.string(),
+      inputRole: z.string(),
+      outputRole: z.string(),
+      dependsOn: z.array(z.string()),
+    }),
+  ),
+  executions: ActivitySchema.array(),
+  automaticOrganization: z.boolean(),
+  gate: z
+    .object({
+      status: z.string(),
+      decision: z.string(),
+      inputHash: z.string(),
+      model: z.string(),
+      promptVersion: z.string(),
+      waitCount: z.number(),
+      attempts: z.number(),
+      retryAt: z.string().nullish(),
+      changedAt: z.string(),
+      flushRequested: z.boolean(),
+      generationRequested: z.boolean(),
+    })
+    .nullish(),
+});
+
+// One page of saved note versions, newest first.
+export const NoteHistoryPageSchema = z.object({
+  items: z.array(
+    z.object({
+      version: z.number(),
+      author: z.string(),
+      createdAt: z.string(),
+    }),
+  ),
+  nextBefore: z.number().nullable(),
+});
+
+// Sections of an old version that could be merged back into the current notes.
+export const NoteRecoverySchema = z.object({
+  basedOnVersion: z.number(),
+  historicalVersion: z.number(),
+  citations: z.array(
+    z.object({ id: z.string(), sourceIds: z.array(z.string()) }),
+  ),
+  candidates: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      markdown: z.string(),
+      missingSourceIds: z.array(z.string()),
+      blocked: z.boolean(),
+      userEdited: z.boolean(),
+    }),
+  ),
+});
+
+// One saved version of the notes.
+export const SavedNoteSchema = z.object({ markdown: z.string() });
+// The version number the API gave a newly saved note.
+export const SavedNoteVersionSchema = z.object({ version: z.number() });
+
+// How many transcript parts the saved notes cite, and the gaps between cited parts.
+export const NoteCoverageSchema = z.object({
+  version: z.number(),
+  total: z.number(),
+  referenced: z.number(),
+  suppressed: z.number(),
+  unreferenced: z.number(),
+  completedWithoutReference: z.number(),
+  largeGaps: z.number(),
+  largeGapMs: z.number(),
+  gaps: z.array(
+    z.object({
+      sourceId: z.string(),
+      startMs: z.number(),
+      endMs: z.number(),
+      speechMs: z.number(),
+      sourceIds: z.array(z.string()),
+      deferred: z.number(),
+      completedWithoutReference: z.number(),
+      large: z.boolean(),
+    }),
+  ),
 });
 
 export type Transcript = z.infer<typeof TranscriptSchema>;

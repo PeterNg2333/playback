@@ -1,47 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { z } from "zod";
-import { ActivitySchema, type Group } from "../../types/api";
-import { api } from "../../pages/api";
+import { AiFlowSchema, type Group } from "../../lib/backend/schemas";
+import { api } from "../../lib/backend/client";
 import { Markdown } from "../../Component/markdown/Markdown";
 
-const FlowSchema = z.object({
-  selectedSessionId: z.string().nullish(),
-  sessions: z.array(z.object({ id: z.string(), title: z.string() })),
-  agents: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      provider: z.string(),
-      model: z.string(),
-      status: z.string(),
-      promptVersion: z.string(),
-      prompt: z.string(),
-      trigger: z.string(),
-      lifecycle: z.string(),
-      inputRole: z.string(),
-      outputRole: z.string(),
-      dependsOn: z.array(z.string()),
-    }),
-  ),
-  executions: ActivitySchema.array(),
-  automaticOrganization: z.boolean(),
-  gate: z
-    .object({
-      status: z.string(),
-      decision: z.string(),
-      inputHash: z.string(),
-      model: z.string(),
-      promptVersion: z.string(),
-      waitCount: z.number(),
-      attempts: z.number(),
-      retryAt: z.string().nullish(),
-      changedAt: z.string(),
-      flushRequested: z.boolean(),
-      generationRequested: z.boolean(),
-    })
-    .nullish(),
-});
 // A group's configured AI pipeline and the executions recorded for one of its sessions.
 export function AiFlowDialog({
   group,
@@ -55,12 +17,10 @@ export function AiFlowDialog({
   const flow = useQuery({
     queryKey: ["aiFlow", group.id, sessionId],
     queryFn: ({ signal }) =>
-      api(
+      api.get(
         `/groups/${group.id}/flow${sessionId ? "?sessionId=" + sessionId : ""}`,
-        "GET",
-        undefined,
-        FlowSchema,
-        signal,
+        AiFlowSchema,
+        { signal },
       ),
   });
   // Only a completed read is shown; a reload or a failure hides the previous result.

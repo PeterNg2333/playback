@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Activity, Evidence, Session } from "../../types/api";
+import type { Activity, Evidence, Session } from "../../lib/backend/schemas";
 import { ActivityLog } from "./ActivityLog";
 import { formatElapsed } from "../../lib/time";
 import { LazyDetails } from "../../Component/LazyDetails";

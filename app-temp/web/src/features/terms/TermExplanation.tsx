@@ -1,10 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { TermInsight } from "../../types/api";
+import type { TermInsight } from "../../lib/backend/schemas";
 import { Markdown } from "../../Component/markdown/Markdown";
-import { api } from "../../pages/api";
-import { TermInsightSchema } from "../../types/api";
+import { api } from "../../lib/backend/client";
+import { TermInsightSchema } from "../../lib/backend/schemas";
 
 export function TermExplanation({
   insight,
@@ -29,9 +29,8 @@ export function TermExplanation({
   // Generates and saves a longer explanation for this term once, on request.
   const detail = useMutation({
     mutationFn: () =>
-      api(
+      api.post(
         `/sessions/${sessionId}/terms/${insight.id}/explain?detail=true`,
-        "POST",
         undefined,
         TermInsightSchema,
       ),

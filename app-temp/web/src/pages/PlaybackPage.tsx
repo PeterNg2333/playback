@@ -12,7 +12,7 @@ import { useCaptureStatus } from "../features/recording/captureQuery";
 import { Recorder } from "../features/recording/Recorder";
 import { useRevealSource } from "../features/sources/useRevealSource";
 import { useAudioPlayer } from "../features/player/useAudioPlayer";
-import { showError, usePlaybackField, usePlaybackStore } from "./store";
+import { showError, usePlaybackField, usePlaybackStore } from "../lib/store";
 import { LibrarySidebar } from "../features/library/LibrarySidebar";
 import { NotesPanel } from "../features/notes/NotesPanel";
 import { TranscriptPanel } from "../features/transcript/TranscriptPanel";

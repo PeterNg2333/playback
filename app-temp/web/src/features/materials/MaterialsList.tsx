@@ -1,5 +1,5 @@
-import { usePlaybackStore } from "../../pages/store";
-import type { Session } from "../../types/api";
+import { usePlaybackStore } from "../../lib/store";
+import type { Session } from "../../lib/backend/schemas";
 import { askAboutTerm } from "../ask/askAbout";
 import { attachMaterial } from "./attachMaterial";
 

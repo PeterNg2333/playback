@@ -1,6 +1,6 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { api } from "../pages/api";
-import { HealthSchema } from "../types/api";
+import { api } from "./backend/client";
+import { HealthSchema } from "./backend/schemas";
 
 const HEALTH_TIMEOUT_MS = 30_000;
 
@@ -8,13 +8,9 @@ const HEALTH_TIMEOUT_MS = 30_000;
 export const healthQuery = queryOptions({
   queryKey: ["health"],
   queryFn: ({ signal }) =>
-    api(
-      "/health",
-      "GET",
-      undefined,
-      HealthSchema,
-      AbortSignal.any([signal, AbortSignal.timeout(HEALTH_TIMEOUT_MS)]),
-    ),
+    api.get("/health", HealthSchema, {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(HEALTH_TIMEOUT_MS)]),
+    }),
   staleTime: Infinity,
 });
 

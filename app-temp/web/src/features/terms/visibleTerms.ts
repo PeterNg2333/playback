@@ -1,4 +1,4 @@
-import type { TermInsight } from "../../types/api";
+import type { TermInsight } from "../../lib/backend/schemas";
 
 // Everyday words Jev sometimes still selects. This belongs in the backend's highlight
 // decision; until it moves there, this is the one place the frontend drops them.

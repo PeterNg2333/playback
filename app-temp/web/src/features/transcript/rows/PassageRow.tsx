@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import type { PassageEntry } from "../timelineEntries";
-import type { Session, TermCandidate, TermInsight } from "../../../types/api";
+import type {
+  Session,
+  TermCandidate,
+  TermInsight,
+} from "../../../lib/backend/schemas";
 import { askAboutTerm, captureTranscriptSelection } from "../../ask/askAbout";
 import type { AudioPlayer } from "../../player/useAudioPlayer";
 import { TranscriptRow } from "./TranscriptRow";

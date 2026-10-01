@@ -1,5 +1,5 @@
 import { TextInputDialog } from "../../Component/Dialog/TextInputDialog";
-import { usePlaybackStore } from "../../pages/store";
+import { usePlaybackStore } from "../../lib/store";
 import { closeNameDialog, submitName } from "./useLibrary";
 
 // Asks for the name of a new session or group, or a group's new name.

@@ -1,13 +1,13 @@
 import { queryOptions, useIsFetching, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { queryClient } from "../../lib/queryClient";
-import { api } from "../../pages/api";
+import { api } from "../../lib/backend/client";
 import {
   ConversationSchema,
   ConversationSummarySchema,
   type Conversation,
   type ConversationSummary,
-} from "../../types/api";
+} from "../../lib/backend/schemas";
 
 const noConversations: ConversationSummary[] = [];
 const savedConversationKey = (sessionId: string) =>
@@ -17,10 +17,8 @@ const conversationListQuery = (sessionId: string) =>
   queryOptions({
     queryKey: ["conversations", sessionId],
     queryFn: () =>
-      api(
+      api.get(
         `/sessions/${sessionId}/conversations`,
-        "GET",
-        undefined,
         ConversationSummarySchema.array(),
       ),
   });
@@ -30,12 +28,7 @@ const conversationQuery = (sessionId: string, id: string) =>
   queryOptions({
     queryKey: ["conversations", sessionId, id],
     queryFn: () =>
-      api(
-        `/sessions/${sessionId}/conversations/${id}`,
-        "GET",
-        undefined,
-        ConversationSchema,
-      ),
+      api.get(`/sessions/${sessionId}/conversations/${id}`, ConversationSchema),
     staleTime: Infinity,
   });
 
@@ -87,9 +80,8 @@ export function useChatConversations(
 
   async function create() {
     if (!sessionId || !enabled) return;
-    const item = await api(
+    const item = await api.post(
       `/sessions/${sessionId}/conversations`,
-      "POST",
       undefined,
       ConversationSummarySchema,
     );

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useHealth } from "../../lib/useHealth";
-import { api, askStream } from "../../pages/api";
-import { runAction, showError, usePlaybackStore } from "../../pages/store";
+import { api, askStream } from "../../lib/backend/client";
+import { runAction, showError, usePlaybackStore } from "../../lib/store";
 import {
   AnswerSchema,
   QuestionSchema,
   type Answer,
   type Session,
-} from "../../types/api";
+} from "../../lib/backend/schemas";
 import { useChatConversations } from "./useChatConversations";
 
 // Asks the selected session a question and keeps the answer, streaming draft and
@@ -67,7 +67,7 @@ export function useAsk(session: Session | null) {
         ? await askStream(session.id, body, controller.signal, (text) => {
             if (!controller.signal.aborted) setAnswerDraft(text);
           })
-        : await api(`/sessions/${session.id}/ask`, "POST", body, AnswerSchema);
+        : await api.post(`/sessions/${session.id}/ask`, body, AnswerSchema);
       if (controller.signal.aborted) return;
       setAnswer(result);
       if (conversation) {

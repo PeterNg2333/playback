@@ -1,6 +1,9 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import { api } from "../../pages/api";
-import { CaptureStatusSchema, type CaptureStatus } from "../../types/api";
+import { api } from "../../lib/backend/client";
+import {
+  CaptureStatusSchema,
+  type CaptureStatus,
+} from "../../lib/backend/schemas";
 
 const STATUS_TIMEOUT_MS = 10_000;
 
@@ -8,13 +11,9 @@ const STATUS_TIMEOUT_MS = 10_000;
 export const captureQuery = queryOptions({
   queryKey: ["capture"],
   queryFn: ({ signal }) =>
-    api(
-      "/capture/status",
-      "GET",
-      undefined,
-      CaptureStatusSchema,
-      AbortSignal.any([signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)]),
-    ),
+    api.get("/capture/status", CaptureStatusSchema, {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)]),
+    }),
   staleTime: Infinity,
 });
 

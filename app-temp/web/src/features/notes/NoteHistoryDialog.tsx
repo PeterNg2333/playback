@@ -1,41 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { z } from "zod";
-import { api } from "../../pages/api";
+import { api } from "../../lib/backend/client";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { useHealth } from "../../lib/useHealth";
 import { refreshWorkspace } from "../library/refreshWorkspace";
-import type { Session } from "../../types/api";
+import {
+  NoteHistoryPageSchema,
+  NoteRecoverySchema,
+  SavedNoteSchema,
+  type Session,
+} from "../../lib/backend/schemas";
 import { restoreNoteVersion } from "./restoreNoteVersion";
-
-const HistorySchema = z.object({
-  items: z.array(
-    z.object({
-      version: z.number(),
-      author: z.string(),
-      createdAt: z.string(),
-    }),
-  ),
-  nextBefore: z.number().nullable(),
-});
-const RecoverySchema = z.object({
-  basedOnVersion: z.number(),
-  historicalVersion: z.number(),
-  citations: z.array(
-    z.object({ id: z.string(), sourceIds: z.array(z.string()) }),
-  ),
-  candidates: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      markdown: z.string(),
-      missingSourceIds: z.array(z.string()),
-      blocked: z.boolean(),
-      userEdited: z.boolean(),
-    }),
-  ),
-});
-const SavedNoteSchema = z.object({ markdown: z.string() });
 
 // Browses saved note versions; restores one, or recovers chosen sections of it into the current notes.
 export function NoteHistoryDialog({
@@ -62,36 +37,28 @@ export function NoteHistoryDialog({
   const page = useQuery({
     queryKey: ["noteHistory", id, olderThan],
     queryFn: ({ signal }) =>
-      api(
+      api.get(
         `/sessions/${id}/notes/history${olderThan ? "?before=" + olderThan : ""}`,
-        "GET",
-        undefined,
-        HistorySchema,
-        signal,
+        NoteHistoryPageSchema,
+        { signal },
       ),
     enabled: open && !!id,
   });
   const shown = useQuery({
     queryKey: ["noteVersion", id, shownVersion],
     queryFn: ({ signal }) =>
-      api(
-        `/sessions/${id}/notes/${shownVersion}`,
-        "GET",
-        undefined,
-        SavedNoteSchema,
+      api.get(`/sessions/${id}/notes/${shownVersion}`, SavedNoteSchema, {
         signal,
-      ),
+      }),
     enabled: open && !!id && shownVersion !== undefined,
   });
   const recovery = useQuery({
     queryKey: ["noteRecovery", id, recoveryVersion],
     queryFn: ({ signal }) =>
-      api(
+      api.get(
         `/sessions/${id}/notes/${recoveryVersion}/recovery`,
-        "GET",
-        undefined,
-        RecoverySchema,
-        signal,
+        NoteRecoverySchema,
+        { signal },
       ),
     enabled: open && !!id && recoveryVersion !== undefined,
   });
@@ -298,15 +265,14 @@ export function NoteHistoryDialog({
                       disabled={!selected.length || pending || draftDirty}
                       onClick={() =>
                         saveFromHistory((signal) =>
-                          api(
+                          api.post(
                             `/sessions/${session!.id}/notes/${preview.historicalVersion}/recovery`,
-                            "POST",
                             {
                               basedOnVersion: preview.basedOnVersion,
                               selectedIds: selected,
                             },
                             undefined,
-                            signal,
+                            { signal },
                           ),
                         )
                       }

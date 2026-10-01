@@ -1,7 +1,7 @@
 import { isCancelledError } from "@tanstack/react-query";
 import { queryClient } from "../../lib/queryClient";
 import { healthQuery } from "../../lib/useHealth";
-import { usePlaybackStore } from "../../pages/store";
+import { usePlaybackStore } from "../../lib/store";
 import { captureQuery } from "../recording/captureQuery";
 import { groupsQuery, sessionListQuery, sessionQuery } from "./libraryQueries";
 

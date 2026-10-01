@@ -1,5 +1,5 @@
-import { usePlaybackStore } from "../../pages/store";
-import type { Session, TermCandidate } from "../../types/api";
+import { usePlaybackStore } from "../../lib/store";
+import type { Session, TermCandidate } from "../../lib/backend/schemas";
 
 const MAX_SELECTED_CHARS = 1000;
 

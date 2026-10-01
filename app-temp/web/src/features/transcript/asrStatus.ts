@@ -1,4 +1,4 @@
-import type { Chunk } from "../../types/api";
+import type { Chunk } from "../../lib/backend/schemas";
 
 // How speech recognition reads in the transcript: each audio part's status, the
 // summary beside the Transcript heading, and provider text without control tokens.

@@ -1,6 +1,6 @@
 import { Panel } from "../../Component/Layout/Panel";
 import { useHealth } from "../../lib/useHealth";
-import type { Session } from "../../types/api";
+import type { Session } from "../../lib/backend/schemas";
 import type { AudioPlayer } from "../player/useAudioPlayer";
 import { Timeline } from "./Timeline";
 import { SessionSettings } from "./SessionSettings";

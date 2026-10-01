@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useHealth } from "../../lib/useHealth";
-import type { Session } from "../../types/api";
+import type { Session } from "../../lib/backend/schemas";
 import type { AudioPlayer } from "./useAudioPlayer";
 import { AudioSourceMenu } from "./AudioSourceMenu";
 

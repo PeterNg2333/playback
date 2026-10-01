@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { api } from "../../pages/api";
-import type { Session } from "../../types/api";
+import { api } from "../../lib/backend/client";
+import {
+  SavedNoteVersionSchema,
+  type Session,
+} from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 
 type Draft = {
@@ -64,10 +67,10 @@ export function useNoteDraft(session: Session | null) {
     !!session && isDirty && draft.baseVersion !== session.noteVersion;
 
   async function saveText(text: string) {
-    const saved = await api<{ version: number }>(
+    const saved = await api.post(
       `/sessions/${session!.id}/notes`,
-      "POST",
       { markdown: text, basedOnVersion: draft.baseVersion },
+      SavedNoteVersionSchema,
     );
     setDraft((current) => ({
       ...current,
@@ -87,7 +90,7 @@ export function useNoteDraft(session: Session | null) {
     // Saves unsaved edits first so the AI revises what the user sees.
     reviseWithAi: async () => {
       if (isDirty) await saveText(draft.text);
-      await api(`/sessions/${session!.id}/notes/generate`, "POST");
+      await api.post(`/sessions/${session!.id}/notes/generate`);
       await refreshWorkspace(session!.id);
     },
     // Shows the current saved notes and keeps the user's text for recovery.

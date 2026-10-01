@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../Component/Icon";
 import { useHealth } from "../../lib/useHealth";
-import { showError, usePlaybackStore } from "../../pages/store";
-import type { Session } from "../../types/api";
+import { showError, usePlaybackStore } from "../../lib/store";
+import type { Session } from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 import { useLibrary } from "../library/useLibrary";
 import type { ChatConversations } from "./useChatConversations";

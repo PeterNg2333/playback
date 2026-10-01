@@ -1,5 +1,5 @@
 import { recordedRange } from "../../../lib/time";
-import type { Chunk } from "../../../types/api";
+import type { Chunk } from "../../../lib/backend/schemas";
 import type { AudioPlayer } from "../../player/useAudioPlayer";
 import { PlayButton } from "../../player/PlayButton";
 import {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { usePlaybackStore } from "../../pages/store";
-import type { Evidence, Session } from "../../types/api";
+import { usePlaybackStore } from "../../lib/store";
+import type { Evidence, Session } from "../../lib/backend/schemas";
 
 // Opens a cited source: a web page in a new tab, or the transcript passage or
 // teaching material it points to, once the transcript view is showing.

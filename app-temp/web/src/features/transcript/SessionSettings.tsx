@@ -10,8 +10,8 @@ import {
   AsrLanguageSchema,
   NoteLanguageSchema,
   type Session,
-} from "../../types/api";
-import { usePlaybackField, usePlaybackStore } from "../../pages/store";
+} from "../../lib/backend/schemas";
+import { usePlaybackField, usePlaybackStore } from "../../lib/store";
 
 export function SessionSettings({ session }: { session: Session | null }) {
   const health = useHealth();

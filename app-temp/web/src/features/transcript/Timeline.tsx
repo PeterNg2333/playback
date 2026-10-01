@@ -4,14 +4,14 @@ import type {
   Session,
   TermCandidate,
   TermInsight,
-} from "../../types/api";
+} from "../../lib/backend/schemas";
 import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm, captureTranscriptSelection } from "../ask/askAbout";
 import { MaterialsList } from "../materials/MaterialsList";
 import { visibleTerms } from "../terms/visibleTerms";
 import { useCaptureStatus } from "../recording/captureQuery";
 import { retryAsr } from "./retryAsr";
-import { usePlaybackStore } from "../../pages/store";
+import { usePlaybackStore } from "../../lib/store";
 import type { AudioPlayer } from "../player/useAudioPlayer";
 import { VirtualList, type VirtualItem } from "./VirtualList";
 import {

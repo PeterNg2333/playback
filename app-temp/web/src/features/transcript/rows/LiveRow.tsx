@@ -1,5 +1,5 @@
 import { recordedRange } from "../../../lib/time";
-import type { CaptureStatus } from "../../../types/api";
+import type { CaptureStatus } from "../../../lib/backend/schemas";
 import { AudioSourceBadge } from "../../recording/AudioSourceBadge";
 
 type ActiveSegment = NonNullable<CaptureStatus["activeSegments"]>[number];

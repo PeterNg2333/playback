@@ -1,7 +1,7 @@
 import { queryClient } from "../../lib/queryClient";
-import { api } from "../../pages/api";
-import { runAction } from "../../pages/store";
-import type { Session } from "../../types/api";
+import { api } from "../../lib/backend/client";
+import { runAction } from "../../lib/store";
+import type { Session } from "../../lib/backend/schemas";
 import { sessionQuery } from "../library/libraryQueries";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 
@@ -14,7 +14,7 @@ export function saveLanguages(
   asrModel: string | null = session.asrModel ?? null,
 ) {
   return runAction("languages", async () => {
-    await api(`/sessions/${session.id}/languages`, "PUT", {
+    await api.put(`/sessions/${session.id}/languages`, {
       asrLanguage,
       noteLanguage,
       asrModel,
@@ -38,7 +38,7 @@ export function saveTranslation(
   });
   return runAction("translation", async () => {
     try {
-      await api(`/sessions/${session.id}/translation`, "PUT", {
+      await api.put(`/sessions/${session.id}/translation`, {
         enabled,
         language,
       });
@@ -52,7 +52,7 @@ export function saveTranslation(
 
 export function retryTranslations(session: Session) {
   return runAction("translation", async () => {
-    await api(`/sessions/${session.id}/translation/retry`, "POST");
+    await api.post(`/sessions/${session.id}/translation/retry`);
     await refreshWorkspace(session.id);
   });
 }

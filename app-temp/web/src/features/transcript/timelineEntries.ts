@@ -3,7 +3,7 @@ import type {
   Chunk,
   Session,
   Transcript,
-} from "../../types/api";
+} from "../../lib/backend/schemas";
 
 // The transcript timeline: a session's audio parts and transcripts grouped by day and
 // hour, with quiet audio folded together and settled passages combined for reading.

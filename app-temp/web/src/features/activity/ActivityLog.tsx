@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import type { Evidence, Session } from "../../types/api";
-import { NoteEditLogSchema } from "../../types/api";
-import { api } from "../../pages/api";
+import type { Evidence, Session } from "../../lib/backend/schemas";
+import { NoteEditLogSchema } from "../../lib/backend/schemas";
+import { api } from "../../lib/backend/client";
 import { NoteEditHistory } from "../notes/NoteEditHistory";
 import { TermDecisionTrace } from "../terms/TermDecisionTrace";
 import { restoreNoteVersion } from "../notes/restoreNoteVersion";
@@ -24,12 +24,15 @@ export function ActivityLog({
   const edits = useQuery({
     queryKey: ["noteEdits", session?.id, session?.noteVersion],
     queryFn: ({ signal }) =>
-      api(
+      api.get(
         `/sessions/${session!.id}/notes/edits`,
-        "GET",
-        undefined,
         NoteEditLogSchema.array(),
-        AbortSignal.any([signal, AbortSignal.timeout(EDIT_LOG_TIMEOUT_MS)]),
+        {
+          signal: AbortSignal.any([
+            signal,
+            AbortSignal.timeout(EDIT_LOG_TIMEOUT_MS),
+          ]),
+        },
       ),
     enabled: !!session,
   });

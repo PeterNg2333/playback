@@ -1,14 +1,14 @@
 import { queryOptions } from "@tanstack/react-query";
 import { queryClient } from "../../lib/queryClient";
 import { healthQuery } from "../../lib/useHealth";
-import { api } from "../../pages/api";
-import { readSession } from "../../pages/sessionSync";
+import { api } from "../../lib/backend/client";
+import { readSession } from "../../lib/backend/sessionSync";
 import {
   GroupSchema,
   SessionSchema,
   SessionSummarySchema,
   type Session,
-} from "../../types/api";
+} from "../../lib/backend/schemas";
 
 const LIST_TIMEOUT_MS = 30_000;
 // A three-hour session is large; release it soon after the user switches away.
@@ -17,26 +17,18 @@ const RELEASE_UNSHOWN_SESSION_MS = 1_000;
 export const sessionListQuery = queryOptions({
   queryKey: ["sessions"],
   queryFn: ({ signal }) =>
-    api(
-      "/sessions",
-      "GET",
-      undefined,
-      SessionSummarySchema.array(),
-      AbortSignal.any([signal, AbortSignal.timeout(LIST_TIMEOUT_MS)]),
-    ),
+    api.get("/sessions", SessionSummarySchema.array(), {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(LIST_TIMEOUT_MS)]),
+    }),
   staleTime: Infinity,
 });
 
 export const groupsQuery = queryOptions({
   queryKey: ["groups"],
   queryFn: ({ signal }) =>
-    api(
-      "/groups",
-      "GET",
-      undefined,
-      GroupSchema.array(),
-      AbortSignal.any([signal, AbortSignal.timeout(LIST_TIMEOUT_MS)]),
-    ),
+    api.get("/groups", GroupSchema.array(), {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(LIST_TIMEOUT_MS)]),
+    }),
   staleTime: Infinity,
 });
 
@@ -54,7 +46,7 @@ const syncCursors = new Map<string, string>();
 
 async function readFullSession(id: string, signal: AbortSignal) {
   if (!queryClient.getQueryData(healthQuery.queryKey)?.sessionSync)
-    return api("/sessions/" + id, "GET", undefined, SessionSchema, signal);
+    return api.get("/sessions/" + id, SessionSchema, { signal });
   const previous: Session | null =
     queryClient.getQueryData(sessionQuery(id).queryKey) ?? null;
   const cursor = previous ? syncCursors.get(id) : undefined;

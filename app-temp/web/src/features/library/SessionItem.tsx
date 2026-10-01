@@ -1,8 +1,8 @@
 import type { DragEvent } from "react";
 import { Icon } from "../../Component/Icon";
-import type { Group, SessionSummary } from "../../types/api";
+import type { Group, SessionSummary } from "../../lib/backend/schemas";
 import { moveSession, openSession } from "./useLibrary";
-import { usePlaybackStore } from "../../pages/store";
+import { usePlaybackStore } from "../../lib/store";
 
 export function SessionItem({
   item,

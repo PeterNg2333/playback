@@ -1,4 +1,4 @@
-import type { Evidence, Session, TermInsight } from "../../types/api";
+import type { Evidence, Session, TermInsight } from "../../lib/backend/schemas";
 import { SourceLinks } from "../sources/SourceLinks";
 import { formatDateTime } from "../../lib/time";
 import { LazyDetails } from "../../Component/LazyDetails";

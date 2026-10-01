@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { useCallback } from "react";
-import type { RecordingMode } from "../types/api";
+import type { RecordingMode } from "./backend/schemas";
 
 // Browser-only UI state. Data read from the API lives in the TanStack Query cache.
 export type View = "notes" | "transcript";

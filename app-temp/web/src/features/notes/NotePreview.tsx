@@ -3,7 +3,7 @@ import { CitedMarkdown, indexMarkdownSources } from "../sources/CitedMarkdown";
 import { askAboutTerm } from "../ask/askAbout";
 import { visibleTerms } from "../terms/visibleTerms";
 import { parseMaterialPassageId } from "../sources/passageId";
-import type { Evidence, Session } from "../../types/api";
+import type { Evidence, Session } from "../../lib/backend/schemas";
 import type { AudioPlayer } from "../player/useAudioPlayer";
 import { SourceCitation } from "../sources/SourceCitation";
 import { TermHighlight } from "../terms/TermHighlight";

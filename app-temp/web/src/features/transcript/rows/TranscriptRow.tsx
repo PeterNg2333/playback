@@ -4,7 +4,7 @@ import type {
   TermCandidate,
   Transcript,
   TermInsight,
-} from "../../../types/api";
+} from "../../../lib/backend/schemas";
 import { recordedRange } from "../../../lib/time";
 import { cleanAsrText } from "../asrStatus";
 import { PlayButton } from "../../player/PlayButton";

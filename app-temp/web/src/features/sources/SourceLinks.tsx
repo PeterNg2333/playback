@@ -1,4 +1,4 @@
-import type { Evidence, Session } from "../../types/api";
+import type { Evidence, Session } from "../../lib/backend/schemas";
 import { recordedRange } from "../../lib/time";
 
 type SourceLinksProps = {

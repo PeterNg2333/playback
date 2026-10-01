@@ -1,4 +1,4 @@
-import type { Chunk } from "../../types/api";
+import type { Chunk } from "../../lib/backend/schemas";
 import { Icon } from "../../Component/Icon";
 
 export function PlayButton({

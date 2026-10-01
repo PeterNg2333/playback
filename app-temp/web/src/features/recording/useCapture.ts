@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { queryClient } from "../../lib/queryClient";
 import { useHealth } from "../../lib/useHealth";
-import { api } from "../../pages/api";
-import { runAction, showError, usePlaybackStore } from "../../pages/store";
-import { CaptureStatusSchema, type Session } from "../../types/api";
+import { api } from "../../lib/backend/client";
+import { runAction, showError, usePlaybackStore } from "../../lib/store";
+import { CaptureStatusSchema, type Session } from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 import { captureQuery } from "./captureQuery";
 
@@ -45,9 +45,8 @@ export function useCapture(session: Session | null) {
         throw new Error(
           "Restart the API to record with the selected audio source",
         );
-      const status = await api(
+      const status = await api.post(
         `/capture/${command}`,
-        "POST",
         command === "start"
           ? { sessionId: session!.id, sourceMode: recordingMode }
           : undefined,

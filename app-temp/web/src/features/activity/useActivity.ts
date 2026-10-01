@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ActivitySchema, type Activity } from "../../types/api";
-import { api } from "../../pages/api";
+import { ActivitySchema, type Activity } from "../../lib/backend/schemas";
+import { api } from "../../lib/backend/client";
 
 const ACTIVITY_POLL_MS = 700;
 const ACTIVITY_TIMEOUT_MS = 30_000;
@@ -17,12 +17,15 @@ export function useActivity(
   const { data, error } = useQuery({
     queryKey: ["activity", sessionId],
     queryFn: ({ signal }) =>
-      api(
+      api.get(
         `/sessions/${sessionId}/activity?includePrompt=false`,
-        "GET",
-        undefined,
         notesActivity,
-        AbortSignal.any([signal, AbortSignal.timeout(ACTIVITY_TIMEOUT_MS)]),
+        {
+          signal: AbortSignal.any([
+            signal,
+            AbortSignal.timeout(ACTIVITY_TIMEOUT_MS),
+          ]),
+        },
       ),
     enabled: !!sessionId && enabled,
     refetchInterval: ACTIVITY_POLL_MS,

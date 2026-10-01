@@ -1,4 +1,4 @@
-import type { Answer, Evidence, Session } from "../../types/api";
+import type { Answer, Evidence, Session } from "../../lib/backend/schemas";
 import { Markdown } from "../../Component/markdown/Markdown";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
 

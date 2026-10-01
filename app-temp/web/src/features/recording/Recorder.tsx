@@ -1,8 +1,8 @@
 import { Icon } from "../../Component/Icon";
 import { useHealth } from "../../lib/useHealth";
 import { formatElapsed } from "../../lib/time";
-import { usePlaybackField, usePlaybackStore } from "../../pages/store";
-import { RecordingModeSchema, type Session } from "../../types/api";
+import { usePlaybackField, usePlaybackStore } from "../../lib/store";
+import { RecordingModeSchema, type Session } from "../../lib/backend/schemas";
 import { LevelMeter } from "./LevelMeter";
 import { useCapture } from "./useCapture";
 

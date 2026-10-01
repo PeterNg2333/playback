@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useHealth } from "../../lib/useHealth";
-import { api } from "../../pages/api";
-import { runAction, usePlaybackStore } from "../../pages/store";
+import { api } from "../../lib/backend/client";
+import { runAction, usePlaybackStore } from "../../lib/store";
 import {
   GroupNameSchema,
   SessionSummarySchema,
   SessionTitleSchema,
   type Group,
   type SessionSummary,
-} from "../../types/api";
+} from "../../lib/backend/schemas";
 import { groupsQuery, sessionListQuery } from "./libraryQueries";
 import { refreshWorkspace } from "./refreshWorkspace";
 
@@ -33,7 +33,7 @@ export function openSession(id: string) {
 
 export function moveSession(id: string, groupId: string | null) {
   return runAction("group", async () => {
-    await api("/sessions/" + id + "/group", "PUT", { groupId });
+    await api.put("/sessions/" + id + "/group", { groupId });
     await refreshWorkspace(shownSessionId());
   });
 }
@@ -42,7 +42,7 @@ export function moveSession(id: string, groupId: string | null) {
 export async function deleteGroup(id: string) {
   let deleted = false;
   await runAction("group", async () => {
-    await api("/groups/" + id, "DELETE");
+    await api.delete("/groups/" + id);
     deleted = true;
     await refreshWorkspace(shownSessionId());
   });
@@ -100,18 +100,17 @@ export async function submitName(value: string) {
   usePlaybackStore.setState({ busy: "dialog", textDialogError: "" });
   try {
     if (textDialog.kind === "session") {
-      const item = await api(
+      const item = await api.post(
         "/sessions",
-        "POST",
         { title: parsed.data, groupId: textDialog.groupId },
         SessionSummarySchema,
       );
       await refreshWorkspace(item.id);
     } else if (textDialog.kind === "group") {
-      await api("/groups", "POST", { name: parsed.data });
+      await api.post("/groups", { name: parsed.data });
       await refreshWorkspace(shownSessionId());
     } else {
-      await api("/groups/" + textDialog.id, "PUT", { name: parsed.data });
+      await api.put("/groups/" + textDialog.id, { name: parsed.data });
       await refreshWorkspace(shownSessionId());
     }
     closeNameDialog();

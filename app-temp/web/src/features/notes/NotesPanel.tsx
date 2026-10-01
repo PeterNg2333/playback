@@ -5,12 +5,8 @@ import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm } from "../ask/askAbout";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 import { useNoteDraft } from "./useNoteDraft";
-import type { Evidence, Session } from "../../types/api";
-import {
-  runAction,
-  usePlaybackField,
-  usePlaybackStore,
-} from "../../pages/store";
+import type { Evidence, Session } from "../../lib/backend/schemas";
+import { runAction, usePlaybackField, usePlaybackStore } from "../../lib/store";
 import type { AudioPlayer } from "../player/useAudioPlayer";
 import { NotePreview } from "./NotePreview";
 import { NoteHistoryDialog } from "./NoteHistoryDialog";

@@ -1,4 +1,4 @@
-import type { Session } from "../types/api";
+import type { Session } from "./schemas";
 import {
   SessionSchema,
   TranscriptSchema,
@@ -6,8 +6,8 @@ import {
   MaterialSchema,
   TermCandidateSchema,
   TermInsightSchema,
-} from "../types/api";
-import { api } from "./api";
+} from "./schemas";
+import { api } from "./client";
 
 type Change = { kind: string; value: Record<string, unknown> | string };
 type Delta = {
@@ -105,12 +105,10 @@ export async function readSession(
     { kind: string; count: number; pieces: Map<number, string>; size: number }
   >();
   for (let page = 0; page < 200; page++) {
-    const delta = await api<Delta>(
+    const delta = await api.get<Delta>(
       `/sessions/${id}/sync${cursor ? "?cursor=" + cursor : ""}`,
-      "GET",
       undefined,
-      undefined,
-      signal,
+      { signal },
     );
     if (delta.reset) fragments.clear();
     const changes: Change[] = [];

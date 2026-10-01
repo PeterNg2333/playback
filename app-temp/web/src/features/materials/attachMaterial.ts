@@ -1,6 +1,6 @@
-import { api } from "../../pages/api";
-import { runAction, usePlaybackStore } from "../../pages/store";
-import type { Session } from "../../types/api";
+import { api } from "../../lib/backend/client";
+import { runAction, usePlaybackStore } from "../../lib/store";
+import type { Session } from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 
 // Lets the user pick a text file and adds it to the session's teaching materials.
@@ -9,7 +9,7 @@ export async function attachMaterial(session: Session | null) {
   const file = await pickTextFile();
   if (!file) return;
   await runAction("attach", async () => {
-    await api(`/sessions/${session.id}/materials`, "POST", {
+    await api.post(`/sessions/${session.id}/materials`, {
       name: file.name,
       text: await file.text(),
     });
