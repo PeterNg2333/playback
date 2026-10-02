@@ -39,12 +39,12 @@ REST 預覽會重送部分人聲，因此增加費用；兩秒不是固定實際
 dotnet build app-temp/checks/Playback.Checks.csproj --no-restore -p:OutputPath=bin/offline-checks/
 dotnet app-temp/checks/bin/offline-checks/Playback.Checks.dll
 npm.cmd --prefix app-temp/web run build
-node app-temp/web/src/test/asr-ui-check.mjs
-node app-temp/web/src/test/validation-replay.mjs
+node app-temp/web/test/transcript-recording.check.mjs
+node app-temp/web/test/validation-replay.mjs
 node app-temp/checks/validation-report.mjs
 ```
 
-Replay 需要本機 Vite 5181 提供前端檔案；它攔截全部 API、封鎖外部 HTTPS，不依賴 live server。API integration/E2E 要以 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_MONGO_DATABASE=playback_e2e`、`PLAYBACK_ASR_PROVIDER=openrouter`、`ASPNETCORE_ENVIRONMENT=Development` 啟動 API 5079 及 Vite 5174，再執行 `node app-temp/api/integration-check.mjs`、`node app-temp/web/src/test/e2e-check.mjs`。只有 E2E 自建測試 session 被清理，沒有清空 database。
+Replay 需要本機 Vite 5181 提供前端檔案；它攔截全部 API、封鎖外部 HTTPS，不依賴 live server。API integration/E2E 要以 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_MONGO_DATABASE=playback_e2e`、`PLAYBACK_ASR_PROVIDER=openrouter`、`ASPNETCORE_ENVIRONMENT=Development` 啟動 API 5079 及 Vite 5174，再執行 `node app-temp/api/integration-check.mjs`、`node app-temp/web/test/api-mongo-e2e.check.mjs`。只有 E2E 自建測試 session 被清理，沒有清空 database。
 
 付費 runner 必須明確 `--live`；同一已保存結果（包含失敗）預設重用，`--refresh` 才重送：`validation-asr.mjs`、`validation-app.mjs`、`validation-live.mjs`、`validation-capture.mjs`。首次 fixture 可用 `prepare-validation.ps1`（Windows 安裝的 Cantonese/English TTS）及 checks 的 `--validation-fixtures` 產生。自然課堂人工對齊未完成，不把合成文稿叫做人手聽寫 ground truth。
 

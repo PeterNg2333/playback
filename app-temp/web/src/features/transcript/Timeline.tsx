@@ -1,0 +1,357 @@
+import clsx from "clsx";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type {
+  CaptureStatus,
+  Session,
+  TermCandidate,
+  TermInsight,
+} from "../../lib/backend/schemas";
+import { useHealth } from "../../lib/useHealth";
+import { askAboutTerm, captureTranscriptSelection } from "../ask/askAbout";
+import { MaterialsList } from "../materials/MaterialsList";
+import { visibleTerms } from "../terms/visibleTerms";
+import { useCaptureStatus } from "../recording/captureQuery";
+import { retryAsr } from "./retryAsr";
+import { usePlaybackStore } from "../../lib/store";
+import type { AudioPlayer } from "../player/useAudioPlayer";
+import { VirtualList, type VirtualItem } from "./VirtualList";
+import {
+  combineTranscriptEntries,
+  transcriptDays,
+  type DisplayEntry,
+  type TimelineEntry,
+} from "./timelineEntries";
+import { AudioRow } from "./rows/AudioRow";
+import { LiveDot, LiveRow } from "./rows/LiveRow";
+import { PassageRow } from "./rows/PassageRow";
+import { SilenceRow } from "./rows/SilenceRow";
+import { TranscriptRow } from "./rows/TranscriptRow";
+import { EmptyState } from "../../components/EmptyState";
+
+// While recording, the last minute of transcripts stays uncombined; older passages
+// settle in 30-second steps so a passage does not change while it is being read.
+const UNSETTLED_MS = 60_000;
+const SETTLE_STEP_MS = 30_000;
+
+const toggleStyle = "w-full py-2.5 pr-1 text-left text-[12px] text-muted";
+const captureErrorStyle = "mx-5 my-2.5 text-[12px] text-[#a32828]";
+
+// The recorder fields the timeline shows; input levels change every poll and are left out.
+const timelineCapture = (status: CaptureStatus) => ({
+  sessionId: status.sessionId,
+  state: status.state,
+  error: status.error,
+  interimError: status.interimError,
+  activeSegments: status.activeSegments,
+});
+
+export function Timeline({
+  session,
+  player,
+}: {
+  session: Session | null;
+  player: AudioPlayer;
+}) {
+  const health = useHealth();
+  const busy = usePlaybackStore((state) => state.busy);
+  const capture = useCaptureStatus(timelineCapture);
+  const { playingKey, togglePlayback } = player;
+  const captureSelection = () => captureTranscriptSelection(session);
+  const askTerm = (candidate: TermCandidate, transcriptId?: string) =>
+    askAboutTerm(session, candidate, transcriptId);
+
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [combine, setCombine] = useState(true);
+  const [revealId, setRevealId] = useState<string>();
+  const termIndex = useMemo(() => {
+    const insights = new Map<string, TermInsight[]>(),
+      candidates = new Map<string, TermCandidate[]>();
+    for (const term of visibleTerms(
+      session?.termInsights,
+      session?.noteLanguage,
+    ))
+      for (const id of term.transcriptIds)
+        insights.set(id, [...(insights.get(id) ?? []), term]);
+    for (const term of session?.terms ?? [])
+      for (const id of term.transcriptIds)
+        candidates.set(id, [...(candidates.get(id) ?? []), term]);
+    return { insights, candidates };
+  }, [session?.termInsights, session?.terms, session?.noteLanguage]);
+  const baseDays = useMemo(
+    () => (session ? transcriptDays(session) : new Map()),
+    [session?.id, session?.createdAt, session?.transcripts, session?.chunks],
+  );
+  const renderCurrent = useRef(renderEntry);
+  renderCurrent.current = renderEntry;
+  const liveRows = useRef(
+    new Map<string, Extract<TimelineEntry, { kind: "live" }>>(),
+  );
+  liveRows.current.clear();
+  if (session && capture?.sessionId === session.id)
+    for (const segment of capture.activeSegments ?? []) {
+      if (
+        session.transcripts.some(
+          (x) =>
+            x.sourceId === segment.sourceId &&
+            x.startMs <= segment.startMs &&
+            x.endMs >= segment.endMs,
+        )
+      )
+        continue;
+      liveRows.current.set("live-" + segment.sourceId + segment.startMs, {
+        kind: "live",
+        segment,
+        at: new Date(segment.recordedAt),
+      });
+    }
+  // Interim text/end time changes update the visible row through the ref above.
+  // Rebuild the all-lecture layout only for confirmed data, collapse, or a new live window.
+  const liveLayout = [...liveRows.current]
+    .map(([key, entry]) => key + entry.segment.recordedAt)
+    .join("|");
+  const expandSource = useCallback(
+    (id: string) => {
+      setRevealId(id);
+      for (const [day, hours] of baseDays)
+        for (const [hour, items] of hours)
+          if (
+            items.some((entry: TimelineEntry) =>
+              entry.kind === "transcript"
+                ? entry.transcript.id === id
+                : entry.kind !== "live" &&
+                  entry.chunks.some((x) => x.id === id),
+            )
+          )
+            setCollapsed((old) => ({
+              ...old,
+              [day]: false,
+              [day + hour]: false,
+            }));
+    },
+    [baseDays],
+  );
+  const entries = useMemo(() => {
+    const entries: VirtualItem[] = [];
+    const days = new Map<string, Map<string, TimelineEntry[]>>();
+    for (const [day, hours] of baseDays)
+      days.set(
+        day,
+        new Map([...hours].map(([hour, items]) => [hour, [...items]])),
+      );
+    if (session && liveRows.current.size) {
+      for (const [day, hours] of transcriptDays(
+        { ...session, chunks: [], transcripts: [] },
+        [...liveRows.current.values()].map((entry) => entry.segment),
+      )) {
+        if (!days.has(day)) days.set(day, new Map());
+        for (const [hour, items] of hours)
+          days.get(day)!.set(
+            hour,
+            [...(days.get(day)!.get(hour) ?? []), ...items].sort(
+              (a, b) => a.at.getTime() - b.at.getTime(),
+            ),
+          );
+      }
+    }
+    for (const [day, hours] of [...days].sort(([a], [b]) =>
+      a.localeCompare(b),
+    )) {
+      entries.push({
+        key: "day-" + day,
+        sourceIds: [],
+        estimate: 38,
+        render: () => (
+          <button
+            className={clsx(toggleStyle, "pl-1")}
+            data-testid="timeline-day"
+            aria-expanded={!collapsed[day]}
+            onClick={() =>
+              setCollapsed((old) => ({ ...old, [day]: !old[day] }))
+            }
+          >
+            {collapsed[day] ? "▸" : "▾"} {day}
+          </button>
+        ),
+      });
+      if (collapsed[day]) continue;
+      for (const [hour, items] of [...hours].sort(([a], [b]) =>
+        a.localeCompare(b),
+      )) {
+        const key = day + hour;
+        entries.push({
+          key: "hour-" + key,
+          sourceIds: [],
+          estimate: 36,
+          render: () => (
+            <button
+              className={clsx(toggleStyle, "pl-4")}
+              data-testid="timeline-hour"
+              aria-expanded={!collapsed[key]}
+              onClick={() =>
+                setCollapsed((old) => ({ ...old, [key]: !old[key] }))
+              }
+            >
+              {collapsed[key] ? "▸" : "▾"} {hour} · {items.length} parts
+            </button>
+          ),
+        });
+        if (collapsed[key]) continue;
+        const latest =
+          session?.transcripts.reduce(
+            (max, text) => Math.max(max, text.endMs),
+            0,
+          ) ?? 0;
+        const settled =
+          capture?.sessionId === session?.id && capture?.state !== "idle"
+            ? Math.floor((latest - UNSETTLED_MS) / SETTLE_STEP_MS) *
+              SETTLE_STEP_MS
+            : Infinity;
+        for (const entry of combine
+          ? combineTranscriptEntries(items, settled)
+          : items) {
+          const sourceIds =
+            entry.kind === "passage"
+              ? entry.transcripts.map((x) => x.id)
+              : entry.kind === "transcript"
+                ? [entry.transcript.id]
+                : entry.kind === "live"
+                  ? []
+                  : entry.chunks.map((x) => x.id);
+          const key =
+            entry.kind === "live"
+              ? "live-" + entry.segment.sourceId + entry.segment.startMs
+              : sourceIds[0];
+          entries.push({
+            key,
+            sourceIds,
+            render: () =>
+              renderCurrent.current(liveRows.current.get(key) ?? entry),
+          });
+        }
+      }
+    }
+    return entries;
+  }, [baseDays, collapsed, liveLayout, combine, capture?.state]);
+  function renderEntry(entry: DisplayEntry) {
+    if (entry.kind === "passage")
+      return (
+        <PassageRow
+          entry={entry}
+          session={session}
+          playingKey={playingKey}
+          onTogglePlayback={togglePlayback}
+          revealId={revealId}
+          insights={termIndex.insights}
+          candidates={termIndex.candidates}
+        />
+      );
+    if (entry.kind === "live")
+      return (
+        <LiveRow
+          key={`live-${entry.segment.sourceId}-${entry.segment.startMs}`}
+          segment={entry.segment}
+          sessionCreatedAt={session?.createdAt}
+        />
+      );
+    if (entry.kind !== "silence" && entry.transcript)
+      return (
+        <TranscriptRow
+          key={entry.transcript.id}
+          transcript={entry.transcript}
+          session={session}
+          playingKey={playingKey}
+          onTogglePlayback={togglePlayback}
+          onSelect={captureSelection}
+          onAskTerm={askTerm}
+          insights={termIndex.insights.get(entry.transcript.id) ?? []}
+          candidates={termIndex.candidates.get(entry.transcript.id) ?? []}
+        />
+      );
+    if (entry.kind === "transcript") return null;
+    const Row = entry.kind === "silence" ? SilenceRow : AudioRow;
+    return (
+      <Row
+        key={entry.chunks[0].id}
+        chunks={entry.chunks}
+        sessionCreatedAt={session?.createdAt}
+        playingKey={playingKey}
+        onTogglePlayback={togglePlayback}
+        retryDisabled={!!busy || !!health?.asrPaused}
+        onRetry={(chunkIds) => retryAsr(session!, chunkIds)}
+      />
+    );
+  }
+
+  return (
+    // A passage the reader jumped to (VirtualList marks it data-revealed) is outlined briefly.
+    <div
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain **:data-revealed:rounded-lg **:data-revealed:bg-accent-soft **:data-revealed:outline-2 **:data-revealed:outline-accent"
+      data-transcript-scroller
+    >
+      <MaterialsList session={session} />
+      {capture?.error && (
+        <p className={captureErrorStyle} role="alert">
+          {capture.error}
+        </p>
+      )}
+      {capture?.sessionId === session?.id && capture?.interimError && (
+        <p className={captureErrorStyle} role="status">
+          {capture.interimError}
+        </p>
+      )}
+      <div
+        className="px-3 pb-12.5 md:px-4 lg:pb-15"
+        data-testid="timeline-rows"
+      >
+        {capture &&
+          capture.sessionId === session?.id &&
+          capture.state !== "idle" &&
+          !capture.activeSegments?.length && (
+            <div
+              className={clsx(
+                "mt-3 flex items-center gap-2.25 rounded-[9px] border px-3 py-2.5 text-[13px]",
+                capture.state === "paused"
+                  ? "border-line bg-[#f6f7fa] text-muted"
+                  : "border-[#eac9da] bg-[#fff7fa] text-[#943e67]",
+              )}
+              role="status"
+            >
+              <LiveDot breathing paused={capture.state === "paused"} />
+              <span>
+                {capture.state === "paused"
+                  ? "Recording paused"
+                  : "Listening for sound"}
+              </span>
+            </div>
+          )}
+        {session &&
+        (session.chunks.length ||
+          session.transcripts.length ||
+          (capture?.sessionId === session.id &&
+            !!capture.activeSegments?.length)) ? (
+          <>
+            <label className="mt-[0.3rem] mb-3 flex items-center gap-[0.4rem] text-[0.78rem] text-muted">
+              <input
+                type="checkbox"
+                className="my-0.75 mr-0.75 ml-1 w-auto"
+                checked={combine}
+                onChange={(event) => setCombine(event.target.checked)}
+              />
+              Combine completed passages
+            </label>
+            <VirtualList
+              key={session.id}
+              items={entries}
+              sessionId={session.id}
+              onReveal={expandSource}
+            />
+          </>
+        ) : capture?.sessionId !== session?.id || capture?.state === "idle" ? (
+          <EmptyState>
+            No transcript yet. Record a session to see audio and text here.
+          </EmptyState>
+        ) : null}
+      </div>
+    </div>
+  );
+}

@@ -14,10 +14,10 @@
     "test:loading-ui": "npm --prefix app-temp/web run test:loading",
     "validation:week3-cost": "node app-temp/checks/week3-report.mjs",
     "test:sample-audio-live": "node --env-file-if-exists=.env app-temp/checks/run-sample-audio-live.mjs",
-    "test:e2e": "node app-temp/web/src/test/e2e-check.mjs",
-    "test:web-ui": "node app-temp/web/src/test/asr-ui-check.mjs",
-    "test:browser": "node app-temp/web/src/test/browser-check.mjs",
+    "test:e2e": "node app-temp/web/test/api-mongo-e2e.check.mjs",
+    "test:web-ui": "node app-temp/web/test/transcript-recording.check.mjs",
+    "test:browser": "node app-temp/web/test/layout-live-api.check.mjs",
     "validation:report": "node app-temp/checks/validation-report.mjs",
-    "validation:replay": "node app-temp/web/src/test/validation-replay.mjs"
+    "validation:replay": "node app-temp/web/test/validation-replay.mjs"
   }
 }
