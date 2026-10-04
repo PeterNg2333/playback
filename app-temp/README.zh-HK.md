@@ -90,7 +90,7 @@ pnpm.cmd dev
 - `node app-temp/web/test/transcript-recording.check.mjs`：以攔截 API 測音訊時間線、靜音收合、不同螢幕寬度與獨立捲動、session 翻譯設定及本機錄音請求；不會啟動咪高峰或上傳音訊。
 - SenseVoice 靜音 fixture 在 2026-09-26 直接呼叫回 HTTP 200；此前版本的本機 API 單段 retry 曾保存一條空白但標示不確定的 transcript。新版本跳過完全數位靜音，並已用短篇真實語音完成端到端測試。Gemini 的合成筆記、公開搜尋、批次翻譯和問答已 live 通過。Jev 在更新 key 後於 2026-09-27 通過合成術語的模型發現、排名及快取測試；`POST /api/terms/evaluate-synthetic` 的四詞 API 路徑仍未 live 測試。
 - 本機收音的硬件權限、Windows loopback 無聲情況、較長真實語音及連續三小時穩定性仍需實測。流暢的即時筆記取決於 chunk 完成及 ASR latency；不是 streaming ASR。
-- `node app-temp/api/integration-check.mjs` 已通過 session 隔離、note versions、chunk retry 與時間範圍測試；測試建立兩個合成 session，並在結束時刪除本次資料。
+- `node app-temp/checks/LocalMongo/api-integration.check.mjs` 已通過 session 隔離、note versions、chunk retry 與時間範圍測試；測試建立兩個合成 session，並在結束時刪除本次資料。
 - 目前只可附上文字教材。PDF 頁碼擷取、講者辨識、長時間磁碟配額、分享權限及部署未實作。
 
 ## 相關官方資料
@@ -134,13 +134,13 @@ Remove-Item Env:PLAYBACK_E2E_REAL_SESSION_ID
 
 ## 2026-09-27：Week 3 唯讀長時段檢查
 
-`python app-temp/checks/long-lecture-check.py "app-temp\data\test-audio\sampleAudio"` 只讀取 repo 內的 Week 3 素材 `sampleAudio.m4a` MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊為首 1,200.01 秒（14,607,746 bytes）；完整逐字稿有 1,266 段、97,717 字元，延伸至約 2:44:49，最後一句無時間戳，離線檢查暫估 14 秒。20 分鐘後的逐字稿沒有保留的對應音訊；長時段來源檢查只驗證文字及時間資料。此檢查不解碼或上傳音訊。
+`python app-temp/checks/Offline/long-lecture-check.py "app-temp\data\test-audio\sampleAudio"` 只讀取 repo 內的 Week 3 素材 `sampleAudio.m4a` MP4 header、`transcript.txt` 與 `Tutorial.txt`。音訊為首 1,200.01 秒（14,607,746 bytes）；完整逐字稿有 1,266 段、97,717 字元，延伸至約 2:44:49，最後一句無時間戳，離線檢查暫估 14 秒。20 分鐘後的逐字稿沒有保留的對應音訊；長時段來源檢查只驗證文字及時間資料。此檢查不解碼或上傳音訊。
 
 以下82次是舊「每兩分鐘／最多40段」模擬的歷史估算，**不適用於新的10秒Jev決策流程**。該模擬每次重送3,000字元教材時，來源約432,337字元、其中243,000是重複教材；舊去重估算189,337字元。這些不含前版筆記、prompt、輸出或token計費，也不是外部呼叫紀錄。新流程保存實際input identity／bytes、prompt版本、provider確有回報的usage；沒有以儲存citation比例推算費用。
 
 `dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/ -- --sample-audio "app-temp\data\test-audio\sampleAudio"` 用真實逐字稿在記憶體驗證 40 段 backlog、無重複來源 ID、開頭／中段／末段問答的來源挑選及逐字稿時間。若整批離線處理，需要 32 個最多 40 段的 batch；這與上面 82 次定時更新是兩種不同情境。另以 360 段合成三小時時間線測早／晚來源問答；web fixture 以 1,266 段跨約三小時驗證視窗高度、面板捲動、Save 可見、精簡逐字稿及無聲收合。這些檢查不代表真實三小時 ASR、筆記內容品質或課堂問答準確度已通過。
 
-離線 API 整合測試可在獨立的 5079 端口執行，設定 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_PAUSE_EXTERNAL_ASR=yes`、`PLAYBACK_AUTO_NOTES=no`，再執行 `node app-temp/api/integration-check.mjs`。此模式會確認新合成音訊維持待處理，不會因背景佇列送往 SenseVoice；測試僅清理自己建立的合成 session、group 與音訊。測試前先查核現有 5078 API 程序，勿重啟舊程序觸發舊資料重試。
+離線 API 整合測試可在獨立的 5079 端口執行，設定 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_PAUSE_EXTERNAL_ASR=yes`、`PLAYBACK_AUTO_NOTES=no`，再執行 `node app-temp/checks/LocalMongo/api-integration.check.mjs`。此模式會確認新合成音訊維持待處理，不會因背景佇列送往 SenseVoice；測試僅清理自己建立的合成 session、group 與音訊。測試前先查核現有 5078 API 程序，勿重啟舊程序觸發舊資料重試。
 
 翻譯若啟用，1,266 段在沒有失敗重試時約需 127 次十段批次請求，原逐段流程會有 1,266 次。批次回應必須包含每個 transcript ID 且不可重複；解析失敗會標記該批次失敗並按原有退避規則重試。Jev 的 `Bearer` header、`GET /v1/models` 及回應 schema 已按 [TypeSafe OpenAPI](https://api.typesafe.ai/openapi.json) 核對。2026-09-27 更新 key 後，`pnpm.cmd test:jev-live` 以虛構 `spectrogram` 完成模型發現、排名及快取：`high`、probability `0.84`、confidence `0.53`，並收到 usage 物件；這不代表真實課堂術語品質已驗證。[Vertex Express REST 資源](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/express-mode/api-reference) 仍沒有建立顯式 context cache 的端點，故此流程沒有使用顯式 cache。
 

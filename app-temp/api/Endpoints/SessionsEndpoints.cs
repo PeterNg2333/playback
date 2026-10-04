@@ -5,7 +5,7 @@ public static class SessionsEndpoints
 {
     public static void MapSessions(this WebApplication app)
     {
-        app.MapPost("/api/sessions", async (CreateSession input, PlaybackStore store) =>
+        app.MapPost("/api/sessions", async (CreateSessionInput input, PlaybackStore store) =>
             await store.CreateSession(input.Title, input.GroupId));
         app.MapGet("/api/sessions", async (PlaybackStore store) =>
             await store.Sessions());
@@ -34,6 +34,12 @@ public static class SessionsEndpoints
         app.MapGet("/api/sessions/{id}/sync", async (string id, string? cursor, PlaybackStore store) => await store.SyncSession(id, cursor));
         app.MapPost("/api/sessions/{id}/materials", async (
             string id, MaterialInput input, PlaybackStore store) =>
-            await store.AddMaterial(id, input));
+            await store.AddMaterial(id, input.Name, input.Text));
     }
 }
+
+public record CreateSessionInput(string Title, string? GroupId = null);
+public record MoveSessionInput(string? GroupId);
+public record TranslationInput(bool Enabled, string Language);
+public record LanguagesInput(string AsrLanguage, string NoteLanguage, string? AsrModel = null);
+public record MaterialInput(string Name, string Text);

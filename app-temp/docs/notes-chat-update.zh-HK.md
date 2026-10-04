@@ -55,7 +55,7 @@ Routine 預設 `gemini-3.1-flash-lite`，environment allowlist 另容許 3.5 Fla
 ```powershell
 dotnet build app-temp/checks/Playback.Checks.csproj --no-restore -o app-temp/data/validation/build -p:UseSharedCompilation=false
 dotnet app-temp/data/validation/build/Playback.Checks.dll
-dotnet app-temp/data/validation/build/Playback.Checks.dll --notes-redesign-check
+dotnet app-temp/data/validation/build/Playback.Checks.dll --notes
 # 有 localhost MongoDB 才建立並保留 playback_e2e 測試資料
 dotnet app-temp/data/validation/build/Playback.Checks.dll --notes-store-check
 dotnet app-temp/data/validation/build/Playback.Checks.dll --session-sync-store-check

@@ -41,7 +41,7 @@ dotnet app-temp/checks/bin/offline-checks/Playback.Checks.dll
 npm.cmd --prefix app-temp/web run build
 node app-temp/web/test/transcript-recording.check.mjs
 node app-temp/web/test/validation-replay.mjs
-node app-temp/checks/validation-report.mjs
+node app-temp/checks/Validation/validation-report.mjs
 ```
 
 Replay 需要本機 Vite 5181 提供前端檔案；它攔截全部 API、封鎖外部 HTTPS，不依賴 live server。API integration/E2E 要以 `PLAYBACK_OFFLINE_TEST=yes`、`PLAYBACK_MONGO_DATABASE=playback_e2e`、`PLAYBACK_ASR_PROVIDER=openrouter`、`ASPNETCORE_ENVIRONMENT=Development` 啟動 API 5079 及 Vite 5174，再執行 `node app-temp/api/integration-check.mjs`、`node app-temp/web/test/api-mongo-e2e.check.mjs`。只有 E2E 自建測試 session 被清理，沒有清空 database。
