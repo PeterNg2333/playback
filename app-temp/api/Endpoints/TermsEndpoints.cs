@@ -1,6 +1,5 @@
-using Playback.Api.Services.Ai.Agents;
-using Playback.Api.Services.Ai.Providers;
-using Playback.Api.Db;
+using Playback.Api.Terms;
+using Playback.Api.Providers;
 namespace Playback.Api.Endpoints;
 
 public static class TermsEndpoints
@@ -20,3 +19,6 @@ public static class TermsEndpoints
             Results.Ok(await reviewer.Explain(id, insightId, ct, detail == true)));
     }
 }
+
+public record ExplainInput(string Term);
+public record TermInput(string Term, string Context = "");

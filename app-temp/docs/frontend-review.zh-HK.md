@@ -59,7 +59,7 @@
 
 ### [Blocker] 兩個 restore 鍵行為不一致 — `NoteEditHistory.tsx:43`
 
-> 狀態：前端已完成（`b3585ed`）。兩個入口都經 `features/notes/restoreNoteVersion.ts` 送出 `basedOnVersion`，完成後重新載入。後端改為必填未做：`api/integration-check.mjs` 的 restore 不帶 `basedOnVersion`，改了會令該 check 失敗。
+> 狀態：前端已完成（`b3585ed`）。兩個入口都經 `features/notes/restoreNoteVersion.ts` 送出 `basedOnVersion`，完成後重新載入。後端改為必填未做：`checks/LocalMongo/api-integration.check.mjs`（原 `api/integration-check.mjs`）的 restore 不帶 `basedOnVersion`，改了會令該 check 失敗。
 
 讀者以為兩處的「Restore」是同一操作。`NoteTools.tsx:79` 送出 `basedOnVersion` 並在完成後 refresh；`NoteEditHistory.tsx:43` 兩者都沒有。後端 `SectionNotes.cs:98` 在 `basedOnVersion` 為 null 時跳過版本衝突檢查，所以從 activity 面板 restore 會蓋過使用者未看到的 AI 新版本（舊版仍在歷史中，不會遺失），畫面要等下一次 4 秒 polling 才更新。
 

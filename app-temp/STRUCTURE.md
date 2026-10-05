@@ -80,69 +80,75 @@ variant, such as `**:data-markdown:max-w-[72ch]` on the notes body.
 
 ## .NET API
 
-`api/Playback.Api.csproj` is the root of a single .NET web project. The .NET 10
-`webapi` SDK template puts the `.csproj` and `Program.cs` directly at the
-project root; it does not require an inner `src/` directory. A repository with
-several projects may instead use `src/Playback.Api/` and `tests/Playback.Checks/`.
-That extra layer is unnecessary for this prototype and would change existing
-project paths and study commands.
+`api/Playback.Api.csproj` is a single web project. The .NET 10 `webapi`
+template puts the `.csproj` and `Program.cs` at the project root; an inner
+`src/` folder only pays off once there are several projects.
 
-- `Program.cs`: host, dependency injection, middleware, and route registration.
-- `Endpoints/`: HTTP mapping and request contracts. Each resource has a small
-  mapping class. Minimal API routes are commonly registered by static methods;
-  service and persistence work uses injected C# classes.
-- `Middleware/`: shared HTTP error handling.
-- `Services/Ai/Providers/`: `GeminiLanguageModel` sends generation and grounded
-  search requests; `JevTermClassifier` owns the Jev ranking request and its
-  question patterns. `Services/ProviderResponseReader.cs` bounds all provider
-  response bodies.
-- `Services/Ai/Agents/`: `TranslationAgent` polls and translates pending
-  transcripts using `TranslationContext`; `NoteAgent` generates and retries
-  notes; `ChatAgent` answers questions using `ChatContext` to select source
-  evidence. `SyntheticTermComparison` runs only the labeled synthetic example.
-- `Services/Audio/`: `WindowsAudioCaptureService` records microphone and system
-  audio, finalizes WAV chunks, and replays chunks left on disk. `AsrQueue`
-  schedules and retries saved chunks; `AsrProcessor` transcribes one chunk
-  through `IAsrAdapter` (SenseVoice or OpenRouter transcription REST).
-  `IStreamingAsrAdapter` defines the future realtime lifecycle; capture currently
-  sends saved chunks through REST. `AudioSilence` and `AudioActivity` inspect WAV
-  data without sending it to an external provider.
-  `CaptureSourceModes` allowlists microphone, system, and both; the capture service
-  retains the selected mode through pause/resume and opens only those devices.
-- `Terms/TermCandidateExtractor.cs`: deterministic regex extraction from
-  transcripts and materials. It does not call AI; Jev ranking is separate.
-- `Services/Ai/SourceReferences.cs`: prompt-local sequential aliases and bounded
-  adjacent transcript groups, expanded to canonical IDs before saving.
-- `Services/Ai/NoteSections.cs`: one note document's stable sections, written points,
-  persistent citation identities, coverage and protected user edits/deletions/recovery.
-  `MaterialSources.cs` supplies immutable bounded material passages. `NoteAgent`
-  sends bounded section patches, not a whole-note replacement; the distinct organizer
-  task uses the same note/history and validates its selected section/base.
-  SDK response schemas derive from the same patch type. Points are the canonical
-  Markdown body; code renders citations and retains captured concurrency versions.
-  Unaddressed input stays pending, and explicit deferrals retain their reasons.
-- `Services/Ai/NoteScheduler.cs` checks every ten seconds without awaiting provider
-  work. `Providers/JevNoteGate.cs` owns note-specific structured questions;
-  `JevTransport.cs` shares bounded HTTP/discovery with term ranking. `AiFlow.cs`
-  derives prompt/configuration descriptions from the actual runtime definitions;
-  `AiActivity.cs` records execution identities, prompts and reported usage/latency.
-- `Services/Ai/Providers/OutputGuardChatClient.cs`: rejects token-limit
-  completions before partial results become saved notes or answers, after
-  collecting the usage they report (including usage sent after the streaming
-  finish reason).
-- `Db/`: MongoDB models and partial `PlaybackStore`; `Conversations.cs` owns
-  the new session-scoped conversations/conversation_turns collections.
-  `SectionNotes.cs` owns note versions, paged/direct history, recover/restore and
-  persisted note gates; no destructive migration is required. `SessionSync.cs`
-  sends bounded record deltas/fragments and keeps at most 32 short-lived reader cursors.
-  Bootstrap/display-language reconfiguration reads a full session. Later revisions
-  query changed record IDs and affected terms, including saved explanation provenance;
-  idle polling makes no record queries. The change journal/cursors are in memory:
-  restart, expiry or a journal overrun resets bootstrap rather than claiming a durable DB cursor.
+Read `Program.cs` first. It registers the store, the providers, the audio
+pipeline and the AI agents in that order, maps one endpoint class per
+resource, and resolves the background workers so they start scanning. Every
+folder has a matching `Playback.Api.*` namespace.
 
-Each folder also has a matching `Playback.Api.*` namespace. These namespaces
-make the C# module boundary visible; the injected service and store classes
-contain behavior, while endpoint classes register HTTP routes.
+| Folder | Holds | Start with |
+| --- | --- | --- |
+| `Endpoints/` | HTTP routes, one class per resource with its request records; error responses | the class named after the resource |
+| `Db/` | MongoDB: one `PlaybackStore`, one file per saved concept (sessions, chunks, transcripts, notes, terms, conversations, activity, the page's change feed, test data) | `PlaybackStore.cs` |
+| `Audio/Recording/` | Windows microphone and system-audio capture into WAV chunks | `WindowsAudioCaptureService.cs` |
+| `Audio/Vad/` | Silero speech detection, while recording and before upload | `SpeechActivityDetector.cs` |
+| `Audio/Asr/` | Transcribing saved chunks: the queue, one chunk's processing, the `IAsrAdapter` seam with SenseVoice and OpenRouter in `Providers/`, and interim previews while recording | `AsrQueue.cs`, `IAsrAdapter.cs` |
+| `Audio/` | Shared by the folders above: `AudioSamples` reads device buffers; `SessionAudioRenderer` mixes 30-second windows for the player | — |
+| `Translation/` | Batched translation of transcripts into the session's target language | `TranslationAgent.cs` |
+| `Notes/` | The note document (sections, points, citations, coverage) and the agent that writes it | `NoteAgent.cs` |
+| `Terms/` | Key-term candidates, Jev ranking, saved explanations | `TermReviewAgent.cs` |
+| `Ask/` | Questions about a session: which sources, which citations count | `ChatAgent.cs` |
+| `Sources/` | Short citation aliases and material passages, shared by notes and Ask | `SourceReferences.cs` |
+| `Activity/` | The AI execution log and the description of a group's AI flow | `AiActivity.cs` |
+| `Providers/` | Gemini through Agent Framework and grounded search; the Jev transport; bounded response reads | `GeminiLanguageModel.cs` |
+| `Resources/` | The Silero VAD model and its licence | — |
+
+Three files sit at the root because every folder uses them:
+`PlaybackEnvironment.cs` (process switches and data folders),
+`LanguageSettings.cs` (session languages and Cantonese display) and
+`ContentHash.cs`.
+
+### Flows
+
+- Record: `CaptureEndpoints` → `WindowsAudioCaptureService` writes one
+  `.wav.part` per source under `data/local-capture` and closes it after 8 s, or
+  after 3 s once speech has paused → `PlaybackStore.SaveLocalChunk`
+  (`Db/Chunks.cs`) stores it under `data/audio` by its `ChunkIdentity` →
+  `AsrQueue.Enqueue`. Meanwhile `LiveAsrSession` shows interim text that is
+  never saved.
+- Transcribe: `AsrQueue` (two workers, retries with backoff) → `AsrProcessor`
+  skips digital silence and audio without speech, otherwise calls the adapter
+  → `SaveTranscript` (`Db/Transcripts.cs`). New text raises `SourceChanged`,
+  which queues term review; notes pick it up on their next 10-second check.
+- Notes: `NoteAgent.Automatic.cs` runs every 10 s through `NoteScheduler`; the
+  Jev note gate answers allow or wait, saved in `note_gates`; an allow calls
+  `NoteAgent.Revise`, which builds the bounded input (`NoteInput`), applies
+  Gemini's section patch (`NoteSections.Apply`) and saves a new version
+  (`SaveSectionNote` in `Db/Notes.cs`). Revise with AI, Organize and coverage
+  repair call `Revise` directly.
+- Ask: `AskEndpoints` → `ChatAgent` → `ChatContextBuilder` picks and aliases the
+  sources → Gemini → the citations are decoded and checked → the turn is saved
+  in its conversation.
+- Page sync: every write calls `Touch` (`Db/SessionSync.cs`);
+  `/sessions/{id}/sync` pages a bounded first read, then sends only changed
+  records. The change journal and cursors live in memory, so an API restart
+  makes readers start over.
+
+### Rules with one home
+
+- `PlaybackEnvironment`: offline test mode (port 5079, no provider call, no
+  background scan), the validation API on 5081, automatic ASR, notes, terms and
+  organization, the database and the data folders.
+- `ChunkStatus` and `ChunkIdentity` (`Db/Chunks.cs`): the chunk lifecycle, and
+  the session/source/sequence/hash identity that makes uploads and retries
+  idempotent.
+- `NoteInstructions`: the note prompts and their versions. `NoteInput`: what
+  the model sees and its size limits.
+- Provider calls use fixed endpoints, timeouts and `ProviderResponseReader`'s
+  size limit. `AiActivity` records each call and keeps keys out of errors.
 
 Microsoft's [.NET project organization guidance](https://learn.microsoft.com/en-us/dotnet/core/tutorials/libraries)
 allows projects to be arranged to suit the solution. The
@@ -153,14 +159,24 @@ supports keeping application behavior in injected services.
 
 ## Checks
 
-.NET: `checks/Playback.Checks.csproj` runs the offline protocol, ASR, language
-and notes checks over in-memory HTTP. `checks/week3-server.mjs` starts isolated
-offline/live validation ports with automatic paid work disabled.
-`Week3StoreCheck.cs` keeps exact first-hour text provenance in `playback_e2e`;
-`run-week3-live.mjs` and `run-week3-term.mjs` need an explicit live opt-in and
-reuse saved results; `week3-report.mjs` combines saved usage without counting an
-execution twice. `dev.mjs` checks that the NuGet files named in the ignored
-`obj/` restore assets still exist before `dotnet run --no-restore`.
+`checks/Playback.Checks.csproj` is one console project. Read its `Program.cs`
+first: it lists every check group and what the group needs. The folders follow
+the same question, because it decides whether a check may run now.
+
+| Folder | Needs | How to run |
+| --- | --- | --- |
+| `Offline/` | Nothing: in-memory HTTP and storage, no network, no database | `dotnet run` with no flag runs all of them; `--notes` runs the note and sync checks; `--sample-audio`, `--sample-audio-preview` and `--vad-sample` read the Week 3 sample, as does `long-lecture-check.py` |
+| `LocalMongo/` | MongoDB on localhost, database `playback_e2e` | `--conversation-check`, `--notes-store-check`, `--session-sync-store-check`; `api-integration.check.mjs` also needs the offline API on 5079 |
+| `Live/` | Paid providers and an explicit opt-in | `pnpm.cmd test:gemini-live`, `test:jev-live`, `test:asr-live`, `test:sample-audio-live`; `--asr-compare --live` |
+| `Validation/` | Writes evidence under `data/validation/runs/` | the `run-*`, `week3-*` and `validation-*` scripts and their flags; offline unless given `--live` |
+| `Fixtures/` | — | `MemoryStore`, the fixture note model and gate, Jev HTTP fakes, `TestClock`, synthetic lectures, the Week 3 sample reader |
+
+Offline check files are named after the product concept they protect
+(`AskChecks`, `NoteSchedulingChecks`, …) and print one line when they pass.
+`Expect` is the only assertion helper. It throws `CheckFailed`, never
+`InvalidOperationException`, because the product rejects bad input with that
+exception and many checks expect it. `dev.mjs` checks that the NuGet files named
+in the ignored `obj/` restore assets still exist before `dotnet run --no-restore`.
 
 ```powershell
 dotnet build app-temp/api/Playback.Api.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/

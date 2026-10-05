@@ -1,4 +1,4 @@
-using Playback.Api.Services.Audio;
+using Playback.Api.Audio.Recording;
 using Playback.Api.Db;
 namespace Playback.Api.Endpoints;
 
@@ -19,3 +19,5 @@ public static class CaptureEndpoints
         app.MapPost("/api/capture/resume", async (WindowsAudioCaptureService capture) => await capture.Resume());
     }
 }
+
+public record CaptureInput(string SessionId, string SourceMode = "both");

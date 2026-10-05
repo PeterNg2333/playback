@@ -1,3 +1,4 @@
+using Playback.Api.Providers;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using System.Text.Json;
@@ -22,6 +23,19 @@ public sealed class ConversationTurn
     public string InputHash { get; set; } = "";
     public string AnswerJson { get; set; } = "";
     public DateTime CreatedAt { get; set; }
+}
+
+public sealed class CitationRecord
+{
+    [BsonId] public string Id { get; set; } = "";
+    public string SessionId { get; set; } = "";
+    public string QuestionId { get; set; } = "";
+    public string Kind { get; set; } = "web";
+    public string Url { get; set; } = "";
+    public string Title { get; set; } = "";
+    public int StartIndex { get; set; }
+    public int EndIndex { get; set; }
+    public bool Private { get; set; } = true;
 }
 
 public partial class PlaybackStore
@@ -90,5 +104,20 @@ public partial class PlaybackStore
             Builders<ConversationRecord>.Update.Set(x => x.UpdatedAt, DateTime.UtcNow));
         await Collection<ConversationRecord>("conversations").UpdateOneAsync(x => x.Id == conversationId && x.SessionId == sessionId && x.Title == "New conversation",
             Builders<ConversationRecord>.Update.Set(x => x.Title, question[..Math.Min(question.Length, 60)]));
+    }
+    public async Task SaveCitations(string sessionId, string questionId, IEnumerable<WebEvidence> evidence)
+    {
+        var citations = evidence.Select(x => new CitationRecord
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            SessionId = sessionId,
+            QuestionId = questionId,
+            Kind = x.Kind,
+            Url = x.Url,
+            Title = x.Title,
+            StartIndex = x.StartIndex,
+            EndIndex = x.EndIndex
+        }).ToArray();
+        if (citations.Length > 0) await Collection<CitationRecord>("citations").InsertManyAsync(citations);
     }
 }
