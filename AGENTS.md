@@ -5,7 +5,7 @@
 - The product aims to support roughly three-hour lectures and meetings with live transcription, AI notes, and source-backed questions. See [business requirements](docs/business-requirements.md) for required behavior and [scope decisions](docs/scope-decision.zh-HK.md) for project direction.
 - `scripts/` contains feasibility studies and beginner material; `app-temp/` is a local prototype. Neither is a deployable product. Work within the area the user requests.
 - The Week 3 sample is stored in this repository at `app-temp/data/test-audio/sampleAudio/`. It contains `sampleAudio.m4a` (the first 20 minutes), `transcript.txt` (the full lecture), and `Tutorial.txt`. Use this repository copy for future tests.
-- Current technical direction: .NET 10/C#, Microsoft Agent Framework (not Semantic Kernel), Gemini Flash/Flash Lite, and a SenseVoice adapter. PostgreSQL under `scripts/` is a learning study; `app-temp/` currently uses local MongoDB.
+- Current technical direction: .NET 10/C#, Microsoft Agent Framework (not Semantic Kernel), Gemini Flash/Flash Lite, and a SenseVoice adapter. PostgreSQL under `scripts/` is a learning study; `app-temp/` currently uses local MongoDB. Frontend styling: Tailwind CSS v4 utilities; Markdown content in `markdown.css`.
 
 ## Development and acceptance
 

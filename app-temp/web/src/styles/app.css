@@ -1,0 +1,83 @@
+@import "tailwindcss" source("..");
+/* Everything the app draws is utilities in its components; Markdown content is the exception. */
+@import "./markdown.css";
+
+/* The page fills the window and never scrolls; its panels scroll inside it. Preflight
+   leaves buttons with an arrow cursor and the browser's focus ring, so these are set here. */
+@layer base {
+  html {
+    min-width: 320px;
+    height: 100%;
+    overflow: hidden;
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+  body {
+    min-width: 320px;
+    height: 100%;
+    overflow: hidden;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+  button {
+    cursor: pointer;
+  }
+  :is(a, button, input, select, summary, textarea):focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/* Touch screens cannot hover, so controls revealed on hover stay visible there. */
+@custom-variant hover-none (@media (hover: none));
+
+@theme {
+  --color-canvas: #f8f9fc;
+  --color-surface: #fff;
+  --color-ink: #24263b;
+  --color-muted: #697185;
+  --color-line: #e5e7ef;
+  --color-accent: #6059bc;
+  --color-accent-soft: #f0effa;
+  --color-pink: #c475a5;
+  --color-pink-soft: #fbf0f6;
+  --color-blue: #769bd1;
+  --font-sans: Inter, "Segoe UI", system-ui, sans-serif;
+  /* Phones up to 390px wide (most current iPhones) get the compact header and rows;
+     xs starts just above them. */
+  --breakpoint-xs: 24.4375rem;
+
+  /* The recorder's dot pulses while recording. */
+  --animate-record-pulse: record-pulse 1.5s ease-in-out infinite;
+  @keyframes record-pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  /* The live dot on speech being recorded breathes while sound comes in. */
+  --animate-record-breathe: record-breathe 1.8s ease-in-out infinite;
+  @keyframes record-breathe {
+    50% {
+      box-shadow: 0 0 0 8px #f8dbe866;
+    }
+  }
+
+  /* The pen in the notes title writes while the AI revises the notes. */
+  --animate-note-pen: note-pen 1.8s ease-in-out infinite;
+  @keyframes note-pen {
+    50% {
+      transform: rotate(-12deg);
+      opacity: 0.55;
+    }
+  }
+}

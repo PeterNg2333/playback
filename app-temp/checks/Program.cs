@@ -1,532 +1,122 @@
-using Playback.Api.Services.Ai.Agents;
-using Playback.Api.Services.Ai.Providers;
-using Playback.Api.Terms;
-using Playback.Api.Services.Audio;
-using Playback.Api.Db;
-using Playback.Api.Endpoints;
-using Playback.Api.Services.Ai;
-
-using System.Text;
-using System.Net.Sockets;
-using NAudio.Wave;
-
-if (args is ["--validation-fixtures"]) { ValidationFixtures.Run(); return; }
-if (args is ["--conversation-check"]) { await ConversationCheck.Run(); return; }
-if (args is ["--notes-redesign-check"]) { try { await NotesRedesignCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
-if (args is ["--notes-recovery-preview", var snapshotFolder]) { NotesRecoveryPreview.Run(snapshotFolder); return; }
-if (args is ["--notes-store-check"]) { try { await NotesStoreCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
-if (args is ["--session-sync-store-check"]) { try { await SessionSyncStoreCheck.Run(); } catch (Exception ex) { Console.Error.WriteLine(ex); Environment.Exit(1); } return; }
-if (args is ["--week3-live", var reportFolder]) { await NotesRedesignCheck.Week3Live(reportFolder); return; }
-if (args is ["--note-coverage-replay", var coverageFolder]) { await NotesRedesignCheck.CoverageReplay(coverageFolder, false); return; }
-if (args is ["--note-coverage-live", var coverageLiveFolder]) { await NotesRedesignCheck.CoverageReplay(coverageLiveFolder, true); return; }
-if (args is ["--note-coverage-store", var coverageStoreFolder]) { await NotesStoreCheck.Coverage(coverageStoreFolder); return; }
-if (args is ["--week3-store-seed", var seedFolder]) { await Week3StoreCheck.Seed(seedFolder); return; }
-if (args is ["--week3-term-live", var termFolder]) { await Week3StoreCheck.Term(termFolder); return; }
-
-
-
-if (args is ["--asr-compare"] or ["--asr-compare", "--live"])
-{
-    await AsrComparison.Run(args.Length == 2);
-    return;
-}
-if (args is ["--gemini-live"])
-{
-    try { await GeminiLiveCheck.Run(); }
-    catch (InvalidOperationException ex)
-    {
-        Console.Error.WriteLine($"Gemini live demo failed: {ex.Message}");
-        Environment.ExitCode = 1;
-    }
-    catch (Exception ex)
-    {
-        var message = ex.Message;
-        var key = Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY");
-        if (!string.IsNullOrEmpty(key)) message = message.Replace(key, "[REDACTED]", StringComparison.Ordinal);
-        Console.Error.WriteLine($"Gemini live demo failed ({ex.GetType().Name}): {message}");
-        Environment.ExitCode = 1;
-    }
-    return;
-}
-if (args is ["--sample-audio", var folder])
-{
-    SampleAudioOfflineCheck.Run(folder);
-    return;
-}
-if (args is ["--sample-audio-preview", var audioFolder])
-{
-    SampleAudioPreview.Run(audioFolder);
-    return;
-}
-if (args is ["--vad-sample", var vadFolder])
-{
-    using var detector = new SpeechActivityDetector();
-    for (var ms = 100; ms <= 1_000; ms += 100)
-        Check(!detector.Process(new float[1_600], 16_000, ms), "Digital silence triggered VAD");
-    var (_, wav, _) = SampleAudioPreview.Chunks(vadFolder).First();
-    using var reader = new WaveFileReader(new MemoryStream(wav));
-    using var speechDetector = new SpeechActivityDetector();
-    using var lowRateDetector = new SpeechActivityDetector();
-    using var highRateDetector = new SpeechActivityDetector();
-    var buffer = new byte[3_200];
-    var elapsedMs = 0L;
-    var firstVoiceMs = -1L;
-    var voicedFrames = 0;
-    var lowRateVoicedFrames = 0;
-    var highRateVoicedFrames = 0;
-    int read;
-    while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
-    {
-        elapsedMs += read * 1_000L / reader.WaveFormat.AverageBytesPerSecond;
-        var mono = AudioActivity.Mono(buffer.AsSpan(0, read), reader.WaveFormat);
-        if (lowRateDetector.Process(mono.Where((_, index) => index % 2 == 0).ToArray(), 8_000, elapsedMs))
-            lowRateVoicedFrames++;
-        var highRate = new float[mono.Length * 3];
-        for (var index = 0; index < mono.Length; index++)
-            highRate.AsSpan(index * 3, 3).Fill(mono[index]);
-        if (highRateDetector.Process(highRate, 48_000, elapsedMs))
-            highRateVoicedFrames++;
-        if (!speechDetector.Process(mono, reader.WaveFormat.SampleRate, elapsedMs)) continue;
-        if (firstVoiceMs < 0) firstVoiceMs = elapsedMs;
-        voicedFrames++;
-    }
-    Check(firstVoiceMs >= 0 && voicedFrames > 10 && lowRateVoicedFrames > 10 && highRateVoicedFrames > 10,
-        "VAD did not detect speech in sampleAudio");
-    Console.WriteLine($"Silero VAD sample passed: first speech at {firstVoiceMs} ms, 8/16/48 kHz voiced callbacks {lowRateVoicedFrames}/{voicedFrames}/{highRateVoicedFrames} of 300; digital silence stayed quiet");
-    return;
-}
-if (args is ["--sample-audio-live", var liveFolder])
-{
-    await SampleAudioLiveCheck.Run(liveFolder);
-    return;
-}
-if (args is ["--asr-synthetic-live"])
-{
-    if (Environment.GetEnvironmentVariable("PLAYBACK_ASR_LIVE_CHECK") != "yes")
-        throw new InvalidOperationException("Set PLAYBACK_ASR_LIVE_CHECK=yes for the synthetic live ASR check");
-    var wav = Path.Combine(Path.GetTempPath(), $"playback-synthetic-asr-{Guid.NewGuid():N}.wav");
-    try
-    {
-        using (var writer = new WaveFileWriter(wav, WaveFormat.CreateIeeeFloatWaveFormat(48_000, 2)))
-        {
-            var samples = new float[48_000 * 2];
-            var bytes = new byte[samples.Length * sizeof(float)];
-            for (var second = 0; second < 30; second++)
-            {
-                for (var i = 0; i < 48_000; i++)
-                    samples[i * 2] = samples[i * 2 + 1] = 0.1f * MathF.Sin(2 * MathF.PI * 440 * i / 48_000);
-                Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
-                writer.Write(bytes, 0, bytes.Length);
-            }
-        }
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-        var result = await new SenseVoiceClient().Transcribe(wav, timeout.Token);
-        Check(result.DurationSeconds is >= 29 and <= 31 &&
-              result.InferenceSeconds is >= 0 &&
-              result.RealTimeFactor is >= 0,
-            "SenseVoice live response did not include valid duration and inference metrics");
-        Console.WriteLine($"Synthetic stereo ASR upload passed: {result.Text.Length} text characters, provider inference {result.InferenceSeconds:F2} s");
-    }
-    finally { File.Delete(wav); }
-    return;
-}
-if (args is ["--jev-live"])
-{
-    try
-    {
-        if (Environment.GetEnvironmentVariable("PLAYBACK_JEV_LIVE_TEST") != "yes")
-            throw new InvalidOperationException("Set PLAYBACK_JEV_LIVE_TEST=yes for the synthetic Jev call");
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("JEV_API_KEY")))
-            throw new InvalidOperationException("JEV_API_KEY is unavailable in the process environment");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-        var classifier = new JevTermClassifier();
-        var first = (JevRankResult)await classifier.Rank("spectrogram", timeout.Token);
-        var cached = (JevRankResult)await classifier.Rank("spectrogram", timeout.Token);
-        Check(first.JevProbability is >= 0 and <= 1 && first.JevConfidence is >= 0 and <= 1 &&
-              first.JevRank.Length > 0 && first.Usage.ValueKind == System.Text.Json.JsonValueKind.Object && cached.Cached,
-            "Jev live response did not contain ranking, confidence, usage, and a cache hit");
-        Console.WriteLine($"Jev live passed: model={first.Model}, rank={first.JevRank}, probability={first.JevProbability}, confidence={first.JevConfidence}, cached={cached.Cached}");
-    }
-    catch (Exception ex)
-    {
-        var message = ex.Message;
-        var key = Environment.GetEnvironmentVariable("JEV_API_KEY");
-        if (!string.IsNullOrEmpty(key)) message = message.Replace(key, "[REDACTED]", StringComparison.Ordinal);
-        Console.Error.WriteLine($"Jev live failed ({ex.GetType().Name}): {message}");
-        Environment.ExitCode = 1;
-    }
-    return;
-}
-
-static byte[] Json(string value) => Encoding.UTF8.GetBytes(value);
-static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
-
-await AsrAdapterCheck.Run();
-LanguageSettingsCheck.Run();
-await LiveAsrCheck.Run();
-
-Check(CaptureSourceModes.Sources("microphone").SequenceEqual(["microphone"]) &&
-      CaptureSourceModes.Sources("system").SequenceEqual(["system"]) &&
-      CaptureSourceModes.Sources("both").SequenceEqual(["microphone", "system"]),
-    "Recording must open only the selected audio sources");
-var invalidCaptureModeRejected = false;
-try { CaptureSourceModes.Sources("unknown"); }
-catch (InvalidOperationException) { invalidCaptureModeRejected = true; }
-Check(invalidCaptureModeRejected, "Unknown recording modes must fail before starting capture");
-
-Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"exact [unclear]\",\"text\":\"model revision\"}")).Text == "exact [unclear]", "ASR original must win over a processed text field");
-Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"\"}")).Text == "", "Silent audio must stay uncertain, not become invented text");
-Check(AsrProcessor.NetworkPermissionDenied(new HttpRequestException("Connection failed", new SocketException((int)SocketError.AccessDenied))),
-    "A denied REST connection must stop automatic ASR retries");
-Check(!AsrProcessor.NetworkPermissionDenied(new HttpRequestException("Service unavailable")),
-    "Transient HTTP failures must remain retryable");
-var asr = SenseVoiceClient.ParseResponse(Json("{\"duration_seconds\":10,\"inference_time_seconds\":1.5,\"language\":\"en_US\",\"raw\":\"<|en|><|NEUTRAL|><|Speech|><|withitn|>Hello class.\",\"rtf\":0.15}"));
-Check(asr.Text == "Hello class.", "SenseVoice control tokens must not appear in transcript text");
-Check(asr.DurationSeconds == 10 && asr.InferenceSeconds == 1.5 && asr.RealTimeFactor == 0.15 && asr.Language == "en_US", "SenseVoice timing and language metadata must be mapped");
-Check(SenseVoiceClient.ParseResponse(Json("{\"raw\":\"<|en|><|NEUTRAL|><|Speech|><|withitn|>\"}")).Text == "", "Metadata-only responses must not become transcript text");
-var stereoPath = Path.Combine(Path.GetTempPath(), $"playback-asr-{Guid.NewGuid():N}.wav");
+// Playback checks. `dotnet run` runs every offline check: in-memory HTTP and storage, no network, no database,
+// no audio upload. A flag runs one other group; the comment above each group says what it needs.
 try
 {
-    using (var writer = new WaveFileWriter(stereoPath, WaveFormat.CreateIeeeFloatWaveFormat(48_000, 2)))
+    switch (args)
     {
-        var stereo = new float[48_000 * 2];
-        Array.Fill(stereo, 0.5f);
-        var bytes = new byte[stereo.Length * sizeof(float)];
-        Buffer.BlockCopy(stereo, 0, bytes, 0, bytes.Length);
-        writer.Write(bytes, 0, bytes.Length);
-    }
-    var originalLength = new FileInfo(stereoPath).Length;
-    var prepared = AsrAudioPreparer.Prepare(stereoPath, CancellationToken.None);
-    using var normalized = new WaveFileReader(new MemoryStream(prepared));
-    var sample = new byte[2];
-    normalized.CurrentTime = TimeSpan.FromMilliseconds(500);
-    normalized.ReadExactly(sample);
-    Check(normalized.WaveFormat.SampleRate == 16_000 && normalized.WaveFormat.Channels == 1 &&
-          normalized.WaveFormat.BitsPerSample == 16 && prepared.Length < originalLength / 4 &&
-          Math.Abs(BitConverter.ToInt16(sample) - 16384) < 250,
-        $"48 kHz stereo system audio must become compact 16 kHz mono PCM for ASR: {normalized.WaveFormat}, {prepared.Length}/{originalLength} bytes, sample {BitConverter.ToInt16(sample)}");
-    Check(new FileInfo(stereoPath).Length == originalLength, "ASR preparation must preserve the original recording");
-}
-finally { File.Delete(stereoPath); }
-Check(PlaybackStore.NeedsReview("The term was [unclear].") && !PlaybackStore.NeedsReview("") && !PlaybackStore.NeedsReview("This is unclear but audible."),
-    "Only explicit uncertainty markers should trigger human review; empty ASR must not masquerade as confidence");
-var identified = TermCandidateExtractor.Find(
-    [new Material { Id = "material-a", Text = "## Spectrogram\n**Fourier Transform** describes the signal." }],
-    [new Transcript { Id = "speech-a", Original = "The Fourier Transform maps FFT bins.", RecognitionStatus = "recognized" },
-     new Transcript { Id = "speech-b", Original = "<|NEUTRAL|>hello", RecognitionStatus = "recognized" },
-     new Transcript { Id = "speech-c", Original = "FFT?", Uncertain = true }]);
-Check(identified.Any(x => x.Text == "Fourier Transform" && x.MaterialIds.Contains("material-a") && x.TranscriptIds.Contains("speech-a")), "Terms must retain transcript and material evidence");
-Check(identified.Any(x => x.Text == "FFT" && x.TranscriptIds.Contains("speech-a")), "Recognized acronyms should be labeled");
-Check(identified.All(x => x.Text != "NEUTRAL"), "SenseVoice markers must not become term labels");
-var noteEdits = NoteChangeLog.Build("Alpha [old]\nKeep", "Alpha [old]\nInserted [new]\nKeep", ["old", "new"], []);
-Check(noteEdits.Count == 1 && noteEdits[0].Kind == "insert" && noteEdits[0].Line == 2 &&
-      noteEdits[0].Text == "Inserted [new]" && noteEdits[0].TranscriptIds.SequenceEqual(["new"]),
-    "Note edit log must locate an inserted line and its cited transcript");
-var removedEdits = NoteChangeLog.Build("Remove [old]\nKeep", "Keep", ["old"], []);
-Check(removedEdits.Count == 1 && removedEdits[0].Kind == "remove" && removedEdits[0].TranscriptIds.SequenceEqual(["old"]),
-    "Removed note lines must keep their former source citation");
-var bulkEdits = NoteChangeLog.Build("", string.Join('\n', Enumerable.Repeat("Line [new]", 3_100)), ["new"], []);
-Check(bulkEdits.Count == 1 && bulkEdits[0].Kind == "insert" && bulkEdits[0].TranscriptIds.SequenceEqual(["new"]),
-    "Large notes must keep a bounded edit log with its cited source");
-var termRank = new JevRankResult("Spectrogram", true, "demo", 1, 0.92, "high", 0.87, default, false);
-Check(JevTermClassifier.ShouldHighlight(termRank) &&
-      !JevTermClassifier.ShouldHighlight(termRank with { JevProbability = 0.3 }) &&
-      !JevTermClassifier.ShouldHighlight(termRank with { JevConfidence = 0.3 }) &&
-      !JevTermClassifier.ShouldHighlight(termRank with { JevRank = "low" }),
-    "Only Jev-selected terms should be highlighted");
-Check(PlaybackStore.TermInsightId("session", " Spectrogram ") == PlaybackStore.TermInsightId("session", "spectrogram"),
-    "Term reference IDs must be stable across case and whitespace");
-var allowedTerm = new TermInsight { Id = "a".PadRight(64, 'a') };
-NoteAgent.ValidateReferences($"A term [ref:{allowedTerm.Id}]", [allowedTerm]);
-try { NoteAgent.ValidateReferences("Invented [ref:missing]", [allowedTerm]); throw new Exception("Invented note reference was accepted"); }
-catch (InvalidOperationException) { }
-var longNoteSource = new string('c', 32) + "-microphone-63926191107278790-" + new string('d', 64);
-var secondNoteSource = new string('e', 32);
-NoteAgent.ValidateSourceReferences($"Point [{longNoteSource}, {secondNoteSource}] [unclear] [ref:{allowedTerm.Id}]", [longNoteSource, secondNoteSource]);
-try {
-    NoteAgent.ValidateSourceReferences($"Point [{longNoteSource}, {new string('f', 32)}]", [longNoteSource]);
-    throw new Exception("An invented source in a mixed citation was accepted");
-} catch (InvalidOperationException) { }
-var longSourceEdits = NoteChangeLog.Build("", $"Point [[{longNoteSource}, {secondNoteSource}]]", [longNoteSource], [secondNoteSource]);
-Check(longSourceEdits.Single().TranscriptIds.SequenceEqual([longNoteSource]) &&
-      longSourceEdits.Single().MaterialIds.SequenceEqual([secondNoteSource]),
-    "Long and grouped citations must retain both transcript and material provenance");
-var contextEntries = new[] {
-    new Transcript { Id = "before", Original = "Fourier Transform", Translation = "傅立葉變換", TranslationLanguage = "zh-Hant" },
-    new Transcript { Id = "target", Original = "FFT bins" },
-    new Transcript { Id = "after", Original = "Frequency domain", Translation = "domaine fréquentiel", TranslationLanguage = "fr" }
-};
-var context = TranslationContext.Build(contextEntries, contextEntries[1], "zh-Hant");
-Check(context.Contains("Fourier Transform") && context.Contains("傅立葉變換") && context.Contains("Frequency domain") &&
-      !context.Contains("domaine fréquentiel") && context.Contains("TARGET [target]") && contextEntries[1].Original == "FFT bins",
-    "Translation must use adjacent originals and matching-language translations without changing target original");
-var batchContext = TranslationContext.BuildBatch(contextEntries, [contextEntries[1], contextEntries[2]], "zh-Hant");
-Check(batchContext.Prompt.Contains("TARGETS (untrusted):") && batchContext.Prompt.Contains("[01] FFT bins") &&
-      batchContext.Prompt.Contains("[02] Frequency domain") && batchContext.Prompt.Contains("傅立葉變換") &&
-      !batchContext.Prompt.Contains("domaine fréquentiel") && !batchContext.Prompt.Contains("translation: FFT bins") &&
-      batchContext.TargetIds["01"] == "target" && batchContext.TargetIds["02"] == "after",
-    "Batched translation must distinguish targets from same-language context");
-var translatedBatch = TranslationAgent.ParseBatch("""
-```json
-{"translations":[{"id":"target","text":"快速傅立葉變換"},{"id":"after","text":"頻域"}]}
-```
-""", ["target", "after"]);
-Check(translatedBatch["target"] == "快速傅立葉變換" && translatedBatch["after"] == "頻域",
-    "Batched translations must map each result to its original transcript ID");
-try { TranslationAgent.ParseBatch("{\"translations\":[{\"id\":\"target\",\"text\":\"x\"}]}", ["target", "after"]); throw new Exception("Missing translation was accepted"); }
-catch (InvalidOperationException) { }
-var backlog = Enumerable.Range(0, 45).Select(i => new Transcript { Id = $"late-{i}", StartMs = i * 1000, Original = "source text", NoteStatus = i == 1 ? "completed" : i == 2 ? "failed" : "pending" }).ToList();
-backlog.Add(new Transcript { Id = "empty", StartMs = 1, Original = "", NoteStatus = "pending" });
-var pendingNotes = NoteAgent.Pending(backlog);
-Check(pendingNotes.Count == 44 && pendingNotes.Count <= 64 && pendingNotes.Sum(x => x.SourceText.Length) <= 18000 && pendingNotes[0].Id == "late-0" && pendingNotes.Any(x => x.Id == "late-2") && pendingNotes.All(x => x.Id != "late-1" && x.Id != "empty"),
-    "Note jobs must include late and failed transcripts in bounded batches without using a time cursor");
-var noteMaterials = Enumerable.Range(0, 7).Select(i => new Material { Id = $"material-{i}", Text = "synthetic" }).ToList();
-var priorNote = new Note { MaterialIds = noteMaterials.Take(5).Select(x => x.Id).ToList(), Coverage = noteMaterials.Take(5)
-    .Select(x => new SourceDisposition { SourceId = x.Id, Status = "covered", ContentHash = NoteSections.Hash(x.Text), PointIds = ["written"] }).ToList(),
-    Sections = [new NoteSection { Points = [new NotePoint { Id = "written", SourceIds = noteMaterials.Take(5).Select(x => x.Id).ToList() }] }] };
-Check(NoteAgent.MaterialsForPrompt(noteMaterials, null, false).Count == 2 &&
-      NoteAgent.MaterialsForPrompt(noteMaterials, priorNote, false).Select(x => x.Id).SequenceEqual(["material-5", "material-6"]) &&
-      NoteAgent.MaterialsForPrompt(noteMaterials, priorNote, true).Count == 2 &&
-      NoteAgent.MaterialsForPrompt(noteMaterials, new Note { MaterialIds = priorNote.MaterialIds }, false).First().Id == "material-0",
-    "Material-ID metadata cannot prove digestion; bounded actual point coverage chooses new passages, explicit revision can re-read sources");
-var longTranscripts = Enumerable.Range(0, 360).Select(i => new Transcript
-{
-    Id = $"long-{i}", StartMs = i * 30_000, EndMs = (i + 1) * 30_000,
-    Original = i == 4 ? "A spectrogram shows frequency over time." :
-        i == 355 ? "The kernel handles a system call." : $"Lecture segment number {i}."
-}).ToList();
-var longSession = new SessionView("synthetic", "Three hours", null, DateTime.UtcNow,
-    "", 0, 0, false, "zh-Hant", [], longTranscripts, [], [], [], null);
-var sparseTranslation = TranslationContext.BuildBatch(longTranscripts, [longTranscripts[4], longTranscripts[355]], "zh-Hant");
-Check(sparseTranslation.TargetIds.Values.SequenceEqual(["long-4", "long-355"]) &&
-      sparseTranslation.Prompt.Contains("[01] A spectrogram") && sparseTranslation.Prompt.Contains("[02] The kernel") &&
-      !sparseTranslation.Prompt.Contains("Lecture segment number 180"),
-    "Sparse translation retries must not resend the whole three-hour transcript");
-var earlyAnswer = ChatContextBuilder.Build(longSession, new QuestionInput("What does spectrogram show?"));
-var lateAnswer = ChatContextBuilder.Build(longSession, new QuestionInput("Explain the kernel?"));
-Check(earlyAnswer.RelevantTranscripts[0].Id == "long-4" &&
-      lateAnswer.RelevantTranscripts[0].Id == "long-355" &&
-      earlyAnswer.Prompt.Contains("Source [03] (120000-180000 ms)") &&
-      lateAnswer.Prompt.Contains("Source [178] (10620000-10680000 ms)"),
-    "Three-hour questions must retrieve early and late grouped sources with exact passage ranges");
-var aliases = earlyAnswer.References!;
-Check(aliases.Encode("Point [long-4, long-5]").Contains("[03]") &&
-      aliases.Decode("Point [03]") == "Point [long-4, long-5]",
-    "Short audio aliases must expand to every underlying chunk in the cited passage");
-Check(aliases.Decode("`[03]`\n```text\n[03]\n```") == "`[03]`\n```text\n[03]\n```",
-    "Short aliases inside literal code must not be rewritten");
-var widePassage = Enumerable.Range(0, 16).Select(index => new Transcript {
-    Id = new string('a', 32) + "-microphone-63926191107278790-" + new string('b', 64) + index,
-    SourceId = "microphone", StartMs = index * 3000, EndMs = (index + 1) * 3000,
-    Original = "A bottleneck limits throughput."
-}).ToList();
-var wideSession = longSession with { Transcripts = widePassage };
-var wideContext = ChatContextBuilder.Build(wideSession, new QuestionInput("Explain the bottleneck"));
-var wideCitation = "Point [" + string.Join(", ", widePassage.Select(x => x.Id)) + "]";
-Check(wideCitation.Length > 2000 && wideContext.References!.Encode(wideCitation) == "Point [01]" &&
-      ChatAgent.CitedEvidence(wideContext, wideContext.References.Decode("Point [01]")).Length == 16 &&
-      NoteChangeLog.Build("", wideCitation, widePassage.Select(x => x.Id), []).Single().TranscriptIds.Count == 16,
-    "The maximum merged passage must retain all long canonical source IDs while using one short model alias");
-NoteAgent.ValidateSourceReferences($"Code `[{new string('f', 32)}]`\n```text\n[{new string('f', 32)}]\n```", []);
-NoteAgent.ValidateReferences("Literal `[ref:unknown]`", []);
-try {
-    NoteAgent.ValidateSourceReferences(wideCitation.Replace(widePassage[^1].Id, new string('f', 32)), widePassage.Select(x => x.Id));
-    throw new Exception("An invented source at the end of a long merged citation was accepted");
-} catch (InvalidOperationException) { }
-try { aliases.Decode("Unknown [9999]"); throw new Exception("An unknown short citation was accepted"); }
-catch (InvalidOperationException) { }
-Check(GeminiLanguageModel.OutputLimit("RollingLectureNoteEditor") == 4096 &&
-      GeminiLanguageModel.OutputLimit("PlaybackQuestionAnswerer") == 1024 && NoteAgent.AutomaticInterval.TotalSeconds == 10,
-    "Automatic notes and routine answers must retain explicit cost limits");
-await GeminiOutputCheck.Run();
-try {
-    GeminiLanguageModel.ParseGrounding(Json("{\"candidates\":[{\"finishReason\":\"MAX_TOKENS\",\"content\":{\"parts\":[{\"text\":\"Partial answer\"}]}}]}"));
-    throw new Exception("A truncated grounded answer was accepted");
-} catch (InvalidOperationException) { }
-var citedEarly = ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [long-4].");
-Check(citedEarly.Length == 1 && citedEarly[0].Id == "long-4" &&
-      citedEarly[0].Kind == "lecture" && citedEarly[0].Label == "120000-150000 ms",
-    "Q&A evidence must link an actual cited transcript to its audio time");
-var uncertainEvidence = ChatAgent.CitedEvidence(earlyAnswer, "The speaker said [unclear] about frequency [long-4].");
-Check(uncertainEvidence.Length == 1 && uncertainEvidence[0].Id == "long-4",
-    "ASR uncertainty markers must remain distinct from source citations");
-var focusedEarly = ChatContextBuilder.Build(longSession, new QuestionInput("What does it show?", TranscriptId: "long-4"));
-try { ChatAgent.CitedEvidence(focusedEarly, "A spectrogram shows frequency over time."); throw new Exception("Uncited focused source was accepted"); }
-catch (InvalidOperationException) { }
-try { ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [invented]."); throw new Exception("Invented source was accepted"); }
-catch (InvalidOperationException) { }
-try { ChatAgent.CitedEvidence(earlyAnswer, "A spectrogram shows frequency over time [long-4] [invented]."); throw new Exception("Invented extra source was accepted"); }
-catch (InvalidOperationException) { }
-var materialSession = longSession with { Materials = [new Material { Id = "material-one", Name = "Handout", Text = "FFT means fast Fourier transform." }], Transcripts = [] };
-var materialContext = ChatContextBuilder.Build(materialSession, new QuestionInput("What does FFT mean?"));
-var citedMaterial = ChatAgent.CitedEvidence(materialContext, "FFT means fast Fourier transform [material-one].");
-Check(citedMaterial.Length == 1 && citedMaterial[0].Kind == "material" && citedMaterial[0].Label == "Handout",
-    "Material-only Q&A must link the cited handout");
-var manyMaterials = Enumerable.Range(0, 7).Select(i => new Material
-{
-    Id = $"handout-{i}", Name = $"Handout {i}",
-    Text = i == 6 ? new string('x', 3_200) + " Convolution combines two signals." : "Unrelated practice questions."
-}).ToList();
-var materialSearchSession = materialSession with { Materials = manyMaterials };
-var foundLateMaterial = ChatContextBuilder.Build(materialSearchSession, new QuestionInput("What does convolution combine?"));
-Check(foundLateMaterial.Materials.Any(x => x.Id == "handout-6") &&
-      foundLateMaterial.Prompt.Contains("Convolution combines two signals."),
-    "Q&A must retrieve a relevant later handout and include the matching passage");
-var focusedMaterial = ChatContextBuilder.Build(materialSearchSession,
-    new QuestionInput("What does convolution combine?", MaterialId: "handout-1"));
-Check(focusedMaterial.Materials[0].Id == "handout-1",
-    "An explicitly selected handout must remain first in the Q&A source set");
-var oversizedTranscript = materialSession with
-{
-    Materials = [],
-    Transcripts = [new Transcript { Id = "long-source", StartMs = 10_000, EndMs = 40_000,
-        Original = new string('x', 10_000) + " Plasma oscillations depend on electron density." }]
-};
-var longSourceContext = ChatContextBuilder.Build(oversizedTranscript, new QuestionInput("What affects plasma oscillations?", TranscriptId: "long-source"));
-Check(longSourceContext.Prompt.Contains("Plasma oscillations depend on electron density.") &&
-      longSourceContext.Prompt.Length < 5_000,
-    "Long transcript questions must include the matching passage in a bounded prompt");
-var chineseTimeline = Enumerable.Range(0, 360).Select(i => new Transcript
-{
-    Id = $"zh-{i}", StartMs = i * 30_000, EndMs = (i + 1) * 30_000,
-    Original = i == 5 ? "傅立葉變換把訊號分解成頻率成分，FFT 是快速計算法。" : $"第{i}段的課堂練習。"
-}).ToList();
-var chineseSession = longSession with { Transcripts = chineseTimeline };
-var chineseAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("傅立葉變換是甚麼？"));
-Check(chineseAnswer.RelevantTranscripts[0].Id == "zh-5" &&
-      chineseAnswer.Prompt.Contains("Source [03] (120000-180000 ms)"),
-    "Chinese questions must retrieve an early matching source from a long lecture");
-var mixedAnswer = ChatContextBuilder.Build(chineseSession, new QuestionInput("FFT是甚麼？"));
-Check(mixedAnswer.RelevantTranscripts[0].Id == "zh-5",
-    "Mixed English and Chinese questions must preserve the English term");
-var floatFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 1);
-var quiet = new byte[480 * 4];
-var voice = new byte[480 * 4];
-for (var i = 0; i < 480; i++) BitConverter.GetBytes(0.08f).CopyTo(voice, i * 4);
-Check(!AudioActivity.HasSound(quiet, floatFormat), "Quiet microphone data must not reset the no-sound warning");
-Check(AudioActivity.HasSound(voice, floatFormat), "Audible microphone data must reset the no-sound warning");
-Check(AudioActivity.Level(quiet, floatFormat) == 0 && AudioActivity.Level(voice, floatFormat) > 0,
-    "Live waveform level must reflect captured microphone samples");
-var stereoFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
-var rightOnly = new byte[480 * 2 * 4];
-for (var i = 0; i < 480; i++) BitConverter.GetBytes(0.08f).CopyTo(rightOnly, i * 8 + 4);
-Check(AudioActivity.HasSound(rightOnly, stereoFormat) && AudioActivity.Level(rightOnly, stereoFormat) > 0,
-    "System audio on the right channel must trigger immediate visual feedback");
-try { SenseVoiceClient.ParseResponse(Json("{\"status\":\"ok\"}")); throw new Exception("Unknown ASR schema was accepted"); }
-catch (InvalidOperationException) { }
+        case []:
+            await RunOffline(notesOnly: false);
+            break;
+        case ["--notes"]:
+            await RunOffline(notesOnly: true);
+            break;
 
-var silentWav = Path.Combine(Path.GetTempPath(), $"playback-silent-{Guid.NewGuid():N}.wav");
-var toneWav = Path.Combine(Path.GetTempPath(), $"playback-tone-{Guid.NewGuid():N}.wav");
-try
-{
-    var wav = new byte[44 + 32000];
-    Encoding.ASCII.GetBytes("RIFF").CopyTo(wav, 0);
-    BitConverter.GetBytes(wav.Length - 8).CopyTo(wav, 4);
-    Encoding.ASCII.GetBytes("WAVEfmt ").CopyTo(wav, 8);
-    BitConverter.GetBytes(16).CopyTo(wav, 16);
-    BitConverter.GetBytes((short)1).CopyTo(wav, 20);
-    BitConverter.GetBytes((short)1).CopyTo(wav, 22);
-    BitConverter.GetBytes(16000).CopyTo(wav, 24);
-    BitConverter.GetBytes(32000).CopyTo(wav, 28);
-    BitConverter.GetBytes((short)2).CopyTo(wav, 32);
-    BitConverter.GetBytes((short)16).CopyTo(wav, 34);
-    Encoding.ASCII.GetBytes("data").CopyTo(wav, 36);
-    BitConverter.GetBytes(32000).CopyTo(wav, 40);
-    File.WriteAllBytes(silentWav, wav);
-    Check(AudioSilence.IsDigitalSilence(silentWav), "Digital silence should skip remote ASR");
-    wav[44] = 1;
-    File.WriteAllBytes(toneWav, wav);
-    Check(!AudioSilence.IsDigitalSilence(toneWav), "Nonzero audio must not be skipped as silence");
-}
-finally
-{
-    File.Delete(silentWav);
-    File.Delete(toneWav);
-}
+        // Offline, reading the Week 3 sample in app-temp/data/test-audio/sampleAudio; decoding the M4A needs Windows.
+        case ["--sample-audio", var folder]:
+            SampleAudioChecks.SourceLookup(folder);
+            break;
+        case ["--sample-audio-preview", var folder]:
+            SampleAudioChecks.Decode(folder);
+            break;
+        case ["--vad-sample", var folder]:
+            SampleAudioChecks.Vad(folder);
+            break;
+        case ["--asr-compare"]:
+            await AsrComparison.Run(live: false);
+            break;
 
-var grounded = GeminiLanguageModel.ParseGrounding(Json("""
-{"candidates":[{"content":{"parts":[{"text":"Acoustic features summarize a waveform."}]},"groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://example.org/source","title":"Example source"}},{"web":{"uri":"javascript:alert(1)","title":"Unsafe"}}],"searchEntryPoint":{"renderedContent":"<div>Search suggestions</div>"}}}]}
-"""));
-Check(grounded.Answer == "Acoustic features summarize a waveform.", "Grounded answer text was lost");
-Check(grounded.Evidence.Count == 1, "Unsafe or missing citation was accepted");
-Check(grounded.Evidence[0].Url == "https://example.org/source" && grounded.SearchSuggestions.Contains("Search suggestions"),
-    "Vertex citation or search suggestions were lost");
-try { GeminiLanguageModel.ParseGrounding(Json("{\"candidates\":[]}")); throw new Exception("Empty grounded response was accepted"); }
-catch (InvalidOperationException) { }
-string? rejectedGroundingUsage = null;
-try {
-    GeminiLanguageModel.ParseGrounding(Json("{\"candidates\":[{\"finishReason\":\"MAX_TOKENS\"}],\"usageMetadata\":{\"promptTokenCount\":20,\"candidatesTokenCount\":10}}"),
-        value => rejectedGroundingUsage = value);
-    throw new Exception("Truncated grounding was accepted");
-} catch (InvalidOperationException) { }
-Check(rejectedGroundingUsage?.Contains("promptTokenCount") == true, "Rejected grounding lost reported usage");
-var previousJevKey = Environment.GetEnvironmentVariable("JEV_API_KEY");
-var previousOffline = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST");
-try
-{
-    Environment.SetEnvironmentVariable("JEV_API_KEY", "synthetic-fixture-key");
-    Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", null);
-    var jevHandler = new DemoJevHandler();
-    var jev = new JevTermClassifier(jevHandler);
-    var first = await Task.WhenAll(jev.Rank("Spectrogram", CancellationToken.None),
-                                   jev.Rank("Spectrogram", CancellationToken.None));
-    var cached = (JevRankResult)await jev.Rank("spectrogram", CancellationToken.None);
-    var second = (JevRankResult)await jev.Rank("Phoneme", CancellationToken.None);
-    Check(jevHandler.ModelRequests == 1 && jevHandler.RankRequests == 2,
-        "Jev should discover its model once and avoid duplicate paid term calls");
-    Check(cached.Cached && cached.JevRank == "high" && second.JevProbability == 0.92,
-        "Cached Jev ranking should preserve the real model result");
-    try { await new JevTermClassifier(new UnauthorizedJevHandler()).Rank("Synthetic", CancellationToken.None); throw new Exception("Jev 401 was accepted"); }
-    catch (InvalidOperationException ex) when (ex.Message.Contains("JEV_API_KEY", StringComparison.Ordinal)) { }
-}
-finally
-{
-    Environment.SetEnvironmentVariable("JEV_API_KEY", previousJevKey);
-    Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", previousOffline);
-}
-Console.WriteLine("Protocol checks passed: ASR original, silence, Vertex citations, Jev ranking cache, batched translation, source-backed Q&A and bounded long-lecture lookup");
+        // MongoDB on localhost, database playback_e2e. Nothing is started; an unavailable database is reported.
+        case ["--conversation-check"]:
+            await ConversationStoreChecks.Run();
+            break;
+        case ["--notes-store-check"]:
+            await NoteStoreChecks.Run();
+            break;
+        case ["--session-sync-store-check"]:
+            await SessionSyncStoreChecks.Run();
+            break;
 
-var contextual = TermCandidateExtractor.Find([], [new Transcript { Id = "mixed", Original = "我哋而家講緩存。cache stores data，用FFT同spectrogram分析。" }]);
-Check(new[] { "緩存", "cache", "FFT", "spectrogram" }.All(term => contextual.Any(x => x.Text == term && x.Context.Contains("data"))),
-    "Lowercase, two-character Chinese and acronyms next to Cantonese must reach contextual Jev ranking");
-Check(PlaybackStore.TermInsightId("session", "cache", "computer", "en") != PlaybackStore.TermInsightId("session", "cache", "toys", "en") &&
-      PlaybackStore.TermInsightId("session", "cache", "computer", "en") != PlaybackStore.TermInsightId("session", "cache", "computer", "zh-Hant"),
-    "Explanation identity must distinguish meaning and output language");
-var groupedContext = ChatContextBuilder.Build(longSession, new QuestionInput("Explain kernel and spectrogram"));
-Check(ChatAgent.CitedEvidence(groupedContext, "Both sources [long-4, long-355].").Length == 2,
-    "Grouped exact source IDs must validate without accepting invented IDs");
-Console.WriteLine("Repair checks passed: contextual Cantonese candidate extraction, explanation cache identity, grouped validated citations");
+        // Paid providers. Each refuses to start without its opt-in variable; the Live/run-*.mjs scripts set it.
+        case ["--gemini-live"]:
+            await GeminiLiveCheck.Run();
+            break;
+        case ["--jev-live"]:
+            await JevLiveCheck.Run();
+            break;
+        case ["--asr-synthetic-live"]:
+            await AsrLiveCheck.Run();
+            break;
+        case ["--sample-audio-live", var folder]:
+            await SampleAudioLiveCheck.Run(folder);
+            break;
+        case ["--asr-compare", "--live"]:
+            await AsrComparison.Run(live: true);
+            break;
 
-sealed class DemoJevHandler : HttpMessageHandler
-{
-    public int ModelRequests;
-    public int RankRequests;
+        // Validation runs: write their evidence into a run folder under app-temp/data/validation.
+        case ["--validation-fixtures"]:
+            ValidationFixtures.Run();
+            break;
+        case ["--notes-recovery-preview", var folder]:
+            NotesRecoveryPreview.Run(folder);
+            break;
+        case ["--note-coverage-replay", var folder]:
+            await NoteCoverageRuns.Replay(folder, live: false);
+            break;
+        case ["--note-coverage-live", var folder]:
+            await NoteCoverageRuns.Replay(folder, live: true);
+            break;
+        case ["--note-coverage-store", var folder]:
+            await NoteCoverageRuns.Store(folder);
+            break;
+        case ["--week3-live", var folder]:
+            await Week3ProviderRun.Run(folder);
+            break;
+        case ["--week3-store-seed", var folder]:
+            await Week3StoreRun.Seed(folder);
+            break;
+        case ["--week3-term-live", var folder]:
+            await Week3StoreRun.Term(folder);
+            break;
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        var path = request.RequestUri?.AbsolutePath;
-        if (request.Method == HttpMethod.Get && path == "/v1/models")
-        {
-            Interlocked.Increment(ref ModelRequests);
-            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-            {
-                Content = new StringContent("{\"models\":[{\"name\":\"demo-jev\"}]}")
-            });
-        }
-        if (request.Method == HttpMethod.Post && path == "/v1/systemone")
-        {
-            Interlocked.Increment(ref RankRequests);
-            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
-            {
-                Content = new StringContent("{\"answers\":{\"explain\":{\"noul\":0.92},\"category\":{\"choice\":\"high\",\"confidence\":0.87}},\"usage\":{\"input_tokens\":5}}")
-            });
-        }
-        throw new InvalidOperationException("Unexpected Jev fixture request");
+        default:
+            Console.Error.WriteLine("Unknown check. Run without arguments for the offline checks; Program.cs lists the other groups.");
+            Environment.ExitCode = 2;
+            break;
     }
 }
-
-sealed class UnauthorizedJevHandler : HttpMessageHandler
+catch (Exception ex)
 {
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-        Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized));
+    Console.Error.WriteLine(WithoutCredentials(ex.ToString()));
+    Environment.ExitCode = 1;
+}
+
+// The offline mode also stops NoteAgent's background scan, which would otherwise read MongoDB.
+static async Task RunOffline(bool notesOnly)
+{
+    Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");
+    if (!notesOnly)
+    {
+        RecordingChecks.Run();
+        await AsrChecks.Run();
+        await LiveAsrChecks.Run();
+        LanguageChecks.Run();
+        TranslationChecks.Run();
+        AskChecks.Run();
+        await TermChecks.Run();
+        await GeminiChecks.Run();
+    }
+    NoteDocumentChecks.Run();
+    await NoteGenerationChecks.Run();
+    await NoteSchedulingChecks.Run();
+    await NoteCoverageChecks.Run();
+    await SessionSyncChecks.Run();
+}
+
+// A live check can fail with a provider message; never print a credential.
+static string WithoutCredentials(string text)
+{
+    foreach (var name in new[] { "GOOGLE_AI_STUDIO_API_KEY", "JEV_API_KEY", "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY" })
+        if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } key) text = text.Replace(key, "[REDACTED]", StringComparison.Ordinal);
+    return text;
 }

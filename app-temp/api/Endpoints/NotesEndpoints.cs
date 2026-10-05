@@ -1,6 +1,5 @@
-using Playback.Api.Services.Ai.Agents;
+using Playback.Api.Notes;
 using Playback.Api.Db;
-using Playback.Api.Services.Ai;
 namespace Playback.Api.Endpoints;
 
 public static class NotesEndpoints
@@ -40,8 +39,11 @@ public static class NotesEndpoints
         app.MapPost("/api/sessions/{id}/notes/generate", async (
             string id, PlaybackStore store, NoteAgent notes, CancellationToken ct) =>
         {
-            return await notes.Generate(id, ct, allowRevision: true);
+            return await notes.Generate(id, ct);
         });
     }
 }
-public sealed record CoverageRepairInput(int BasedOnVersion);
+public record NoteInput(string Markdown, int? BasedOnVersion = null);
+public record RecoveryInput(int BasedOnVersion, List<string> SelectedIds);
+public record OrganizeInput(string SectionId, int BasedOnVersion);
+public record CoverageRepairInput(int BasedOnVersion);

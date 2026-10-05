@@ -1,6 +1,9 @@
-using Playback.Api.Services.Ai.Providers;
+using Playback.Api.Audio.Recording;
+using Playback.Api.Providers;
+using Playback.Api.Notes;
+using Playback.Api.Terms;
 using Playback.Api.Db;
-using Playback.Api.Services.Audio;
+using Playback.Api.Audio.Asr;
 namespace Playback.Api.Endpoints;
 
 public static class HealthEndpoints
@@ -22,23 +25,22 @@ public static class HealthEndpoints
             sessionSync = true,
             jevNoteGate = jev.IsConfigured,
             noteDecisionIntervalSeconds = 10,
-            notePromptVersion = Playback.Api.Services.Ai.Agents.NoteAgent.PromptVersion,
-            savedAsrRecovery = Environment.GetEnvironmentVariable("PLAYBACK_RESUME_SAVED_ASR") != "no",
-            database = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_DATABASE") ?? "playback_prototype",
+            notePromptVersion = NoteInstructions.Version,
+            savedAsrRecovery = PlaybackEnvironment.ResumeSavedAsr,
+            database = PlaybackEnvironment.Database,
             gemini = gemini.IsConfigured,
             geminiModel = gemini.Model,
             jev = jev.IsConfigured,
-            automaticAsr = Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") != "yes"
-                && Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") != "yes",
-            asrPaused = Environment.GetEnvironmentVariable("PLAYBACK_PAUSE_EXTERNAL_ASR") == "yes",
-            autoNotes = Environment.GetEnvironmentVariable("PLAYBACK_AUTO_NOTES") != "no",
-            autoTerms = Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TERMS") != "no",
+            automaticAsr = PlaybackEnvironment.AutomaticAsr,
+            asrPaused = PlaybackEnvironment.ExternalAsrPaused,
+            autoNotes = PlaybackEnvironment.AutomaticNotes,
+            autoTerms = PlaybackEnvironment.AutomaticTerms,
             manualAsrRetry = true,
             sessionAudioMix = true,
             recordingSourceSelection = true,
             sessionLanguageSettings = true,
             liveAsrPreview = true,
-            audioChunkMilliseconds = LiveAsrSession.ChunkMilliseconds,
+            audioChunkMilliseconds = WindowsAudioCaptureService.ChunkMilliseconds,
             asrModels = asr.Model.Provider == "openrouter" ? AsrModelOptions.OpenRouter : [],
             asrStreaming = asr is IStreamingAsrAdapter,
             asr = asr.Model

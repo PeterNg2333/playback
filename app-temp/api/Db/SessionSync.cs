@@ -1,17 +1,27 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Playback.Api.Services.Ai;
-using Playback.Api.Services.Ai.Providers;
 using Playback.Api.Terms;
-using Playback.Api.Services;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using System.Text.RegularExpressions;
 
 namespace Playback.Api.Db;
 
+// The page's change feed for one session: a paged first read, then only the records that changed.
+// The change journal and reader cursors live in memory; an API restart makes readers start over.
 public partial class PlaybackStore
 {
+    const int MaxJournalEvents = 8192;
+    const int MaxSyncReaders = 32;
+    static readonly TimeSpan SyncReaderIdle = TimeSpan.FromMinutes(5);
+    const int MaxRecordsPerPage = 128;
+    const int MaxPageBytes = 400_000;
+    // A record above 64 KB travels in 24,000-character fragments; one above 8 M characters is refused.
+    const int FragmentAboveBytes = 64_000;
+    const int FragmentChars = 24_000;
+    const int MaxRecordChars = 8_000_000;
+    const int MaxSyncedTerms = 100;
+
     sealed record SyncEvent(long Revision, string Kind, string[]? Ids);
     sealed class ChangeLog {
         public long Revision;
@@ -23,7 +33,7 @@ public partial class PlaybackStore
         var log = syncLogs.GetOrAdd(sessionId, _ => new ChangeLog());
         lock (log) {
             log.Events.Enqueue(new(++log.Revision, kind, ids?.Distinct().ToArray()));
-            while (log.Events.Count > 8192) log.Events.Dequeue();
+            while (log.Events.Count > MaxJournalEvents) log.Events.Dequeue();
         }
     }
     public sealed record SyncRecord(string Kind, string Id, object Value);
@@ -81,8 +91,7 @@ public partial class PlaybackStore
         if (latest is not null) latest.DisplayOriginal = LanguageSettings.CantoneseDisplay(latest.Original, (await SessionSettings(id)).AsrLanguage, latest.AsrDetectedLanguage);
         return new(term, ids, materialIds, TermCandidateExtractor.Context(term, latest?.SourceText ?? material?.Text ?? ""));
     }
-    // Each response is bounded by 128 records / ~400 KB. Bootstrap is paginated too.
-    // Cursor state stores fingerprints, not a second full session; at most 32 readers for 5 minutes.
+    // Every page is bounded, the first read included. A cursor keeps fingerprints, not a second copy of the session.
     public async Task<object> SyncSession(string id, string? cursor) {
         var reset = cursor is not null && (!syncStates.TryGetValue(cursor, out var prior) || prior.SessionId != id);
         var key = reset || cursor is null ? Guid.NewGuid().ToString("N") : cursor;
@@ -90,8 +99,8 @@ public partial class PlaybackStore
         await state.Gate.WaitAsync();
         try {
             state.LastUsed = DateTime.UtcNow;
-            foreach (var old in syncStates.Where(x => x.Key != key && (x.Value.LastUsed < DateTime.UtcNow.AddMinutes(-5) || syncStates.Count > 32))
-                .OrderBy(x => x.Value.LastUsed).Take(Math.Max(1, syncStates.Count - 32)).ToList()) syncStates.TryRemove(old.Key, out _);
+            foreach (var old in syncStates.Where(x => x.Key != key && (x.Value.LastUsed < DateTime.UtcNow - SyncReaderIdle || syncStates.Count > MaxSyncReaders))
+                .OrderBy(x => x.Value.LastUsed).Take(Math.Max(1, syncStates.Count - MaxSyncReaders)).ToList()) syncStates.TryRemove(old.Key, out _);
             var log = syncLogs.GetOrAdd(id, _ => new ChangeLog());
             long revision; List<SyncEvent> events;
             lock (log) {
@@ -104,12 +113,12 @@ public partial class PlaybackStore
             if (state.Pending.Count == 0 && state.Revision != revision) {
                 void Add(string kind, string identity, object value) {
                     var identityKey = kind + ":" + identity;
-                    var serialized = JsonSerializer.Serialize(value, new JsonSerializerOptions(JsonSerializerDefaults.Web)); var hash = NoteSections.Hash(serialized);
+                    var serialized = JsonSerializer.Serialize(value, new JsonSerializerOptions(JsonSerializerDefaults.Web)); var hash = ContentHash.Of(serialized);
                     if (state.Hashes.TryGetValue(identityKey, out var previous) && previous == hash) return;
-                    if (serialized.Length > 8_000_000) throw new InvalidOperationException("Session record exceeds the sync assembly limit");
-                    if (System.Text.Encoding.UTF8.GetByteCount(serialized) <= 64000) state.Pending.Enqueue((kind, identityKey, value, hash));
+                    if (serialized.Length > MaxRecordChars) throw new InvalidOperationException("Session record exceeds the sync assembly limit");
+                    if (System.Text.Encoding.UTF8.GetByteCount(serialized) <= FragmentAboveBytes) state.Pending.Enqueue((kind, identityKey, value, hash));
                     else {
-                        const int length = 24000; var count = (serialized.Length + length - 1) / length;
+                        const int length = FragmentChars; var count = (serialized.Length + length - 1) / length;
                         for (var index = 0; index < count; index++) state.Pending.Enqueue(("fragment", identityKey,
                             new RecordFragment(kind, identityKey, index, count, serialized.Substring(index * length, Math.Min(length, serialized.Length - index * length))), hash));
                     }
@@ -117,7 +126,7 @@ public partial class PlaybackStore
                 void Remove(string identity) { if (state.Hashes.ContainsKey(identity)) state.Pending.Enqueue(("removed", identity, identity, "")); }
                 void AddRecord(SyncRecord row) {
                     if (row.Value is TermInsight insight) {
-                        var candidate = state.Terms.Values.FirstOrDefault(x => TermInsightId(id, x.Text, x.Context, state.NoteLanguage) == insight.Id);
+                        var candidate = state.Terms.Values.FirstOrDefault(x => TermInsight.IdFor(id, x.Text, x.Context, state.NoteLanguage) == insight.Id);
                         if (candidate is not null) {
                             insight.TranscriptIds = insight.TranscriptIds.Concat(candidate.TranscriptIds).Distinct().ToList();
                             insight.MaterialIds = insight.MaterialIds.Concat(candidate.MaterialIds).Distinct().ToList();
@@ -174,7 +183,7 @@ public partial class PlaybackStore
                             var candidate = await ReadSyncTerm(id, term); state.RecordQueries++;
                             if (candidate is null) state.Terms.Remove(term); else state.Terms[term] = candidate;
                         }
-                        var terms = state.Terms.Values.OrderBy(x => x.Text, StringComparer.OrdinalIgnoreCase).Take(100).ToList();
+                        var terms = state.Terms.Values.OrderBy(x => x.Text, StringComparer.OrdinalIgnoreCase).Take(MaxSyncedTerms).ToList();
                         state.Terms = terms.ToDictionary(x => x.Text, StringComparer.OrdinalIgnoreCase);
                         var keys = terms.Select(x => "term:" + x.Text).ToHashSet();
                         foreach (var removed in state.Hashes.Keys.Where(x => x.StartsWith("term:")).Except(keys)) Remove(removed);
@@ -182,7 +191,7 @@ public partial class PlaybackStore
                         // A new matching source can extend an already saved explanation's
                         // provenance without a new provider call. Read only those known IDs.
                         var insightIds = affected.Select(term => state.Terms.GetValueOrDefault(term))
-                            .OfType<TermCandidate>().Select(term => TermInsightId(id, term.Text, term.Context, state.NoteLanguage))
+                            .OfType<TermCandidate>().Select(term => TermInsight.IdFor(id, term.Text, term.Context, state.NoteLanguage))
                             .Where(insightId => state.Hashes.ContainsKey("insight:" + insightId)).Distinct().ToArray();
                         if (insightIds.Length > 0) {
                             var insights = await ReadSyncRecords(id, "insight", insightIds); state.RecordQueries++;
@@ -193,10 +202,10 @@ public partial class PlaybackStore
                 state.Revision = revision;
             }
             var batch = new List<object>(); var size = 0;
-            while (state.Pending.TryPeek(out var next) && batch.Count < 128) {
+            while (state.Pending.TryPeek(out var next) && batch.Count < MaxRecordsPerPage) {
                 var bytes = System.Text.Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(next.Value));
-                if (bytes > 400_000) throw new InvalidOperationException("One session record exceeds the sync payload limit; keep the current view and inspect this record");
-                if (size + bytes > 400_000 && batch.Count > 0) break;
+                if (bytes > MaxPageBytes) throw new InvalidOperationException("One session record exceeds the sync payload limit; keep the current view and inspect this record");
+                if (size + bytes > MaxPageBytes && batch.Count > 0) break;
                 state.Pending.Dequeue(); size += bytes;
                 batch.Add(new { kind = next.Kind, value = next.Value });
                 if (next.Kind == "removed") state.Hashes.Remove(next.Key); else state.Hashes[next.Key] = next.Hash;

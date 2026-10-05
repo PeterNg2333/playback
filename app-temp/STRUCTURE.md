@@ -2,144 +2,153 @@
 
 ## Web
 
-`web/src/main.tsx` mounts `app.tsx`. There is one page, `pages/PlaybackPage.tsx`.
-Feature-specific panels, navigation content, recording controls, handlers,
-and the Zustand store live directly in `pages/`. Reusable shells live in
-`Component/Layout/`:
+`web/src/main.tsx` mounts the only page, `pages/PlaybackPage.tsx`, inside the
+TanStack Query provider. Read the page first: it lays out the header with the
+recorder, the library sidebar, the notes and transcript columns, the audio
+player bar and the Ask panel, and hands each the session being shown.
 
-- `Header.tsx` renders the header shell; the playback controls are supplied by
-  `pages/PlaybackHeader.tsx`.
-- `SideNav.tsx` renders the navigation shell; session and group entries stay in
-  `pages/SessionNav.tsx` and `pages/SessionItem.tsx`.
-- `Panel.tsx` and `Workspace.tsx` provide outer structure only.
+| Folder | Holds | Start with |
+| --- | --- | --- |
+| `pages/` | The page layout only | `PlaybackPage.tsx` |
+| `features/library/` | Sessions and groups in the sidebar, which session is shown, reloading what the page shows | `LibrarySidebar.tsx`, `refreshWorkspace.ts` |
+| `features/recording/` | Record/pause/stop, the recorder's status, the input level meter | `Recorder.tsx` |
+| `features/transcript/` | The transcript timeline: its entries, virtual list, row kinds (`rows/`), ASR status and session settings | `TranscriptPanel.tsx` |
+| `features/player/` | Playback of saved audio through one `<audio>` element | `useAudioPlayer.ts` |
+| `features/materials/` | Teaching materials: list and attach | `MaterialsList.tsx` |
+| `features/notes/` | Reading, editing and saving notes; history, restore and recovery; organizing; coverage | `NotesPanel.tsx` |
+| `features/terms/` | Key-term highlights, saved explanations, Jev decisions | `TermHighlight.tsx` |
+| `features/ask/` | Questions about the session, answers and saved conversations | `AskPanel.tsx` |
+| `features/activity/` | The AI execution log and a group's AI flow | `ActivityPopover.tsx` |
+| `features/sources/` | Citations: the AI's citation syntax, source chips and links, jumping to a source | `CitedMarkdown.tsx`, `useRevealSource.ts` |
+| `components/` | Generic UI that knows no feature: layout shells, shared controls (`Button`, `IconButton`, `Dialog`, `Menu`, …), `Icon`, the Markdown renderer (`markdown/`) | — |
+| `lib/` | The API client and response schemas (`backend/`), the query client, browser UI state, health, time formatting | `backend/client.ts` |
+| `styles/` | `app.css`: Tailwind, theme tokens and page globals; `markdown.css`: rendered Markdown | `app.css` |
 
-`Component/Dialog/TextInputDialog.tsx` uses the browser's modal `<dialog>` for
-session and group names. `Component/Icon.tsx` and `Component/Markdown.tsx`
-have no session-specific requests. `types/api.ts` holds Zod response and input
-schemas; `pages/api.ts` applies them at the fetch boundary. Browser session
-data is refreshed from the local API and is not persisted by Zustand.
-The sidebar lists groups as folders and ungrouped items in Sessions. Sessions
-can be moved by dragging to a group or back to Sessions; each session also has
-a keyboard-accessible move menu. Deleting a group keeps its sessions and moves
-them to Sessions through `DELETE /api/groups/{id}`.
+### State
 
-`TranscriptPanel.tsx` renders the transcript. `ActivityPopover.tsx` sits beside
-Lecture notes and reads bounded execution state via `useActivity.ts`.
-`ActivityContent.tsx` owns loading saved edits from `/notes/edits`.
-`NoteEditHistory.tsx` and `TermDecisionTrace.tsx` render the two histories;
-restoring a saved note creates a new version. `Services/Ai/AiActivity.cs` owns
-execution records; it does not replace saved note versions or Jev decisions.
-Notes polling requests `activity?includePrompt=false` and keeps draft/identity/usage
-metadata; group flow retains the full effective prompts. Response projection does
-not mutate saved records or live activity objects.
-`SourceLinks.tsx` supplies their shared source links. Loading, loaded, and failed
-states carry the session ID, so a delayed response cannot replace another
-session's history. Source navigation runs after React renders the Transcript view.
-`TranscriptSettings.tsx` renders settings; API operations remain in `handlers.ts`.
-`NotesPanel.tsx` owns Preview/Edit/Live draft, Reading/Sources, draft base conflicts and the topic tree. `NoteTools.tsx` owns paged/direct history, recovery previews and selected-section organization. `GroupFlow.tsx` reads session-scoped configuration and recorded executions from the group menu. `Markdown.tsx`
-transforms reference text through the Markdown AST; `SourceCitation.tsx` shows
-grouped audio passages without changing saved chunk IDs. `termSegments.ts` is
-shared by notes and transcripts; `TermHighlight.tsx` and `TermExplanation.tsx`
-show already saved Jev-selected explanations without generating on hover.
-`ChatConversationMenu.tsx` organizes lecture sessions by group;
-`useChatConversations.ts` loads session-scoped saved conversations;
-`ChatAnswer.tsx` renders their validated answers with collapsed source details.
-`PlaybackFooter.tsx` keeps the player in two rows. `PlaybackModeMenu.tsx` owns
-the scope/source menu and its outside-click and Escape behavior.
-`PlaybackHeader.tsx` chooses the recording source independently, using the API's
-`recordingSourceSelection` capability to avoid offering unsupported modes.
+- Data read from the API lives in the TanStack Query cache (`lib/queryClient.ts`),
+  keyed by session where it belongs to one: health (`lib/useHealth.ts`), recorder
+  status (`recording/captureQuery.ts`, polled every 250 ms by `useCapture`), the
+  session list, groups and one session (`library/libraryQueries.ts`; the shown
+  session is re-read every 4 s by `useSelectedSession`), AI activity, saved
+  conversations, note history, coverage, the AI flow and the edit log.
+- `lib/store.ts` holds browser-only UI state: which session is shown, view and
+  panel toggles, the question being typed and its selected passage, `busy` and
+  the page error. `runAction` marks a user action busy and shows its error.
+- `library/refreshWorkspace.ts` reloads health, recorder status, the lists and one
+  session, then shows that session. Opening a session and every write call it.
+- A session is read through the paged sync in `lib/backend/sessionSync.ts` when
+  the API offers it, otherwise in one request.
+- `notes/useNoteDraft.ts` holds the editor text and the saved version it started
+  from. A new saved version replaces the text only when nothing is unsaved;
+  otherwise saving waits until the user loads the new version, and the
+  replaced text stays recoverable.
 
-`styles/` separates shared defaults, workspace/navigation layout, notes,
-transcript, recording/player controls, activity, and overlays. Responsive rules
-sit after the base rules in each file. `app.tsx` imports them in that order;
-feature styles can override shared controls without a separate override sheet.
+### Flows
+
+- Open a session: `library/SessionItem` → `openSession` → `refreshWorkspace(id)`
+  → `selectedSessionId` → `useSelectedSession` in the page → the columns.
+- Record: `recording/Recorder` → `useCapture` → `/capture/*`. When the recorder
+  saves audio for the shown session, `useSelectedSession` reads it again and
+  `transcript/Timeline` replaces the live row with the saved one.
+- Save notes: `notes/NotesPanel` → `useNoteDraft.save` → `/notes` with the base
+  version → `refreshWorkspace`.
+- Ask: `ask/AskPanel` → `useAsk` → `askStream` in `lib/backend/client.ts` (or
+  `/ask` when the API does not stream) → the saved conversation is read again.
+  `ask/askAbout.ts` starts a question from a key term or a transcript selection.
+- Open a citation: `sources/useRevealSource` switches to the transcript and
+  dispatches `REVEAL_SOURCE_EVENT`; `transcript/VirtualList` mounts, opens and
+  highlights the passage.
+
+### Styling
+
+Components draw themselves with Tailwind CSS v4 utilities in their `className`;
+no component has its own stylesheet. `styles/app.css` loads Tailwind and defines
+the theme tokens (the colours, the `xs` breakpoint just above 390 px phones, the
+recorder and note animations) and the few page globals Preflight does not cover:
+the page never scrolls, buttons show a pointer, focus shows an accent ring.
+`md`, `lg` and `xl` are Tailwind's defaults (768, 1024, 1280 px). Conditional
+classes go through `clsx`. A look repeated across files is a component in
+`components/` (`Button`, `IconButton`, `Segmented`, `Chip`, `Tag`,
+`CitationChip`, `Dialog`, `Menu`, `PopupHeader`, `EmptyState`); one repeated
+within a file is a named class string there. There is no `@apply`.
+
+`styles/markdown.css` is the exception. react-markdown, KaTeX and Mermaid create
+those elements, not our JSX, so their look stays CSS under the `[data-markdown]`
+root. A component that shows Markdown adjusts it from outside with a descendant
+variant, such as `**:data-markdown:max-w-[72ch]` on the notes body.
 
 ## .NET API
 
-`api/Playback.Api.csproj` is the root of a single .NET web project. The .NET 10
-`webapi` SDK template puts the `.csproj` and `Program.cs` directly at the
-project root; it does not require an inner `src/` directory. A repository with
-several projects may instead use `src/Playback.Api/` and `tests/Playback.Checks/`.
-That extra layer is unnecessary for this prototype and would change existing
-project paths and study commands.
+`api/Playback.Api.csproj` is a single web project. The .NET 10 `webapi`
+template puts the `.csproj` and `Program.cs` at the project root; an inner
+`src/` folder only pays off once there are several projects.
 
-- `Program.cs`: host, dependency injection, middleware, and route registration.
-- `Endpoints/`: HTTP mapping and request contracts. Each resource has a small
-  mapping class. Minimal API routes are commonly registered by static methods;
-  service and persistence work uses injected C# classes.
-- `Middleware/`: shared HTTP error handling.
-- `Services/Ai/Providers/`: `GeminiLanguageModel` sends generation and grounded
-  search requests; `JevTermClassifier` owns the Jev ranking request and its
-  question patterns. `Services/ProviderResponseReader.cs` bounds all provider
-  response bodies.
-- `Services/Ai/Agents/`: `TranslationAgent` polls and translates pending
-  transcripts using `TranslationContext`; `NoteAgent` generates and retries
-  notes; `ChatAgent` answers questions using `ChatContext` to select source
-  evidence. `SyntheticTermComparison` runs only the labeled synthetic example.
-- `Services/Audio/`: `WindowsAudioCaptureService` records microphone and system
-  audio, finalizes WAV chunks, and replays chunks left on disk. `AsrQueue`
-  schedules and retries saved chunks; `AsrProcessor` transcribes one chunk
-  through `IAsrAdapter` (SenseVoice or OpenRouter transcription REST).
-  `IStreamingAsrAdapter` defines the future realtime lifecycle; capture currently
-  sends saved chunks through REST. `AudioSilence` and `AudioActivity` inspect WAV
-  data without sending it to an external provider.
-  `CaptureSourceModes` allowlists microphone, system, and both; the capture service
-  retains the selected mode through pause/resume and opens only those devices.
-- `Terms/TermCandidateExtractor.cs`: deterministic regex extraction from
-  transcripts and materials. It does not call AI; Jev ranking is separate.
-- `Services/Ai/SourceReferences.cs`: prompt-local sequential aliases and bounded
-  adjacent transcript groups, expanded to canonical IDs before saving.
-- `Services/Ai/NoteSections.cs`: one note document's stable sections, written points,
-  persistent citation identities, coverage and protected user edits/deletions/recovery.
-  `MaterialSources.cs` supplies immutable bounded material passages. `NoteAgent`
-  sends bounded section patches, not a whole-note replacement; the distinct organizer
-  task uses the same note/history and validates its selected section/base.
-  SDK response schemas derive from the same patch type. Points are the canonical
-  Markdown body; code renders citations and retains captured concurrency versions.
-  Unaddressed input stays pending, and explicit deferrals retain their reasons.
-- `Services/Ai/NoteScheduler.cs` checks every ten seconds without awaiting provider
-  work. `Providers/JevNoteGate.cs` owns note-specific structured questions;
-  `JevTransport.cs` shares bounded HTTP/discovery with term ranking. `AiFlow.cs`
-  derives prompt/configuration descriptions from the actual runtime definitions;
-  `AiActivity.cs` records execution identities, prompts and reported usage/latency.
-- `Services/Ai/Providers/OutputGuardChatClient.cs`: rejects token-limit
-  completions before partial results become saved notes or answers.
-- `Db/`: MongoDB models and partial `PlaybackStore`; `Conversations.cs` owns
-  the new session-scoped conversations/conversation_turns collections.
-  `SectionNotes.cs` owns note versions, paged/direct history, recover/restore and
-  persisted note gates; no destructive migration is required. `SessionSync.cs`
-  sends bounded record deltas/fragments and keeps at most 32 short-lived reader cursors.
-  Bootstrap/display-language reconfiguration reads a full session. Later revisions
-  query changed record IDs and affected terms, including saved explanation provenance;
-  idle polling makes no record queries. The change journal/cursors are in memory:
-  restart, expiry or a journal overrun resets bootstrap rather than claiming a durable DB cursor.
+Read `Program.cs` first. It registers the store, the providers, the audio
+pipeline and the AI agents in that order, maps one endpoint class per
+resource, and resolves the background workers so they start scanning. Every
+folder has a matching `Playback.Api.*` namespace.
 
-`pages/VirtualTranscript.tsx` mounts only visible variable-height rows and overscan,
-including day/hour toggles and source reveal for unmounted rows. `sessionSync.ts`
-assembles paged deltas and reuses unchanged objects. `handlers.ts` coordinates
-full/snapshot single flights, aborts stale loads, and retains the editor's actual
-base version. Timeline/term/Markdown/audio indexes are reused; level/clock-only
-updates do not rebuild the whole transcript. Original ASR/source identities remain intact.
-`transcriptPassages.ts` / `TranscriptPassage.tsx` optionally consolidate mature
-same-source display passages with original parts, translations, selection and queued audio.
-Session loading is visible, disables Save and preserves drafts after a failed read.
+| Folder | Holds | Start with |
+| --- | --- | --- |
+| `Endpoints/` | HTTP routes, one class per resource with its request records; error responses | the class named after the resource |
+| `Db/` | MongoDB: one `PlaybackStore`, one file per saved concept (sessions, chunks, transcripts, notes, terms, conversations, activity, the page's change feed, test data) | `PlaybackStore.cs` |
+| `Audio/Recording/` | Windows microphone and system-audio capture into WAV chunks | `WindowsAudioCaptureService.cs` |
+| `Audio/Vad/` | Silero speech detection, while recording and before upload | `SpeechActivityDetector.cs` |
+| `Audio/Asr/` | Transcribing saved chunks: the queue, one chunk's processing, the `IAsrAdapter` seam with SenseVoice and OpenRouter in `Providers/`, and interim previews while recording | `AsrQueue.cs`, `IAsrAdapter.cs` |
+| `Audio/` | Shared by the folders above: `AudioSamples` reads device buffers; `SessionAudioRenderer` mixes 30-second windows for the player | — |
+| `Translation/` | Batched translation of transcripts into the session's target language | `TranslationAgent.cs` |
+| `Notes/` | The note document (sections, points, citations, coverage) and the agent that writes it | `NoteAgent.cs` |
+| `Terms/` | Key-term candidates, Jev ranking, saved explanations | `TermReviewAgent.cs` |
+| `Ask/` | Questions about a session: which sources, which citations count | `ChatAgent.cs` |
+| `Sources/` | Short citation aliases and material passages, shared by notes and Ask | `SourceReferences.cs` |
+| `Activity/` | The AI execution log and the description of a group's AI flow | `AiActivity.cs` |
+| `Providers/` | Gemini through Agent Framework and grounded search; the Jev transport; bounded response reads | `GeminiLanguageModel.cs` |
+| `Resources/` | The Silero VAD model and its licence | — |
 
-The scroll owner is `.transcript-content`; the outer `.transcript-view` is not a
-scroller. Interim changes reuse the lecture layout and update visible rows.
-`Component/diagramRenderer.ts` owns each temporary Mermaid host, bounded jobs and
-a count/byte-limited SVG cache. `LazyDetails.tsx` mounts expensive history bodies
-only while expanded. NotePreview shares a citation index across sections and
-resets it at the session boundary. API request scopes dispose timers/listeners;
-capture finals do not load an unselected recording. Evidence and remaining
-long-duration/runtime limits: [frontend memory report](../docs/frontend-memory-validation.zh-HK.md)
-and [Week 3 one-hour validation](../docs/week3-one-hour-validation.zh-HK.md).
-Mermaid is imported only for the first diagram; its pending/error/loading state
-is visible. Output guards collect reported usage before rejecting incomplete responses,
-including usage emitted after the SDK streaming finish reason.
+Three files sit at the root because every folder uses them:
+`PlaybackEnvironment.cs` (process switches and data folders),
+`LanguageSettings.cs` (session languages and Cantonese display) and
+`ContentHash.cs`.
 
-Each folder also has a matching `Playback.Api.*` namespace. These namespaces
-make the C# module boundary visible; the injected service and store classes
-contain behavior, while endpoint classes register HTTP routes.
+### Flows
+
+- Record: `CaptureEndpoints` → `WindowsAudioCaptureService` writes one
+  `.wav.part` per source under `data/local-capture` and closes it after 8 s, or
+  after 3 s once speech has paused → `PlaybackStore.SaveLocalChunk`
+  (`Db/Chunks.cs`) stores it under `data/audio` by its `ChunkIdentity` →
+  `AsrQueue.Enqueue`. Meanwhile `LiveAsrSession` shows interim text that is
+  never saved.
+- Transcribe: `AsrQueue` (two workers, retries with backoff) → `AsrProcessor`
+  skips digital silence and audio without speech, otherwise calls the adapter
+  → `SaveTranscript` (`Db/Transcripts.cs`). New text raises `SourceChanged`,
+  which queues term review; notes pick it up on their next 10-second check.
+- Notes: `NoteAgent.Automatic.cs` runs every 10 s through `NoteScheduler`; the
+  Jev note gate answers allow or wait, saved in `note_gates`; an allow calls
+  `NoteAgent.Revise`, which builds the bounded input (`NoteInput`), applies
+  Gemini's section patch (`NoteSections.Apply`) and saves a new version
+  (`SaveSectionNote` in `Db/Notes.cs`). Revise with AI, Organize and coverage
+  repair call `Revise` directly.
+- Ask: `AskEndpoints` → `ChatAgent` → `ChatContextBuilder` picks and aliases the
+  sources → Gemini → the citations are decoded and checked → the turn is saved
+  in its conversation.
+- Page sync: every write calls `Touch` (`Db/SessionSync.cs`);
+  `/sessions/{id}/sync` pages a bounded first read, then sends only changed
+  records. The change journal and cursors live in memory, so an API restart
+  makes readers start over.
+
+### Rules with one home
+
+- `PlaybackEnvironment`: offline test mode (port 5079, no provider call, no
+  background scan), the validation API on 5081, automatic ASR, notes, terms and
+  organization, the database and the data folders.
+- `ChunkStatus` and `ChunkIdentity` (`Db/Chunks.cs`): the chunk lifecycle, and
+  the session/source/sequence/hash identity that makes uploads and retries
+  idempotent.
+- `NoteInstructions`: the note prompts and their versions. `NoteInput`: what
+  the model sees and its size limits.
+- Provider calls use fixed endpoints, timeouts and `ProviderResponseReader`'s
+  size limit. `AiActivity` records each call and keeps keys out of errors.
 
 Microsoft's [.NET project organization guidance](https://learn.microsoft.com/en-us/dotnet/core/tutorials/libraries)
 allows projects to be arranged to suit the solution. The
@@ -148,17 +157,26 @@ describes grouping related routes, and the
 [ASP.NET Core dependency injection guidance](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/dependency-injection?view=aspnetcore-10.0)
 supports keeping application behavior in injected services.
 
-The original layout refactor did not change routes or collections. The later
-notes/chat update adds conversation routes and collections; it does not clear
-or destructively migrate local data. See [current behavior](docs/notes-chat-update.zh-HK.md) and [redesign verification and limits](../docs/notes-redesign-validation.zh-HK.md).
-Offline verification:
+## Checks
 
-`checks/week3-server.mjs` starts isolated offline/live validation ports with automatic
-paid work disabled. `Week3StoreCheck.cs` retains exact first-hour text provenance in
-`playback_e2e`; `run-week3-live.mjs` and `run-week3-term.mjs` require explicit live opt-in
-and reuse saved results. `week3-report.mjs` combines saved usage from successful and
-failed calls without duplicating execution IDs. Its optional localhost snapshot is GET-only.
-`web/src/test/week3-e2e-check.mjs` distinguishes paid phases from saved read/restart phases.
+`checks/Playback.Checks.csproj` is one console project. Read its `Program.cs`
+first: it lists every check group and what the group needs. The folders follow
+the same question, because it decides whether a check may run now.
+
+| Folder | Needs | How to run |
+| --- | --- | --- |
+| `Offline/` | Nothing: in-memory HTTP and storage, no network, no database | `dotnet run` with no flag runs all of them; `--notes` runs the note and sync checks; `--sample-audio`, `--sample-audio-preview` and `--vad-sample` read the Week 3 sample, as does `long-lecture-check.py` |
+| `LocalMongo/` | MongoDB on localhost, database `playback_e2e` | `--conversation-check`, `--notes-store-check`, `--session-sync-store-check`; `api-integration.check.mjs` also needs the offline API on 5079 |
+| `Live/` | Paid providers and an explicit opt-in | `pnpm.cmd test:gemini-live`, `test:jev-live`, `test:asr-live`, `test:sample-audio-live`; `--asr-compare --live` |
+| `Validation/` | Writes evidence under `data/validation/runs/` | the `run-*`, `week3-*` and `validation-*` scripts and their flags; offline unless given `--live` |
+| `Fixtures/` | — | `MemoryStore`, the fixture note model and gate, Jev HTTP fakes, `TestClock`, synthetic lectures, the Week 3 sample reader |
+
+Offline check files are named after the product concept they protect
+(`AskChecks`, `NoteSchedulingChecks`, …) and print one line when they pass.
+`Expect` is the only assertion helper. It throws `CheckFailed`, never
+`InvalidOperationException`, because the product rejects bad input with that
+exception and many checks expect it. `dev.mjs` checks that the NuGet files named
+in the ignored `obj/` restore assets still exist before `dotnet run --no-restore`.
 
 ```powershell
 dotnet build app-temp/api/Playback.Api.csproj --no-restore -p:UseAppHost=false -p:OutputPath=bin/verification/net10.0/
@@ -166,12 +184,34 @@ dotnet run --project app-temp/checks/Playback.Checks.csproj --no-restore -p:UseA
 npm.cmd --prefix app-temp/web run build
 ```
 
-`dev.mjs` checks that the NuGet package files named in the ignored `obj/` restore
-assets still exist before using `dotnet run --no-restore`. This catches restore
-assets left by another Windows account or sandbox. For an offline browser E2E
-that avoids recording from the local microphone, start the local API with
-`PLAYBACK_OFFLINE_TEST=yes` and the web server on port `5174`, then set
-`PLAYBACK_E2E_SKIP_CAPTURE=yes` when running `web/src/test/e2e-check.mjs`.
-For a sidebar-only check without MongoDB, run the web server on port `5174`
-and then `node app-temp/web/src/test/sidebar-check.mjs`; it intercepts API
-requests in the browser and uses disposable fixture data.
+Web: `web/test/` holds the browser checks, named after what they protect. The
+checks below answer every API request from fixture data, so they need no API,
+MongoDB or network. Run them from `app-temp/web` against Vite dev on port 5174
+(`$env:PLAYBACK_OFFLINE_TEST="yes"; npm.cmd run dev -- --port 5174`), or against
+`vite preview` by setting the check's base-URL variable:
+
+- `library-sidebar.check.mjs`: sessions and groups, drag and keyboard moves.
+- `transcript-recording.check.mjs` (with `PLAYBACK_OFFLINE_TEST=yes`): timeline,
+  ASR states and retry, player, settings, terms, activity, recording controls,
+  Ask failures, and an API without the newer capability flags.
+- `session-loading.check.mjs`: loading state; a failed read keeps the draft.
+- `notes-citations-chat.check.mjs`: citations, diagrams, topic tree, saved
+  terms, chat failures and conversations, layout bounds.
+- `notes-reading-sources.check.mjs`: Reading/Sources, 1,350 and 2,700 rows,
+  history and recovery, AI flow, edit conflicts and draft recovery.
+- `cold-loading.check.mjs` and `markdown-math.check.mjs`: lazy diagram and maths
+  loading. `markdown-math` blocks the built `MathFormula-*.js` chunk, so it needs
+  a production preview (`MATH_BASE_URL`, default port 5180).
+
+Checks find elements the way a reader does: by role and accessible name, by
+label, or by an existing `data-*` hook (`data-transcript-id`, `data-markdown`,
+`data-virtual-row`, `data-chunk-id`). An element with no name gets a
+`data-testid` named after its component (`audio-row`, `note-content`). They never
+select by CSS class, because classes are styling and change with it.
+
+`note-coverage-repair`, `notes-snapshot-performance`, `memory-retention` and
+`validation-replay` replay saved runs from `app-temp/data/validation/runs/`.
+`api-mongo-e2e`, `layout-live-api`, `week3-e2e` and the other `validation-*`
+scripts need the local API (and MongoDB). For an offline E2E without the
+microphone, start the API with `PLAYBACK_OFFLINE_TEST=yes` and set
+`PLAYBACK_E2E_SKIP_CAPTURE=yes` for `api-mongo-e2e.check.mjs`.

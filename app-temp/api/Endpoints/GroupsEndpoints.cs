@@ -7,7 +7,6 @@ public static class GroupsEndpoints
     {
         app.MapGet("/api/groups", async (PlaybackStore store) =>
             await store.Groups());
-        app.MapGet("/api/groups/{id}/flow", async (string id, string? sessionId, Playback.Api.Services.Ai.AiFlow flow) => await flow.Read(id, sessionId));
         app.MapPost("/api/groups", async (GroupInput input, PlaybackStore store) =>
             await store.CreateGroup(input.Name));
         app.MapPut("/api/groups/{id}", async (string id, GroupInput input, PlaybackStore store) =>
@@ -19,3 +18,5 @@ public static class GroupsEndpoints
         });
     }
 }
+
+public record GroupInput(string Name);

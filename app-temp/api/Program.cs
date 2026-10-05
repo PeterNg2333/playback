@@ -1,57 +1,63 @@
-using Playback.Api.Services.Ai.Agents;
-using Playback.Api.Services.Ai.Providers;
-using Playback.Api.Services.Audio;
+using Playback.Api;
+using Playback.Api.Activity;
+using Playback.Api.Ask;
+using Playback.Api.Audio;
+using Playback.Api.Audio.Asr;
+using Playback.Api.Audio.Recording;
 using Playback.Api.Db;
 using Playback.Api.Endpoints;
-using Playback.Api.Middleware;
-using Playback.Api.Services.Ai;
+using Playback.Api.Notes;
+using Playback.Api.Providers;
+using Playback.Api.Terms;
+using Playback.Api.Translation;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_PORT") == "5081" ? "http://127.0.0.1:5081" :
-    Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes"
-        ? "http://127.0.0.1:5079"
-        : "http://127.0.0.1:5078");
+builder.WebHost.UseUrls(PlaybackEnvironment.ListenUrl);
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
         .AllowAnyHeader()
         .AllowAnyMethod()));
+
 builder.Services.AddSingleton<PlaybackStore>();
 builder.Services.AddSingleton<AiActivity>();
 builder.Services.AddSingleton<AiFlow>();
+
 builder.Services.AddSingleton<GeminiLanguageModel>();
 builder.Services.AddSingleton<JevTransport>();
-builder.Services.AddSingleton<JevNoteGate>();
-builder.Services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));
-builder.Services.AddSingleton<SyntheticTermComparison>();
-builder.Services.AddSingleton<ChatAgent>();
-builder.Services.AddSingleton<NoteAgent>();
-builder.Services.AddSingleton<TermReviewAgent>();
-builder.Services.AddSingleton<TranslationAgent>();
+
 builder.Services.AddSingleton<IAsrAdapter>(_ => AsrAdapters.Create());
 builder.Services.AddSingleton<AsrProcessor>();
-builder.Services.AddSingleton<SessionAudioRenderer>();
 builder.Services.AddSingleton<AsrQueue>();
 builder.Services.AddSingleton<WindowsAudioCaptureService>();
+builder.Services.AddSingleton<SessionAudioRenderer>();
+
+builder.Services.AddSingleton<TranslationAgent>();
+builder.Services.AddSingleton<JevNoteGate>();
+builder.Services.AddSingleton<NoteAgent>();
+builder.Services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));
+builder.Services.AddSingleton<TermReviewAgent>();
+builder.Services.AddSingleton<SyntheticTermComparison>();
+builder.Services.AddSingleton<ChatAgent>();
 
 var app = builder.Build();
 app.UseCors();
 app.UseMiddleware<ApiExceptionMiddleware>();
 
 app.MapHealth();
-app.MapGet("/api/sessions/{id}/activity", async (string id, bool? includePrompt, AiActivity activity) =>
-    Results.Json(await activity.Read(id), includePrompt == false ? AiActivity.NotesResponseOptions : null));
-app.MapCapture();
-app.MapGroups();
 app.MapSessions();
-app.MapTesting();
-app.MapNotes();
-app.MapQuestions();
-app.MapTerms();
+app.MapGroups();
+app.MapCapture();
 app.MapChunks();
+app.MapNotes();
+app.MapTerms();
+app.MapAsk();
+app.MapActivity();
+app.MapTesting();
 
+// Background workers start their scan loops in their constructors; resolve them before serving.
 app.Services.GetRequiredService<AsrQueue>();
 app.Services.GetRequiredService<NoteAgent>();
 app.Services.GetRequiredService<TranslationAgent>();

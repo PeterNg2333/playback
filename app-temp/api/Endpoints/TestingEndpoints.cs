@@ -1,4 +1,4 @@
-using Playback.Api.Services.Audio;
+using Playback.Api.Audio.Recording;
 using Playback.Api.Db;
 namespace Playback.Api.Endpoints;
 
@@ -8,9 +8,7 @@ public static class TestingEndpoints
     {
         if (app.Environment.IsDevelopment())
         {
-            if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes" ||
-                Environment.GetEnvironmentVariable("PLAYBACK_VALIDATION_PORT") == "5081" &&
-                Environment.GetEnvironmentVariable("PLAYBACK_MONGO_DATABASE") == "playback_e2e")
+            if (PlaybackEnvironment.AllowsTestData)
             {
                 app.MapPost("/api/testing/sessions/{id}/transcripts", async (
                     string id, SyntheticTranscriptInput input, PlaybackStore store) =>
@@ -38,3 +36,5 @@ public static class TestingEndpoints
         }
     }
 }
+
+public record SyntheticTranscriptInput(string ChunkId, string Text);
