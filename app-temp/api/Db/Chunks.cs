@@ -107,6 +107,7 @@ public partial class PlaybackStore
         string Required(string key) => form[key].ToString() is { Length: > 0 } value ? value : throw new InvalidOperationException($"Missing {key}");
         var session = Required("sessionId");
         var source = Required("sourceId");
+        await RequireSessionOwner(session);
         if (!ChunkIdentity.IsSessionId(session) || !ChunkIdentity.IsSourceId(source))
             throw new InvalidOperationException("Invalid session or source");
         if (!long.TryParse(Required("sequence"), out var sequence) || sequence < 0 ||

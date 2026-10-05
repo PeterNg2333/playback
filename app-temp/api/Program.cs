@@ -10,12 +10,17 @@ using Playback.Api.Notes;
 using Playback.Api.Providers;
 using Playback.Api.Terms;
 using Playback.Api.Translation;
+using Playback.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
+PlaybackEnvironment.ConfigureStorage(builder.Configuration);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.WebHost.UseUrls(PlaybackEnvironment.ListenUrl);
+builder.Services.AddHttpContextAccessor();
+var access = new DemoAccess(builder.Environment);
+access.AddServices(builder.Services);
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
         .AllowAnyHeader()
@@ -43,8 +48,14 @@ builder.Services.AddSingleton<SyntheticTermComparison>();
 builder.Services.AddSingleton<ChatAgent>();
 
 var app = builder.Build();
-app.UseCors();
 app.UseMiddleware<ApiExceptionMiddleware>();
+app.UseRouting();
+if (!access.Enabled) app.UseCors();
+access.Use(app);
+if (access.Enabled) app.UseMiddleware<WorkspaceAccessMiddleware>();
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 app.MapHealth();
 app.MapSessions();
@@ -56,6 +67,9 @@ app.MapTerms();
 app.MapAsk();
 app.MapActivity();
 app.MapTesting();
+// Unknown API paths remain API errors instead of returning the SPA's HTML.
+app.Map("/api/{**path}", () => Results.NotFound(new { error = "API route not found" }));
+app.MapFallbackToFile("index.html");
 
 // Background workers start their scan loops in their constructors; resolve them before serving.
 app.Services.GetRequiredService<AsrQueue>();

@@ -1,9 +1,15 @@
 namespace Playback.Api;
 
-// The switches and folders this API process takes from its environment. Every property reads the
-// variable on each call, so a check can change a switch between two calls in one process.
+// Storage paths come from appsettings; process switches read the environment on each call.
 public static class PlaybackEnvironment
 {
+    static string? dataPath;
+    public static string? KeyPath { get; private set; }
+    public static void ConfigureStorage(IConfiguration configuration)
+    {
+        dataPath = configuration["Storage:DataPath"];
+        KeyPath = configuration["Storage:KeyPath"];
+    }
     // PLAYBACK_OFFLINE_TEST=yes: listen on 5079, refuse every provider call, run no background scan.
     public static bool Offline => Read("PLAYBACK_OFFLINE_TEST") == "yes";
 
@@ -29,7 +35,11 @@ public static class PlaybackEnvironment
     // Synthetic test data may be written only by checks: offline, or the validation API on the test database.
     public static bool AllowsTestData => Offline || ValidationApi && Database == "playback_e2e";
 
-    public static string ListenUrl => ValidationApi ? "http://127.0.0.1:5081"
+    public static string ListenUrl => Read("PORT") is { } port
+        ? int.TryParse(port, out var number) && number is > 0 and <= 65535
+            ? $"http://0.0.0.0:{number}"
+            : throw new InvalidOperationException("PORT must be between 1 and 65535")
+        : ValidationApi ? "http://127.0.0.1:5081"
         : Offline ? "http://127.0.0.1:5079"
         : "http://127.0.0.1:5078";
 
@@ -37,8 +47,9 @@ public static class PlaybackEnvironment
     public static string AudioFolder => DataFolder("audio");
     public static string CaptureFolder => DataFolder("local-capture");
 
-    static string DataFolder(string name) =>
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "data", name));
+    static string DataFolder(string name) => !string.IsNullOrEmpty(dataPath)
+        ? Path.GetFullPath(Path.Combine(dataPath, name))
+        : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "data", name));
 
     static string? Read(string name) => Environment.GetEnvironmentVariable(name);
 }

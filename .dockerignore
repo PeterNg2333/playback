@@ -1,0 +1,17 @@
+# Only application sources enter the build context.
+**
+!app-temp/
+!app-temp/api/
+!app-temp/api/**
+!app-temp/web/
+!app-temp/web/**
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/test/
+**/output/
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+**/*.user

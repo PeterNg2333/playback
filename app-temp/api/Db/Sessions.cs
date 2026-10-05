@@ -32,6 +32,7 @@ public sealed record SessionView(
 public sealed class SessionRecord
 {
     [BsonId] public string Id { get; set; } = "";
+    public string? OwnerId { get; set; }
     public string Title { get; set; } = "";
     public string? GroupId { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -44,6 +45,7 @@ public sealed class SessionRecord
 public sealed class GroupRecord
 {
     [BsonId] public string Id { get; set; } = "";
+    public string? OwnerId { get; set; }
     public string Name { get; set; } = "";
     public DateTime CreatedAt { get; set; }
 }
@@ -61,33 +63,35 @@ public partial class PlaybackStore
     {
         title = title.Trim();
         if (title.Length is < 1 or > 120) throw new InvalidOperationException("Title must be 1–120 characters");
+        if (groupId is not null) await RequireGroupOwner(groupId);
         if (groupId is not null && await Collection<GroupRecord>("groups").CountDocumentsAsync(x => x.Id == groupId) == 0)
             throw new InvalidOperationException("Group not found");
-        var item = new SessionRecord { Id = Guid.NewGuid().ToString("N"), Title = title, GroupId = groupId, CreatedAt = DateTime.UtcNow };
+        var item = new SessionRecord { Id = Guid.NewGuid().ToString("N"), OwnerId = CurrentOwner, Title = title, GroupId = groupId, CreatedAt = DateTime.UtcNow };
         await Collection<SessionRecord>("sessions").InsertOneAsync(item);
         return new { item.Id, item.Title, item.GroupId };
     }
     public async Task<List<SessionRecord>> Sessions() =>
         await Collection<SessionRecord>("sessions")
-            .Find(FilterDefinition<SessionRecord>.Empty)
+            .Find(CurrentOwner is { } owner ? Builders<SessionRecord>.Filter.Eq(x => x.OwnerId, owner) : FilterDefinition<SessionRecord>.Empty)
             .SortByDescending(x => x.CreatedAt)
             .Limit(200)
             .ToListAsync();
     public async Task<List<GroupRecord>> Groups() =>
         await Collection<GroupRecord>("groups")
-            .Find(FilterDefinition<GroupRecord>.Empty)
+            .Find(CurrentOwner is { } owner ? Builders<GroupRecord>.Filter.Eq(x => x.OwnerId, owner) : FilterDefinition<GroupRecord>.Empty)
             .SortBy(x => x.CreatedAt)
             .ToListAsync();
     public async Task<GroupRecord> CreateGroup(string name)
     {
         name = name.Trim();
         if (name.Length is < 1 or > 80) throw new InvalidOperationException("Group name must be 1–80 characters");
-        var group = new GroupRecord { Id = Guid.NewGuid().ToString("N"), Name = name, CreatedAt = DateTime.UtcNow };
+        var group = new GroupRecord { Id = Guid.NewGuid().ToString("N"), OwnerId = CurrentOwner, Name = name, CreatedAt = DateTime.UtcNow };
         await Collection<GroupRecord>("groups").InsertOneAsync(group);
         return group;
     }
     public async Task<GroupRecord> RenameGroup(string id, string name)
     {
+        await RequireGroupOwner(id);
         name = name.Trim();
         if (name.Length is < 1 or > 80) throw new InvalidOperationException("Group name must be 1–80 characters");
         return await Collection<GroupRecord>("groups").FindOneAndUpdateAsync(x => x.Id == id,
@@ -97,6 +101,7 @@ public partial class PlaybackStore
     }
     public async Task DeleteGroup(string id)
     {
+        await RequireGroupOwner(id);
         var members = await Collection<SessionRecord>("sessions").Find(x => x.GroupId == id).Project(x => x.Id).ToListAsync();
         var deleted = await Collection<GroupRecord>("groups").DeleteOneAsync(x => x.Id == id);
         var moved = await Collection<SessionRecord>("sessions").UpdateManyAsync(
@@ -108,6 +113,8 @@ public partial class PlaybackStore
     }
     public async Task<object> MoveSession(string id, string? groupId)
     {
+        await RequireSessionOwner(id);
+        if (groupId is not null) await RequireGroupOwner(groupId);
         if (groupId is not null && await Collection<GroupRecord>("groups").CountDocumentsAsync(x => x.Id == groupId) == 0)
             throw new InvalidOperationException("Group not found");
         var result = await Collection<SessionRecord>("sessions").UpdateOneAsync(x => x.Id == id,

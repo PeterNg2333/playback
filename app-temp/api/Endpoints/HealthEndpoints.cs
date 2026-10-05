@@ -40,6 +40,7 @@ public static class HealthEndpoints
             manualAsrRetry = true,
             sessionAudioMix = true,
             recordingSourceSelection = true,
+            localCapture = OperatingSystem.IsWindows(),
             sessionLanguageSettings = true,
             liveAsrPreview = true,
             audioChunkMilliseconds = WindowsAudioCaptureService.ChunkMilliseconds,

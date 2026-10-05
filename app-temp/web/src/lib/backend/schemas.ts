@@ -238,6 +238,7 @@ export const HealthSchema = z.object({
   asrPaused: z.boolean().optional(),
   sessionAudioMix: z.boolean().optional(),
   recordingSourceSelection: z.boolean().optional(),
+  localCapture: z.boolean().optional(),
   sessionLanguageSettings: z.boolean().optional(),
   liveAsrPreview: z.boolean().optional(),
   elapsedRecordingClock: z.boolean().optional(),

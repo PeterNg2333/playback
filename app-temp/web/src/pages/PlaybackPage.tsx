@@ -19,6 +19,7 @@ import { LibrarySidebar } from "../features/library/LibrarySidebar";
 import { NotesPanel } from "../features/notes/NotesPanel";
 import { TranscriptPanel } from "../features/transcript/TranscriptPanel";
 import { AudioPlayerBar } from "../features/player/AudioPlayerBar";
+import { SignOutButton } from "../features/auth/SignOutButton";
 
 export function PlaybackPage() {
   const session = useSelectedSession();
@@ -78,7 +79,10 @@ export function PlaybackPage() {
         <h1 className="w-full max-w-full truncate text-center text-[11px] font-[650] text-ink max-md:justify-self-center max-xl:min-w-0 md:text-[13px] xl:absolute xl:left-1/2 xl:w-auto xl:max-w-[32vw] xl:-translate-x-1/2 xl:text-start">
           {session?.title || "Choose a session"}
         </h1>
-        <Recorder session={session} />
+        <div className="flex items-center gap-1">
+          <Recorder session={session} />
+          <SignOutButton />
+        </div>
       </Header>
       {workspaceLoading && (
         <div

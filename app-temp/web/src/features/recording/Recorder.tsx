@@ -31,6 +31,15 @@ export function Recorder({ session }: { session: Session | null }) {
     health && !sourceSelectionSupported
       ? "Restart the API before recording with the selected source"
       : "Choose which audio to record; stop recording to change it";
+  if (health?.localCapture === false)
+    return (
+      <span
+        className="max-w-28 text-right text-[11px] text-muted md:max-w-none"
+        title="Recording requires the API running on your Windows computer. This server cannot access your microphone or system audio."
+      >
+        Recording unavailable
+      </span>
+    );
   return (
     <div
       className="flex flex-none items-center gap-1.25 md:gap-2.5"
