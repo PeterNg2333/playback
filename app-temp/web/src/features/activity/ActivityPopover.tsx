@@ -20,12 +20,14 @@ export function ActivityPopover({
   error,
   onSource,
   onNotesRestored,
+  compact = false,
 }: {
   session: Session | null;
   items: Activity[];
   error?: string;
   onSource: (source: Evidence) => void;
   onNotesRestored: () => Promise<void>;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -66,6 +68,8 @@ export function ActivityPopover({
       }}
     >
       <IconButton
+        small={compact}
+        className={compact ? "rounded-full border-0 bg-transparent" : undefined}
         ref={button}
         aria-label="AI activity history"
         aria-expanded={open}

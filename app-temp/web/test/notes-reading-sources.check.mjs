@@ -469,7 +469,10 @@ try {
     "Reading did not hide references",
   );
   const writeCount = writes.length;
-  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).check();
   assert.equal(
     await page
       .getByTestId("note-content")
@@ -528,7 +531,10 @@ try {
     { id, target: key(1200) },
   );
   await page.locator(`[id="${key(1200)}"]`).waitFor();
-  await page.getByRole("button", { name: "Reading", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   await page
     .getByTestId("note-content")
     .getByRole("button", { name: "Explain bottleneck", exact: true })
@@ -551,6 +557,14 @@ try {
     writeCount,
     "Reading, source popup or explanation hover generated a request",
   );
+  await page.getByLabel("Note actions", { exact: true }).click();
+  await screenshot("note-actions");
+  await page.keyboard.press("Escape");
+  assert.equal(
+    await page.getByRole("button", { name: "History & recovery" }).isVisible(),
+    false,
+  );
+  await page.getByLabel("Note actions", { exact: true }).press("Enter");
   await page.getByRole("button", { name: "History & recovery" }).click();
   const history = page.getByRole("dialog", { name: "Note history & recovery" });
   await history
@@ -621,16 +635,26 @@ try {
   await flow.getByRole("button", { name: "Retry" }).click();
   await flow.getByText("Configured pipeline", { exact: true }).waitFor();
   await flow.getByRole("button", { name: "Close AI flow" }).click();
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page
     .getByLabel("Editable Markdown")
     .fill("Unsaved formula R/n and R/10");
+  await page.getByLabel("Note actions", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Organize section…", exact: true })
+    .click();
   await page.locator("#organize-section").selectOption("fair-sharing");
   assert(
     await page
       .getByRole("button", { name: "Organize section", exact: true })
       .isDisabled(),
   );
+  await page
+    .getByRole("dialog", { name: "Organize a section" })
+    .getByRole("button", { name: "Cancel" })
+    .click();
   await page.getByLabel("Editable Markdown").evaluate((e) => {
     e.focus();
     e.setSelectionRange(8, 8);
@@ -679,6 +703,7 @@ try {
   assert(
     await page.getByRole("button", { name: "Save", exact: true }).isDisabled(),
   );
+  await page.getByLabel("Note actions", { exact: true }).click();
   assert(
     await page
       .getByRole("button", { name: "Revise with AI", exact: true })
@@ -710,7 +735,10 @@ try {
   cursors.clear();
   await selectLecture("Small lecture");
   await selectLecture("Three-hour lecture fixture");
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   await page.getByLabel("Combine completed passages").uncheck();
   await page.locator("[data-total-rows='2704']").waitFor();
   assert.equal(
@@ -728,21 +756,32 @@ try {
   await metric("2700 warmed idle");
   await screenshot("reading-2700");
   for (let cycle = 0; cycle < 8; cycle++) {
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("markdown");
     const editor = page.getByLabel("Editable Markdown");
     const value = sessions.get(id).noteMarkdown;
     for (let update = 0; update < 12; update++)
       await editor.fill(value + `\n\nEditor iteration ${cycle}:${update}.`);
     await editor.fill(value);
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     await page.getByLabel("Rendered flowchart").locator("svg").waitFor();
-    await page.getByRole("button", { name: "Sources", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).check();
     await page
       .getByTestId("note-content")
       .getByRole("button", { name: /^Open audio sources/ })
       .click();
     await popup.getByRole("button", { name: "Close sources" }).click();
-    await page.getByRole("button", { name: "Reading", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     await metric(`2700 edit/preview cycle ${cycle}`);
   }
   await page.evaluate(() => {

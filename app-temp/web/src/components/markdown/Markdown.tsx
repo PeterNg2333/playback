@@ -150,6 +150,11 @@ const plainComponents = {
   code: MarkdownCode,
   pre: MarkdownPre,
   a: ExternalLink,
+  table: ({ children }: ComponentPropsWithoutRef<"table">) => (
+    <table tabIndex={0} aria-label="Table">
+      {children}
+    </table>
+  ),
 };
 
 // Renders Markdown with tables and lists, maths, Mermaid diagrams and sanitised HTML; links open in

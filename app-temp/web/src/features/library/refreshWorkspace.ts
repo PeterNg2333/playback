@@ -41,7 +41,13 @@ export async function refreshWorkspace(sessionId?: string) {
       localStorage.getItem(LAST_SESSION_KEY),
       sessions[0]?.id,
     ].find((candidate) => sessions.some((item) => item.id === candidate));
-    if (!chosen) return;
+    if (!chosen) {
+      if (request === latestRequest) {
+        localStorage.removeItem(LAST_SESSION_KEY);
+        usePlaybackStore.setState({ selectedSessionId: null });
+      }
+      return;
+    }
     await queryClient.fetchQuery({ ...sessionQuery(chosen), staleTime: 0 });
     if (request !== latestRequest) return;
     localStorage.setItem(LAST_SESSION_KEY, chosen);

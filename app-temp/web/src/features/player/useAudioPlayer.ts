@@ -107,8 +107,8 @@ export function useAudioPlayer(
   const latestSession = useRef(session);
   latestSession.current = session;
   const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const [sourceMode, setSourceModeState] = useState("mix");
-  const sourceModeRef = useRef("mix");
+  const [sourceMode, setSourceModeState] = useState("microphone");
+  const sourceModeRef = useRef("microphone");
   const [speed, setSpeedState] = useState(1);
   const speedRef = useRef(1);
   const partsCache = useRef<
@@ -143,9 +143,28 @@ export function useAudioPlayer(
     audio.current?.removeAttribute("src");
     queue.current = null;
     setPlayingKey(null);
-    sourceModeRef.current = "mix";
-    setSourceModeState("mix");
+    sourceModeRef.current = "microphone";
+    setSourceModeState("microphone");
   }, [session?.id]);
+
+  // Older sessions may contain only system audio. Keep the default playable
+  // when the preferred microphone track is absent, including after sync loads it.
+  useEffect(() => {
+    const sources = [
+      ...new Set(session?.chunks.map((chunk) => chunk.sourceId)),
+    ];
+    if (
+      sources.length &&
+      sourceModeRef.current !== "mix" &&
+      !sources.includes(sourceModeRef.current)
+    ) {
+      const available = sources.includes("microphone")
+        ? "microphone"
+        : sources[0];
+      sourceModeRef.current = available;
+      setSourceModeState(available);
+    }
+  }, [session?.id, session?.chunks]);
 
   function playCurrent(selected: Queue) {
     const player = audio.current;

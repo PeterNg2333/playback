@@ -95,7 +95,7 @@ public class GeminiLanguageModel
 
     public Task<GroundedResult> GroundedExplain(string term, CancellationToken ct, Action<string>? onUsage = null) =>
         Grounded(term, false, ct, onUsage);
-    public Task<GroundedResult> GroundedSearch(string question, CancellationToken ct, Action<string>? onUsage = null) =>
+    public virtual Task<GroundedResult> GroundedSearch(string question, CancellationToken ct, Action<string>? onUsage = null) =>
         Grounded(question, true, ct, onUsage);
     async Task<GroundedResult> Grounded(string value, bool question, CancellationToken ct, Action<string>? onUsage)
     {

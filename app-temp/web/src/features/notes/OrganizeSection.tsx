@@ -3,20 +3,27 @@ import { api } from "../../lib/backend/client";
 import type { Session } from "../../lib/backend/schemas";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 import { Button } from "../../components/Button";
+import { Dialog, DialogActions, DialogButton } from "../../components/Dialog";
 
 // Asks the AI to reorganise one saved notes section. Leaving the session cancels the request.
 export function OrganizeSection({
   session,
   draftDirty,
+  onClose,
 }: {
   session: Session;
   draftDirty: boolean;
+  onClose: () => void;
 }) {
   const [sectionId, setSectionId] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => request.current?.abort(), []);
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
   const sections = session.currentNote?.sections ?? [];
 
   async function organize() {
@@ -31,7 +38,10 @@ export function OrganizeSection({
         undefined,
         { signal: controller.signal },
       );
-      if (!controller.signal.aborted) await refreshWorkspace(session.id);
+      if (!controller.signal.aborted) {
+        await refreshWorkspace(session.id);
+        onClose();
+      }
     } catch (e) {
       if (!controller.signal.aborted)
         setError(e instanceof Error ? e.message : String(e));
@@ -42,32 +52,53 @@ export function OrganizeSection({
 
   if (!sections.length) return null;
   return (
-    <>
-      <label className="sr-only" htmlFor="organize-section">
-        Section to organize
-      </label>
-      {/* Keeps the browser's own drop-down look, within a width the toolbar can wrap. */}
-      <select
-        className="max-w-55 min-w-0 rounded-[revert] [border:revert] bg-[revert] [font:revert] text-[revert]"
-        id="organize-section"
-        value={sectionId}
-        onChange={(e) => setSectionId(e.target.value)}
-      >
-        <option value="">Select section…</option>
-        {sections.map((x) => (
-          <option key={x.id} value={x.id}>
-            {x.title}
-            {x.userEdited ? " (user edited)" : ""}
-          </option>
-        ))}
-      </select>
-      <Button
-        disabled={!sectionId || pending || draftDirty}
-        onClick={() => void organize()}
-      >
-        Organize section
-      </Button>
-      {error && <p role="alert">{error}</p>}
-    </>
+    <Dialog
+      ref={dialog}
+      aria-labelledby="organize-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!pending) onClose();
+      }}
+    >
+      <div className="grid gap-3 p-5">
+        <h2 id="organize-title" className="text-[17px] font-bold">
+          Organize a section
+        </h2>
+        <label className="text-[12px] text-muted" htmlFor="organize-section">
+          Section to organize
+        </label>
+        <select
+          className="w-full min-w-0 rounded-lg border border-line bg-white p-2 text-[13px]"
+          id="organize-section"
+          value={sectionId}
+          onChange={(e) => setSectionId(e.target.value)}
+        >
+          <option value="">Select section…</option>
+          {sections.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.title}
+              {x.userEdited ? " (user edited)" : ""}
+            </option>
+          ))}
+        </select>
+        {draftDirty && (
+          <p className="text-[12px] text-muted">
+            Save your edits before organizing.
+          </p>
+        )}
+        <DialogActions>
+          <DialogButton disabled={pending} onClick={onClose}>
+            Cancel
+          </DialogButton>
+          <Button
+            disabled={!sectionId || pending || draftDirty}
+            onClick={() => void organize()}
+          >
+            {pending ? "Organizing…" : "Organize section"}
+          </Button>
+        </DialogActions>
+        {error && <p role="alert">{error}</p>}
+      </div>
+    </Dialog>
   );
 }

@@ -18,15 +18,39 @@ public sealed class AiActivity(PlaybackStore store)
     };
     readonly DateTime startedAt = DateTime.UtcNow;
     readonly ConcurrentDictionary<string, ActivityRecord> running = new();
+    readonly object lifecycle = new();
+    readonly HashSet<string> deletedSessions = [];
     public async Task<ActivityRecord> Begin(string sessionId, string task, string provider, string model,
         IEnumerable<string>? sources = null, int? basedOnVersion = null)
     {
         var item = new ActivityRecord { Id = Guid.NewGuid().ToString("N"), SessionId = sessionId,
             Task = task, Provider = provider, Model = model, Status = "queued", StartedAt = DateTime.UtcNow,
             SourceIds = sources?.Distinct().ToList() ?? [], BasedOnVersion = basedOnVersion };
-        await store.SaveActivity(item);
-        running[item.Id] = item;
+        lock (lifecycle)
+        {
+            if (deletedSessions.Contains(sessionId)) throw new InvalidOperationException("Session was deleted");
+            running[item.Id] = item;
+        }
+        try { await store.SaveActivity(item); }
+        catch { running.TryRemove(item.Id, out _); throw; }
         return item;
+    }
+    // Admit deletion atomically with background work, so a queued provider call cannot
+    // begin halfway through removing the session's recordings and saved results.
+    public async Task DeleteSession(string sessionId)
+    {
+        lock (lifecycle)
+        {
+            if (running.Values.Any(x => x.SessionId == sessionId))
+                throw new InvalidOperationException("Wait for session processing to finish before deleting it");
+            if (!deletedSessions.Add(sessionId)) throw new InvalidOperationException("Session was deleted");
+        }
+        try { await store.DeleteSession(sessionId); }
+        catch
+        {
+            lock (lifecycle) deletedSessions.Remove(sessionId);
+            throw;
+        }
     }
     public async Task Start(ActivityRecord item)
     {

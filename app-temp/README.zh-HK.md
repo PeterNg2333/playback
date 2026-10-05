@@ -2,6 +2,12 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
+2026-10-05 Quick chat：Ask Playback 改成較小的浮動視窗。歷史選單以搜尋、精簡 lecture filter、單行標題／最近時間及選取底色呈現；支援方向鍵及 Escape，長列表在選單內捲動。New chat 只開空白 composer，第一題送出才建立保存紀錄，避免累積空白聊天。送出後即清空輸入，失敗且未開始下一題才還原文字；背景回覆不覆蓋下一題草稿。Markdown 比較表有清晰邊線／交替列色，寬表在回覆內橫向捲動及支援鍵盤焦點。新回覆自動捲到底，向上閱讀時停止追蹤，可按 Latest reply 返回。`chat-v3` 先嘗試課堂及獲允許的網頁來源；都未取得有效證據時，再用一般知識嘗試簡短回答，明示 Not verified against sources，不附虛構引用。來源失敗改為可展開的黃色警告；模型本身失敗仍顯示真實錯誤。Web build、in-memory backend checks 和離線 browser fixture 通過；沒有新增外部模型請求，此 API 行為需運行新版後端。
+
+2026-10-05 UI 簡化：Lecture notes 的 Show sources 開關獨立控制引用顯示；view 選單只切換 Notes／Edit draft／Live AI edit。筆記頂部以單行圓角控制列、`[Save | ▾]` split button 及引用狀態圖示排列；Revise with AI、History & recovery 及 Organize section 放進 Save 箭頭選單，整理時才開啟 section 選擇視窗。引用缺口以 `!` 圖示開啟獨立 Review note references 視窗，分開顯示引用數、缺少連結數、時間段及修復動作；底部不再放 Save 或警告列。視窗顯示最近一次已記錄的修復失敗，並區分無效引用遭拒與 AI 全部延後、沒有儲存變更的結果。缺少引用不等同全部正文缺失，視窗保留此說明及原有修復／草稿保護。Transcript settings 移除 provider 診斷及冗長說明，保留語言、模型、翻譯及必要狀態提示。左側以紫色選取線、群組縮排線及分隔線表示層次，session 的「…」加入 Delete session 和永久刪除確認。錄音預設 Microphone，回聽優先 Microphone（舊 session 只有其他來源時使用現有來源）。
+
+刪除 session 需新版 API：`DELETE /api/sessions/{id}`，只移除該 session 的音訊目錄、筆記／版本、逐字稿／翻譯、材料、聊天、術語及 AI 紀錄；錄音／暫停中或 AI 工作未完成時拒絕刪除。UI 取消、失敗重試、最後一個 session 的畫面清理、窄屏及筆記既有功能已用離線 browser fixture 驗證；背景工作與刪除互斥已用 in-memory checks 驗證。未在實際資料庫執行刪除測試，未刪除使用者 session，未呼叫外部模型。
+
 2026-10-05 全棧驗證及筆記修復：Docker MongoDB、本機 API／browser、錄音控制及獲批准的真實 Week 3 首 20 分鐘 ASR／Gemini 問答通過。修正 malformed citation 漏檢、deferred 缺口阻塞後段及模型虛構 deferred source ID；prompt 為 v8。重用已辨識文字補寫，引用由 19/37 增至 34/37，三段純語助詞明示 deferred，既有 section 全部保留，原資料庫未改寫。獨立 ASR 準確度及完整語義品質仍未驗收。詳見 [測試、修復及驗收邊界](../docs/full-stack-validation-2026-10-05.md)。
 
 2026-09-29 筆記缺口後續：原 Week 3 v146 有 1,110 段曾標 completed 卻未被正文引用，缺失主要由舊全篇生成遺留。現新增 coverage 時間段／兩分鐘大缺口、逐批 Repair earliest gap、organizer 正文保留及寫入前 retention guard；1,156 段完整離線重播、真實 Mongo 防刪及窄屏 UI 通過。自然 Gemini 重跑待明確文字傳送／付費批准，原 v146 未改寫。詳見 [調查及重跑結果](../docs/note-coverage-investigation.zh-HK.md)。Review API 5081 已為 v7；原 5078 未重啟。
@@ -22,7 +28,7 @@ ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenR
 
 ## 介面與錄音狀態
 
-左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。偵測到音量活動時，Transcript 先顯示淡色待完成列；音訊保存後以原文或音訊狀態取代。列上顯示「Microphone」或「System audio」來源，目前沒有真人講者分離。連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
+左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。偵測到音量活動時，Transcript 先顯示淡色待完成列；音訊保存後以原文或音訊狀態取代。列上顯示「Microphone」或「System audio」來源，目前沒有真人講者分離。連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本；頂部固定 Save split button，Revise with AI 位於箭頭選單。
 
 **Activity** 已移至 Lecture notes 標題旁的 ↶。Popover 支援 hover／click／keyboard／Escape／touch，顯示本 session 最近 100 條真實執行、provider/model、queued/running/completed/failed/cache-hit、時間、耗時、來源及脫敏錯誤，並沿用保存的 note edits 和 Jev 決定。Restore this version 會新增還原版本。開啟紀錄不呼叫模型；舊版本沒有的執行資料不會補造。
 
@@ -71,7 +77,7 @@ pnpm.cmd dev
 
 `dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
 
-先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每段最多約八秒，滿三秒且語音結束時可提早完成 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
+先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每段最多約八秒，滿三秒且語音結束時可提早完成 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記頂部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
 
 錄音音訊會自動上傳目前配置的 ASR provider。介面與 API 不設同意勾選或同意 header；AI 筆記、提問和翻譯直接觸發 Gemini，術語評估直接觸發 Jev。憑證只從 process environment 讀 `GOOGLE_AI_STUDIO_API_KEY`、`OPENROUTER_API_KEY`、`JEV_API_KEY`；沒有 key 時顯示實際錯誤，不會回傳假成功。
 

@@ -32,6 +32,7 @@ export function RowMenu({
         "relative flex-none open:z-21 open:opacity-100",
         revealOnRowHover,
       )}
+      dismissible
       summaryClassName="grid h-6.5 w-6 place-items-center rounded-md text-muted hover:bg-[#e8eaf0] hover:text-ink"
       label={label}
       summary={<Icon name="more" className="size-3.75" />}

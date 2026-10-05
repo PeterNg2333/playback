@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Panel, PanelHeader } from "../../components/layout/Panel";
+import { Panel } from "../../components/layout/Panel";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { useHealth } from "../../lib/useHealth";
 import { askAboutTerm } from "../ask/askAbout";
@@ -17,7 +17,7 @@ import { ActivityPopover } from "../activity/ActivityPopover";
 import { useActivity } from "../activity/useActivity";
 import { Icon } from "../../components/Icon";
 import { LazyDetails } from "../../components/LazyDetails";
-import { Segment, Segmented } from "../../components/Segmented";
+import { Menu, MenuItem } from "../../components/Menu";
 import { Chip } from "../../components/Chip";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
@@ -44,6 +44,9 @@ export function NotesPanel({
   const draft = useNoteDraft(session);
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
+  const [noteDialog, setNoteDialog] = useState<"history" | "organize" | null>(
+    null,
+  );
   const body = useRef<HTMLDivElement>(null);
   const renderedNotes = useRef<HTMLDivElement>(null);
   const headings = () =>
@@ -192,72 +195,140 @@ export function NotesPanel({
                     : null;
   return (
     <Panel className={className} data-testid="notes-panel">
-      <PanelHeader
-        wrap
-        title={
-          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-            <h2 className="text-[15px] font-[750]">Lecture notes</h2>
-            <span className="text-[11px] font-semibold text-muted">
-              v{session?.noteVersion || 0}
+      <header
+        className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-3 sm:gap-2 sm:px-2.5"
+        data-testid="notes-toolbar"
+      >
+        <div className="flex h-10 min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-white px-2 sm:gap-2 sm:px-3">
+          <h2
+            className="min-w-0 flex-1 truncate text-[13px] font-bold max-sm:sr-only"
+            title="Lecture notes"
+          >
+            Lecture notes
+          </h2>
+          <span className="hidden text-[10px] text-muted 2xl:inline">
+            v{session?.noteVersion || 0}
+          </span>
+          <ActivityPopover
+            compact
+            key={session?.id}
+            session={session}
+            items={activity.items}
+            error={activity.error}
+            onSource={onOpenSource}
+            onNotesRestored={() => refreshWorkspace(session!.id)}
+          />
+          {noteStatus && (
+            <span
+              className="shrink-0 text-accent max-sm:hidden"
+              role="status"
+              data-testid="note-ai-status"
+              title={noteStatus}
+            >
+              <Icon
+                name="pen"
+                className="size-3.5 animate-note-pen motion-reduce:animate-none"
+              />
+              <span className="sr-only">{noteStatus}</span>
             </span>
-            <ActivityPopover
-              key={session?.id}
-              session={session}
-              items={activity.items}
-              error={activity.error}
-              onSource={onOpenSource}
-              onNotesRestored={() => refreshWorkspace(session!.id)}
+          )}
+          <label
+            className="flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-muted has-disabled:opacity-50"
+            title="Show source links"
+          >
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Show sources"
+              checked={!reading}
+              disabled={noteMode !== "preview"}
+              onChange={(event) => setReading(!event.target.checked)}
+              className="relative h-4 w-6 shrink-0 cursor-pointer appearance-none rounded-full bg-slate-300 before:absolute before:top-0.5 before:left-0.5 before:size-3 before:rounded-full before:bg-white checked:bg-accent checked:before:translate-x-2 disabled:cursor-default"
             />
-            {noteStatus && (
-              <span
-                className="inline-flex items-center gap-1.25 rounded-full bg-accent-soft px-2 py-1.25 text-[11px] font-[750] whitespace-nowrap text-accent"
-                role="status"
-                data-testid="note-ai-status"
-              >
-                <Icon
-                  name="pen"
-                  className="size-3.5 animate-note-pen motion-reduce:animate-none"
-                />
-                {noteStatus}
-              </span>
+            <span className="hidden 2xl:inline">Sources</span>
+          </label>
+          <select
+            aria-label="Note view"
+            className="w-20 shrink-0 rounded-full sm:w-24 bg-transparent py-1 text-[11px] font-semibold text-ink"
+            value={noteMode}
+            onChange={(event) =>
+              setNoteMode(
+                event.target.value === "markdown"
+                  ? "markdown"
+                  : event.target.value === "draft"
+                    ? "draft"
+                    : "preview",
+              )
+            }
+          >
+            <option value="preview">Notes</option>
+            <option value="markdown">Edit draft</option>
+            <option value="draft">Live AI edit</option>
+          </select>
+        </div>
+        <div
+          className="inline-flex h-9 shrink-0 items-stretch rounded-full border border-accent bg-white"
+          role="group"
+          aria-label="Save and note actions"
+        >
+          <button
+            className="rounded-l-full bg-accent px-2.5 py-2 text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:bg-accent-soft disabled:text-muted"
+            disabled={!session || !!busy || draft.conflict || !draft.isDirty}
+            onClick={() => runAction("save", draft.save)}
+          >
+            Save
+          </button>
+          <Menu
+            key={session?.id + ":actions"}
+            className="relative border-l border-accent"
+            label="Note actions"
+            dismissible
+            summaryClassName="grid h-full w-6 place-items-center rounded-r-full text-accent hover:bg-accent-soft"
+            summary={<Icon name="chevron-down" className="size-3.5" />}
+          >
+            {(close) => (
+              <div className="absolute right-0 top-full z-30 mt-2 w-52 rounded-lg border border-line bg-white p-1 shadow-lg">
+                <MenuItem
+                  disabled={!session || !!busy || draft.conflict}
+                  onClick={() => {
+                    close();
+                    void runAction("generate", draft.reviseWithAi);
+                  }}
+                >
+                  Revise with AI
+                </MenuItem>
+                <div className="my-1 border-t border-line" />
+                <MenuItem
+                  disabled={!session || !health?.sectionNotes}
+                  onClick={() => {
+                    close();
+                    setNoteDialog("history");
+                  }}
+                >
+                  History & recovery
+                </MenuItem>
+                <MenuItem
+                  disabled={!session?.currentNote?.sections?.length}
+                  onClick={() => {
+                    close();
+                    setNoteDialog("organize");
+                  }}
+                >
+                  Organize section…
+                </MenuItem>
+              </div>
             )}
-          </div>
-        }
-        actions={
-          <Segmented>
-            <Segment
-              pressed={noteMode === "preview"}
-              onClick={() => setNoteMode("preview")}
-            >
-              Preview
-            </Segment>
-            <Segment
-              pressed={noteMode === "markdown"}
-              onClick={() => setNoteMode("markdown")}
-            >
-              Edit
-            </Segment>
-            <Segment pressed={reading} onClick={() => setReading(true)}>
-              Reading
-            </Segment>
-            <Segment pressed={!reading} onClick={() => setReading(false)}>
-              Sources
-            </Segment>
-            <Segment
-              pressed={noteMode === "draft"}
-              onClick={() => setNoteMode("draft")}
-            >
-              Live draft
-              {runningNote && (
-                <span
-                  className="ml-1.25 inline-block size-1.25 rounded-full bg-accent"
-                  aria-hidden="true"
-                />
-              )}
-            </Segment>
-          </Segmented>
-        }
-      />
+          </Menu>
+        </div>
+
+        <NoteCoveragePanel
+          key={session?.id + ":coverage"}
+          session={session}
+          draftDirty={draft.isDirty}
+          onOpenSource={onOpenSource}
+          latestRevision={latestNote}
+        />
+      </header>
       {/* Rendered notes keep a readable line length. */}
       <div
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5.5 **:data-markdown:max-w-[72ch]"
@@ -445,26 +516,7 @@ export function NotesPanel({
           </p>
         )
       )}
-      <NoteCoveragePanel
-        key={session?.id + ":coverage"}
-        session={session}
-        draftDirty={draft.isDirty}
-        onOpenSource={onOpenSource}
-      />
-      <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2">
-        <NoteHistoryDialog
-          key={session?.id}
-          session={session}
-          draftDirty={draft.isDirty}
-        />
-        {session && (
-          <OrganizeSection
-            key={session.id}
-            session={session}
-            draftDirty={draft.isDirty}
-          />
-        )}
-      </div>
+
       {draft.conflict && (
         <div className={conflictStyle} role="alert">
           <p className="my-1">
@@ -501,23 +553,23 @@ export function NotesPanel({
           </Button>
         </div>
       )}
-      <footer className="flex flex-none gap-2 border-t border-line px-3.5 py-2.5 md:px-5 md:py-3">
-        <Button
-          variant="primary"
-          className="disabled:cursor-not-allowed disabled:opacity-45"
-          disabled={!session || !!busy || draft.conflict || !draft.isDirty}
-          onClick={() => runAction("save", draft.save)}
-        >
-          Save
-        </Button>
-        <Button
-          className="disabled:cursor-not-allowed disabled:opacity-45"
-          disabled={!session || !!busy || draft.conflict}
-          onClick={() => runAction("generate", draft.reviseWithAi)}
-        >
-          Revise with AI
-        </Button>
-      </footer>
+
+      {noteDialog === "history" && (
+        <NoteHistoryDialog
+          key={session?.id}
+          session={session}
+          draftDirty={draft.isDirty}
+          onClose={() => setNoteDialog(null)}
+        />
+      )}
+      {noteDialog === "organize" && session && (
+        <OrganizeSection
+          key={session.id}
+          session={session}
+          draftDirty={draft.isDirty}
+          onClose={() => setNoteDialog(null)}
+        />
+      )}
       {reference && session && (
         <TermExplanation
           key={reference.id}

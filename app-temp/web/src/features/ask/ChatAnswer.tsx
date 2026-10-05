@@ -2,7 +2,6 @@ import type { Answer, Evidence, Session } from "../../lib/backend/schemas";
 import { Markdown } from "../../components/markdown/Markdown";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
 import { Chip } from "../../components/Chip";
-import { ChatError } from "./ChatControls";
 
 export function ChatAnswer({
   answer,
@@ -16,28 +15,46 @@ export function ChatAnswer({
   return (
     // Paragraphs in an answer sit closer together than in the notes.
     <div
-      className="rounded-[10px] bg-accent-soft p-3 text-[12px] [&_p]:mb-2.25 [&_p:last-child]:mb-0"
+      className="min-w-0 rounded-[10px] bg-accent-soft p-3 text-[12px] [overflow-wrap:anywhere] [&_p]:mb-2.25 [&_p:last-child]:mb-0"
       data-testid="answer"
     >
-      <CitedMarkdown
-        value={answer.answer}
-        groups={sourceGroups}
-        sources={answer.evidence
-          .filter((ev) => !!ev.id)
-          .map((ev) => ({
-            id: ev.id!,
-            label: ev.label || ev.title || ev.kind,
-          }))}
-        onSource={(id) => {
-          const ev = answer.evidence.find((item) => item.id === id);
-          if (ev) jump(ev);
-        }}
-      />
-      {answer.lectureError && (
-        <ChatError>Lecture evidence: {answer.lectureError}</ChatError>
+      {answer.lectureStatus === "unverified" && (
+        <p className="mb-2 text-[11px] font-semibold text-amber-800">
+          General answer · Not verified against sources
+        </p>
       )}
-      {answer.webError && (
-        <ChatError>Public web search failed: {answer.webError}</ChatError>
+      {answer.lectureStatus === "unverified" ? (
+        <Markdown value={answer.answer} />
+      ) : (
+        <CitedMarkdown
+          value={answer.answer}
+          groups={sourceGroups}
+          sources={answer.evidence
+            .filter((ev) => !!ev.id)
+            .map((ev) => ({
+              id: ev.id!,
+              label: ev.label || ev.title || ev.kind,
+            }))}
+          onSource={(id) => {
+            const ev = answer.evidence.find((item) => item.id === id);
+            if (ev) jump(ev);
+          }}
+        />
+      )}
+      {(answer.lectureError || answer.webError) && (
+        <details className="my-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-900">
+          <summary className="cursor-pointer">
+            {answer.webError
+              ? "Web sources unavailable"
+              : "Lecture sources could not be verified"}
+          </summary>
+          {answer.lectureError && (
+            <p className="mt-2">Lecture: {answer.lectureError}</p>
+          )}
+          {answer.webError && (
+            <p className="mt-2">Web search: {answer.webError}</p>
+          )}
+        </details>
       )}
       {answer.webAnswer && (
         <section>
@@ -53,7 +70,7 @@ export function ChatAnswer({
           srcDoc={answer.webSuggestions}
         />
       )}
-      {answer.inference && (
+      {answer.inference && answer.lectureStatus !== "unverified" && (
         <small className="my-2.25 block text-[smaller] text-muted">
           Model inference · verify against sources
         </small>

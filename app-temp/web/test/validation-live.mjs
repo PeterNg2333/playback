@@ -85,6 +85,7 @@ try {
         r.url().endsWith("/notes/generate") && r.request().method() === "POST",
       { timeout: 145000 },
     );
+    await page.getByLabel("Note actions", { exact: true }).click();
     await page
       .getByRole("button", { name: "Revise with AI", exact: true })
       .click();
@@ -100,7 +101,10 @@ try {
     await page
       .getByTestId("note-ai-status")
       .waitFor({ state: "detached", timeout: 10000 });
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     await page.waitForTimeout(4500);
     await screenshot("live-notes-saved");
   }
@@ -152,7 +156,7 @@ try {
       .getByLabel("Your question", { exact: true })
       .fill("What is cache");
     await page
-      .getByRole("checkbox", { name: /Include public web search/ })
+      .getByRole("checkbox", { name: "Search the web", exact: true })
       .check();
     const response = page.waitForResponse(
       (r) => r.url().endsWith("/ask/stream"),

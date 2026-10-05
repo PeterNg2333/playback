@@ -60,7 +60,20 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             visible?.Clock.ElapsedMilliseconds ?? 0, visible?.Id);
     }
 
-    public async Task<CaptureStatus> Start(string sessionId, string sourceMode = "both")
+    public async Task DeleteSession(string sessionId)
+    {
+        await transition.WaitAsync();
+        try
+        {
+            if (active?.SessionId == sessionId)
+                throw new InvalidOperationException("Stop recording before deleting this session");
+            await activity.DeleteSession(sessionId);
+            if (recent?.SessionId == sessionId) recent = null;
+        }
+        finally { transition.Release(); }
+    }
+
+    public async Task<CaptureStatus> Start(string sessionId, string sourceMode = "microphone")
     {
         if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Local capture currently requires Windows");
         if (!ChunkIdentity.IsSessionId(sessionId)) throw new InvalidOperationException("Invalid session ID");

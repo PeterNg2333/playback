@@ -33,13 +33,18 @@ try {
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await page.getByLabel("Enable translation").waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page
     .getByLabel("Editable Markdown")
     .fill(
       "# Pipeline\n\n- Audio to notes\n\n```mermaid\nflowchart LR\nAudio --> Notes\n```",
     );
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   await page.getByLabel("Rendered flowchart").locator("svg").waitFor();
   const diagramText = await page
     .getByLabel("Rendered flowchart")

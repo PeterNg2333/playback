@@ -20,4 +20,4 @@ public static class CaptureEndpoints
     }
 }
 
-public record CaptureInput(string SessionId, string SourceMode = "both");
+public record CaptureInput(string SessionId, string SourceMode = "microphone");

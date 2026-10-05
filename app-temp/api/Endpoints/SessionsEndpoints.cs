@@ -1,4 +1,5 @@
 using Playback.Api.Db;
+using Playback.Api.Audio.Recording;
 namespace Playback.Api.Endpoints;
 
 public static class SessionsEndpoints
@@ -7,6 +8,11 @@ public static class SessionsEndpoints
     {
         app.MapPost("/api/sessions", async (CreateSessionInput input, PlaybackStore store) =>
             await store.CreateSession(input.Title, input.GroupId));
+        app.MapDelete("/api/sessions/{id}", async (string id, WindowsAudioCaptureService capture) =>
+        {
+            await capture.DeleteSession(id);
+            return Results.NoContent();
+        });
         app.MapGet("/api/sessions", async (PlaybackStore store) =>
             await store.Sessions());
         app.MapPut("/api/sessions/{id}/group", async (

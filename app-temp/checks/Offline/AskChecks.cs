@@ -1,10 +1,63 @@
 using Playback.Api.Ask;
 using Playback.Api.Db;
+using Playback.Api.Activity;
+using Playback.Api.Providers;
+using System.Text.Json;
 
 // Ask: which sources a question retrieves from a long lecture, how short citation aliases expand,
 // and which answers count as source-backed.
 static class AskChecks
 {
+    public static async Task QuickAnswers()
+    {
+        foreach (var mode in new[] { "empty", "insufficient", "invalid", "provider-failure", "grounded", "fallback-failure" })
+        {
+            var store = new MemoryStore();
+            store.Add(mode);
+            if (mode != "empty") store.Speech(mode, "source", "A bottleneck limits throughput.");
+            var model = new QuickAnswerModel(mode);
+            var agent = new ChatAgent(store, model, new AiActivity(store));
+            var input = new QuestionInput("用中文 table 比較 bottleneck", UseWeb: mode == "invalid", RequestId: Guid.NewGuid().ToString());
+            if (mode == "fallback-failure")
+            {
+                await Expect.RejectsAsync(() => agent.Ask(mode, input, CancellationToken.None),
+                    "A failed general answer must surface a real error, not a fabricated success");
+                continue;
+            }
+            var result = JsonSerializer.SerializeToElement(await agent.Ask(mode, input, CancellationToken.None));
+            Expect.That(result.GetProperty("lectureStatus").GetString() == (mode == "grounded" ? "grounded" : "unverified"),
+                "General knowledge must stay distinct from verified lecture content");
+            Expect.That(result.GetProperty("evidence").GetArrayLength() == (mode == "grounded" ? 1 : 0),
+                "General knowledge acquired fabricated evidence");
+            if (mode == "invalid") Expect.That(result.GetProperty("webError").GetString()!.Contains("no verifiable"), "Search warning was lost");
+            if (mode != "grounded") Expect.That(result.GetProperty("answer").GetString()!.Contains("| 機制 |"), "Fallback formatting was lost");
+            var calls = model.Calls;
+            await agent.Ask(mode, input, CancellationToken.None);
+            Expect.That(model.Calls == calls, "Duplicate sends must reuse the same answer");
+        }
+        Console.WriteLine("Quick chat checks passed: missing/rejected sources and failed search fall back without citations, verified answers stay grounded, failures and duplicate sends stay honest");
+    }
+
+    sealed class QuickAnswerModel(string mode) : GeminiLanguageModel
+    {
+        public int Calls;
+        public override Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct,
+            string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null)
+        {
+            Calls++;
+            ct.ThrowIfCancellationRequested();
+            if (name == "PlaybackQuickAnswerer") {
+                if (mode == "fallback-failure") throw new InvalidOperationException("Synthetic fallback failure");
+                Expect.That(instructions == ChatAgent.FallbackInstructions && prompt.Contains("用中文 table"), "Fallback lost the question or its instructions");
+                return Task.FromResult("| 機制 | 說明 |\n| --- | --- |\n| 限制 | 一般知識 | ");
+            }
+            if (mode == "provider-failure") throw new InvalidOperationException("Synthetic provider failure");
+            return Task.FromResult(mode == "grounded" ? "A bottleneck limits throughput. [01]" : mode == "invalid" ? "Unknown [999]" : "INSUFFICIENT_SOURCE");
+        }
+        public override Task<GroundedResult> GroundedSearch(string question, CancellationToken ct, Action<string>? onUsage = null) =>
+            throw new InvalidOperationException("Google Search returned no verifiable web sources");
+    }
+
     public static void Run()
     {
         var longSession = LectureFixtures.Session(LectureFixtures.ThreeHours());

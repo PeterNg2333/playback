@@ -20,6 +20,7 @@ export function useAsk(session: Session | null) {
   );
   const [answer, setAnswer] = useState<Answer | null>(null);
   const [answerDraft, setAnswerDraft] = useState("");
+  const [sentQuestion, setSentQuestion] = useState("");
   const pendingQuestion = useRef<AbortController | undefined>(undefined);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export function useAsk(session: Session | null) {
     pendingQuestion.current = undefined;
     setAnswer(null);
     setAnswerDraft("");
+    setSentQuestion("");
     usePlaybackStore.setState((state) => ({
       selection: null,
       focusMaterialId: null,
@@ -37,8 +39,9 @@ export function useAsk(session: Session | null) {
 
   async function ask() {
     if (!session || pendingQuestion.current || conversations.loading) return;
-    const { question, useWeb, selection, focusMaterialId } =
+    const { question, useWeb, selection, focusMaterialId, busy } =
       usePlaybackStore.getState();
+    if (busy) return;
     setAnswer(null);
     const parsed = QuestionSchema.safeParse(question);
     if (!parsed.success) {
@@ -47,8 +50,9 @@ export function useAsk(session: Session | null) {
     }
     const controller = new AbortController();
     pendingQuestion.current = controller;
+    setSentQuestion(parsed.data);
     setAnswerDraft("");
-    usePlaybackStore.setState({ busy: "ask", error: "" });
+    usePlaybackStore.setState({ busy: "ask", error: "", question: "" });
     try {
       const conversation = health?.chatConversations
         ? (conversations.current ?? (await conversations.create()))
@@ -83,7 +87,14 @@ export function useAsk(session: Session | null) {
       if (controller.signal.aborted) return;
       usePlaybackStore.setState({ selection: null, focusMaterialId: null });
     } catch (reason) {
-      if (!controller.signal.aborted) showError(reason);
+      if (!controller.signal.aborted) {
+        showError(reason);
+        // Restore a failed send only if the user has not started their next question.
+        usePlaybackStore.setState((state) => ({
+          question: state.question || question,
+        }));
+        setSentQuestion("");
+      }
     } finally {
       if (pendingQuestion.current === controller) {
         pendingQuestion.current = undefined;
@@ -96,6 +107,7 @@ export function useAsk(session: Session | null) {
   function clearQuestion() {
     setAnswer(null);
     setAnswerDraft("");
+    setSentQuestion("");
     usePlaybackStore.setState({
       question: "",
       selection: null,
@@ -105,7 +117,7 @@ export function useAsk(session: Session | null) {
 
   function newConversation() {
     return runAction("conversation", async () => {
-      await conversations.create();
+      conversations.startNew();
       clearQuestion();
     });
   }
@@ -121,6 +133,7 @@ export function useAsk(session: Session | null) {
     conversations,
     answer,
     answerDraft,
+    sentQuestion,
     ask,
     newConversation,
     selectConversation,

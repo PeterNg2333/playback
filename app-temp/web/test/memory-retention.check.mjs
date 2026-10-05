@@ -455,9 +455,14 @@ async function select(title) {
     .waitFor();
 }
 async function edit(text) {
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page.getByLabel("Editable Markdown").fill(text);
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
 }
 try {
   await page.goto(url);
@@ -592,7 +597,10 @@ try {
         .locator("[data-markdown]")
         .waitFor();
       await page.waitForTimeout(800);
-      await page.getByRole("button", { name: "Preview", exact: true }).click();
+      await page
+        .getByRole("combobox", { name: "Note view" })
+        .selectOption("preview");
+      await page.getByRole("switch", { name: "Show sources" }).uncheck();
     }
     await edit(
       long.noteMarkdown +
@@ -604,7 +612,10 @@ try {
       .locator("svg")
       .last()
       .waitFor();
-    await page.getByRole("button", { name: "Sources", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).check();
     const source = page
       .getByTestId("note-content")
       .getByRole("button", { name: /^Open audio sources/ })
@@ -616,7 +627,10 @@ try {
         .waitFor();
       await page.getByLabel("Close sources", { exact: true }).click();
     }
-    await page.getByRole("button", { name: "Reading", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     if (cycle % 7 === 0) {
       await select(small.title);
       await page.waitForTimeout(300);

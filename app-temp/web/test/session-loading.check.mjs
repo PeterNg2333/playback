@@ -114,7 +114,9 @@ try {
     .getByRole("status")
     .filter({ hasText: "Loading session…" })
     .waitFor({ state: "hidden" });
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page
     .getByLabel("Editable Markdown")
     .fill("My unsaved explanation must survive a failed session load.");

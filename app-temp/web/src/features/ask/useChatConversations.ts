@@ -98,6 +98,13 @@ export function useChatConversations(
     return conversation;
   }
 
+  // Start with an empty composer; create the saved conversation only when a question is sent.
+  function startNew() {
+    if (!sessionId) return;
+    localStorage.removeItem(savedConversationKey(sessionId));
+    setChosen({ sessionId, id: "" });
+  }
+
   // Reads a conversation again after a new answer was saved to it.
   async function reload(id: string) {
     if (!sessionId) return;
@@ -120,6 +127,7 @@ export function useChatConversations(
     error: (listQuery.error ?? currentQuery.error)?.message,
     select,
     create,
+    startNew,
     reload,
   };
 }

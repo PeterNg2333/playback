@@ -23,7 +23,9 @@ export function Recorder({ session }: { session: Session | null }) {
     capture?.recordingElapsedMs == null
       ? "Restart API for timer"
       : formatElapsed(capture.recordingElapsedMs);
-  const selectedMode = isIdle ? recordingMode : (capture?.sourceMode ?? "both");
+  const selectedMode = isIdle
+    ? recordingMode
+    : (capture?.sourceMode ?? "microphone");
   const sourceSelectionSupported = health?.recordingSourceSelection === true;
   const sourceSelectionTitle =
     health && !sourceSelectionSupported

@@ -12,6 +12,9 @@ const groups = [{ id: "group-1", name: "Research" }];
 const sessions = [{ id: "session-1", title: "Lecture 12", groupId: null }];
 const errors = [];
 let nextSession = 2;
+let deleteFailure = false;
+let deleteCalls = 0;
+let capture = { state: "idle", sessionId: null, bytes: {}, error: null };
 
 try {
   const page = await browser.newPage({
@@ -26,8 +29,7 @@ try {
     let data;
     let status = 200;
     if (path === "/health") data = { mongo: true, gemini: false, jev: false };
-    else if (path === "/capture/status")
-      data = { state: "idle", sessionId: null, bytes: {}, error: null };
+    else if (path === "/capture/status") data = capture;
     else if (path === "/groups" && method === "GET") data = groups;
     else if (path === "/groups" && method === "POST") {
       data = { id: `group-${groups.length + 1}`, name: input.name };
@@ -56,6 +58,18 @@ try {
       const session = sessions.find((item) => item.id === path.split("/")[2]);
       session.groupId = input.groupId;
       data = { id: session.id, groupId: session.groupId };
+    } else if (path.startsWith("/sessions/") && method === "DELETE") {
+      deleteCalls++;
+      if (deleteFailure) {
+        status = 409;
+        data = { error: "Session is still processing" };
+      } else {
+        sessions.splice(
+          sessions.findIndex((x) => x.id === path.split("/")[2]),
+          1,
+        );
+        status = 204;
+      }
     } else if (path.startsWith("/sessions/") && method === "GET") {
       const session = sessions.find((item) => item.id === path.split("/")[2]);
       data = {
@@ -139,12 +153,12 @@ try {
     sessions.find((item) => item.title === "Research meeting").groupId,
     "group-1",
   );
-  const moveMenu = group.getByLabel("Move Lecture 12");
+  const moveMenu = group.getByLabel("Session options for Lecture 12");
   await moveMenu.focus();
   await moveMenu.press("Enter");
   await group.getByRole("button", { name: "Move to Sessions" }).click();
   await sessionsSection.getByRole("button", { name: "Lecture 12" }).waitFor();
-  await sessionsSection.getByLabel("Move Lecture 12").click();
+  await sessionsSection.getByLabel("Session options for Lecture 12").click();
   await sessionsSection
     .getByRole("button", { name: "Move to Research" })
     .click();
@@ -204,9 +218,99 @@ try {
   await page.screenshot({
     path: join(tmpdir(), "playback-sidebar-mobile.png"),
   });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const selectedId = sessions.find((x) => x.title === "Research meeting").id;
+  assert.equal(
+    await sessionsSection
+      .getByRole("button", { name: "Research meeting", exact: true })
+      .getAttribute("aria-current"),
+    "page",
+  );
+  await sessionsSection.getByLabel("Session options for Lecture 12").click();
+  await sessionsSection
+    .getByRole("button", { name: "Delete session", exact: true })
+    .click();
+  const deletion = page.getByRole("dialog", {
+    name: "Delete Lecture 12?",
+    exact: true,
+  });
+  await deletion.getByRole("button", { name: "Cancel" }).click();
+  assert.equal(deleteCalls, 0, "Cancel sent a delete request");
+  await sessionsSection.getByLabel("Session options for Lecture 12").click();
+  await sessionsSection
+    .getByRole("button", { name: "Delete session", exact: true })
+    .click();
+  deleteFailure = true;
+  await deletion
+    .getByRole("button", { name: "Delete session", exact: true })
+    .click();
+  await deletion.getByRole("alert").waitFor();
+  assert.equal(sessions.length, 2, "Failed deletion removed a session");
+  deleteFailure = false;
+  await deletion
+    .getByRole("button", { name: "Delete session", exact: true })
+    .click();
+  await deletion.waitFor({ state: "hidden" });
+  assert.equal(sessions.length, 1);
+  assert.equal(
+    sessions[0].id,
+    selectedId,
+    "Deleting another session changed the active session",
+  );
+  capture = { ...capture, state: "paused", sessionId: selectedId };
+  await page.waitForTimeout(400);
+  await sessionsSection
+    .getByLabel("Session options for Research meeting")
+    .click();
+  await sessionsSection
+    .getByRole("button", { name: "Delete session", exact: true })
+    .click();
+  const lastDeletion = page.getByRole("dialog", {
+    name: "Delete Research meeting?",
+    exact: true,
+  });
+  assert.equal(
+    await lastDeletion
+      .getByRole("button", { name: "Delete session", exact: true })
+      .isDisabled(),
+    true,
+    "Paused recordings must be stopped before deleting",
+  );
+  await lastDeletion.getByRole("button", { name: "Cancel" }).click();
+  capture = { ...capture, state: "idle" };
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
+  await page
+    .getByLabel("Editable Markdown")
+    .fill("Unsaved notes belonging to the deleted session");
+  await sessionsSection
+    .getByLabel("Session options for Research meeting")
+    .click();
+  await sessionsSection
+    .getByRole("button", { name: "Delete session", exact: true })
+    .click();
+  await lastDeletion
+    .getByRole("button", { name: "Delete session", exact: true })
+    .click();
+  await lastDeletion.waitFor({ state: "hidden" });
+  assert.equal(sessions.length, 0);
+  assert.equal(
+    await page.getByLabel("Editable Markdown").inputValue(),
+    "",
+    "Deleted notes remained in the editor",
+  );
+  assert.equal(
+    await page.getByRole("button", { name: "Save", exact: true }).isDisabled(),
+    true,
+  );
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem("playback-session")),
+    null,
+  );
   assert.deepEqual(errors, []);
   console.log(
-    "Sidebar check passed: drag in/out, keyboard move, hover create, group delete, mobile layout",
+    "Sidebar check passed: drag in/out, keyboard move, hover create, group delete, mobile layout, session delete/cancel/failure, recording guard and final-session cleanup",
   );
 } finally {
   await browser.close();

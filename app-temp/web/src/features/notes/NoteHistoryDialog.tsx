@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/backend/client";
 import { CitedMarkdown } from "../sources/CitedMarkdown";
-import { useHealth } from "../../lib/useHealth";
 import { refreshWorkspace } from "../library/refreshWorkspace";
 import {
   NoteHistoryPageSchema,
@@ -11,7 +10,6 @@ import {
   type Session,
 } from "../../lib/backend/schemas";
 import { restoreNoteVersion } from "./restoreNoteVersion";
-import { Button } from "../../components/Button";
 
 // The dialog's buttons and the version field: hairline boxes on the surface colour.
 const control =
@@ -23,12 +21,13 @@ const paragraph = "mb-4";
 export function NoteHistoryDialog({
   session,
   draftDirty,
+  onClose,
 }: {
   session: Session | null;
   draftDirty: boolean;
+  onClose: () => void;
 }) {
-  const health = useHealth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [olderThan, setOlderThan] = useState<number>();
   const [typedVersion, setTypedVersion] = useState(1);
   const [shownVersion, setShownVersion] = useState<number>();
@@ -81,6 +80,7 @@ export function NoteHistoryDialog({
   function closeHistory() {
     write.current?.abort();
     setOpen(false);
+    onClose();
     setOlderThan(undefined);
     setShownVersion(undefined);
     setRecoveryVersion(undefined);
@@ -122,12 +122,6 @@ export function NoteHistoryDialog({
 
   return (
     <>
-      <Button
-        disabled={!session || !health?.sectionNotes}
-        onClick={() => setOpen(true)}
-      >
-        History & recovery
-      </Button>
       <dialog
         ref={dialog}
         className="m-auto h-[90vh] max-h-[90vh] w-[calc(100vw-20px)] max-w-300 rounded-[14px] border border-line bg-surface p-3 text-ink shadow-[0_20px_60px_#25305c30] backdrop:bg-[#20233866] open:flex open:flex-col open:overflow-hidden md:h-[75vh] md:w-[70vw] md:p-5"

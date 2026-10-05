@@ -42,7 +42,7 @@ export const usePlaybackStore = create<PlaybackState>(() => ({
   settingsOpen: false,
   navOpen: false,
   view: "transcript",
-  recordingMode: "both",
+  recordingMode: "microphone",
   noteMode: "preview",
   chatOpen: false,
   selection: null,

@@ -29,12 +29,12 @@ static class ConversationStoreChecks
             try { await store.RequireConversation(sessions[1], first.Id); throw new CheckFailed("Cross-session conversation was accepted"); }
             catch (InvalidOperationException) { }
             var activity = new AiActivity(store);
-            var model = new GeminiLanguageModel();
+            var model = new OfflineChatModel();
             var chat = new ChatAgent(store, model, activity);
             var request = new QuestionInput("What is established by this empty lecture?", RequestId: Guid.NewGuid().ToString(), ConversationId: first.Id);
             var result = Json(await chat.Ask(sessions[0], request, CancellationToken.None));
-            Expect.That(result.GetProperty("lectureStatus").GetString() == "insufficient" && result.GetProperty("evidence").GetArrayLength() == 0,
-                "Empty lectures must honestly return insufficient evidence without an external request");
+            Expect.That(result.GetProperty("lectureStatus").GetString() == "unverified" && result.GetProperty("evidence").GetArrayLength() == 0,
+                "Empty lectures must label general answers as unverified without fabricated evidence");
             // A fresh agent proves saved replay survives loss of the in-memory request cache.
             var restarted = new ChatAgent(store, model, activity);
             var replay = Json(await restarted.Ask(sessions[0], request, CancellationToken.None));
@@ -54,5 +54,11 @@ static class ConversationStoreChecks
             catch (InvalidOperationException) { }
             Console.WriteLine("MongoDB conversation checks passed: persistence, session isolation, independent threads, restart replay, payload identity and honest offline answers.");
         } finally { foreach (var id in sessions) await store.DeleteTestSession(id); }
+    }
+    sealed class OfflineChatModel : GeminiLanguageModel
+    {
+        public override Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct,
+            string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+            Task.FromResult("This empty lecture does not establish any facts. Ask a general question to explore a topic.");
     }
 }

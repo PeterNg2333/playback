@@ -7,18 +7,20 @@ import { MenuItem } from "../../components/Menu";
 import { Dialog, DialogActions, DialogButton } from "../../components/Dialog";
 import { SideNav } from "../../components/layout/SideNav";
 import { RowMenu, SidebarButton, SidebarRow } from "./SidebarControls";
-import type { Group, Session } from "../../lib/backend/schemas";
+import type { Group, Session, SessionSummary } from "../../lib/backend/schemas";
 import { useHealth } from "../../lib/useHealth";
 import {
   askForGroupName,
   askForSessionName,
   askToRenameGroup,
   deleteGroup,
+  deleteSession,
   moveSession,
   useLibrary,
 } from "./useLibrary";
 import { usePlaybackField, usePlaybackStore } from "../../lib/store";
 import { SessionItem } from "./SessionItem";
+import { useCaptureStatus } from "../recording/captureQuery";
 import { AiFlowDialog } from "../activity/AiFlowDialog";
 
 export function LibrarySidebar({ session }: { session: Session | null }) {
@@ -33,6 +35,17 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Group | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<SessionSummary | null>(
+    null,
+  );
+  const sessionDeleteDialog = useRef<HTMLDialogElement>(null);
+  const capturingId = useCaptureStatus((status) =>
+    status.state !== "idle" ? status.sessionId : null,
+  );
+  useEffect(() => {
+    if (sessionToDelete) sessionDeleteDialog.current?.showModal();
+    else sessionDeleteDialog.current?.close();
+  }, [sessionToDelete]);
   const deleteDialog = useRef<HTMLDialogElement>(null);
   const ungrouped = sessions.filter(
     (item) =>
@@ -77,6 +90,10 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
   }
 
   const sessionProps = {
+    onDelete: (item: SessionSummary) => {
+      usePlaybackStore.setState({ error: "" });
+      setSessionToDelete(item);
+    },
     currentId: session?.id,
     groups,
     onDragStart: dragStart,
@@ -191,7 +208,7 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
                 </RowMenu>
               </SidebarRow>
               {open && (
-                <div className="mt-0.5 mb-1.25 ml-3.25 border-l border-[#dfe3ec] pl-1.75">
+                <div className="mt-0.5 mb-1.25 ml-3.25 border-l-2 border-line pl-1.75">
                   {members.map((item) => (
                     <SessionItem key={item.id} item={item} {...sessionProps} />
                   ))}
@@ -206,7 +223,11 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
       </section>
 
       <section
-        className={clsx(sectionStyle, dropTargetStyle, "pb-2.5")}
+        className={clsx(
+          sectionStyle,
+          dropTargetStyle,
+          "border-t border-line pt-4 pb-2.5",
+        )}
         aria-labelledby="sessions-heading"
         data-drop-target={dropTarget === "sessions" || undefined}
         onDragOver={(event) => dragOver(event, null)}
@@ -238,6 +259,56 @@ export function LibrarySidebar({ session }: { session: Session | null }) {
         )}
       </section>
 
+      <Dialog
+        ref={sessionDeleteDialog}
+        aria-labelledby="delete-session-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!busy) setSessionToDelete(null);
+        }}
+      >
+        <div className="p-5.5">
+          <h2 id="delete-session-title" className="text-[17px] font-bold">
+            Delete {sessionToDelete?.title}?
+          </h2>
+          <p className="my-3 text-[12px] text-muted">
+            This permanently deletes this session’s recordings, transcripts,
+            notes, materials and chats, including unsaved edits. This cannot be
+            undone.
+          </p>
+          {capturingId === sessionToDelete?.id && (
+            <p className="my-3 text-[12px] text-muted">
+              Stop recording before deleting this session.
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-[12px] text-[#a13232]">
+              {error}
+            </p>
+          )}
+          <DialogActions>
+            <DialogButton
+              disabled={!!busy}
+              onClick={() => setSessionToDelete(null)}
+            >
+              Cancel
+            </DialogButton>
+            <DialogButton
+              variant="danger"
+              disabled={!!busy || capturingId === sessionToDelete?.id}
+              onClick={async () => {
+                if (
+                  sessionToDelete &&
+                  (await deleteSession(sessionToDelete.id))
+                )
+                  setSessionToDelete(null);
+              }}
+            >
+              {busy === "delete-session" ? "Deleting…" : "Delete session"}
+            </DialogButton>
+          </DialogActions>
+        </div>
+      </Dialog>
       {flowGroup && (
         <AiFlowDialog
           key={flowGroup.id}

@@ -4,6 +4,8 @@
 
 ## 內容與版本
 
+2026-10-05 問答更新：`chat-v3` 保留已驗證的課堂／網頁引用；兩者都未能支持答案時，使用獨立的一般知識生成步驟，標示 `lectureStatus=unverified` 及 Not verified against sources，evidence 為空。此步驟保留 1024-token 上限，Activity 分別記錄來源嘗試、搜尋和一般答案的 usage／結果；取消或生成失敗不保存假成功。Widget 採用精簡視窗，送出即清空輸入、保留下一題草稿，表格在回覆內橫向捲動，自動追蹤新訊息但尊重向上閱讀的位置。這些流程已用 in-memory／離線 browser fixture 驗證，未新增真實 Gemini／Google Search 測試。
+
 同一 note/history 包含穩定 section、實際 point、coverage 和持久化 citation。NoteAgent 只更新指定 sections 或新增主題，程式保留其餘 sections；來源 metadata 本身不能完成 coverage。普通更新保留原 point 文字、公式、條件、例子及 provenance；使用者編輯受保護，刻意刪除記入 suppression，不自動復活。獨立整理可重組文字，仍需核對意思。
 
 `section-notes-v6` 使用同一 `NotePatch` 衍生的 SDK JSON schema：每個 `points[].text` 就是实际 Markdown 正文，沒有另請模型重寫 `markdown`。程式從 points 組合 section，依 `sourceIds` 驗證及產生持久化短引用，並從輸入捕捉 section version；不讓模型重複輸出 concurrency version。新 section 的 id 必須是 `new`，existing id 限於實際可更新集合。
