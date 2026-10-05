@@ -27,7 +27,7 @@ public static class AskEndpoints
             {
                 try
                 {
-                    events.Writer.TryWrite(new { type = "status", text = "Checking processed session evidence…" });
+                    events.Writer.TryWrite(new { type = "status", text = "Answering your question…" });
                     var answer = await service.Ask(id, input, deadline.Token,
                         text => events.Writer.TryWrite(new { type = "draft", text }));
                     events.Writer.TryWrite(new { type = "result", answer });

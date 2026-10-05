@@ -10,52 +10,62 @@ static class AskChecks
 {
     public static async Task QuickAnswers()
     {
-        foreach (var mode in new[] { "empty", "insufficient", "invalid", "provider-failure", "grounded", "fallback-failure" })
+        foreach (var mode in new[] { "empty", "uncited", "invalid", "referenced", "web-failure", "search-timeout", "provider-failure" })
         {
             var store = new MemoryStore();
             store.Add(mode);
             if (mode != "empty") store.Speech(mode, "source", "A bottleneck limits throughput.");
             var model = new QuickAnswerModel(mode);
             var agent = new ChatAgent(store, model, new AiActivity(store));
-            var input = new QuestionInput("用中文 table 比較 bottleneck", UseWeb: mode == "invalid", RequestId: Guid.NewGuid().ToString());
-            if (mode == "fallback-failure")
+            var input = new QuestionInput("用中文 table 比較 bottleneck", UseWeb: mode is "web-failure" or "search-timeout", RequestId: Guid.NewGuid().ToString());
+            var streamed = "";
+            if (mode == "provider-failure")
             {
                 await Expect.RejectsAsync(() => agent.Ask(mode, input, CancellationToken.None),
-                    "A failed general answer must surface a real error, not a fabricated success");
+                    "A failed model must surface a real error, not a fabricated success");
                 continue;
             }
-            var result = JsonSerializer.SerializeToElement(await agent.Ask(mode, input, CancellationToken.None));
-            Expect.That(result.GetProperty("lectureStatus").GetString() == (mode == "grounded" ? "grounded" : "unverified"),
-                "General knowledge must stay distinct from verified lecture content");
-            Expect.That(result.GetProperty("evidence").GetArrayLength() == (mode == "grounded" ? 1 : 0),
+            var result = JsonSerializer.SerializeToElement(await agent.Ask(mode, input, CancellationToken.None, text => streamed = text));
+            Expect.That(result.GetProperty("lectureStatus").GetString() == (mode == "referenced" ? "referenced" : "unverified"),
+                "Optional lecture references must stay distinct from model knowledge");
+            Expect.That(result.GetProperty("evidence").GetArrayLength() == (mode == "referenced" ? 1 : 0),
                 "General knowledge acquired fabricated evidence");
-            if (mode == "invalid") Expect.That(result.GetProperty("webError").GetString()!.Contains("no verifiable"), "Search warning was lost");
-            if (mode != "grounded") Expect.That(result.GetProperty("answer").GetString()!.Contains("| 機制 |"), "Fallback formatting was lost");
+            Expect.That(result.GetProperty("answer").GetString()!.Contains("| 機制 |"), "A missing source blocked the direct answer or lost its table");
+            Expect.That(model.Calls == 1 && streamed.Contains("| 機制 |"), "Chat must stream one direct model answer before optional search");
+            if (mode == "invalid") Expect.That(result.GetProperty("lectureError").GetString()!.Contains("unknown") &&
+                result.GetProperty("answer").GetString()!.Contains("Source unavailable"), "Bad references must produce a warning without losing the answer");
+            if (input.UseWeb) Expect.That(result.GetProperty("webError").GetString() is { Length: > 0 } && model.Searches == 1, "Optional search failure warning was lost");
             var calls = model.Calls;
             await agent.Ask(mode, input, CancellationToken.None);
             Expect.That(model.Calls == calls, "Duplicate sends must reuse the same answer");
         }
-        Console.WriteLine("Quick chat checks passed: missing/rejected sources and failed search fall back without citations, verified answers stay grounded, failures and duplicate sends stay honest");
+        Console.WriteLine("Quick chat checks passed: one direct streamed answer with empty/uncited/rejected lecture sources, optional reference links, failed/timed-out search warnings, real model errors and duplicate-send reuse");
     }
 
     sealed class QuickAnswerModel(string mode) : GeminiLanguageModel
     {
         public int Calls;
+        public int Searches;
         public override Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct,
             string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null)
         {
             Calls++;
             ct.ThrowIfCancellationRequested();
-            if (name == "PlaybackQuickAnswerer") {
-                if (mode == "fallback-failure") throw new InvalidOperationException("Synthetic fallback failure");
-                Expect.That(instructions == ChatAgent.FallbackInstructions && prompt.Contains("用中文 table"), "Fallback lost the question or its instructions");
-                return Task.FromResult("| 機制 | 說明 |\n| --- | --- |\n| 限制 | 一般知識 | ");
-            }
             if (mode == "provider-failure") throw new InvalidOperationException("Synthetic provider failure");
-            return Task.FromResult(mode == "grounded" ? "A bottleneck limits throughput. [01]" : mode == "invalid" ? "Unknown [999]" : "INSUFFICIENT_SOURCE");
+            Expect.That(name == "PlaybackQuestionAnswerer" && instructions == ChatAgent.Instructions &&
+                prompt.Contains("用中文 table"), "The direct question or instructions did not reach the model");
+            var answer = "| 機制 | 說明 |\n| --- | --- |\n| 限制 | 一般知識 |" +
+                (mode == "referenced" ? "\n\nLecture example [01]" : mode == "invalid" ? "\n\nLecture example [999]" : "");
+            onUpdate?.Invoke(answer);
+            return Task.FromResult(answer);
         }
-        public override Task<GroundedResult> GroundedSearch(string question, CancellationToken ct, Action<string>? onUsage = null) =>
+        public override Task<GroundedResult> GroundedSearch(string question, CancellationToken ct, Action<string>? onUsage = null)
+        {
+            Searches++;
+            Expect.That(Calls == 1 && ct.CanBeCanceled, "Optional search must follow the direct answer and have a deadline");
+            if (mode == "search-timeout") throw new OperationCanceledException("Synthetic search timeout");
             throw new InvalidOperationException("Google Search returned no verifiable web sources");
+        }
     }
 
     public static void Run()

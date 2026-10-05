@@ -2,7 +2,7 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
-2026-10-05 Quick chat：Ask Playback 改成較小的浮動視窗。歷史選單以搜尋、精簡 lecture filter、單行標題／最近時間及選取底色呈現；支援方向鍵及 Escape，長列表在選單內捲動。New chat 只開空白 composer，第一題送出才建立保存紀錄，避免累積空白聊天。送出後即清空輸入，失敗且未開始下一題才還原文字；背景回覆不覆蓋下一題草稿。Markdown 比較表有清晰邊線／交替列色，寬表在回覆內橫向捲動及支援鍵盤焦點。新回覆自動捲到底，向上閱讀時停止追蹤，可按 Latest reply 返回。`chat-v3` 先嘗試課堂及獲允許的網頁來源；都未取得有效證據時，再用一般知識嘗試簡短回答，明示 Not verified against sources，不附虛構引用。來源失敗改為可展開的黃色警告；模型本身失敗仍顯示真實錯誤。Web build、in-memory backend checks 和離線 browser fixture 通過；沒有新增外部模型請求，此 API 行為需運行新版後端。
+2026-10-05 Quick chat：Ask Playback 改成較小的浮動視窗。歷史選單以搜尋、精簡 lecture filter、單行標題／最近時間及選取底色呈現；支援方向鍵及 Escape，長列表在選單內捲動。New chat 只開空白 composer，第一題送出才建立保存紀錄，避免累積空白聊天。送出後即清空輸入，失敗且未開始下一題才還原文字；背景回覆不覆蓋下一題草稿。Markdown 比較表有清晰邊線／交替列色，寬表在回覆內橫向捲動及支援鍵盤焦點。新回覆自動捲到底，向上閱讀時停止追蹤，可按 Latest reply 返回。`chat-v4` 以單次 LLM 呼叫直接回答，課堂／網頁来源不是必要條件。沒有引用時明示 Not verified against sources；有效課堂引用只代表身份已核對，不保證所有回答內容。無效引用不阻止顯示解釋，搜尋最多 15 秒，失敗或逾時只顯示警告。來源失敗改為可展開的黃色警告；模型本身失敗仍顯示真實錯誤。Web build、in-memory backend checks 和離線 browser fixture 通過；沒有新增外部模型請求，此 API 行為需運行新版後端。
 
 2026-10-05 UI 簡化：Lecture notes 的 Show sources 開關獨立控制引用顯示；view 選單只切換 Notes／Edit draft／Live AI edit。筆記頂部以單行圓角控制列、`[Save | ▾]` split button 及引用狀態圖示排列；Revise with AI、History & recovery 及 Organize section 放進 Save 箭頭選單，整理時才開啟 section 選擇視窗。引用缺口以 `!` 圖示開啟獨立 Review note references 視窗，分開顯示引用數、缺少連結數、時間段及修復動作；底部不再放 Save 或警告列。視窗顯示最近一次已記錄的修復失敗，並區分無效引用遭拒與 AI 全部延後、沒有儲存變更的結果。缺少引用不等同全部正文缺失，視窗保留此說明及原有修復／草稿保護。Transcript settings 移除 provider 診斷及冗長說明，保留語言、模型、翻譯及必要狀態提示。左側以紫色選取線、群組縮排線及分隔線表示層次，session 的「…」加入 Delete session 和永久刪除確認。錄音預設 Microphone，回聽優先 Microphone（舊 session 只有其他來源時使用現有來源）。
 

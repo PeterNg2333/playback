@@ -4,7 +4,7 @@
 
 ## 內容與版本
 
-2026-10-05 問答更新：`chat-v3` 保留已驗證的課堂／網頁引用；兩者都未能支持答案時，使用獨立的一般知識生成步驟，標示 `lectureStatus=unverified` 及 Not verified against sources，evidence 為空。此步驟保留 1024-token 上限，Activity 分別記錄來源嘗試、搜尋和一般答案的 usage／結果；取消或生成失敗不保存假成功。Widget 採用精簡視窗，送出即清空輸入、保留下一題草稿，表格在回覆內橫向捲動，自動追蹤新訊息但尊重向上閱讀的位置。這些流程已用 in-memory／離線 browser fixture 驗證，未新增真實 Gemini／Google Search 測試。
+2026-10-05 問答更新：`chat-v4` 先以單次 LLM 呼叫直接回答；課堂摘錄只是可選 context，一般知識不需引用，沒有來源不會觸發程式拒答。有有效課堂引用時標示 `lectureStatus=referenced`，只證明引用身份有效，不代表所有內容已核實；沒有引用時標示 `unverified` 及 Not verified against sources。無效引用改為 Source unavailable 並顯示警告，保留解釋。若勾選 web search，在直接答案串流後嘗試補充來源，最多 15 秒；搜尋失敗／逾時只增加警告。保留 1024-token 上限及 usage／Activity，取消或模型失敗仍顯示真實錯誤。Widget 採用精簡視窗，送出即清空輸入、保留下一題草稿，表格在回覆內橫向捲動，自動追蹤新訊息但尊重向上閱讀的位置。直接回答與 optional source 流程已用 in-memory checks 驗證，未新增真實 Gemini／Google Search 測試。API health 現回報 chatPromptVersion，需運行新版 API 才生效。
 
 同一 note/history 包含穩定 section、實際 point、coverage 和持久化 citation。NoteAgent 只更新指定 sections 或新增主題，程式保留其餘 sections；來源 metadata 本身不能完成 coverage。普通更新保留原 point 文字、公式、條件、例子及 provenance；使用者編輯受保護，刻意刪除記入 suppression，不自動復活。獨立整理可重組文字，仍需核對意思。
 

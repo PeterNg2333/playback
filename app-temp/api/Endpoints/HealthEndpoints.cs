@@ -4,6 +4,7 @@ using Playback.Api.Notes;
 using Playback.Api.Terms;
 using Playback.Api.Db;
 using Playback.Api.Audio.Asr;
+using Playback.Api.Ask;
 namespace Playback.Api.Endpoints;
 
 public static class HealthEndpoints
@@ -19,6 +20,7 @@ public static class HealthEndpoints
             elapsedRecordingClock = true,
             aiActivity = true,
             groundedChatFallback = true,
+            chatPromptVersion = ChatAgent.PromptVersion,
             chatConversations = true,
             sectionNotes = true,
             noteCoverage = true,

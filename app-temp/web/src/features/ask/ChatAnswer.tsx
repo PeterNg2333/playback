@@ -72,7 +72,9 @@ export function ChatAnswer({
       )}
       {answer.inference && answer.lectureStatus !== "unverified" && (
         <small className="my-2.25 block text-[smaller] text-muted">
-          Model inference · verify against sources
+          {answer.lectureStatus === "referenced"
+            ? "Model answer · lecture references included; verify other claims"
+            : "Model inference · verify against sources"}
         </small>
       )}
       {!!answer.evidence.length && (
