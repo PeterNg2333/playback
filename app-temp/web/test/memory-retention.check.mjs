@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { once } from "node:events";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { week3Fixture } from "./week3-fixture.mjs";
 
@@ -22,13 +23,23 @@ const dataSeconds = (rawCount / 2) * 8;
 const natural =
   process.env.MEMORY_WEEK3 === "yes"
     ? await week3Fixture(
-        "../data/test-audio/sampleAudio/transcript.txt",
+        fileURLToPath(
+          new URL(
+            "../../data/test-audio/sampleAudio/transcript.txt",
+            import.meta.url,
+          ),
+        ),
         dataSeconds,
       )
     : null;
 const folder = `output/playwright/frontend-memory/${label}`;
 await mkdir(folder, { recursive: true });
-const input = "../data/validation/runs/2026-09-28-notes-retention-125936";
+const input = fileURLToPath(
+  new URL(
+    "../../data/validation/runs/2026-09-28-notes-retention-125936",
+    import.meta.url,
+  ),
+);
 const readJson = async (name) =>
   JSON.parse(
     (await readFile(`${input}/${name}.json`, "utf8")).replace(/^\uFEFF/, ""),

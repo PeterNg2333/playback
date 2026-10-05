@@ -39,6 +39,9 @@ static class NoteCoverageRuns
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(live ? 6 : 3));
         for (var i = 0; i < max && NoteCoverage.Audit(previous).Unreferenced > 0; i++)
         {
+            // Live repair must not repeatedly pay to force citations for explicitly deferred
+            // fillers or unclear fragments. The audit continues to show these as unreferenced.
+            if (live && NoteCoverage.Audit(previous).Gaps.All(g => g.Deferred == g.SourceIds.Count)) break;
             var input = NoteCoverage.OldestBatch(previous);
             try { await agent.RepairCoverage(source.Id, previous.NoteVersion, deadline.Token); }
             catch (Exception ex)
@@ -59,7 +62,8 @@ static class NoteCoverageRuns
             });
             await File.WriteAllTextAsync(Path.Combine(folder, $"{(live ? "live" : "offline")}-note-v{next.NoteVersion}.json"), JsonSerializer.Serialize(next.CurrentNote, options));
             previous = next;
-            if (after.Unreferenced >= before.Unreferenced)
+            if (after.Unreferenced >= before.Unreferenced && input.Any(source =>
+                next.Transcripts.Single(t => t.Id == source.Id).NoteStatus != "deferred"))
             {
                 errors.Add("No citation coverage progress; stopped without automatic paid retry");
                 break;
@@ -85,6 +89,7 @@ static class NoteCoverageRuns
                 "Offline deterministic replay of all saved transcript sources; fixture copies input text, not natural AI quality",
             initial,
             final = NoteCoverage.Audit(final),
+            deferredUnreferenced = NoteCoverage.Audit(final).Gaps.Sum(g => g.Deferred),
             steps,
             errors,
             records = store.Activity.Values.ToList(),

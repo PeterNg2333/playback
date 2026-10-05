@@ -59,11 +59,28 @@ static class GeminiChecks
             ChatOptions = new ChatOptions
             {
                 MaxOutputTokens = 8192,
-                ResponseFormat = GeminiLanguageModel.ResponseFormat("LectureSectionWriter", "{\"editableSections\":[{\"id\":\"known-section\"}]}")
+                ResponseFormat = GeminiLanguageModel.ResponseFormat("LectureSectionWriter", """
+                    {"pending":[{"id":"T001"}],"materials":[{"id":"T002"}],
+                    "sectionSources":[{"id":"T003"}],"sectionMaterials":[{"id":"T004"}],
+                    "editableSections":[{"id":"known-section","points":[{"sourceIds":["T003","T004"]}]}],
+                    "citationSources":[{"id":"cite_existing"}]}
+                    """)
             }
         });
         await foreach (var update in sections.RunStreamingAsync("Confirmed lecture input")) { }
         Expect.That(handler.Requests == 4 && usage.Count == 4, "Structured response validation lost usage or repeated a call");
+        handler.EmptyInput = true;
+        var organizer = new ChatClientAgent(chat, new ChatClientAgentOptions
+        {
+            Name = "OfflineOrganizerSchemaCheck",
+            ChatOptions = new ChatOptions { MaxOutputTokens = 8192,
+                ResponseFormat = GeminiLanguageModel.ResponseFormat("LectureSectionOrganizer", """
+                    {"pending":[],"materials":[],"sectionSources":[],"sectionMaterials":[],
+                    "editableSections":[{"id":"known-section","points":[]}],"citationSources":[]}
+                    """) }
+        });
+        await foreach (var update in organizer.RunStreamingAsync("User-authored uncited text")) { }
+        Expect.That(handler.Requests == 5 && usage.Count == 5, "An input-free organizer repeated a request or lost usage");
     }
 
     static void GroundedSearch()
@@ -93,6 +110,7 @@ static class GeminiChecks
     {
         public bool Truncated { get; set; }
         public bool Structured { get; set; }
+        public bool EmptyInput { get; set; }
         public int Requests { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -110,6 +128,20 @@ static class GeminiChecks
                 Expect.That(ids.SequenceEqual(new[] { "new", "known-section" }), "The SDK section schema accepted an invented identity");
                 Expect.That(!section.TryGetProperty("markdown", out _), "The provider contract still asks for a second authored copy of the same prose");
                 Expect.That(!section.TryGetProperty("baseVersion", out _), "The provider contract asks a model to reproduce an already captured concurrency version");
+                var pointSources = section.GetProperty("points").GetProperty("items").GetProperty("properties").GetProperty("sourceIds");
+                var deferred = schema.GetProperty("properties").GetProperty("deferred");
+                if (EmptyInput)
+                    Expect.That(pointSources.GetProperty("maxItems").GetInt32() == 0 && deferred.GetProperty("maxItems").GetInt32() == 0,
+                        "An organizer without source input can invent source IDs or deferrals");
+                else
+                {
+                    Expect.That(pointSources.GetProperty("items").GetProperty("enum").EnumerateArray().Select(x => x.GetString())
+                            .SequenceEqual(new[] { "T001", "T002", "T003", "T004", "cite_existing" }),
+                        "The SDK schema failed to constrain point sources to supplied aliases and saved citations");
+                    Expect.That(deferred.GetProperty("items").GetProperty("properties").GetProperty("sourceId").GetProperty("enum")
+                            .EnumerateArray().Select(x => x.GetString()).SequenceEqual(new[] { "T001", "T002" }),
+                        "The SDK schema permits deferring unknown sources or editable context");
+                }
             }
             var response = JsonSerializer.Serialize(new
             {

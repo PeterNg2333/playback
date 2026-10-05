@@ -109,6 +109,33 @@ static class NoteGenerationChecks
             store.Notes["render-citations"].Sections.Single().Markdown.Contains(store.Notes["render-citations"].Sections.Single().Points.Single().Text),
             "Canonical sourceIds were not rendered as durable citations in the actual point body");
 
+        var saved = store.Notes["render-citations"];
+        store.Speech("render-citations", "next-source", "A further complete supported point.");
+        model.InlineCitation = "cite_T003, T004";
+        await Expect.RejectsAsync(() => agent.Generate("render-citations", CancellationToken.None),
+            "Malformed grouped citations were saved despite valid structured sourceIds");
+        model.InlineCitation = null;
+        Expect.That(store.Notes["render-citations"].Version == saved.Version && store.Notes["render-citations"].Markdown == saved.Markdown &&
+            store.Transcripts["render-citations"].Last().NoteStatus == "pending" &&
+            store.Activity.Values.Any(x => x.SessionId == "render-citations" && x.Status == "failed"),
+            "Rejected citation output changed saved notes, falsely completed a source or hid the failure");
+        await agent.Generate("render-citations", CancellationToken.None);
+        Expect.That(store.Transcripts["render-citations"].Last().NoteStatus == "completed" &&
+            store.Notes["render-citations"].Citations.Any(c => c.SourceIds.Contains("cited-source")),
+            "A valid follow-up failed to preserve existing provenance after citation rejection");
+
+        store.Add("bounded-followup");
+        for (var i = 0; i < 65; i++) store.Speech("bounded-followup", "bounded-" + i, "Complete definition " + i + ".");
+        count = model.Calls;
+        await agent.Generate("bounded-followup", CancellationToken.None);
+        Expect.That(model.Calls == count + 1 && store.Transcripts["bounded-followup"].Count(x => x.NoteStatus == "pending") == 1,
+            "One manual Generate did not leave unseen sources pending after its bounded batch");
+        var firstBatch = store.Notes["bounded-followup"].Sections.Single().Markdown;
+        await agent.Generate("bounded-followup", CancellationToken.None);
+        Expect.That(model.Calls == count + 2 && store.Transcripts["bounded-followup"].All(x => x.NoteStatus == "completed") &&
+            store.Notes["bounded-followup"].Sections.Any(x => x.Markdown == firstBatch),
+            "Follow-up generation failed to drain the next batch while retaining earlier written points");
+
         store.Add("backlog");
         for (var i = 0; i < 40; i++)
         {
@@ -135,7 +162,8 @@ static class NoteGenerationChecks
             "One unbounded ASR passage was truncated, sent to a provider or failed invisibly");
 
         Console.WriteLine("Note generation checks passed: protected section organized alone, stale/concurrent bases rejected, Stop awaits late speech, " +
-            "deferrals keep sources open, citations rendered, material-only and oversized input bounded, live draft readable");
+            "deferrals keep sources open, malformed citations rejected without writes, follow-up batches retain earlier points, " +
+            "citations rendered, material-only and oversized input bounded, live draft readable");
     }
 
     // The activity popover polls a compact record and shows the Markdown inside the streamed JSON.

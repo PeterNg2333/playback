@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Playback.Api.Db;
 
 // Paid, end to end: uploads the Week 3 sample as 40 chunks to a running test API (playback_e2e, background
 // notes and terms off), waits for real ASR, asks one cited question, writes notes, then deletes the session.
@@ -52,7 +53,7 @@ static class SampleAudioLiveCheck
                 if (uploaded.StatusCode != System.Net.HttpStatusCode.Accepted)
                     throw new InvalidOperationException($"Chunk {sequence} upload returned HTTP {(int)uploaded.StatusCode}");
             }
-            Console.WriteLine("Sample audio live: 40 WAV chunks saved locally; waiting for SenseVoice results.");
+            Console.WriteLine("Sample audio live: 40 WAV chunks saved locally; waiting for configured ASR results.");
 
             var deadline = DateTime.UtcNow.AddMinutes(15);
             var lastReport = DateTime.MinValue;
@@ -64,8 +65,7 @@ static class SampleAudioLiveCheck
                     snapshot?.Dispose();
                     snapshot = await ReadJson(http, $"sessions/{sessionId}");
                     var chunks = snapshot.RootElement.GetProperty("chunks").EnumerateArray().ToArray();
-                    var done = chunks.Count(chunk => chunk.GetProperty("status").GetString() is
-                        "transcribed" or "asr-empty" or "silent" or "asr-manual");
+                    var done = chunks.Count(Finished);
                     if (done == 40) break;
                     if (DateTime.UtcNow - lastReport > TimeSpan.FromSeconds(30))
                     {
@@ -76,8 +76,7 @@ static class SampleAudioLiveCheck
                 }
                 if (snapshot is null) throw new InvalidOperationException("No session result was returned");
                 var saved = snapshot.RootElement.GetProperty("chunks").EnumerateArray().ToArray();
-                if (saved.Length != 40 || saved.Any(chunk => chunk.GetProperty("status").GetString() is
-                    not ("transcribed" or "asr-empty" or "silent" or "asr-manual")))
+                if (saved.Length != 40 || saved.Any(chunk => !Finished(chunk)))
                     throw new TimeoutException("ASR did not finish all 40 saved chunks in 15 minutes");
                 var recognized = saved.Count(chunk => chunk.GetProperty("status").GetString() == "transcribed");
                 var manual = saved.Count(chunk => chunk.GetProperty("status").GetString() == "asr-manual");
@@ -85,7 +84,7 @@ static class SampleAudioLiveCheck
                 var source = snapshot.RootElement.GetProperty("transcripts").EnumerateArray()
                     .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.GetProperty("original").GetString()));
                 if (source.ValueKind == JsonValueKind.Undefined)
-                    throw new InvalidOperationException("SenseVoice returned no usable transcript for AI verification");
+                    throw new InvalidOperationException("Configured ASR returned no usable transcript for AI verification");
                 var sourceId = source.GetProperty("id").GetString();
                 using var asked = await http.PostAsJsonAsync($"sessions/{sessionId}/ask", new
                 {
@@ -121,6 +120,9 @@ static class SampleAudioLiveCheck
             }
         }
     }
+
+    static bool Finished(JsonElement chunk) => chunk.GetProperty("status").GetString() is { } status &&
+        (ChunkStatus.Finished(status) || status == ChunkStatus.AsrManual);
 
     static async Task<JsonDocument> ReadJson(HttpClient http, string path)
     {

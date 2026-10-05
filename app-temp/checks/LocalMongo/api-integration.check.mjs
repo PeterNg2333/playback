@@ -413,14 +413,27 @@ try {
     let failed = (await call(`/sessions/${first.id}`)).data.transcripts.find(
       (x) => x.id === sent.data.id,
     );
-    assert.equal(failed.noteStatus, "failed");
-    assert.equal(failed.noteAttempts, 1);
+    assert.equal(failed.noteStatus, "pending");
+    assert.equal(failed.noteAttempts, 0);
+    const firstActivity = (await call(`/sessions/${first.id}/activity`)).data;
+    const failedRevisions = firstActivity.filter(
+      (item) => item.task === "Note revision" && item.status === "failed",
+    );
+    assert.equal(failedRevisions.length, 1);
+    assert.match(failedRevisions[0].summary, /offline/i);
     const retried = await call(`/sessions/${first.id}/notes/generate`, "POST");
     assert.equal(retried.status, 409);
     failed = (await call(`/sessions/${first.id}`)).data.transcripts.find(
       (x) => x.id === sent.data.id,
     );
-    assert.equal(failed.noteAttempts, 2);
+    assert.equal(failed.noteStatus, "pending");
+    assert.equal(failed.noteAttempts, 0);
+    const retryActivity = (await call(`/sessions/${first.id}/activity`)).data;
+    const retriedRevisions = retryActivity.filter(
+      (item) => item.task === "Note revision" && item.status === "failed",
+    );
+    assert.equal(retriedRevisions.length, 2);
+    assert.equal(new Set(retriedRevisions.map((item) => item.id)).size, 2);
     assert.equal(
       (await call(`/sessions/${first.id}`)).data.noteMarkdown,
       "# Second",

@@ -82,7 +82,7 @@ public sealed partial class NoteAgent : IAsyncDisposable
         finally { sessionLock.Release(); }
     }
 
-    // Writes the earliest unreferenced stretch of speech as new content; existing sections and user edits stay.
+    // Writes the earliest actionable gap as new content; existing sections and user edits stay.
     public async Task<object> RepairCoverage(string id, int baseVersion, CancellationToken ct)
     {
         var sessionLock = SessionLock(id);
@@ -201,12 +201,10 @@ public sealed partial class NoteAgent : IAsyncDisposable
             ValidateReferences(section.Markdown, session.TermInsights);
             var priorReferences = context.SelectMany(s => SourceReferences.CitationBodies(s.Markdown))
                 .SelectMany(body => body.Split([',', ';'], StringSplitOptions.TrimEntries))
-                .Where(x => !x.StartsWith("ref:"))
+                .Where(x => !x.StartsWith("ref:") && !Regex.IsMatch(x, @"^(?:T\d+|cite_.*)$", RegexOptions.IgnoreCase))
                 .ToList();
-            ValidateSourceReferences(NoteSections.Expand(section.Markdown, update.Citations), allowed.Concat(priorReferences));
-            foreach (var body in SourceReferences.CitationBodies(section.Markdown))
-                if (Regex.IsMatch(body, @"^(?:T\d+|cite_[a-f0-9]+)$") && !update.Citations.Any(c => c.Id == body))
-                    throw new InvalidOperationException("Unknown section citation");
+            ValidateSourceReferences(NoteSections.Expand(section.Markdown, update.Citations),
+                allowed.Concat(priorReferences).Concat(update.Citations.Select(c => c.Id)));
         }
     }
 
@@ -236,7 +234,7 @@ public sealed partial class NoteAgent : IAsyncDisposable
             if (body.StartsWith("ref:", StringComparison.OrdinalIgnoreCase)) continue;
             foreach (Match token in Regex.Matches(body, @"[A-Za-z0-9_-]+"))
                 if (!ids.Contains(token.Value) && Regex.IsMatch(token.Value,
-                    @"^(?:[a-f0-9]{32,}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})(?:[-_][a-z0-9_-]+)?$", RegexOptions.IgnoreCase))
+                    @"^(?:T\d+|cite_[a-z0-9_-]*|(?:[a-f0-9]{32,}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})(?:[-_][a-z0-9_-]+)?)$", RegexOptions.IgnoreCase))
                     throw new InvalidOperationException("AI note contains an unknown source reference");
         }
     }

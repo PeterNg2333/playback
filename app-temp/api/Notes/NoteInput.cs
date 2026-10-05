@@ -168,9 +168,9 @@ public static class NoteInput
 // The serialized model input and the aliases its reply cites (T001 → the stored source ID).
 public sealed record NotePrompt(string Text, Dictionary<string, string> Aliases)
 {
-    public string Decode(string markdown) => Regex.Replace(markdown, @"\[([^\[\]\r\n]+)\]", m =>
+    public string Decode(string markdown) => SourceReferences.RewriteCitations(markdown, body =>
     {
-        var tokens = m.Groups[1].Value.Split([',', ';'], StringSplitOptions.TrimEntries);
-        return tokens.All(Aliases.ContainsKey) ? "[" + string.Join(", ", tokens.Select(x => Aliases[x])) + "]" : m.Value;
+        var tokens = body.Split([',', ';'], StringSplitOptions.TrimEntries);
+        return tokens.All(Aliases.ContainsKey) ? string.Join(", ", tokens.Select(x => Aliases[x])) : body;
     });
 }

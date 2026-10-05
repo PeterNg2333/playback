@@ -45,10 +45,12 @@ public static class NoteCoverage
             sources.Count(x => Suppressed(session, x) && !referenced.Contains(x.Id)), missing.Count,
             missing.Count(x => x.NoteStatus == "completed"), gaps.Count(x => x.Large), LargeGapMs, gaps);
     }
-    // Explicit gap repair visits the earliest hole, including old completed and deferred
-    // sources. One click/call admits one bounded batch; it never resets a whole session.
+    // Repair the earliest gap with unaddressed speech first. An entirely deferred gap must
+    // not block later substantive input; it remains visible and can be revisited once those
+    // gaps are handled. One click/call admits one bounded batch, without resetting a session.
     public static List<Transcript> OldestBatch(SessionView session) {
-        var gap = Audit(session).Gaps.FirstOrDefault();
+        var gaps = Audit(session).Gaps;
+        var gap = gaps.FirstOrDefault(x => x.Deferred < x.SourceIds.Count) ?? gaps.FirstOrDefault();
         if (gap is null) return [];
         var ids = gap.SourceIds.ToHashSet(); var result = new List<Transcript>(); var chars = 0;
         foreach (var source in session.Transcripts.Where(x => ids.Contains(x.Id)).OrderBy(x => x.StartMs).ThenBy(x => x.Id)) {

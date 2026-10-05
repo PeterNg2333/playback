@@ -134,14 +134,14 @@ try {
   await editor.fill(before.noteMarkdown + "\n\nUser unsaved correction.");
   assert.equal(
     await coverage
-      .getByRole("button", { name: "Repair earliest gap with AI" })
+      .getByRole("button", { name: "Repair next gap with AI" })
       .isDisabled(),
     true,
   );
   await editor.fill(before.noteMarkdown);
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await coverage
-    .getByRole("button", { name: "Repair earliest gap with AI" })
+    .getByRole("button", { name: "Repair next gap with AI" })
     .click();
   await coverage
     .getByText("1078 transcript parts without note references", {
@@ -155,7 +155,7 @@ try {
   );
   fail = true;
   await coverage
-    .getByRole("button", { name: "Repair earliest gap with AI" })
+    .getByRole("button", { name: "Repair next gap with AI" })
     .click();
   await coverage
     .getByRole("alert")

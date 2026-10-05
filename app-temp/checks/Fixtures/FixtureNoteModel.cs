@@ -12,6 +12,7 @@ sealed class FixtureNoteModel : GeminiLanguageModel
     public override bool IsConfigured => true;
     public int Calls;
     public bool FailNext, DeferAll, DeferLast, OmitInlineCitations;
+    public string? InlineCitation;
     public Func<string, Task>? BeforeFinish;
     public readonly ConcurrentBag<int> InputLengths = new();
 
@@ -33,7 +34,7 @@ sealed class FixtureNoteModel : GeminiLanguageModel
         var inputs = pending.EnumerateArray().Concat(root.GetProperty("materials").EnumerateArray()).ToList();
         var points = (DeferLast ? inputs.SkipLast(1) : inputs).Select(x => new
         {
-            text = x.GetProperty("text").GetString() + (OmitInlineCitations ? "" : " [" + x.GetProperty("id").GetString() + "]"),
+            text = x.GetProperty("text").GetString() + (OmitInlineCitations ? "" : " [" + (InlineCitation ?? x.GetProperty("id").GetString()) + "]"),
             sourceIds = new[] { x.GetProperty("id").GetString()! },
             retains = Array.Empty<string>()
         }).ToArray();

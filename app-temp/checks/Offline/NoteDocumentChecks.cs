@@ -128,6 +128,15 @@ static class NoteDocumentChecks
         Expect.Rejects(() => NoteAgent.ValidateSourceReferences($"Point [{longNoteSource}, {new string('f', 32)}]", [longNoteSource]),
             "An invented source in a mixed citation was accepted");
         NoteAgent.ValidateSourceReferences($"Code `[{new string('f', 32)}]`\n```text\n[{new string('f', 32)}]\n```", []);
+        foreach (var marker in new[] { "cite_T003, T004", "T999", "cite_deadbeef", "cite_" })
+            Expect.Rejects(() => NoteAgent.ValidateSourceReferences($"Point [{marker}]", []),
+                "An unresolved prompt alias or fabricated citation was accepted: " + marker);
+        var prompt = new NotePrompt("", new() { ["T001"] = longNoteSource, ["T002"] = secondNoteSource });
+        var decoded = prompt.Decode("Point [T001; T002]. Literal `[T001]`.\n```text\n[T002]\n```\n[T001](https://example.com)");
+        Expect.That(decoded == $"Point [{longNoteSource}, {secondNoteSource}]. Literal `[T001]`.\n```text\n[T002]\n```\n[T001](https://example.com)",
+            "Note aliases were not decoded consistently with code and Markdown link boundaries");
+        NoteAgent.ValidateSourceReferences(decoded, [longNoteSource, secondNoteSource]);
+        NoteAgent.ValidateSourceReferences("Literal `[cite_T003, T004]`\n```text\n[cite_unknown]\n```\n[cite_T001](https://example.com)", []);
 
         var widePassage = LectureFixtures.WidestPassage();
         var wideCitation = "Point [" + string.Join(", ", widePassage.Select(x => x.Id)) + "]";

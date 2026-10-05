@@ -59,6 +59,8 @@ public sealed class SourceReferences
     public string Decode(string text) => Translate(text, sourceIds, true);
     public static IEnumerable<string> CitationBodies(string text) => Brackets.Matches(text)
         .Where(match => !match.Groups["code"].Success).Select(match => match.Groups["body"].Value);
+    public static string RewriteCitations(string text, Func<string, string> rewrite) => Brackets.Replace(text, match =>
+        match.Groups["code"].Success ? match.Value : "[" + rewrite(match.Groups["body"].Value) + "]");
     string Translate(string text, Dictionary<string, string> map, bool validate) => Brackets.Replace(text, match => {
         if (match.Groups["code"].Success) return match.Value;
         var body = match.Groups["body"].Value;

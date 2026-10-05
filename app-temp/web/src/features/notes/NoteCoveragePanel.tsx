@@ -15,7 +15,7 @@ import { Button } from "../../components/Button";
 
 const panelStyle = "border-t border-line px-4 py-2 text-[0.85rem]";
 
-// How many transcript parts the saved notes cite, the gaps left, and repairing the earliest gap.
+// How many transcript parts the saved notes cite, the gaps left, and repairing unaddressed speech.
 export function NoteCoveragePanel({
   session,
   draftDirty,
@@ -126,14 +126,14 @@ export function NoteCoveragePanel({
                 {gap.large ? " · large gap" : ""}
               </Button>
               {!!gap.deferred && (
-                <span>{gap.deferred} awaiting continuation</span>
+                <span>{gap.deferred} deferred for review or continuation</span>
               )}
             </div>
           ))}
           {report.gaps.length > 12 && (
             <p className="my-2">
               {report.gaps.length - 12} more gaps; repair starts with the
-              earliest.
+              earliest gap with unaddressed speech.
             </p>
           )}
           {!!report.unreferenced && (
@@ -147,14 +147,13 @@ export function NoteCoveragePanel({
               }
               onClick={() => void repair()}
             >
-              {repairing
-                ? "Repairing earliest gap…"
-                : "Repair earliest gap with AI"}
+              {repairing ? "Repairing next gap…" : "Repair next gap with AI"}
             </Button>
           )}
           <p className="my-2">
             Each repair generates one bounded batch and preserves existing
-            sections. Remaining gaps stay visible.
+            sections. Gaps with unaddressed speech take priority over entirely
+            deferred gaps. Deferred speech stays visible and can be revisited.
           </p>
         </details>
       )}

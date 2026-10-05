@@ -4,8 +4,8 @@ namespace Playback.Api.Notes;
 // record which instructions produced them.
 public static class NoteInstructions
 {
-    public const string Version = "section-notes-v7";
-    public const string OrganizeVersion = "section-organize-v7";
+    public const string Version = "section-notes-v8";
+    public const string OrganizeVersion = "section-organize-v8";
 
     public const string Sections = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
@@ -36,7 +36,9 @@ public static class NoteInstructions
         citations at the block end. Diagram blocks must include an explanatory caption; do not put IDs
         inside the diagram itself. Existing cite_* markers may be copied unchanged.
         Existing cite_* markers are persistent citations; copy them unchanged. New input aliases identify
-        individual sources. Do not cite every source in a time window as evidence for one claim.
+        individual sources in sourceIds only; do not write new citation markers in point text.
+        Never invent cite_T001 or [ref:...] markers. Copy a ref marker only if it already exists in context.
+        Do not cite every source in a time window as evidence for one claim.
         Return a single JSON object matching the supplied response schema. For each new section use
         the literal id "new"; never invent an ID or number it as new1/new2.
         Multiple new sections may all use "new" with distinct titles. For an existing section copy

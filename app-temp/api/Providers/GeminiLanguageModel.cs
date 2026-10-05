@@ -35,10 +35,24 @@ public class GeminiLanguageModel
         section["properties"]!["id"]!["enum"] = new JsonArray(ids.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
         schema["required"] = new JsonArray("sections", "deferred");
         section["properties"]!["points"]!["items"]!["required"] = new JsonArray("text", "sourceIds", "retains");
+        var root = input.RootElement;
+        var inputIds = root.GetProperty("pending").EnumerateArray().Concat(root.GetProperty("materials").EnumerateArray())
+            .Select(x => x.GetProperty("id").GetString()!).ToArray();
+        var sourceIds = inputIds.Concat(root.GetProperty("sectionSources").EnumerateArray().Concat(root.GetProperty("sectionMaterials").EnumerateArray())
+                .Select(x => x.GetProperty("id").GetString()!))
+            .Concat(root.GetProperty("editableSections").EnumerateArray().SelectMany(x => x.GetProperty("points").EnumerateArray())
+                .SelectMany(x => x.GetProperty("sourceIds").EnumerateArray()).Select(x => x.GetString()!))
+            .Concat(root.GetProperty("citationSources").EnumerateArray().Select(x => x.GetProperty("id").GetString()!))
+            .Distinct().ToArray();
+        var pointSources = section["properties"]!["points"]!["items"]!["properties"]!["sourceIds"]!;
+        if (sourceIds.Length == 0) pointSources["maxItems"] = 0;
+        else pointSources["items"]!["enum"] = new JsonArray(sourceIds.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
         var deferred = schema["properties"]!["deferred"]!["items"]!;
         foreach (var key in deferred["properties"]!.AsObject().Select(x => x.Key).Where(x => x is not ("sourceId" or "reason")).ToList())
             deferred["properties"]!.AsObject().Remove(key);
         deferred["required"] = new JsonArray("sourceId", "reason");
+        if (inputIds.Length == 0) schema["properties"]!["deferred"]!["maxItems"] = 0;
+        else deferred["properties"]!["sourceId"]!["enum"] = new JsonArray(inputIds.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
         return ChatResponseFormat.ForJsonSchema(JsonSerializer.SerializeToElement(schema), "LectureSectionPatch");
     }
     readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
