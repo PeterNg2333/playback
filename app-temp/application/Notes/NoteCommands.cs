@@ -4,7 +4,7 @@ using Playback.Domain.Notes;
 namespace Playback.Application.Notes;
 
 // User edits, historical reads, explicit restore and selected recovery. History is append-only.
-public sealed class NoteCommands(INoteRepository repository, INoteEvidence evidence)
+public sealed class NoteCommands(INoteRepository repository, INoteEvidence evidence, INoteRewriteRepository? rewrites = null)
 {
     public Task<List<Note>> History(string id) => repository.History(id);
     public Task<Note?> Version(string id, int version) => repository.Version(id, version);
@@ -87,5 +87,30 @@ public sealed class NoteCommands(INoteRepository repository, INoteEvidence evide
         block.Anchors = [new() { Id = block.Id, Length = block.Body.Length, SourceIds = sources }];
         block.CitationIds = CitationSyntax.Bodies(block.Body).Distinct().ToList(); topic.Version++;
         return await repository.Save(id, new(sections, citations, []), ContentHash.Of("block-edit:" + basedOnVersion + blockId + body), basedOnVersion, session.NoteLanguage, "user block edit");
+    }
+    public Task<List<NoteRewriteProposal>> Rewrites(string id) => rewrites?.Rewrites(id) ?? Task.FromResult(new List<NoteRewriteProposal>());
+    public async Task<object> AcceptRewrite(string id, string proposalId, bool semanticAccepted)
+    {
+        if (rewrites is null) throw new InvalidOperationException("Rewrite previews are unavailable");
+        var session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
+        var proposal = await rewrites.Rewrite(id, proposalId) ?? throw new InvalidOperationException("Rewrite proposal not found");
+        var hash = ContentHash.Of("accepted-rewrite:" + proposal.Id);
+        if (session.CurrentNote?.InputHash == hash)
+        {
+            proposal.Status = "applied"; await rewrites.SaveRewrite(proposal);
+            return new {Version = session.NoteVersion, Markdown = session.NoteMarkdown};
+        }
+        if (session.CurrentNote is null) throw new InvalidOperationException("Notes no longer exist");
+        foreach (var change in proposal.Changes) NoteReferences.ValidateReferences(change.Body, session.TermReferenceIds);
+        var sections = NoteRewrite.Accept(session.CurrentNote, proposal, session.AllowedSources, semanticAccepted);
+        var sources = sections.SelectMany(x => x.Points).SelectMany(x => x.SourceIds).Distinct().ToList();
+        var passages = MaterialSources.Passages(session.Materials).ToList();
+        var coverage = sources.Select(source => new SourceDisposition {SourceId = source, Status = "covered", Reason = "Explicitly reviewed rewrite",
+            ContentHash = ContentHash.Of(session.Transcripts.FirstOrDefault(x => x.Id == source)?.SourceText ?? passages.FirstOrDefault(x => x.Id == source)?.Text ?? ""),
+            PointIds = sections.SelectMany(x => x.Points).Where(x => x.SourceIds.Contains(source)).Select(x => x.Id).ToList()}).ToList();
+        var result = await repository.Save(id, new(sections, session.CurrentNote.Citations, coverage), hash, session.NoteVersion, session.NoteLanguage, "user accepted rewrite",
+            suppressed: session.CurrentNote.SuppressedSourceIds.Except(sources).ToList());
+        await evidence.MarkNotes(sources.Intersect(session.Transcripts.Select(x => x.Id)), "completed");
+        proposal.Status = "applied"; await rewrites.SaveRewrite(proposal); return result;
     }
 }

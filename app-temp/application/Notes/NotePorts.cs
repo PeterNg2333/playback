@@ -29,6 +29,18 @@ public sealed record NoteProvenance(List<string> MaterialIds, List<NoteSourceTim
 public interface INoteSettings
 {
     Task<string> Language(string id);
+    Task<string> Presentation(string id) => Task.FromResult(ProcessingPolicy.Defaults.NotePresentation);
+}
+public interface INoteOrganizationRepository
+{
+    Task<NoteOrganizationState?> Organization(string sessionId);
+    Task SaveOrganization(NoteOrganizationState state, int expectedRevision);
+}
+public interface INoteRewriteRepository
+{
+    Task<List<NoteRewriteProposal>> Rewrites(string sessionId);
+    Task<NoteRewriteProposal?> Rewrite(string sessionId, string proposalId);
+    Task SaveRewrite(NoteRewriteProposal proposal);
 }
 public interface INoteSpeechBoundaries
 {

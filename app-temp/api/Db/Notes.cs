@@ -63,7 +63,9 @@ public partial class PlaybackStore
         return ids.Concat(materialSessions).Concat(flushed).Distinct().ToList();
     }
     public virtual async Task<List<string>> SessionsNeedingOrganization() {
-        var latest = await Collection<Note>("notes").Find(x => x.Sections.Count > 0).SortByDescending(x => x.CreatedAt).Limit(128).ToListAsync();
-        return latest.GroupBy(x => x.SessionId).Where(x => x.First().Sections.Any(NoteAdmissionPolicy.ShouldOrganize)).Take(16).Select(x => x.Key).ToList();
+        var latest = await Collection<Note>("notes").Aggregate().Group(x => x.SessionId, rows => new {Id = rows.Key, Revision = rows.Max(x => x.MeaningfulRevision)}).Match(x => x.Revision > 0).ToListAsync();
+        var states = await Collection<Playback.Domain.Notes.NoteOrganizationState>("note_organization").Find(FilterDefinition<Playback.Domain.Notes.NoteOrganizationState>.Empty).ToListAsync();
+        var byId = states.ToDictionary(x => x.Id);
+        return latest.Where(x => !byId.TryGetValue(x.Id, out var state) || state.OrganizedMeaningfulRevision < x.Revision || state.PendingTopics.Count > 0).Select(x => x.Id).ToList();
     }
 }

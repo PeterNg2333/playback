@@ -168,11 +168,7 @@ public static class NoteSections
                 var missing = existing.Points.Where(p => !compactOutput.Contains(
                     Compact(sessionId, Expand(p.Text, citations), allowed, citations).Replace("\r\n", "\n"), StringComparison.Ordinal)).ToList();
                 if (missing.Count > 0) {
-                    update.Markdown += "\n\n### Earlier source-backed points\n\nLater corrections may supersede an earlier statement.\n\n" + string.Join("\n\n", missing.Select(p => p.Text));
-                    foreach (var prior in missing) {
-                        foreach (var point in points.Where(p => p.Id == prior.Id)) point.Id = "point_" + ContentHash.Of(inputHash + point.Text)[..20];
-                        points.Add(new NotePoint { Id = prior.Id, Text = prior.Text, SourceIds = prior.SourceIds.ToList() });
-                    }
+                    throw new InvalidOperationException("Body rewrite requires a retained-block preview; previous prose remains in its original position");
                 }
             }
             foreach (var point in points) point.Text = Compact(sessionId, Expand(point.Text, citations), allowed, citations);
@@ -216,11 +212,11 @@ public static class NoteSections
         return new RecoveryPreview(latest?.Version ?? 0, historical.Version, current, citations, candidates);
     }
 }
-public sealed class NotePatch { public List<SectionPatch> Sections { get; set; } = []; public List<SourceDisposition> Deferred { get; set; } = []; public List<NoteTreeOperation> Operations { get; set; } = []; }
+public sealed class NotePatch { public List<SectionPatch> Sections { get; set; } = []; public List<SourceDisposition> Deferred { get; set; } = []; public List<NoteTreeOperation> Operations { get; set; } = []; public List<RewriteBlockChange> Rewrites { get; set; } = []; }
 public sealed class SectionPatch { public string Id { get; set; } = "new"; public int BaseVersion { get; set; } public string Title { get; set; } = "";
     public string? ParentId { get; set; }
     public string Markdown { get; set; } = ""; public List<PointPatch> Points { get; set; } = []; }
 public sealed class PointPatch { public string Text { get; set; } = ""; public List<string> SourceIds { get; set; } = []; public List<string> Retains { get; set; } = []; }
-public sealed record SectionUpdate(List<NoteSection> Sections, List<NoteCitation> Citations, List<SourceDisposition> Coverage);
+public sealed record SectionUpdate(List<NoteSection> Sections, List<NoteCitation> Citations, List<SourceDisposition> Coverage, string? Presentation = null);
 public sealed record RecoveryCandidate(string Id, string Title, string Markdown, List<string> MissingSourceIds, bool Blocked, bool UserEdited, List<NotePoint> Points);
 public sealed record RecoveryPreview(int BasedOnVersion, int HistoricalVersion, List<NoteSection> CurrentSections, List<NoteCitation> Citations, List<RecoveryCandidate> Candidates);

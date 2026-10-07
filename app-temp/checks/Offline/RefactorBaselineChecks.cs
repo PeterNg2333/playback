@@ -78,7 +78,7 @@ static class RefactorBaselineChecks
         var sections = NoteSections.Read(note, ["purpose", "reliability"]);
         Expect.That(sections.Count == 1 && sections[0].Points.Count == 2 && !sections[0].Markdown.Contains("###"),
             "Legacy TCP example was silently split into a guessed hierarchy");
-        Expect.That(!NoteAgent.ShouldOrganize(sections[0]), "Small dirty notes gained Phase 5 automatic organization");
+        Expect.That(Playback.Domain.Notes.NoteOrganization.Due(note, new(), ProcessingPolicy.Defaults, DateTime.UtcNow).Reason is null, "Opening unchanged legacy notes triggered automatic organization");
         Expect.That(NoteSections.Render(sections) == note.Markdown, "Legacy reading changed saved Markdown");
     }
 

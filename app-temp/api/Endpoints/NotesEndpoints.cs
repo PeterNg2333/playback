@@ -26,6 +26,9 @@ public static class NotesEndpoints
             await notes.ApplyStructure(id, input.BasedOnVersion, input.Operations));
         app.MapPost("/api/sessions/{id}/notes/block", async (string id, BlockEditInput input, NoteCommands notes) =>
             await notes.EditBlock(id, input.BasedOnVersion, input.BlockId, input.Body));
+        app.MapGet("/api/sessions/{id}/notes/rewrites", (string id, NoteCommands notes) => notes.Rewrites(id));
+        app.MapPost("/api/sessions/{id}/notes/rewrites/preview", (string id, OrganizeInput input, NoteWorkflow notes, CancellationToken ct) => notes.PreviewRewrite(id, input.SectionId, input.BasedOnVersion, ct));
+        app.MapPost("/api/sessions/{id}/notes/rewrites/{proposalId}/accept", (string id, string proposalId, RewriteAcceptance input, NoteCommands notes) => notes.AcceptRewrite(id, proposalId, input.SemanticAccepted));
         app.MapPost("/api/sessions/{id}/notes/{version:int}/restore", async (string id, int version, int? basedOnVersion, NoteCommands notes) =>
             await notes.RestoreNote(id, version, basedOnVersion));
         app.MapGet("/api/sessions/{id}/notes/edits", async (string id, NoteCommands notes) =>
@@ -52,3 +55,4 @@ public record OrganizeInput(string SectionId, int BasedOnVersion);
 public record CoverageRepairInput(int BasedOnVersion);
 public record StructureInput(int BasedOnVersion, List<Playback.Domain.Notes.NoteTreeOperation> Operations);
 public record BlockEditInput(int BasedOnVersion, string BlockId, string Body);
+public record RewriteAcceptance(bool SemanticAccepted);

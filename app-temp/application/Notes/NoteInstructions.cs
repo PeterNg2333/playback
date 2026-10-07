@@ -79,12 +79,21 @@ public static class NoteInstructions
         Do not shorten by losing meaning, invent facts, or touch another section. User facts must survive.
         This task uses the same JSON contract as the section note task.
         """;
+    public const string Rewrite = """
+        This explicit action prepares a rewrite/merge preview, never an automatic replacement.
+        Return rewrites only, with targetBlockId, retainedBlockIds, body and role; empty sections/operations.
+        Copy block IDs from editableSections.blocks. Map every changed or merged block explicitly.
+        Merge only adjacent blocks within the selected topic and keep the first ID as the target.
+        Preserve code, formulas, numbers, conditions, uncertainty, worked examples and all source citations.
+        Copy the precise qualifiers/examples verbatim where necessary; a shorter summary is not retention.
+        Unchanged blocks need no proposal. A semantic review is required after mechanical checks pass.
+        """;
 
     public static string For(string language)
     {
         NoteLanguage.ValidateNote(language);
         return Sections + "\nWrite section Markdown and point text in " + NoteLanguage.OutputDescription(language) +
-            ". This output-language setting overrides the default lecture language. Rewrite existing prose in the requested language " +
-            "while preserving user-authored facts and edits. Keep source IDs, [ref:ID] markers, proper names, and code unchanged.";
+            ". This output-language setting overrides the default lecture language. Existing canonical bodies remain unchanged " +
+            "until an explicit rewrite preview is reviewed and accepted. Keep source IDs, [ref:ID] markers, proper names, and code unchanged.";
     }
 }

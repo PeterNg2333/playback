@@ -75,9 +75,8 @@ static class NoteDocumentChecks
         };
         Expect.Rejects(() => NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "x"), "Dropping a coverage point was accepted");
         bad.Sections[0].Points[0].Retains = ["formula"];
-        var safeguarded = NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "y");
-        Expect.That(NoteSections.Render(safeguarded.Sections).Contains("R/n") && NoteSections.Render(safeguarded.Sections).Contains("n=10"),
-            "A model retaining an ID while dropping its formula bypassed literal retention");
+        Expect.Rejects(() => NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "y"), "A model retaining an ID while dropping its formula bypassed the rewrite preview");
+        Expect.That(early.Markdown.Contains("R/n") && early.Markdown.Contains("n=10") && !early.Markdown.Contains("Earlier source-backed points"), "Rejected rewrite moved old prose into a catch-all");
         early.UserEdited = true;
         Expect.Rejects(() => NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "x"), "Automatic generation replaced a user-edited section");
         early.UserEdited = false;

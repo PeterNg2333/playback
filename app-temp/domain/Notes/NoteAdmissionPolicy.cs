@@ -3,7 +3,6 @@ namespace Playback.Domain.Notes;
 public static class NoteAdmissionPolicy
 {
     public static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(ProcessingPolicy.Defaults.CheckIntervalSeconds);
-    public static readonly TimeSpan OrganizationScanInterval = TimeSpan.FromMinutes(30);
     static readonly TimeSpan RetryStep = TimeSpan.FromSeconds(30);
 
     public static bool AllowsDecision(string? action, double probability, double confidence, ProcessingPolicy? policy = null)
@@ -22,7 +21,4 @@ public static class NoteAdmissionPolicy
         boundaryReady ? "speech-boundary" :
         state.FirstPendingAt is { } first && now >= first.AddSeconds(policy.MaxPendingWaitSeconds) ? "deadline" :
         !policy.JevEnabled ? "gate-disabled" : null;
-    public static bool ShouldOrganize(NoteSection section) => !section.UserEdited && section.OrganizedVersion != section.Version &&
-        (section.Markdown.Length > 9000 && section.Points.Count > 12 || section.Points.Count > 8 &&
-            section.Points.Select(x => x.Text).Distinct().Count() < section.Points.Count * .7);
 }

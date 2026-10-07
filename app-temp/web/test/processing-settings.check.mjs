@@ -22,6 +22,9 @@ const defaults = {
   maxPendingWaitSeconds: 30,
   silenceBoundarySeconds: 2,
   boundarySettleSeconds: 2,
+  combineQuiet: true, maxCombinedSeconds: 60, organizationEnabled: true,
+  organizationChangedRevisions: 3, organizationMaxDirtyAgeSeconds: 120,
+  organizationCooldownSeconds: 60, organizationScope: "affected-topics", notePresentation: "numbered-hierarchy",
 };
 let workspace = { revision: 0, overrides: {} },
   session = { revision: 0, overrides: {} };
@@ -219,6 +222,18 @@ try {
     () => !document.querySelector("dialog button:last-child")?.disabled,
   );
   assert.equal(workspace.overrides.maxPendingWaitSeconds, 40);
+  await dialog.getByLabel("Maximum dirty-note age", {exact: true}).fill("30");
+  assert.equal(await dialog.getByRole("button", {name: "Save settings", exact: true}).isDisabled(), true);
+  await dialog.getByLabel("Organization cooldown", {exact: true}).fill("15");
+  await dialog.getByLabel("Changed revisions", {exact: true}).fill("1");
+  await dialog.getByLabel("Organize automatically", {exact: true}).uncheck();
+  await dialog.getByLabel("Organization scope", {exact: true}).selectOption("document-outline");
+  await dialog.getByLabel("Note presentation", {exact: true}).selectOption("headings");
+  await dialog.getByRole("button", {name: "Save settings", exact: true}).click();
+  await page.waitForFunction(() => !document.querySelector("dialog button:last-child")?.disabled);
+  assert.equal(workspace.overrides.organizationEnabled, false);
+  assert.equal(workspace.overrides.organizationScope, "document-outline");
+  assert.equal(workspace.overrides.notePresentation, "headings");
   await dialog.getByLabel("Apply to").selectOption("session");
   await page.waitForFunction(
     () =>

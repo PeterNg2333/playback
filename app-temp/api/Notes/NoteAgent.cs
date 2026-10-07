@@ -29,18 +29,16 @@ public sealed class NoteAgent : IAsyncDisposable
     public NoteAgent(PlaybackStore store, GeminiLanguageModel gemini, JevNoteGate jev, ILogger<NoteAgent> logger,
         AiActivity activity, TimeProvider? clock = null)
         : this(store, new NoteWorkflow(new NoteStoreAdapter(store), new NoteStoreAdapter(store), new GeminiNoteWriter(gemini),
-            jev, new NoteActivityAdapter(activity, logger), clock, new NoteStoreAdapter(store), new NoteStoreAdapter(store)), logger, clock) { }
+            jev, new NoteActivityAdapter(activity, logger), clock, new NoteStoreAdapter(store), new NoteStoreAdapter(store), new NoteStoreAdapter(store), new NoteStoreAdapter(store)), logger, clock) { }
 
     public Task<object> Generate(string id, CancellationToken ct) => workflow.Generate(id, ct);
     public Task<object> Organize(string id, string sectionId, int baseVersion, CancellationToken ct) => workflow.Organize(id, sectionId, baseVersion, ct);
     public Task<object> RepairCoverage(string id, int baseVersion, CancellationToken ct) => workflow.RepairCoverage(id, baseVersion, ct);
     public void Tick(IEnumerable<string> ids, CancellationToken ct)
     {
-        workflow.AutomaticOrganization = PlaybackEnvironment.AutomaticOrganization;
         workflow.Tick(ids, ct);
     }
     public Task Drain() => workflow.Drain();
-    public static bool ShouldOrganize(NoteSection section) => NoteAdmissionPolicy.ShouldOrganize(section);
     public static void ValidateReferences(string markdown, IEnumerable<TermInsight> allowed) => NoteReferences.ValidateReferences(markdown, allowed.Select(x => x.Id));
     public static void ValidateSourceReferences(string markdown, IEnumerable<string> allowed) => NoteReferences.ValidateSourceReferences(markdown, allowed);
     public static string ReadableDraft(string json) => NoteWorkflow.ReadableDraft(json);
@@ -57,9 +55,9 @@ public sealed class NoteAgent : IAsyncDisposable
                 {
                     if (!PlaybackEnvironment.AutomaticNotes || !workflow.Due) continue;
                     var ids = await store.SessionsWithPendingNotes();
-                    if (PlaybackEnvironment.AutomaticOrganization && nextOrganization <= clock.GetUtcNow())
+                    if (nextOrganization <= clock.GetUtcNow())
                     {
-                        nextOrganization = clock.GetUtcNow().Add(NoteAdmissionPolicy.OrganizationScanInterval);
+                        nextOrganization = clock.GetUtcNow().AddSeconds(5);
                         ids = ids.Concat(await store.SessionsNeedingOrganization()).Distinct().ToList();
                     }
                     Tick(ids.Where(PlaybackEnvironment.AllowsAutomaticWork), stopping.Token);

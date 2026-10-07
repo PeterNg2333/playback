@@ -58,7 +58,8 @@ public static class NoteMutation
         NoteTree.Validate(canonical);
         update = update with { Sections = canonical };
         if (author.StartsWith("agent")) NoteSections.RequireRetention(previous, update, allowed, allowProtectedReformat: author == "agent organization");
-        markdown = NoteTree.Render(canonical, previous?.Presentation != "headings");
+        var presentation = update.Presentation ?? previous?.Presentation ?? "numbered-hierarchy";
+        markdown = NoteTree.Render(canonical, presentation != "headings");
         var coverage = (previous?.Coverage ?? []).Where(x => !update.Coverage.Any(y => y.SourceId == x.SourceId)).Concat(update.Coverage)
             .Select(x => new SourceDisposition { SourceId = x.SourceId, Status = x.Status, Reason = x.Reason,
                 PointIds = x.PointIds.ToList(), ContentHash = x.ContentHash }).ToList();
@@ -77,7 +78,7 @@ public static class NoteMutation
             Id = Guid.NewGuid().ToString("N"),
             SessionId = id,
             Version = basedOnVersion + 1,
-            SchemaVersion = 2, Presentation = previous?.Presentation ?? "numbered-hierarchy",
+            SchemaVersion = 2, Presentation = presentation,
             BasedOnVersion = basedOnVersion,
             Markdown = markdown,
             Author = author,
@@ -98,6 +99,14 @@ public static class NoteMutation
             SourceThrough = previous?.SourceThrough,
             ProcessedThroughMs = previous?.ProcessedThroughMs ?? 0
         };
+        var prior = (previous?.Sections ?? []).Select(x => NoteTree.Canonical(x)).ToList();
+        var changed = NoteOrganization.Identity(prior) != NoteOrganization.Identity(canonical) || previous is not null && previous.Presentation != presentation;
+        note.MeaningfulRevision = (previous?.MeaningfulRevision ?? 0) + (changed ? 1 : 0);
+        note.RecentChanges = (previous?.RecentChanges ?? []).Select(x => new NoteContentChange {Revision = x.Revision, At = x.At, TopicIds = x.TopicIds.ToList()}).ToList();
+        if (changed)
+            note.RecentChanges.Add(new() {Revision = note.MeaningfulRevision, At = note.CreatedAt,
+                TopicIds = canonical.Where(topic => prior.All(old => old.Id != topic.Id || NoteOrganization.Identity([old]) != NoteOrganization.Identity([topic]))).Select(x => x.Id).ToList()});
+        note.RecentChanges = note.RecentChanges.TakeLast(11).ToList();
         return note;
     }
 }

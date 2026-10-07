@@ -7,6 +7,8 @@ public sealed class Note
     public int Version { get; set; }
     public int SchemaVersion { get; set; } = 1;
     public string Presentation { get; set; } = "numbered-hierarchy";
+    public int MeaningfulRevision { get; set; }
+    public List<NoteContentChange> RecentChanges { get; set; } = [];
     public int? BasedOnVersion { get; set; }
     public string Markdown { get; set; } = "";
     public string Author { get; set; } = "";

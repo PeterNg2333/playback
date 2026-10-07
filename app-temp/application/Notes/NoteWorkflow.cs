@@ -17,6 +17,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
 
     readonly ConcurrentDictionary<string, SemaphoreSlim> sessionLocks = new();
     readonly SemaphoreSlim generationSlots = new(MaxConcurrentGenerations, MaxConcurrentGenerations);
+    readonly SemaphoreSlim organizationSlots = new(1, 1);
     readonly INoteRepository repository;
     readonly INoteEvidence evidence;
     readonly INoteWriter gemini;
@@ -26,10 +27,12 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
     readonly NoteScheduler scheduler;
     readonly INoteProcessingPolicy? processingPolicy;
     readonly INoteSpeechBoundaries? boundaries;
+    readonly INoteOrganizationRepository? organization;
+    readonly INoteRewriteRepository? rewrites;
     readonly DateTime startedAt;
 
     public NoteWorkflow(INoteRepository repository, INoteEvidence evidence, INoteWriter writer, INoteGate gate,
-        INoteActivity activity, TimeProvider? clock = null, INoteProcessingPolicy? processingPolicy = null, INoteSpeechBoundaries? boundaries = null)
+        INoteActivity activity, TimeProvider? clock = null, INoteProcessingPolicy? processingPolicy = null, INoteSpeechBoundaries? boundaries = null, INoteOrganizationRepository? organization = null, INoteRewriteRepository? rewrites = null)
     {
         this.repository = repository;
         this.evidence = evidence;
@@ -39,6 +42,8 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         this.clock = clock ?? TimeProvider.System;
         this.processingPolicy = processingPolicy;
         this.boundaries = boundaries;
+        this.organization = organization;
+        this.rewrites = rewrites;
         startedAt = this.clock.GetUtcNow().UtcDateTime;
         scheduler = new NoteScheduler(this.clock, Automatic, interval: TimeSpan.FromSeconds(2));
     }
@@ -108,8 +113,9 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
     // One model run: build the bounded input, stream the reply, apply it as a section patch and save
     // the new version. Sources the reply neither wrote nor deferred stay pending.
     async Task<object> Revise(NoteSession session, List<NoteTranscript> pending, List<NoteSection> context, CancellationToken ct,
-        bool organize = false, bool repair = false, string admissionReason = "manual")
+        bool organize = false, bool repair = false, string admissionReason = "manual", bool outlineOnly = false, bool automaticOrganization = false, string? persistenceHash = null)
     {
+        var policy = processingPolicy is null ? ProcessingPolicy.Defaults : (await processingPolicy.Effective(session.Id)).Values;
         var materials = organize || repair ? new List<NoteMaterial>() : NoteInput.Materials(session.Materials, session.CurrentNote);
         var instructions = NoteInstructions.For(session.NoteLanguage) + (organize ? "\n" + NoteInstructions.Organize : "");
         var call = await activity.Begin(session.Id, organize ? "Section organization" : "Note revision", "vertex", gemini.Model,
@@ -119,10 +125,10 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         var admitted = false;
         try
         {
-            var input = organize
+            var input = outlineOnly ? NoteInput.Outline(session, context) : organize
                 ? NoteInput.Build(session, pending, context, materials, "organize")
                 : NoteInput.Bounded(session, pending, context, materials, repair ? "gap-repair" : admissionReason);
-            var hash = ContentHash.Of(gemini.Model + instructions + input.Text);
+            var hash = persistenceHash ?? ContentHash.Of(gemini.Model + instructions + input.Text);
             activity.Context(call, organize ? NoteInstructions.OrganizeVersion : NoteInstructions.Version, instructions, input.Text);
             await generationSlots.WaitAsync(ct);
             admitted = true;
@@ -138,6 +144,15 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
 
             var allowed = session.AllowedSources.ToList();
             DecodePatch(patch, input, context, session, allowed);
+            var proposals = RewriteCandidates(session, patch);
+            if (proposals.Count > 0)
+            {
+                if (rewrites is null) throw new InvalidOperationException("Body rewrite requires a saved preview; prior content remains unchanged");
+                foreach (var proposal in proposals) await rewrites.SaveRewrite(proposal);
+                await evidence.MarkNotes(pending.Select(x => x.Id), "deferred", "Rewrite preview requires review; input remains unwritten");
+                await activity.End(call, "review-required", "Prior bodies preserved in position; inspect the retained-block rewrite preview before accepting");
+                return new NoteRewritePending(session.NoteVersion, session.NoteMarkdown, proposals.Select(x => x.Id).ToList());
+            }
             // Newly compacted legacy citations must be available for decoding before applying the patch.
             var baseSections = session.Sections;
             var baseNote = session.CurrentNote ?? new Note { SessionId = session.Id };
@@ -159,7 +174,8 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                             throw new InvalidOperationException("Organizer touched content outside the selected scope");
                     }
                 }
-                var operated = NoteTree.Apply(update.Sections, patch.Operations, allowed, hash, allowProtected: organize, structuralOnly: organize);
+                if (outlineOnly && patch.Operations.Any(x => x.Kind is not ("create-topic" or "move-topic" or "reorder-topic"))) throw new InvalidOperationException("Outline organization may change only topic structure");
+                var operated = NoteTree.Apply(update.Sections, patch.Operations, allowed, hash, allowProtected: organize && !automaticOrganization, structuralOnly: organize);
                 var points = operated.SelectMany(x => x.Points).ToList();
                 var coverage = pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Select(source =>
                 {
@@ -186,6 +202,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                 item.ContentHash = ContentHash.Of(pending.FirstOrDefault(x => x.Id == item.SourceId)?.SourceText
                     ?? materials.First(x => x.Id == item.SourceId).Text);
             RequireKnownReferences(patch, update, context, session, allowed);
+            update = update with { Presentation = policy.NotePresentation };
 
             var result = await repository.Save(session.Id, update, hash, session.NoteVersion, session.NoteLanguage,
                 author: organize ? "agent organization" : "agent");
@@ -220,6 +237,8 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             if (input.Aliases.TryGetValue(deferred.SourceId, out var source)) deferred.SourceId = source;
         foreach (var operation in patch.Operations)
         {
+            operation.TopicId = input.Aliases.GetValueOrDefault(operation.TopicId, operation.TopicId);
+            if (operation.ParentId is not null) operation.ParentId = input.Aliases.GetValueOrDefault(operation.ParentId, operation.ParentId);
             operation.Body = input.Decode(operation.Body);
             operation.SourceIds = operation.SourceIds.Select(x => input.Aliases.GetValueOrDefault(x, x)).ToList();
             if (operation.Kind == "add-block")
@@ -229,6 +248,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                 if (missing.Count > 0) operation.Body += " [" + string.Join(", ", missing) + "]";
             }
         }
+        foreach (var rewrite in patch.Rewrites) rewrite.Body = input.Decode(rewrite.Body);
     }
 
     // Older versions can contain unavailable historical IDs. Copying them remains visibly unavailable;

@@ -23,6 +23,8 @@ import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
 import { ProcessingSettingsDialog } from "./ProcessingSettingsDialog";
 import { NoteAdmissionStatus } from "./NoteAdmissionStatus";
+import { OrganizationStatus } from "./OrganizationStatus";
+import { RewriteDialog } from "./RewriteDialog";
 
 // A line under the notes saying why AI notes have not appeared or failed.
 const statusStyle = "mx-4.5 mb-2.5 text-[11px] text-[#9a591c]";
@@ -47,7 +49,7 @@ export function NotesPanel({
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
   const [noteDialog, setNoteDialog] = useState<
-    "history" | "organize" | "settings" | null
+  "history" | "organize" | "settings" | "rewrites" | null
   >(null);
   const body = useRef<HTMLDivElement>(null);
   const renderedNotes = useRef<HTMLDivElement>(null);
@@ -327,6 +329,7 @@ export function NotesPanel({
                 >
                   Organize section…
                 </MenuItem>
+                <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("rewrites");}}>Review rewrites…</MenuItem>
               </div>
             )}
           </Menu>
@@ -516,6 +519,7 @@ export function NotesPanel({
         )}
       </div>
       {session?.noteAdmission && <NoteAdmissionStatus session={session} />}
+      {session?.organization && <OrganizationStatus session={session} />}
       {waitingForSpeech ? (
         <p className={statusStyle} role="status">
           Waiting for more recognized speech before generating AI notes.
@@ -589,6 +593,7 @@ export function NotesPanel({
           onClose={() => setNoteDialog(null)}
         />
       )}
+      {noteDialog === "rewrites" && session && <RewriteDialog key={session.id} session={session} draftDirty={draft.isDirty} onClose={() => setNoteDialog(null)} onOpenSource={onOpenSource} onPlay={player.togglePlayback} />}
       {reference && session && (
         <TermExplanation
           key={reference.id}

@@ -4,11 +4,17 @@ using Playback.Api.Db;
 namespace Playback.Api.Notes;
 
 // Bridge while non-note persistence remains in PlaybackStore. No admission/mutation rules here.
-public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INoteEvidence, INoteSettings, INoteProcessingPolicy, INoteSpeechBoundaries
+public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INoteEvidence, INoteSettings, INoteProcessingPolicy, INoteSpeechBoundaries, INoteOrganizationRepository, INoteRewriteRepository
 {
     public async Task<NoteSession?> Session(string id) => await store.Session(id) is { } session ? Read(session) : null;
     public Task<NoteProvenance> Provenance(string id, IReadOnlyCollection<string> sourceIds) => store.NoteProvenance(id, sourceIds);
     public async Task<string> Language(string id) => (await store.SessionSettings(id)).NoteLanguage;
+    public async Task<string> Presentation(string id) => (await store.SessionProcessingSettings(id)).Effective.NotePresentation;
+    public Task<Playback.Domain.Notes.NoteOrganizationState?> Organization(string id) => store.NoteOrganization(id);
+    public Task SaveOrganization(Playback.Domain.Notes.NoteOrganizationState state, int expectedRevision) => store.SaveNoteOrganization(state, expectedRevision);
+    public Task<List<Playback.Domain.Notes.NoteRewriteProposal>> Rewrites(string id) => store.NoteRewrites(id);
+    public Task<Playback.Domain.Notes.NoteRewriteProposal?> Rewrite(string id, string proposalId) => store.NoteRewrite(id, proposalId);
+    public Task SaveRewrite(Playback.Domain.Notes.NoteRewriteProposal proposal) => store.SaveNoteRewrite(proposal);
     public async Task<Playback.Domain.Notes.EffectiveProcessingPolicy> Effective(string id)
     {
         var value = await store.SessionProcessingSettings(id);

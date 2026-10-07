@@ -65,6 +65,6 @@ public sealed class AiFlow(PlaybackStore store, GeminiLanguageModel gemini, JevN
             agents = Agents(selected, processing?.Effective), executions = selected is null ? [] : await activity.Read(selected.Id),
             processingSettings = processing,
             gate = selected is null ? null : await store.NoteGate(selected.Id),
-            automaticOrganization = PlaybackEnvironment.AutomaticOrganization };
+            automaticOrganization = processing?.Effective.OrganizationEnabled ?? PlaybackEnvironment.AutomaticOrganization };
     }
 }

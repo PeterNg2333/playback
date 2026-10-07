@@ -61,6 +61,9 @@ public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoColl
         try
         {
             var currentLanguage = await settings.Language(id);
+            var currentPresentation = await settings.Presentation(id);
+            if (update.Presentation is not null && update.Presentation != currentPresentation) throw new InvalidOperationException("Note presentation changed during this operation; result was not applied");
+            update = update with { Presentation = currentPresentation };
             var previous = await notes.Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
             if (previous?.InputHash == inputHash) return new { previous.Version, previous.Markdown, previous.Author };
             var note = NoteMutation.Create(id, previous, update, inputHash, basedOnVersion, language, currentLanguage, author, deleted, suppressed);

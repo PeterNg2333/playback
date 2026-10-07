@@ -9,7 +9,6 @@ public sealed partial class NoteWorkflow
 {
     public void Tick(IEnumerable<string> ids, CancellationToken ct) => scheduler.Tick(ids, ct);
     public Task Drain() => Task.WhenAll(scheduler.Active);
-    public bool AutomaticOrganization { get; set; }
 
     async Task Automatic(string id, CancellationToken ct)
     {
@@ -70,11 +69,7 @@ public sealed partial class NoteWorkflow
                 await repository.SaveGate(state);
                 if (state.FlushRequested && !session.AwaitingTranscripts)
                     await repository.AcknowledgeFlush(id, state.FlushVersion);
-                if (AutomaticOrganization)
-                {
-                    var candidate = session.Sections.FirstOrDefault(NoteAdmissionPolicy.ShouldOrganize);
-                    if (candidate is not null) await Revise(session, [], [candidate], ct, organize: true);
-                }
+                if (!session.AwaitingTranscripts) await OrganizeIfDue(session, effective, ct);
                 return;
             }
 

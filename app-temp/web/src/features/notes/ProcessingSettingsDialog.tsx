@@ -52,6 +52,9 @@ const fields = [
   { key: "silenceBoundarySeconds", label: "Speech pause", min: 0.7, max: 10, step: 0.1, unit: "s", description: "A quiet pause on every active source can admit notes early." },
   { key: "boundarySettleSeconds", label: "ASR settle grace", min: 0, max: 5, step: 0.1, unit: "s", description: "Maximum grace for pending audio at the pause boundary." },
   { key: "maxCombinedSeconds", label: "Maximum quiet segment", min: 10, max: 300, step: 1, unit: "s", description: "Bounds derived quiet audio files; original chunks remain available." },
+  { key: "organizationChangedRevisions", label: "Changed revisions", min: 1, max: 10, step: 1, unit: "", description: "Actual content or outline changes before organization." },
+  { key: "organizationMaxDirtyAgeSeconds", label: "Maximum dirty-note age", min: 30, max: 600, step: 1, unit: "s", description: "Organization can be admitted by this age, even for small notes." },
+  { key: "organizationCooldownSeconds", label: "Organization cooldown", min: 15, max: 300, step: 1, unit: "s", description: "Minimum time between organization jobs." },
 ] satisfies {
   key: keyof ProcessingPolicy;
   label: string;
@@ -106,7 +109,7 @@ export function ProcessingSettingsDialog({
     : null;
   const set = (
     key: keyof ProcessingPolicy,
-    value: number | boolean | undefined,
+    value: number | boolean | string | undefined,
   ) => setOverrides((current) => ({ ...current, [key]: value }));
   async function save() {
     if (!loaded || !validation?.success) return;
@@ -234,12 +237,19 @@ export function ProcessingSettingsDialog({
               {fields.slice(2, 4).map((field) => numberField(field))}
             </details>
             <h3 className="mt-4 font-bold">Speech pauses and quiet audio</h3>
-            {fields.slice(4).map((field) => numberField(field))}
+            {fields.slice(4, 7).map((field) => numberField(field))}
             <div className="my-3 flex justify-between gap-2"><label className="flex items-center gap-2">
               <input type="checkbox" checked={effective!.combineQuiet}
                 disabled={saving || (scope === "session" && overrides.combineQuiet == null)}
                 onChange={event => set("combineQuiet", event.target.checked)} />Combine adjacent quiet audio
             </label>{inherit("combineQuiet")}</div>
+            <h3 className="mt-4 font-bold">Organization</h3>
+            <div className="my-3 flex justify-between gap-2"><label className="flex items-center gap-2"><input type="checkbox" checked={effective!.organizationEnabled}
+              disabled={saving || (scope === "session" && overrides.organizationEnabled == null)} onChange={event => set("organizationEnabled", event.target.checked)} />Organize automatically</label>{inherit("organizationEnabled")}</div>
+            {fields.slice(7).map(field => numberField(field))}
+            {choiceField("organizationScope", "Organization scope", [["affected-topics", "Affected topics"], ["document-outline", "Document outline"]])}
+            {choiceField("notePresentation", "Note presentation", [["numbered-hierarchy", "Numbered hierarchy"], ["headings", "Headings"]])}
+            <p className="my-2 text-muted">Automatic organization preserves text and citations. Rewrites require a reviewed preview.</p>
             {!validation?.success && (
               <p className="mt-3 text-red-700" role="alert">
                 {validation?.error.issues[0]?.message}
@@ -312,5 +322,11 @@ export function ProcessingSettingsDialog({
         <p className="mt-1 text-muted">{field.description}</p>
       </div>
     );
+  }
+  function choiceField(key: "organizationScope" | "notePresentation", label: string, choices: string[][]) {
+    return <div className="my-3"><div className="flex justify-between gap-2"><label htmlFor={`processing-${key}`}>{label}</label>{inherit(key)}</div>
+      <select id={`processing-${key}`} className={`${inputStyle} mt-1 w-full`} value={effective![key]} disabled={saving || (scope === "session" && overrides[key] == null)} onChange={event => set(key, event.target.value)}>
+        {choices.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+      </select></div>;
   }
 }

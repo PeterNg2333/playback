@@ -23,7 +23,7 @@ public static class PlaybackEnvironment
 
     public static bool AutomaticNotes => Read("PLAYBACK_AUTO_NOTES") != "no";
     public static bool AutomaticTerms => Read("PLAYBACK_AUTO_TERMS") != "no";
-    public static bool AutomaticOrganization => Read("PLAYBACK_AUTO_ORGANIZE") == "yes";
+    public static bool AutomaticOrganization => Read("PLAYBACK_AUTO_ORGANIZE") != "no";
 
     // The validation API works only on the one session it was started for.
     public static bool AllowsAutomaticWork(string sessionId) =>

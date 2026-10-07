@@ -81,12 +81,11 @@ static class NoteCoverageChecks
             Sections = [new SectionPatch { Id = "formula", BaseVersion = 1, Title = "Capacity", Markdown = "## Capacity\n\nFlows share capacity. [b, a]",
                 Points = [new PointPatch { Text = "Flows share capacity. [b, a]", SourceIds = ["a", "b"], Retains = ["proof"] }] }]
         };
-        var guarded = NoteSections.Apply("s", note, [prior], deceptive, [prior.Id], [], ["a", "b"], "organize", allowUserEdited: true);
-        Expect.That(NoteSections.Render(guarded.Sections).Contains("n=10 yields R/10, assuming one shared bottleneck"),
-            "Organizer claimed a retained ID and citations while deleting a formula/condition");
+        Expect.Rejects(() => NoteSections.Apply("s", note, [prior], deceptive, [prior.Id], [], ["a", "b"], "organize", allowUserEdited: true), "Organizer bypassed the rewrite preview while deleting a formula/condition");
+        Expect.That(prior.Markdown.Contains("n=10 yields R/10, assuming one shared bottleneck") && !prior.Markdown.Contains("Earlier source-backed points"), "Rejected organizer moved or lost the original formula");
         Expect.Rejects(() => NoteSections.RequireRetention(note, new SectionUpdate([], [], []), ["a", "b"]),
             "Persistence boundary accepted deleting a whole saved section");
-        NoteSections.RequireRetention(note, guarded, ["a", "b"]);
+        NoteSections.RequireRetention(note, new SectionUpdate([prior], [], []), ["a", "b"]);
         var reordered = new NotePatch
         {
             Sections = [new SectionPatch { Id = "formula", BaseVersion = 1, Title = "Capacity", Markdown = prior.Markdown.Replace("[a, b]", "[b, a]"),

@@ -28,6 +28,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 
 builder.Services.AddSingleton<PlaybackStore>();
 var processingDefaults = builder.Configuration.GetSection("Processing").Get<ProcessingPolicy>() ?? ProcessingPolicy.Defaults;
+if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_ORGANIZE") == "no") processingDefaults = processingDefaults with {OrganizationEnabled = false};
 processingDefaults.Validate();
 builder.Services.AddSingleton(processingDefaults);
 builder.Services.AddSingleton<AiActivity>();
@@ -47,11 +48,11 @@ builder.Services.AddSingleton<TranslationAgent>();
 builder.Services.AddSingleton<JevNoteGate>();
 builder.Services.AddSingleton<IJevTransport>(s => s.GetRequiredService<JevTransport>());
 builder.Services.AddSingleton<NoteStoreAdapter>();
-builder.Services.AddSingleton<NoteCommands>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>()));
+builder.Services.AddSingleton<NoteCommands>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>()));
 builder.Services.AddSingleton<NoteWorkflow>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>(),
     new GeminiNoteWriter(s.GetRequiredService<GeminiLanguageModel>()), s.GetRequiredService<JevNoteGate>(),
     new NoteActivityAdapter(s.GetRequiredService<AiActivity>(), s.GetRequiredService<ILogger<NoteAgent>>()),
-    processingPolicy: s.GetRequiredService<NoteStoreAdapter>(), boundaries: s.GetRequiredService<NoteStoreAdapter>()));
+    processingPolicy: s.GetRequiredService<NoteStoreAdapter>(), boundaries: s.GetRequiredService<NoteStoreAdapter>(), organization: s.GetRequiredService<NoteStoreAdapter>(), rewrites: s.GetRequiredService<NoteStoreAdapter>()));
 builder.Services.AddSingleton<NoteAgent>(s => new(s.GetRequiredService<PlaybackStore>(), s.GetRequiredService<NoteWorkflow>(),
     s.GetRequiredService<ILogger<NoteAgent>>()));
 builder.Services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));

@@ -63,7 +63,7 @@ public partial class PlaybackStore
     public virtual async Task<List<SyncRecord>> ReadSyncRecords(string id, string kind, string[]? ids) {
         var records = new List<SyncRecord>();
         if (kind == "combined-audio") records.Add(new(kind, id, new { combinedAudioSegments = await CombinedAudio(id) }));
-        if (kind == "processing") records.Add(new(kind, id, new { processingSettings = await SessionProcessingSettings(id), noteAdmission = NoteAdmissionView.Read(await NoteGate(id)) }));
+        if (kind == "processing") records.Add(new(kind, id, new { processingSettings = await SessionProcessingSettings(id), noteAdmission = NoteAdmissionView.Read(await NoteGate(id)), organization = await NoteOrganizationStatus(id) }));
         if (kind == "meta") {
             var session = await SessionSettings(id);
             var note = await Collection<Note>("notes").Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();

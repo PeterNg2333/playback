@@ -22,20 +22,21 @@ static class NoteApiChecks
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.Services.AddSingleton<Playback.Api.Db.PlaybackStore>(store);
-        builder.Services.AddSingleton(new NoteCommands(adapter, adapter));
+        builder.Services.AddSingleton(new NoteCommands(adapter, adapter, adapter));
         builder.Services.AddSingleton(new NoteWorkflow(adapter, adapter, new GeminiNoteWriter(new FixtureNoteModel()), new FixtureNoteGate(),
             new NoteActivityAdapter(new AiActivity(store), NullLogger<NoteAgent>.Instance)));
         await using var app = builder.Build();
         app.MapNotes();
         app.MapProcessingSettings();
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(x => x.Endpoints).Cast<RouteEndpoint>().ToList();
-        async Task<(int Status, JsonElement Body)> Request(string pattern, string method = "GET", string? body = null, int? version = null)
+        async Task<(int Status, JsonElement Body)> Request(string pattern, string method = "GET", string? body = null, int? version = null, string? proposalId = null)
         {
             var endpoint = endpoints.Single(x => x.RoutePattern.RawText == pattern &&
                 x.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
             var context = new DefaultHttpContext { RequestServices = app.Services };
             context.Request.Method = method;
             context.Request.RouteValues["id"] = "api-fixture";
+            if (proposalId is not null) context.Request.RouteValues["proposalId"] = proposalId;
             if (version is not null) context.Request.RouteValues["version"] = version.Value.ToString();
             context.Response.Body = new MemoryStream();
             if (body is not null)
@@ -107,7 +108,16 @@ static class NoteApiChecks
         var selectedBlock = store.Notes["api-fixture"].Sections.Single(x => x.Id == selected.Id).Blocks.Single();
         var blockEdit = await Request(root + "/block", "POST", JsonSerializer.Serialize(new {basedOnVersion = 6, blockId = selectedBlock.Id, body = selectedBlock.Body + "\n\nA user qualification."}));
         Expect.That(blockEdit.Status == 200 && store.Notes["api-fixture"].Version == 7 && store.Notes["api-fixture"].Sections.SelectMany(x => x.Blocks).Single(x => x.Id == selectedBlock.Id).UserEdited, "Block edit API lost stable identity/protection");
-        Console.WriteLine("Notes API checks passed in memory: save/conflict, coverage, version/history, deletion, restore, edits, generate, organize and no-gap repair");
+        var current = store.Notes["api-fixture"];
+        var proposal = Playback.Domain.Notes.NoteRewrite.Preview(current, selected.Id, [new() {TargetBlockId = selectedBlock.Id, RetainedBlockIds = [selectedBlock.Id], Body = selectedBlock.Body + "\n\nA user qualification.\n\nReviewed context."}], ["source-a", "source-b"], DateTime.UtcNow);
+        await store.SaveNoteRewrite(proposal);
+        var previews = await Request(root + "/rewrites");
+        Expect.That(previews.Status == 200 && previews.Body.GetArrayLength() == 1, "Rewrite preview query lost the saved proposal");
+        var declined = await Request(root + "/rewrites/{proposalId}/accept", "POST", "{\"semanticAccepted\":false}", proposalId: proposal.Id);
+        Expect.That(declined.Status == 409 && store.Notes["api-fixture"].Version == 7, "Rewrite API accepted without semantic review");
+        var accepted = await Request(root + "/rewrites/{proposalId}/accept", "POST", "{\"semanticAccepted\":true}", proposalId: proposal.Id);
+        Expect.That(accepted.Status == 200 && store.Notes["api-fixture"].Version == 8 && store.Notes["api-fixture"].Markdown.Contains("Reviewed context"), "Rewrite API did not apply the retained preview: " + accepted.Body);
+        Console.WriteLine("Notes API checks passed in memory: save/conflict, coverage, version/history, deletion, restore, edits, generation, outline, block edit and explicitly accepted rewrite");
     }
 
     sealed class BodyDetection : Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature

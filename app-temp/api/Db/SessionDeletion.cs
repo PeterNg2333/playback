@@ -39,6 +39,8 @@ public partial class PlaybackStore
         await Collection<ConversationRecord>("conversations").DeleteManyAsync(x => x.SessionId == id);
         await Collection<ActivityRecord>("ai_activity").DeleteManyAsync(x => x.SessionId == id);
         await Collection<NoteGateRecord>("note_gates").DeleteManyAsync(x => x.SessionId == id);
+        await Collection<Playback.Domain.Notes.NoteOrganizationState>("note_organization").DeleteOneAsync(x => x.Id == id);
+        await Collection<Playback.Domain.Notes.NoteRewriteProposal>("note_rewrites").DeleteManyAsync(x => x.SessionId == id);
         await Collection<Playback.Domain.Audio.CombinedAudioSegment>("combined_audio").DeleteManyAsync(x => x.SessionId == id);
         await Collection<Playback.Domain.Audio.SpeechBoundary>("speech_boundaries").DeleteManyAsync(x => x.SessionId == id);
         await Collection<AudioStreamRecord>("audio_streams").DeleteManyAsync(x => x.SessionId == id);

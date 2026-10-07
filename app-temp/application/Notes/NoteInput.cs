@@ -116,6 +116,16 @@ public static class NoteInput
 
     static InvalidOperationException TooLarge() =>
         new("Section context exceeds the bounded input; select a smaller section for revision");
+    public static NotePrompt Outline(NoteSession session, List<NoteSection> scope)
+    {
+        var aliases = scope.Select((topic, i) => (Alias: "S" + i.ToString("D3"), topic.Id)).ToDictionary(x => x.Alias, x => x.Id);
+        var reverse = aliases.ToDictionary(x => x.Value, x => x.Key);
+        var text = JsonSerializer.Serialize(new { trigger = "document-outline", language = session.NoteLanguage, baseVersion = session.NoteVersion,
+            pending = Array.Empty<object>(), materials = Array.Empty<object>(), editableSections = Array.Empty<object>(),
+            topicColumns = new[] { "id", "title", "parent", "order", "protected" },
+            topicOutline = scope.Select(x => new object?[] {reverse[x.Id], x.Title[..Math.Min(48, x.Title.Length)], x.ParentId is not null ? reverse.GetValueOrDefault(x.ParentId, x.ParentId) : null, x.Order, x.UserEdited}) }, new JsonSerializerOptions {Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping});
+        return text.Length <= 48000 ? new(text, aliases) : throw TooLarge();
+    }
 
     // The property order is part of the note gate's saved input identity; changing it re-asks Jev once per session.
     static NotePrompt Serialize(NoteSession session, List<NoteTranscript> pending, List<NoteSection> context,
@@ -152,6 +162,7 @@ public static class NoteInput
                 x.Id,
                 x.Version,
                 x.Title,
+                blocks = x.Blocks.Select(b => new {b.Id, b.Role, b.Order, b.Body, b.UserEdited}),
                 markdown = NoteSections.Compact(session.Id, x.Markdown, allIds, citations),
                 points = x.Points.Select(p => new
                 {

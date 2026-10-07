@@ -13,12 +13,12 @@ static class NoteGenerationChecks
     public static async Task Run()
     {
         LiveDraft();
-        Expect.That(!NoteAgent.ShouldOrganize(new NoteSection
+        Expect.That(!Playback.Domain.Notes.NoteOrganization.EligibleTopics([new NoteSection
             {
                 UserEdited = true,
                 Markdown = new string('x', 10000),
                 Points = Enumerable.Range(0, 20).Select(_ => new NotePoint()).ToList()
-            }),
+            }]).Any(),
             "Automatic organization included protected user content");
 
         var store = new MemoryStore();

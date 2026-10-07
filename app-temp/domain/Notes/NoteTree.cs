@@ -12,6 +12,7 @@ public sealed class NoteBlock
     public string? SupersedesBlockId { get; set; }
     public List<string> CitationIds { get; set; } = [];
     public List<PointAnchor> Anchors { get; set; } = [];
+    public List<string> RetainedBlockIds { get; set; } = [];
 }
 // Legacy coverage identities point into the one canonical body, without copying prose.
 public sealed class PointAnchor
@@ -82,7 +83,7 @@ public static class NoteTree
         return result;
     }
     public static NoteBlock Clone(NoteBlock block) => new() { Id = block.Id, Order = block.Order, Role = block.Role, Body = block.Body,
-        UserEdited = block.UserEdited, SupersedesBlockId = block.SupersedesBlockId, CitationIds = block.CitationIds.ToList(),
+        UserEdited = block.UserEdited, SupersedesBlockId = block.SupersedesBlockId, CitationIds = block.CitationIds.ToList(), RetainedBlockIds = block.RetainedBlockIds.ToList(),
         Anchors = block.Anchors.Select(x => new PointAnchor { Id = x.Id, Offset = x.Offset, Length = x.Length, SourceIds = x.SourceIds.ToList() }).ToList() };
     public static List<NoteBlock> Compact(string sessionId, IEnumerable<NoteBlock> blocks, IEnumerable<string> allowed, List<NoteCitation> citations) => blocks.Select(original =>
     {
@@ -162,7 +163,7 @@ public static class NoteTree
             {
                 if (structuralOnly || !Regex.IsMatch(op.BlockId, @"^new:[a-z0-9-]{1,60}$") || op.Body.Trim().Length is < 1 or > 8000 || op.SourceIds.Count == 0 || op.SourceIds.Except(allowed).Any()) throw new InvalidOperationException("Invalid new evidence block");
                 if (op.Role is not ("definition" or "example" or "derivation" or "correction" or "detail")) throw new InvalidOperationException("Unknown block role");
-                if (op.SupersedesBlockId is not null && !result.SelectMany(x => x.Blocks).Any(x => x.Id == op.SupersedesBlockId)) throw new InvalidOperationException("Unknown correction target");
+                if (op.SupersedesBlockId is not null && !result.SelectMany(x => x.Blocks).Any(x => x.Id == op.SupersedesBlockId || x.RetainedBlockIds.Contains(op.SupersedesBlockId))) throw new InvalidOperationException("Unknown correction target");
                 var cited = NoteSections.Sources(op.Body, allowed);
                 if (op.SourceIds.Except(cited).Any()) throw new InvalidOperationException("New block lacks observable citations");
                 var id = "point_" + ContentHash.Of(inputHash + op.BlockId)[..20];
