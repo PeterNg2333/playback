@@ -59,5 +59,6 @@ app.MapTesting();
 app.Map("/api/{**path}", () => Results.NotFound(new { error = "API route not found" }));
 app.MapFallbackToFile("index.html");
 
-app.Services.GetRequiredService<TranslationAgent>();
+if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TRANSLATION") != "no")
+    app.Services.GetRequiredService<TranslationAgent>();
 app.Run();

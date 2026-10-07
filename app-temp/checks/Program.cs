@@ -10,6 +10,12 @@ try
         case ["--notes"]:
             await RunOffline(notesOnly: true);
             break;
+        case ["--refactor-acceptance"]:
+            await RefactorAcceptanceChecks.Run();
+            break;
+        case ["--refactor-mongo"]:
+            await RefactorMongoChecks.Run();
+            break;
         case ["--refactor-baseline"]:
             Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");
             await RefactorBaselineChecks.Run();
