@@ -5,6 +5,8 @@ public sealed class Note
     public string Id { get; set; } = "";
     public string SessionId { get; set; } = "";
     public int Version { get; set; }
+    public int SchemaVersion { get; set; } = 1;
+    public string Presentation { get; set; } = "numbered-hierarchy";
     public int? BasedOnVersion { get; set; }
     public string Markdown { get; set; } = "";
     public string Author { get; set; } = "";
@@ -28,11 +30,17 @@ public sealed class Note
 public sealed class NoteSection
 {
     public string Id { get; set; } = "";
+    public int SchemaVersion { get; set; } = 1;
     public int Version { get; set; } = 1;
     public string Title { get; set; } = "";
-    public string Markdown { get; set; } = "";
+    public string? ParentId { get; set; }
+    public int Order { get; set; }
+    public List<NoteBlock> Blocks { get; set; } = [];
+    string markdown = "";
+    List<NotePoint> points = [];
+    public string Markdown { get => SchemaVersion < 2 && Blocks.Count == 0 ? markdown : "## " + Title + "\n\n" + string.Join("\n\n", Blocks.OrderBy(x => x.Order).Select(x => x.Body)); set => markdown = value; }
     public bool UserEdited { get; set; }
-    public List<NotePoint> Points { get; set; } = [];
+    public List<NotePoint> Points { get => Blocks.Count == 0 ? points : Blocks.SelectMany(block => block.Anchors.Select(anchor => new NotePoint { Id = anchor.Id, SourceIds = anchor.SourceIds.ToList(), Text = block.Body.Substring(anchor.Offset, anchor.Length) })).ToList(); set => points = value; }
     public DateTime? OrganizedAt { get; set; }
     public int? OrganizedVersion { get; set; }
 }

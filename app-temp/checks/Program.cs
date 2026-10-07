@@ -114,6 +114,7 @@ static async Task RunOffline(bool notesOnly)
         await GeminiChecks.Run();
     }
     NoteDocumentChecks.Run();
+    await NoteTreeChecks.Run();
     await NoteGenerationChecks.Run();
     await NoteSchedulingChecks.Run();
     await ProcessingPolicyChecks.Run();

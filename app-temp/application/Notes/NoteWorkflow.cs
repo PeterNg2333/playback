@@ -145,7 +145,32 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             foreach (var section in context) NoteSections.Compact(session.Id, section.Markdown, allowed, baseNote.Citations);
             var update = NoteSections.Apply(session.Id, baseNote, baseSections, patch, context.Select(x => x.Id),
                 pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)), allowed, hash, allowUserEdited: organize);
-            if (patch.Sections.Count == 0)
+            if (patch.Operations.Count > 0)
+            {
+                if (organize)
+                {
+                    var scope = context.Select(x => x.Id).ToHashSet();
+                    var newTopics = patch.Operations.Where(x => x.Kind == "create-topic").Select(x => x.TopicId).ToHashSet();
+                    foreach (var operation in patch.Operations)
+                    {
+                        if (!scope.Contains(operation.TopicId) && !newTopics.Contains(operation.TopicId) ||
+                            operation.ParentId is not null && !scope.Contains(operation.ParentId) && !newTopics.Contains(operation.ParentId) ||
+                            operation.BlockId.Length > 0 && operation.Kind != "add-block" && !context.SelectMany(x => x.Blocks).Any(x => x.Id == operation.BlockId))
+                            throw new InvalidOperationException("Organizer touched content outside the selected scope");
+                    }
+                }
+                var operated = NoteTree.Apply(update.Sections, patch.Operations, allowed, hash, allowProtected: organize, structuralOnly: organize);
+                var points = operated.SelectMany(x => x.Points).ToList();
+                var coverage = pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Select(source =>
+                {
+                    var written = points.Where(x => x.SourceIds.Contains(source)).Select(x => x.Id).ToList();
+                    var deferred = patch.Deferred.FirstOrDefault(x => x.SourceId == source);
+                    return new SourceDisposition { SourceId = source, PointIds = written, Status = written.Count > 0 ? "covered" : deferred is not null ? "deferred" : "pending",
+                        Reason = written.Count > 0 ? "Source-backed canonical block saved" : deferred?.Reason ?? "No block or deferral; source remains pending" };
+                }).ToList();
+                update = new(operated, update.Citations, coverage);
+            }
+            if (patch.Sections.Count == 0 && patch.Operations.Count == 0)
             {
                 await evidence.MarkNotes(pending.Select(x => x.Id), "deferred", "Generation deferred this input; it has not been incorporated into notes");
                 await activity.End(call, "completed", "No section change; all input deferred, no note version saved");
@@ -193,6 +218,17 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         }
         foreach (var deferred in patch.Deferred)
             if (input.Aliases.TryGetValue(deferred.SourceId, out var source)) deferred.SourceId = source;
+        foreach (var operation in patch.Operations)
+        {
+            operation.Body = input.Decode(operation.Body);
+            operation.SourceIds = operation.SourceIds.Select(x => input.Aliases.GetValueOrDefault(x, x)).ToList();
+            if (operation.Kind == "add-block")
+            {
+                var cited = NoteSections.Sources(operation.Body, allowed);
+                var missing = operation.SourceIds.Except(cited).ToList();
+                if (missing.Count > 0) operation.Body += " [" + string.Join(", ", missing) + "]";
+            }
+        }
     }
 
     // Older versions can contain unavailable historical IDs. Copying them remains visibly unavailable;
@@ -208,6 +244,11 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                 .ToList();
             NoteReferences.ValidateSourceReferences(NoteSections.Expand(section.Markdown, update.Citations),
                 allowed.Concat(priorReferences).Concat(update.Citations.Select(c => c.Id)));
+        }
+        foreach (var operation in patch.Operations.Where(x => x.Kind == "add-block"))
+        {
+            NoteReferences.ValidateReferences(operation.Body, session.TermReferenceIds);
+            NoteReferences.ValidateSourceReferences(operation.Body, allowed);
         }
     }
 
@@ -225,7 +266,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
     public static string ReadableDraft(string json)
     {
         var sections = new List<string>();
-        var field = json.Contains("\"markdown\"", StringComparison.OrdinalIgnoreCase) ? "markdown" : "text";
+        var field = json.Contains("\"body\"", StringComparison.OrdinalIgnoreCase) ? "body" : json.Contains("\"markdown\"", StringComparison.OrdinalIgnoreCase) ? "markdown" : "text";
         foreach (Match match in Regex.Matches(json, "\"" + field + "\"\\s*:\\s*\"(?<body>(?:\\\\.|[^\"\\\\])*)", RegexOptions.IgnoreCase))
         {
             try { sections.Add(JsonSerializer.Deserialize<string>("\"" + match.Groups["body"].Value + "\"") ?? ""); }

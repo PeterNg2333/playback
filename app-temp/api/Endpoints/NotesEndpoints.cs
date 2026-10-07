@@ -22,6 +22,10 @@ public static class NotesEndpoints
             await notes.ApplyRecovery(id, version, input.BasedOnVersion, input.SelectedIds));
         app.MapPost("/api/sessions/{id}/notes/organize", async (string id, OrganizeInput input, NoteWorkflow notes, CancellationToken ct) =>
             await notes.Organize(id, input.SectionId, input.BasedOnVersion, ct));
+        app.MapPost("/api/sessions/{id}/notes/structure", async (string id, StructureInput input, NoteCommands notes) =>
+            await notes.ApplyStructure(id, input.BasedOnVersion, input.Operations));
+        app.MapPost("/api/sessions/{id}/notes/block", async (string id, BlockEditInput input, NoteCommands notes) =>
+            await notes.EditBlock(id, input.BasedOnVersion, input.BlockId, input.Body));
         app.MapPost("/api/sessions/{id}/notes/{version:int}/restore", async (string id, int version, int? basedOnVersion, NoteCommands notes) =>
             await notes.RestoreNote(id, version, basedOnVersion));
         app.MapGet("/api/sessions/{id}/notes/edits", async (string id, NoteCommands notes) =>
@@ -46,3 +50,5 @@ public record NoteInput(string Markdown, int? BasedOnVersion = null);
 public record RecoveryInput(int BasedOnVersion, List<string> SelectedIds);
 public record OrganizeInput(string SectionId, int BasedOnVersion);
 public record CoverageRepairInput(int BasedOnVersion);
+public record StructureInput(int BasedOnVersion, List<Playback.Domain.Notes.NoteTreeOperation> Operations);
+public record BlockEditInput(int BasedOnVersion, string BlockId, string Body);

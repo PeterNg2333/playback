@@ -8,6 +8,8 @@ import type { AudioPlayer } from "../player/useAudioPlayer";
 import { SourceCitation } from "../sources/SourceCitation";
 import { TermHighlight } from "../terms/TermHighlight";
 import { recordedRange } from "../../lib/time";
+import { noteOutline, topicMarkdown } from "./noteOutline";
+import { NoteBlockEditor } from "./NoteBlockEditor";
 
 const noRows: never[] = [];
 function useCitedRows<T extends { id: string }>(
@@ -184,7 +186,7 @@ export function NotePreview({
   return (
     <div data-testid="note-content" ref={ref}>
       {sections?.length ? (
-        sections.map((section) => {
+        noteOutline(sections).map(({section, number, depth}) => {
           const ids = [...new Set(section.points.flatMap((x) => x.sourceIds))];
           return (
             <section
@@ -192,7 +194,10 @@ export function NotePreview({
               data-section-id={section.id}
               key={section.id}
             >
-              <CitedMarkdown value={section.markdown} {...common} reading />
+              {section.schemaVersion === 2 && (section.blocks?.length ?? 0) > 1 && session?.currentNote?.presentation !== "headings" ? <>
+                <CitedMarkdown value={"#".repeat(depth + 1) + " " + number + " " + section.title} {...common} reading />
+                <ol className="list-[lower-alpha] space-y-2 pl-5">{[...section.blocks!].sort((a, b) => a.order - b.order).map(block => <li key={block.id}><CitedMarkdown value={block.body} {...common} reading /></li>)}</ol>
+              </> : <CitedMarkdown value={topicMarkdown(section, number, depth, session?.currentNote?.presentation !== "headings")} {...common} reading />}
               {!reading && ids.length > 0 && (
                 <SourceCitation
                   groups={[{ id: section.id, transcriptIds: ids }]}
@@ -209,6 +214,7 @@ export function NotePreview({
                   {section.userEdited ? " · protected user edits" : ""}
                 </small>
               )}
+              {!reading && session && section.blocks?.length && <div className="mt-2 flex flex-wrap gap-3">{section.blocks.map(block => <NoteBlockEditor key={block.id} session={session} block={block} />)}</div>}
             </section>
           );
         })

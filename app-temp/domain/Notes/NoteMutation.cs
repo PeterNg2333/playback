@@ -10,13 +10,16 @@ public static class NoteMutation
             .Concat(update.Citations.SelectMany(c => c.SourceIds))
             .Distinct()
             .ToList();
+        var originalSections = update.Sections;
         update = update with
         {
             Sections = update.Sections.Select(section => new NoteSection
             {
                 Id = section.Id,
+                SchemaVersion = section.SchemaVersion,
                 Version = section.Version,
                 Title = section.Title,
+                ParentId = section.ParentId, Order = section.Order,
                 UserEdited = section.UserEdited,
                 OrganizedAt = section.OrganizedAt,
                 OrganizedVersion = section.OrganizedVersion,
@@ -29,6 +32,9 @@ public static class NoteMutation
                 }).ToList()
             }).ToList()
         };
+        for (var i = 0; i < update.Sections.Count; i++)
+            if (originalSections[i].Blocks.Count > 0) update.Sections[i].Blocks = NoteTree.Compact(id, originalSections[i].Blocks, allowed, update.Citations);
+        if (update.Sections.Any(x => string.IsNullOrWhiteSpace(x.Id))) throw new InvalidOperationException("Missing topic identity");
         var markdown = NoteSections.Render(update.Sections);
         if (markdown.Length > 250_000) throw new InvalidOperationException("Note exceeds the document size limit");
         return update;
@@ -43,7 +49,16 @@ public static class NoteMutation
         var allowed = update.Sections.SelectMany(s => s.Points).SelectMany(p => p.SourceIds)
             .Concat(update.Citations.SelectMany(c => c.SourceIds)).Distinct().ToList();
         var markdown = NoteSections.Render(update.Sections);
+        var canonical = update.Sections.Select((section, index) =>
+        {
+            var topic = NoteTree.Canonical(section, previous?.Sections.FirstOrDefault(x => x.Id == section.Id));
+            if (previous?.SchemaVersion != 2 && section.ParentId is null && update.Sections.All(x => x.Order == 0)) topic.Order = index;
+            return topic;
+        }).ToList();
+        NoteTree.Validate(canonical);
+        update = update with { Sections = canonical };
         if (author.StartsWith("agent")) NoteSections.RequireRetention(previous, update, allowed, allowProtectedReformat: author == "agent organization");
+        markdown = NoteTree.Render(canonical, previous?.Presentation != "headings");
         var coverage = (previous?.Coverage ?? []).Where(x => !update.Coverage.Any(y => y.SourceId == x.SourceId)).Concat(update.Coverage)
             .Select(x => new SourceDisposition { SourceId = x.SourceId, Status = x.Status, Reason = x.Reason,
                 PointIds = x.PointIds.ToList(), ContentHash = x.ContentHash }).ToList();
@@ -62,12 +77,13 @@ public static class NoteMutation
             Id = Guid.NewGuid().ToString("N"),
             SessionId = id,
             Version = basedOnVersion + 1,
+            SchemaVersion = 2, Presentation = previous?.Presentation ?? "numbered-hierarchy",
             BasedOnVersion = basedOnVersion,
             Markdown = markdown,
             Author = author,
             OutputLanguage = language,
             CreatedAt = createdAt ?? DateTime.UtcNow,
-            Sections = update.Sections,
+            Sections = canonical,
             Citations = usedCitations,
             InputHash = inputHash,
             Coverage = coverage,

@@ -7,6 +7,7 @@ namespace Playback.Api.Db;
 // The local MongoDB store. Each file in Db/ holds one saved concept: its documents and their reads and writes.
 public partial class PlaybackStore
 {
+    static PlaybackStore() => Playback.Infrastructure.Notes.NoteBsonMappings.Register();
     public event Action<string>? SourceChanged;
     readonly IMongoDatabase? db;
     readonly IHttpContextAccessor? http;

@@ -7,7 +7,8 @@ namespace Playback.Domain.Notes;
 // not separate agent-owned copies. Unselected sections never pass through generation.
 public static class NoteSections
 {
-    public static string Render(IEnumerable<NoteSection> sections) => string.Join("\n\n", sections.Select(x => x.Markdown.Trim())).Trim();
+    public static string Render(IEnumerable<NoteSection> sections) => sections.Any(x => x.Blocks.Count > 0 || x.ParentId is not null)
+        ? NoteTree.Render(sections, false) : string.Join("\n\n", sections.Select(x => x.Markdown.Trim())).Trim();
     public static List<string> Sources(string markdown, IEnumerable<string> allowed) {
         var ids = allowed.ToHashSet(StringComparer.Ordinal);
         return CitationSyntax.Bodies(markdown).SelectMany(x => x.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
@@ -36,11 +37,11 @@ public static class NoteSections
         var map = citations.ToDictionary(x => x.Id, x => string.Join(", ", x.SourceIds));
         return Regex.Replace(markdown, @"\[(cite_[a-f0-9]{20})\]", m => map.TryGetValue(m.Groups[1].Value, out var ids) ? "[" + ids + "]" : m.Value);
     }
-    static IEnumerable<string> Blocks(string markdown) {
+    static IEnumerable<string> Blocks(string markdown, bool subtopics = false) {
         var current = new StringBuilder(); var fenced = false;
         foreach (var line in markdown.Replace("\r\n", "\n").Split('\n')) {
             if (Regex.IsMatch(line, @"^\s*(```|~~~)")) fenced = !fenced;
-            if (!fenced && Regex.IsMatch(line, @"^##\s+") && current.Length > 0) {
+            if (!fenced && Regex.IsMatch(line, subtopics ? @"^#{2,4}\s+" : @"^##\s+") && current.Length > 0) {
                 yield return current.ToString().Trim(); current.Clear();
             }
             current.Append(line).Append('\n');
@@ -68,19 +69,28 @@ public static class NoteSections
     public static List<NoteSection> UserEdit(Note? previous, string sessionId, string markdown, IEnumerable<string> allowed,
         List<NoteCitation> citations, List<string> deleted, List<string> suppressed) {
         var old = Read(previous, allowed).ToList(); var result = new List<NoteSection>();
-        foreach (var block in Blocks(markdown)) {
+        if (previous?.SchemaVersion == 2 && previous.Markdown.Replace("\r\n", "\n").Trim() == markdown.Replace("\r\n", "\n").Trim())
+            return old.Select(x => NoteTree.Canonical(x)).ToList();
+        var parents = new Dictionary<int, string>();
+        string NormalizeHeading(string text) => Regex.Replace(text, @"\A#{1,4}\s+(?:\d+(?:\.\d+)*\s+)?", "## ");
+        foreach (var block in Blocks(markdown, previous?.SchemaVersion == 2)) {
             var expanded = Expand(block, citations);
-            var exact = old.FirstOrDefault(x => Expand(x.Markdown, citations).Replace("\r\n", "\n").Trim() == expanded.Trim());
+            var exact = old.FirstOrDefault(x => NormalizeHeading(Expand(x.Markdown, citations)).Replace("\r\n", "\n").Trim() == NormalizeHeading(expanded).Trim());
             var sources = Sources(expanded, allowed);
             var match = exact ?? old.Select(x => new { Section = x, Score = Similarity(Expand(x.Markdown, citations), expanded) +
                     x.Points.SelectMany(p => p.SourceIds).Intersect(sources).Count() * 2 })
                 .OrderByDescending(x => x.Score).FirstOrDefault(x => x.Score > 0)?.Section;
             if (match is not null) old.Remove(match);
-            if (exact is not null) { result.Add(exact); continue; }
+            var heading = Regex.Match(block, @"\A(?<hash>#{1,4})\s+");
+            var depth = previous?.SchemaVersion == 2 ? Math.Max(1, heading.Groups["hash"].Length - 1) : 1;
+            var parent = depth > 1 ? parents.GetValueOrDefault(depth - 1) : null;
+            if (depth > 1 && parent is null) throw new InvalidOperationException("A subtopic requires a preceding parent topic");
+            if (exact is not null) { var retained = NoteTree.Canonical(exact); retained.ParentId = parent; retained.Order = result.Count; result.Add(retained); parents[depth] = retained.Id; continue; }
             var compact = Compact(sessionId, expanded, allowed, citations);
             result.Add(new NoteSection { Id = match?.Id ?? "section_" + Guid.NewGuid().ToString("N"), Version = (match?.Version ?? 0) + 1,
-                Title = Regex.Match(block, @"(?m)^#{1,3}\s+(.+)$").Groups[1].Value.Trim(), Markdown = compact, UserEdited = true,
+                Title = Regex.Replace(Regex.Match(block, @"(?m)^#{1,4}\s+(.+)$").Groups[1].Value.Trim(), @"^\d+(?:\.\d+)*\s+", ""), ParentId = parent, Order = result.Count, Markdown = compact, UserEdited = true,
                 Points = LegacyPoints(sessionId, expanded, allowed) });
+            parents[depth] = result[^1].Id;
             if (match is not null) suppressed.AddRange(match.Points.SelectMany(x => x.SourceIds).Except(sources));
         }
         foreach (var removed in old) { deleted.Add(removed.Id); suppressed.AddRange(removed.Points.SelectMany(x => x.SourceIds)); }
@@ -101,7 +111,21 @@ public static class NoteSections
             var current = update.Sections.SingleOrDefault(x => x.Id == old.Id)
                 ?? throw new InvalidOperationException("AI update removed a saved section; result was not applied");
             var body = Canonical(current.Markdown);
-            if (old.UserEdited && !allowProtectedReformat && Canonical(old.Markdown) != body || old.Points.Any(x => !body.Contains(Canonical(x.Text), StringComparison.Ordinal)))
+            if (old.Blocks.Count > 0 && update.Sections.Any(x => x.Blocks.Count > 0))
+            {
+                var blocks = update.Sections.SelectMany(x => x.Blocks).ToList();
+                foreach (var prior in old.Blocks)
+                {
+                    var retained = blocks.SingleOrDefault(x => x.Id == prior.Id);
+                    if (retained is null || Canonical(retained.Body) != Canonical(prior.Body) || prior.Anchors.SelectMany(x => x.SourceIds).Except(retained.Anchors.SelectMany(x => x.SourceIds)).Any())
+                        throw new InvalidOperationException("Structural operation lost a canonical block or its evidence");
+                    if ((old.UserEdited || prior.UserEdited) && !allowProtectedReformat && !current.Blocks.Any(x => x.Id == prior.Id))
+                        throw new InvalidOperationException("Protected block moved without an explicit scope action");
+                }
+                continue;
+            }
+            if (old.UserEdited && !allowProtectedReformat && Canonical(old.Markdown) != body && old.Blocks.Count == 0 || old.Points.Any(x => !body.Contains(Canonical(x.Text), StringComparison.Ordinal)) ||
+                old.Blocks.Any(x => !body.Contains(Canonical(x.Body), StringComparison.Ordinal)))
                 throw new InvalidOperationException("AI update lost saved point text or changed a protected section; result was not applied");
         }
     }
@@ -154,6 +178,7 @@ public static class NoteSections
             foreach (var point in points) point.Text = Compact(sessionId, Expand(point.Text, citations), allowed, citations);
             var section = new NoteSection { Id = existing?.Id ?? "section_" + ContentHash.Of(sessionId + inputHash + update.Title)[..20],
                 Version = (existing?.Version ?? 0) + 1, Title = update.Title,
+                ParentId = existing?.ParentId ?? update.ParentId, Order = existing?.Order ?? result.Count,
                 Markdown = Compact(sessionId, Expand(update.Markdown, citations), allowed, citations), Points = points, UserEdited = existing?.UserEdited ?? false };
             if (existing is null && !touched.Add(section.Id)) throw new InvalidOperationException("Duplicate new section title");
             if (existing is null) result.Add(section); else result[result.IndexOf(existing)] = section;
@@ -168,7 +193,7 @@ public static class NoteSections
                     "The model omitted this source without a written point or deferral. It remains pending for another decision.",
                 PointIds = points });
         }
-        if (patch.Sections.Count == 0 && coverage.Any(x => x.Status == "pending"))
+        if (patch.Sections.Count == 0 && patch.Operations.Count == 0 && coverage.Any(x => x.Status == "pending"))
             throw new InvalidOperationException("The model returned no section and left input sources unaddressed");
         if (patch.Deferred.Any(x => !input.Contains(x.SourceId))) throw new InvalidOperationException("Unknown deferred source");
         return new SectionUpdate(result, UsedCitations(result, citations), coverage);
@@ -191,8 +216,9 @@ public static class NoteSections
         return new RecoveryPreview(latest?.Version ?? 0, historical.Version, current, citations, candidates);
     }
 }
-public sealed class NotePatch { public List<SectionPatch> Sections { get; set; } = []; public List<SourceDisposition> Deferred { get; set; } = []; }
+public sealed class NotePatch { public List<SectionPatch> Sections { get; set; } = []; public List<SourceDisposition> Deferred { get; set; } = []; public List<NoteTreeOperation> Operations { get; set; } = []; }
 public sealed class SectionPatch { public string Id { get; set; } = "new"; public int BaseVersion { get; set; } public string Title { get; set; } = "";
+    public string? ParentId { get; set; }
     public string Markdown { get; set; } = ""; public List<PointPatch> Points { get; set; } = []; }
 public sealed class PointPatch { public string Text { get; set; } = ""; public List<string> SourceIds { get; set; } = []; public List<string> Retains { get; set; } = []; }
 public sealed record SectionUpdate(List<NoteSection> Sections, List<NoteCitation> Citations, List<SourceDisposition> Coverage);

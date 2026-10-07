@@ -16,6 +16,10 @@ export function OrganizeSection({
   onClose: () => void;
 }) {
   const [sectionId, setSectionId] = useState("");
+  const [baseVersion] = useState(session.noteVersion);
+  const [manual, setManual] = useState(false);
+  const [parentId, setParentId] = useState("");
+  const [order, setOrder] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | undefined>(undefined);
@@ -33,8 +37,8 @@ export function OrganizeSection({
     setError("");
     try {
       await api.post(
-        `/sessions/${session.id}/notes/organize`,
-        { sectionId, basedOnVersion: session.noteVersion },
+        `/sessions/${session.id}/notes/${manual ? "structure" : "organize"}`,
+        manual ? { basedOnVersion: baseVersion, operations: [{kind: "move-topic", topicId: sectionId, parentId: parentId || null, order}] } : { sectionId, basedOnVersion: baseVersion },
         undefined,
         { signal: controller.signal },
       );
@@ -81,6 +85,12 @@ export function OrganizeSection({
             </option>
           ))}
         </select>
+        <label className="flex gap-2 text-[12px]"><input type="checkbox" checked={manual} disabled={pending} onChange={event => setManual(event.target.checked)} />Move topic in the outline</label>
+        {manual && <>
+          <label className="text-[12px]">Parent topic<select aria-label="Parent topic" className="mt-1 w-full rounded border border-line p-2" value={parentId} onChange={event => setParentId(event.target.value)}><option value="">Top level</option>{sections.filter(x => x.id !== sectionId).map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
+          <label className="text-[12px]">Sibling order<input aria-label="Sibling order" className="ml-2 w-20 rounded border border-line p-2" type="number" min={0} max={10000} value={order} onChange={event => setOrder(Number(event.target.value))} /></label>
+          <p className="text-[12px] text-muted">Bodies and citations stay intact. This selected action may move protected content.</p>
+        </>}
         {draftDirty && (
           <p className="text-[12px] text-muted">
             Save your edits before organizing.
@@ -94,7 +104,7 @@ export function OrganizeSection({
             disabled={!sectionId || pending || draftDirty}
             onClick={() => void organize()}
           >
-            {pending ? "Organizing…" : "Organize section"}
+            {pending ? "Saving…" : manual ? "Move topic" : "Organize section"}
           </Button>
         </DialogActions>
         {error && <p role="alert">{error}</p>}

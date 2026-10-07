@@ -103,7 +103,8 @@ static class NoteDocumentChecks
         var deleted = new List<string>();
         var suppressed = new List<string>();
         var edited = NoteSections.UserEdit(note, "s", security.Markdown, ["early", "security-source"], [], deleted, suppressed);
-        Expect.That(deleted.Contains("fair") && suppressed.Contains("early") && edited.Single() == security,
+        Expect.That(deleted.Contains("fair") && suppressed.Contains("early") && edited.Single().Id == security.Id && edited.Single().Markdown == security.Markdown &&
+            edited.Single().Points.Select(x => x.Id).SequenceEqual(security.Points.Select(x => x.Id)),
             "Intentional deletion was not recorded: " + JsonSerializer.Serialize(new { deleted, suppressed, edited }));
         var latest = new Note { Id = "new", Version = 113, SessionId = "s", Sections = edited, DeletedSectionIds = deleted, SuppressedSourceIds = suppressed };
         Expect.That(!NoteSections.Recover(note, latest, ["early", "security-source"]).Candidates.Any(x => x.MissingSourceIds.Contains("early")),
@@ -111,7 +112,7 @@ static class NoteDocumentChecks
         latest.DeletedSectionIds.Clear();
         latest.SuppressedSourceIds.Clear();
         var preview = NoteSections.Recover(note, latest, ["early", "security-source"]);
-        Expect.That(preview.Candidates.Single().Markdown.Contains("R/10") && preview.CurrentSections.Single() == security && latest.Version == 113,
+        Expect.That(preview.Candidates.Single().Markdown.Contains("R/10") && preview.CurrentSections.Single().Id == security.Id && preview.CurrentSections.Single().Markdown == security.Markdown && latest.Version == 113,
             "Recovery preview overwrote current notes or lost the formula");
     }
 

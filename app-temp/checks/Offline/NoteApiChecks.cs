@@ -98,9 +98,15 @@ static class NoteApiChecks
         var selected = store.Notes["api-fixture"].Sections.Single(x => !x.UserEdited);
         var organized = await Request(root + "/organize", "POST", JsonSerializer.Serialize(new { sectionId = selected.Id, basedOnVersion = 4 }));
         Expect.That(organized.Status == 200 && organized.Body.GetProperty("version").GetInt32() == 5 &&
-            store.Notes["api-fixture"].Markdown.Contains("R/n") && store.Notes["api-fixture"].Markdown.Contains("R/10"), "Organize API lost a saved point");
+            store.Notes["api-fixture"].Markdown.Contains("R/n") && store.Notes["api-fixture"].Markdown.Contains("R/10"), "Organize API lost a saved point: " + organized.Body);
         var noGap = await Request(root + "/repair", "POST", "{\"basedOnVersion\":5}");
         Expect.That(noGap.Status == 409 && store.Notes["api-fixture"].Version == 5, "Repair API wrote a version without an actionable gap");
+        var moved = await Request(root + "/structure", "POST", JsonSerializer.Serialize(new {basedOnVersion = 5,
+            operations = new[] {new {kind = "move-topic", topicId = selected.Id, parentId = store.Notes["api-fixture"].Sections[0].Id, order = 0}} }));
+        Expect.That(moved.Status == 200 && store.Notes["api-fixture"].Version == 6 && store.Notes["api-fixture"].Markdown.Contains("R/n") && store.Notes["api-fixture"].Markdown.Contains("R/10"), "Outline API lost a saved body");
+        var selectedBlock = store.Notes["api-fixture"].Sections.Single(x => x.Id == selected.Id).Blocks.Single();
+        var blockEdit = await Request(root + "/block", "POST", JsonSerializer.Serialize(new {basedOnVersion = 6, blockId = selectedBlock.Id, body = selectedBlock.Body + "\n\nA user qualification."}));
+        Expect.That(blockEdit.Status == 200 && store.Notes["api-fixture"].Version == 7 && store.Notes["api-fixture"].Sections.SelectMany(x => x.Blocks).Single(x => x.Id == selectedBlock.Id).UserEdited, "Block edit API lost stable identity/protection");
         Console.WriteLine("Notes API checks passed in memory: save/conflict, coverage, version/history, deletion, restore, edits, generate, organize and no-gap repair");
     }
 

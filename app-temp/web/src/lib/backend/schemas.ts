@@ -56,7 +56,15 @@ export const NotePointSchema = z.object({
 });
 export const NoteSectionSchema = z.object({
   id: z.string(),
+  schemaVersion: z.number().int().default(1),
   title: z.string(),
+  parentId: z.string().nullish(),
+  order: z.number().int().nonnegative().default(0),
+  blocks: z.array(z.object({
+    id: z.string(), order: z.number().int().nonnegative(), role: z.string(), body: z.string(),
+    userEdited: z.boolean(), supersedesBlockId: z.string().nullish(), citationIds: z.array(z.string()),
+    anchors: z.array(z.object({id: z.string(), offset: z.number(), length: z.number(), sourceIds: z.array(z.string())})),
+  })).optional(),
   version: z.number(),
   markdown: z.string(),
   userEdited: z.boolean(),
@@ -211,6 +219,8 @@ export const SessionSchema = SessionSummarySchema.extend({
   currentNote: z
     .object({
       author: z.string(),
+      schemaVersion: z.number().int().optional(),
+      presentation: z.enum(["numbered-hierarchy", "headings"]).optional(),
       basedOnVersion: z.number().nullish(),
       inputHash: z.string().nullish(),
       transcriptIds: z.array(z.string()),
