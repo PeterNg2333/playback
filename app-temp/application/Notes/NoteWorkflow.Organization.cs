@@ -15,7 +15,7 @@ public sealed partial class NoteWorkflow
             state = await organization.Organization(session.Id) ?? state;
             var note = session.CurrentNote;
             // A committed output wins over an interrupted work-state acknowledgement.
-            if (state.Status == "organizing" && note.InputHash == state.InputHash && note.Author == "agent organization")
+            if (state.Status is "organizing" or "failed" && note.InputHash == state.InputHash && note.Author == "agent organization")
             {
                 state.OrganizedMeaningfulRevision = note.MeaningfulRevision; state.LastOrganizedAt = note.CreatedAt;
                 state.Status = "completed"; state.Attempts = 0; state.RetryAt = null;

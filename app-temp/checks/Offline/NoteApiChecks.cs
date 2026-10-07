@@ -22,6 +22,8 @@ static class NoteApiChecks
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.Services.AddSingleton<Playback.Api.Db.PlaybackStore>(store);
+        builder.Services.AddSingleton<Playback.Application.Workspace.IWorkspaceRepository>(store);
+        builder.Services.AddSingleton<Playback.Application.Workspace.WorkspaceCommands>();
         builder.Services.AddSingleton(new NoteCommands(adapter, adapter, adapter));
         builder.Services.AddSingleton(new NoteWorkflow(adapter, adapter, new GeminiNoteWriter(new FixtureNoteModel()), new FixtureNoteGate(),
             new NoteActivityAdapter(new AiActivity(store), NullLogger<NoteAgent>.Instance)));

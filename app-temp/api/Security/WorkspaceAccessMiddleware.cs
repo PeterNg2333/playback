@@ -3,7 +3,7 @@ using Playback.Api.Db;
 
 namespace Playback.Api.Security;
 
-public sealed class WorkspaceNotFoundException : Exception;
+using Playback.Application.Workspace;
 
 // Authorize the parent session before any endpoint reads notes, chats, sources or audio.
 // A missing and a foreign resource both return 404, including when the caller knows its ID.

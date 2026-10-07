@@ -20,7 +20,7 @@ public sealed class DemoAccess
     readonly string? origin = Environment.GetEnvironmentVariable("PLAYBACK_PUBLIC_ORIGIN");
     readonly bool allowHttp;
     public bool Enabled { get; }
-    string CredentialVersion(string account) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(account + "\0" + password)));
+    string CredentialVersion(string account) => Playback.Domain.Workspace.DemoCredentials.Version(account, password!);
 
     public DemoAccess(IHostEnvironment environment)
     {
@@ -141,16 +141,13 @@ public sealed class DemoAccess
             if (http.User.Identity?.IsAuthenticated == true) return Results.Redirect("/");
             return LoginPage(http, csrf);
         });
-        app.MapPost("/login", async (HttpContext http, IAntiforgery csrf, PlaybackStore store) =>
+        app.MapPost("/login", async (HttpContext http, IAntiforgery csrf, Playback.Application.Workspace.DemoAccounts accounts) =>
         {
             if (!http.Request.HasFormContentType || http.Request.ContentLength is null or > 4096)
                 return Results.BadRequest(new { error = "A bounded login form is required" });
             var form = await http.Request.ReadFormAsync(http.RequestAborted);
             var account = form["account"].ToString();
-            var validAccount = ValidUsername(account);
-            var validPassword = Equal(form["password"].ToString(), password!);
-            if (!(validAccount & validPassword)) return LoginPage(http, csrf, failed: true);
-            await store.GetOrCreateDemoUser(account, http.RequestAborted);
+            if (!await accounts.SignIn(account, form["password"].ToString(), password!, http.RequestAborted)) return LoginPage(http, csrf, failed: true);
             var principal = new ClaimsPrincipal(new ClaimsIdentity([
                 new Claim(ClaimTypes.NameIdentifier, account),
                 new Claim(ClaimTypes.Name, account),
@@ -173,11 +170,7 @@ public sealed class DemoAccess
         CsrfCookie, csrf.GetAndStoreTokens(http).RequestToken!, new CookieOptions
         { HttpOnly = false, Secure = !allowHttp, SameSite = SameSiteMode.Strict, Path = "/" });
 
-    static bool Equal(string supplied, string expected) => CryptographicOperations.FixedTimeEquals(
-        SHA256.HashData(Encoding.UTF8.GetBytes(supplied)), SHA256.HashData(Encoding.UTF8.GetBytes(expected)));
-
-    static bool ValidUsername(string name) => name.Length is >= 1 and <= 64 &&
-        name.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.');
+    static bool ValidUsername(string name) => Playback.Domain.Workspace.DemoCredentials.ValidUsername(name);
 
     static Task Reject(HttpContext http, int status, string error)
     {

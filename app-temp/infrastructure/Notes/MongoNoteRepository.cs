@@ -5,22 +5,26 @@ using Playback.Domain.Notes;
 
 namespace Playback.Infrastructure.Notes;
 
-// Existing collections remain intact. The shared lock coordinates API language edits;
-// cross-process concurrency is a later migration boundary.
+// Existing history stays intact; a single atomic head and durable history marker protect competing writers.
 public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoCollection<NoteGateRecord> gates,
     INoteEvidence evidence, INoteSettings settings, ConcurrentDictionary<string, SemaphoreSlim> writeLocks,
-    Action<string> changed) : INoteRepository
+    Action<string> changed, INoteHistoryStorage historyStorage) : INoteRepository
 {
+    readonly NoteHistoryJournal journal = new(historyStorage);
+    Task<NoteHead> Head(string id) => journal.Read(id, () => notes.Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync()!);
+    public async Task<Note?> Latest(string id) => (await Head(id)).Current;
     public async Task<List<Note>> History(string id)
     {
+        await Head(id);
         var result = await notes.Find(x => x.SessionId == id).SortByDescending(x => x.Version).Limit(100).ToListAsync();
         result.Reverse();
         return result;
     }
-    public Task<Note?> Version(string id, int version) => notes.Find(x => x.SessionId == id && x.Version == version).FirstOrDefaultAsync()!;
+    public async Task<Note?> Version(string id, int version) {await Head(id); return await notes.Find(x => x.SessionId == id && x.Version == version).FirstOrDefaultAsync();}
     public async Task<object> Page(string id, int? before, int limit)
     {
         if (limit is < 1 or > 50 || before is < 1) throw new InvalidOperationException("Invalid note history page");
+        await Head(id);
         var result = await notes.Find(x => x.SessionId == id && (before == null || x.Version < before))
             .SortByDescending(x => x.Version).Limit(limit + 1).ToListAsync();
         return new { items = result.Take(limit).Select(x => new { x.Version, x.BasedOnVersion, x.Author, x.CreatedAt,
@@ -64,7 +68,7 @@ public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoColl
             var currentPresentation = await settings.Presentation(id);
             if (update.Presentation is not null && update.Presentation != currentPresentation) throw new InvalidOperationException("Note presentation changed during this operation; result was not applied");
             update = update with { Presentation = currentPresentation };
-            var previous = await notes.Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync();
+            var previous = (await Head(id)).Current;
             if (previous?.InputHash == inputHash) return new { previous.Version, previous.Markdown, previous.Author };
             var note = NoteMutation.Create(id, previous, update, inputHash, basedOnVersion, language, currentLanguage, author, deleted, suppressed);
             var provenance = await evidence.Provenance(id, note.TranscriptIds);
@@ -80,7 +84,7 @@ public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoColl
                 note.SourceFrom = linked.Min(x => x.RecordedAt);
                 note.SourceThrough = linked.Max(x => x.RecordedAt?.AddMilliseconds(x.EndMs - x.StartMs));
             }
-            await notes.InsertOneAsync(note);
+            await journal.Commit(note, basedOnVersion);
             changed(id);
             return new { note.Version, note.Markdown, note.Author };
         }

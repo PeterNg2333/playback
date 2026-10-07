@@ -9,7 +9,7 @@ public sealed class ApiExceptionMiddleware(RequestDelegate next)
         {
             await next(context);
         }
-        catch (Playback.Api.Security.WorkspaceNotFoundException)
+        catch (Playback.Application.Workspace.WorkspaceNotFoundException)
         {
             await WriteError(context, 404, "Resource not found");
         }
