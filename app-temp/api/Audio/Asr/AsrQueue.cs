@@ -3,7 +3,7 @@ using Playback.Api.Db;
 
 namespace Playback.Api.Audio.Asr;
 
-public sealed class AsrQueue : IAsyncDisposable
+public sealed class AsrQueue : BackgroundService, IAsyncDisposable
 {
     readonly PlaybackStore store;
     readonly AsrProcessor processor;
@@ -14,8 +14,6 @@ public sealed class AsrQueue : IAsyncDisposable
     readonly HashSet<string> queued = [];
     readonly Dictionary<string, (int Failures, DateTime RetryAt)> retries = [];
     readonly CancellationTokenSource stopping = new();
-    readonly Task[] workers;
-    readonly Task scanner;
     readonly bool paused = PlaybackEnvironment.ExternalAsrPaused;
     bool databaseUnavailable;
 
@@ -27,10 +25,13 @@ public sealed class AsrQueue : IAsyncDisposable
         this.processor = processor;
         this.logger = logger;
         if (paused) logger.LogWarning("External ASR is paused; saved audio remains queued for a later restart");
-        workers = Enumerable.Range(0, 2).Select(_ => Task.Run(ProcessQueue)).ToArray();
-        scanner = Task.Run(ScanPending);
     }
 
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        stoppingToken.Register(stopping.Cancel);
+        return Task.WhenAll(Enumerable.Range(0, 2).Select(_ => ProcessQueue()).Append(ScanPending()));
+    }
     public int EnqueuePending(IEnumerable<ChunkRecord> chunks)
     {
         var count = 0;
@@ -158,8 +159,9 @@ public sealed class AsrQueue : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         stopping.Cancel();
-        await Task.WhenAll(workers.Append(scanner));
+        await StopAsync(CancellationToken.None);
         stopping.Dispose();
         available.Dispose();
+        base.Dispose();
     }
 }

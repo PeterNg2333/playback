@@ -38,11 +38,12 @@ public class GeminiLanguageModel
         var root = input.RootElement;
         var inputIds = root.GetProperty("pending").EnumerateArray().Concat(root.GetProperty("materials").EnumerateArray())
             .Select(x => x.GetProperty("id").GetString()!).ToArray();
-        var sourceIds = inputIds.Concat(root.GetProperty("sectionSources").EnumerateArray().Concat(root.GetProperty("sectionMaterials").EnumerateArray())
+        IEnumerable<JsonElement> Rows(string key) => root.TryGetProperty(key, out var value) ? value.EnumerateArray() : [];
+        var sourceIds = inputIds.Concat(Rows("sectionSources").Concat(Rows("sectionMaterials"))
                 .Select(x => x.GetProperty("id").GetString()!))
             .Concat(root.GetProperty("editableSections").EnumerateArray().SelectMany(x => x.GetProperty("points").EnumerateArray())
                 .SelectMany(x => x.GetProperty("sourceIds").EnumerateArray()).Select(x => x.GetString()!))
-            .Concat(root.GetProperty("citationSources").EnumerateArray().Select(x => x.GetProperty("id").GetString()!))
+            .Concat(Rows("citationSources").Select(x => x.GetProperty("id").GetString()!))
             .Distinct().ToArray();
         var pointSources = section["properties"]!["points"]!["items"]!["properties"]!["sourceIds"]!;
         if (sourceIds.Length == 0) pointSources["maxItems"] = 0;

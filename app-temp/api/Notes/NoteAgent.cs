@@ -5,15 +5,13 @@ using Playback.Api.Providers;
 namespace Playback.Api.Notes;
 
 // Compatibility and worker host only; note use cases and decisions run in Application/Domain.
-// Hosted-service migration remains Phase 6.
-public sealed class NoteAgent : IAsyncDisposable
+public sealed class NoteAgent : BackgroundService, IAsyncDisposable
 {
     readonly PlaybackStore store;
     readonly NoteWorkflow workflow;
     readonly ILogger<NoteAgent> logger;
     readonly TimeProvider clock;
     readonly CancellationTokenSource stopping = new();
-    readonly Task scanner;
     DateTimeOffset nextOrganization;
 
     public NoteAgent(PlaybackStore store, NoteWorkflow workflow, ILogger<NoteAgent> logger, TimeProvider? clock = null)
@@ -22,7 +20,6 @@ public sealed class NoteAgent : IAsyncDisposable
         this.workflow = workflow;
         this.logger = logger;
         this.clock = clock ?? TimeProvider.System;
-        scanner = Task.Run(ScanPending);
     }
 
     // Existing checks and callers can still supply in-memory adapters through this constructor.
@@ -43,6 +40,11 @@ public sealed class NoteAgent : IAsyncDisposable
     public static void ValidateSourceReferences(string markdown, IEnumerable<string> allowed) => NoteReferences.ValidateSourceReferences(markdown, allowed);
     public static string ReadableDraft(string json) => NoteWorkflow.ReadableDraft(json);
 
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        stoppingToken.Register(stopping.Cancel);
+        return ScanPending();
+    }
     async Task ScanPending()
     {
         if (PlaybackEnvironment.Offline) return;
@@ -73,8 +75,9 @@ public sealed class NoteAgent : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         stopping.Cancel();
-        await scanner;
+        await StopAsync(CancellationToken.None);
         await workflow.Drain();
         stopping.Dispose();
+        base.Dispose();
     }
 }

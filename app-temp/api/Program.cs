@@ -40,11 +40,13 @@ builder.Services.AddSingleton<JevTransport>();
 builder.Services.AddSingleton<IAsrAdapter>(_ => AsrAdapters.Create());
 builder.Services.AddSingleton<AsrProcessor>();
 builder.Services.AddSingleton<AsrQueue>();
+builder.Services.AddHostedService(s => s.GetRequiredService<AsrQueue>());
 builder.Services.AddSingleton<WindowsAudioCaptureService>();
 builder.Services.AddSingleton<SessionAudioRenderer>();
 builder.Services.AddHostedService<CombinedAudioWorker>();
 
 builder.Services.AddSingleton<TranslationAgent>();
+builder.Services.AddHostedService(s => s.GetRequiredService<TranslationAgent>());
 builder.Services.AddSingleton<JevNoteGate>();
 builder.Services.AddSingleton<IJevTransport>(s => s.GetRequiredService<JevTransport>());
 builder.Services.AddSingleton<NoteStoreAdapter>();
@@ -55,8 +57,10 @@ builder.Services.AddSingleton<NoteWorkflow>(s => new(s.GetRequiredService<NoteSt
     processingPolicy: s.GetRequiredService<NoteStoreAdapter>(), boundaries: s.GetRequiredService<NoteStoreAdapter>(), organization: s.GetRequiredService<NoteStoreAdapter>(), rewrites: s.GetRequiredService<NoteStoreAdapter>()));
 builder.Services.AddSingleton<NoteAgent>(s => new(s.GetRequiredService<PlaybackStore>(), s.GetRequiredService<NoteWorkflow>(),
     s.GetRequiredService<ILogger<NoteAgent>>()));
+builder.Services.AddHostedService(s => s.GetRequiredService<NoteAgent>());
 builder.Services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));
 builder.Services.AddSingleton<TermReviewAgent>();
+builder.Services.AddHostedService(s => s.GetRequiredService<TermReviewAgent>());
 builder.Services.AddSingleton<SyntheticTermComparison>();
 builder.Services.AddSingleton<ChatAgent>();
 
@@ -85,9 +89,4 @@ app.MapTesting();
 app.Map("/api/{**path}", () => Results.NotFound(new { error = "API route not found" }));
 app.MapFallbackToFile("index.html");
 
-// Background workers start their scan loops in their constructors; resolve them before serving.
-app.Services.GetRequiredService<AsrQueue>();
-app.Services.GetRequiredService<NoteAgent>();
-app.Services.GetRequiredService<TranslationAgent>();
-app.Services.GetRequiredService<TermReviewAgent>();
 app.Run();

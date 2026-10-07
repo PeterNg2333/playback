@@ -5,7 +5,7 @@ using Playback.Api.Activity;
 
 namespace Playback.Api.Terms;
 
-public sealed class TermReviewAgent : IAsyncDisposable
+public sealed class TermReviewAgent : BackgroundService, IAsyncDisposable
 {
     readonly PlaybackStore store;
     readonly JevTermClassifier jev;
@@ -17,7 +17,6 @@ public sealed class TermReviewAgent : IAsyncDisposable
     readonly ConcurrentDictionary<string, SemaphoreSlim> reviewGates = new();
     readonly ConcurrentDictionary<string, SemaphoreSlim> explainGates = new();
     readonly CancellationTokenSource stopping = new();
-    readonly Task scanner;
 
     public TermReviewAgent(PlaybackStore store, JevTermClassifier jev, GeminiLanguageModel gemini, ILogger<TermReviewAgent> logger, AiActivity activity)
     {
@@ -26,8 +25,6 @@ public sealed class TermReviewAgent : IAsyncDisposable
         this.gemini = gemini;
         this.logger = logger;
         this.activity = activity;
-        store.SourceChanged += Queue;
-        scanner = Task.Run(ScanPending);
     }
 
     public static List<TermCandidate> Pending(SessionView session, int limit) => session.Terms
@@ -108,6 +105,13 @@ public sealed class TermReviewAgent : IAsyncDisposable
         if (attempts.GetValueOrDefault(id) >= 3) return;
         if (pendingSessions.Count < 128) pendingSessions.TryAdd(id, DateTime.UtcNow.AddSeconds(4));
     }
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        stoppingToken.Register(stopping.Cancel);
+        store.SourceChanged += Queue;
+        try { await ScanPending(); }
+        finally { store.SourceChanged -= Queue; }
+    }
     async Task ScanPending()
     {
         if (PlaybackEnvironment.Offline) return;
@@ -157,7 +161,8 @@ public sealed class TermReviewAgent : IAsyncDisposable
     {
         store.SourceChanged -= Queue;
         stopping.Cancel();
-        await scanner;
+        await StopAsync(CancellationToken.None);
         stopping.Dispose();
+        base.Dispose();
     }
 }
