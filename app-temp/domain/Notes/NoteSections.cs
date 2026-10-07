@@ -1,26 +1,22 @@
-using Playback.Api.Sources;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
-using Playback.Api.Db;
 
-namespace Playback.Api.Notes;
+namespace Playback.Domain.Notes;
 
 // Notes are one versioned document. Sections, points and citations are part of that document,
 // not separate agent-owned copies. Unselected sections never pass through generation.
 public static class NoteSections
 {
-    static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     public static string Render(IEnumerable<NoteSection> sections) => string.Join("\n\n", sections.Select(x => x.Markdown.Trim())).Trim();
     public static List<string> Sources(string markdown, IEnumerable<string> allowed) {
         var ids = allowed.ToHashSet(StringComparer.Ordinal);
-        return SourceReferences.CitationBodies(markdown).SelectMany(x => x.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        return CitationSyntax.Bodies(markdown).SelectMany(x => x.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Where(ids.Contains).Distinct(StringComparer.Ordinal).ToList();
     }
     public static List<NoteCitation> CloneCitations(IEnumerable<NoteCitation> citations) => citations
         .Select(x => new NoteCitation { Id = x.Id, SourceIds = x.SourceIds.ToList() }).ToList();
     public static List<NoteCitation> UsedCitations(IEnumerable<NoteSection> sections, List<NoteCitation> citations) {
-        var ids = sections.SelectMany(s => SourceReferences.CitationBodies(s.Markdown).Concat(s.Points.SelectMany(p => SourceReferences.CitationBodies(p.Text))))
+        var ids = sections.SelectMany(s => CitationSyntax.Bodies(s.Markdown).Concat(s.Points.SelectMany(p => CitationSyntax.Bodies(p.Text))))
             .ToHashSet(StringComparer.Ordinal);
         return citations.Where(x => ids.Contains(x.Id)).ToList();
     }
@@ -52,7 +48,6 @@ public static class NoteSections
         if (current.ToString().Trim().Length > 0) yield return current.ToString().Trim();
     }
     // The current note as sections; versions saved before sections existed are split by heading.
-    public static List<NoteSection> Current(SessionView session) => Read(session.CurrentNote, MaterialSources.Allowed(session));
     public static List<NoteSection> Read(Note? note, IEnumerable<string> allowed) {
         if (note is null) return [];
         if (note.Sections.Count > 0) return note.Sections;
@@ -96,10 +91,6 @@ public static class NoteSections
         return b.Split('\n').Count(x => left.Contains(x.Trim()));
     }
 
-    public static NotePatch Parse(string text) {
-        text = Regex.Replace(text.Trim(), @"^```(?:json)?\s*|\s*```$", "");
-        return JsonSerializer.Deserialize<NotePatch>(text, JsonOptions) ?? throw new InvalidOperationException("Empty section response");
-    }
     public static void RequireRetention(Note? previous, SectionUpdate update, IEnumerable<string> allowedIds, bool allowProtectedReformat = false) {
         if (previous is null) return;
         var allowed = allowedIds.Concat(previous.TranscriptIds).Concat(previous.Citations.SelectMany(x => x.SourceIds)).Distinct().ToList();

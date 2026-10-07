@@ -11,7 +11,7 @@ public static class HealthEndpoints
 {
     public static void MapHealth(this WebApplication app)
     {
-        app.MapGet("/api/health", async (PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr) => new
+        app.MapGet("/api/health", async (PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr, ProcessingPolicy defaults) => new
         {
             mongo = await store.IsReady(),
             build = typeof(HealthEndpoints).Assembly.ManifestModule.ModuleVersionId.ToString(),
@@ -26,7 +26,9 @@ public static class HealthEndpoints
             noteCoverage = true,
             sessionSync = true,
             jevNoteGate = jev.IsConfigured,
-            noteDecisionIntervalSeconds = 10,
+            noteDecisionIntervalSeconds = defaults.CheckIntervalSeconds,
+            noteProcessingSettings = true,
+            noteMaxPendingWaitSeconds = defaults.MaxPendingWaitSeconds,
             notePromptVersion = NoteInstructions.Version,
             savedAsrRecovery = PlaybackEnvironment.ResumeSavedAsr,
             database = PlaybackEnvironment.Database,

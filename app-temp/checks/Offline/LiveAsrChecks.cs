@@ -89,7 +89,7 @@ static class LiveAsrChecks
         public AsrModel Model => new("fixture", "rest", "rest");
         public Task<AsrResult> Transcribe(AsrRequest request, CancellationToken ct) => call(request, ct);
     }
-    sealed class PreviewStore : PlaybackStore {
+    sealed class PreviewStore() : PlaybackStore(inMemory: true) {
         public readonly ConcurrentDictionary<string, ActivityRecord> Records = new();
         public override Task SaveActivity(ActivityRecord item) { Records[item.Id] = item; return Task.CompletedTask; }
     }

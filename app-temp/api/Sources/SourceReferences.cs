@@ -13,7 +13,6 @@ public sealed class SourceReferences
     readonly Dictionary<string, string> sourceIds = new(StringComparer.Ordinal);
     readonly Dictionary<string, Transcript> transcripts;
     public List<TranscriptSourceGroup> Groups { get; }
-    static readonly Regex Brackets = new(@"(?<code>```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\r\n]*`)|\[(?<body>[^\[\]\r\n]{1,16000})\](?!\()", RegexOptions.Compiled);
     public SourceReferences(SessionView session)
     {
         transcripts = session.Transcripts.ToDictionary(x => x.Id, StringComparer.Ordinal);
@@ -57,23 +56,19 @@ public sealed class SourceReferences
     }));
     public string Encode(string text) => Translate(text, shortIds, false);
     public string Decode(string text) => Translate(text, sourceIds, true);
-    public static IEnumerable<string> CitationBodies(string text) => Brackets.Matches(text)
-        .Where(match => !match.Groups["code"].Success).Select(match => match.Groups["body"].Value);
-    public static string RewriteCitations(string text, Func<string, string> rewrite) => Brackets.Replace(text, match =>
-        match.Groups["code"].Success ? match.Value : "[" + rewrite(match.Groups["body"].Value) + "]");
-    string Translate(string text, Dictionary<string, string> map, bool validate) => Brackets.Replace(text, match => {
-        if (match.Groups["code"].Success) return match.Value;
-        var body = match.Groups["body"].Value;
-        if (body.StartsWith("ref:", StringComparison.OrdinalIgnoreCase)) return match.Value;
+    public static IEnumerable<string> CitationBodies(string text) => CitationSyntax.Bodies(text);
+    public static string RewriteCitations(string text, Func<string, string> rewrite) => CitationSyntax.Rewrite(text, rewrite);
+    string Translate(string text, Dictionary<string, string> map, bool validate) => CitationSyntax.Rewrite(text, body => {
+        if (body.StartsWith("ref:", StringComparison.OrdinalIgnoreCase)) return body;
         var ids = body.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         if (ids.Length > 0 && ids.All(map.ContainsKey))
-            return "[" + string.Join(", ", ids.SelectMany(id => map[id].Split(", ")).Distinct(StringComparer.Ordinal)) + "]";
+            return string.Join(", ", ids.SelectMany(id => map[id].Split(", ")).Distinct(StringComparer.Ordinal));
         var converted = Regex.Replace(body, @"[A-Za-z0-9_-]+", token => {
             if (map.TryGetValue(token.Value, out var value)) return value;
             if (validate && !shortIds.ContainsKey(token.Value) && Regex.IsMatch(token.Value, @"^(?:\d+|M\d+)$"))
                 throw new InvalidOperationException("AI answer contains an unknown short source reference");
             return token.Value;
         });
-        return "[" + converted + "]";
+        return converted;
     });
 }

@@ -1,18 +1,21 @@
-namespace Playback.Api.Notes;
+using Playback.Domain.Notes;
+
+namespace Playback.Application.Notes;
 
 // Scheduling uses monotonic TimeProvider timestamps and never awaits provider work on the tick.
 // Admission is shared by automatic generation and section organization in NoteAgent.
-public sealed class NoteScheduler(TimeProvider clock, Func<string, CancellationToken, Task> work, int concurrency = 4)
+public sealed class NoteScheduler(TimeProvider clock, Func<string, CancellationToken, Task> work, int concurrency = 4,
+    TimeSpan? interval = null)
 {
-    public static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
+    public static readonly TimeSpan Interval = NoteAdmissionPolicy.CheckInterval;
     readonly Dictionary<string, Task> active = new();
     long lastTick = clock.GetTimestamp();
     int next;
-    public bool Due => clock.GetElapsedTime(lastTick) >= Interval;
+    public bool Due => clock.GetElapsedTime(lastTick) >= (interval ?? Interval);
     public IReadOnlyList<Task> Active { get { lock (active) return active.Values.ToList(); } }
     public void Tick(IEnumerable<string> sessionIds, CancellationToken ct) {
         lock (active) {
-            if (clock.GetElapsedTime(lastTick) < Interval) return;
+            if (!Due) return;
             lastTick = clock.GetTimestamp();
             foreach (var id in active.Where(x => x.Value.IsCompleted).Select(x => x.Key).ToList()) active.Remove(id);
             var ids = sessionIds.Distinct().Order(StringComparer.Ordinal).ToList();

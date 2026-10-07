@@ -3,6 +3,12 @@
 !app-temp/
 !app-temp/api/
 !app-temp/api/**
+!app-temp/domain/
+!app-temp/domain/**
+!app-temp/application/
+!app-temp/application/**
+!app-temp/infrastructure/
+!app-temp/infrastructure/**
 !app-temp/web/
 !app-temp/web/**
 **/bin/

@@ -4,7 +4,7 @@ namespace Playback.Api.Providers;
 
 // Shared discovery, credentials and bounded transport. Each task owns its own questions
 // and admission limit; a slow glossary request cannot monopolize the note gate.
-public sealed class JevTransport : IDisposable
+public sealed class JevTransport : IDisposable, Playback.Infrastructure.Notes.IJevTransport
 {
     readonly HttpClient http;
     readonly SemaphoreSlim discovery = new(1, 1);

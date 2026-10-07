@@ -1,8 +1,6 @@
-using Playback.Api.Db;
 using System.Text.RegularExpressions;
-using Playback.Api.Sources;
 
-namespace Playback.Api.Notes;
+namespace Playback.Domain.Notes;
 
 public static class NoteChangeLog
 {
@@ -17,7 +15,7 @@ public static class NoteChangeLog
         var edits = new List<NoteEdit>();
         NoteEdit Edit(string kind, int line, string text)
         {
-            var citations = SourceReferences.CitationBodies(text)
+            var citations = CitationSyntax.Bodies(text)
                 .Where(x => !x.StartsWith("ref:", StringComparison.OrdinalIgnoreCase))
                 .SelectMany(x => Regex.Matches(x, @"[A-Za-z0-9_-]+").Select(token => token.Value))
                 .Distinct().ToList();

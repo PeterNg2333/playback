@@ -37,9 +37,9 @@ static class NoteSchedulingChecks
         store.Speech("a", "a1", "The capacity R is shared among flows on the same bottleneck.");
         await using (var agent = Agent())
         {
-            await Tick(agent, 9.9, "a");
+            await Tick(agent, 8, "a");
             Expect.That(gate.Calls == 0, "Gate ran before the actual 10-second tick");
-            await Tick(agent, .1, "a");
+            await Tick(agent, 2, "a");
             Expect.That(gate.Calls == 1 && model.Calls == 1 && store.Notes["a"].Version == 1, "Allow did not immediately generate exactly one note");
             await Tick(agent, 10, "a");
             Expect.That(gate.Calls == 1 && model.Calls == 1, "Idle session called a provider");
@@ -55,7 +55,7 @@ static class NoteSchedulingChecks
 
         await using (var restarted = Agent())
         {
-            await Tick(restarted, 10, "b");
+            await Tick(restarted, 8, "b");
             Expect.That(gate.Calls == 2, "Restart forgot the saved wait identity");
             store.Speech("b", "b2", "R shared by n flows, and for ten flows each targets R/10.");
             gate.Allow = true;
@@ -68,12 +68,12 @@ static class NoteSchedulingChecks
             gate.Allow = false;
             store.Gates["c"] = new NoteGateRecord { SessionId = "c", FlushRequested = true };
             await Tick(restarted, 10, "c");
-            Expect.That(model.Calls == 3 && store.Gates["c"].Decision == "wait", "Stop falsely reported a Jev allow or failed to flush meaningful input");
+            Expect.That(model.Calls == 3 && store.Gates["c"].Decision != "allow" && store.Gates["c"].AdmissionReason == "stop", "Stop falsely reported a Jev allow or failed to flush meaningful input");
 
             store.Add("d");
             store.Speech("d", "d1", "Manual revision must work immediately without awaiting a note gate tick.");
             await restarted.Generate("d", CancellationToken.None);
-            Expect.That(model.Calls == 4 && gate.Calls == 4, "Manual Revise waited for Jev");
+            Expect.That(model.Calls == 4 && gate.Calls == 3, "Manual Revise waited for Jev");
 
             store.Add("e");
             store.Speech("e", "e1", "A slow session cannot block the other lecture from getting its notes.");

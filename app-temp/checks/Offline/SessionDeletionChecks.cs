@@ -34,7 +34,7 @@ static class SessionDeletionChecks
         Console.WriteLine("Session deletion checks passed: queued work, concurrent admission, session isolation, storage failure/retry and microphone default (in-memory only)");
     }
 
-    sealed class MemoryStore : PlaybackStore
+    sealed class MemoryStore() : PlaybackStore(inMemory: true)
     {
         public List<string> Deleted { get; } = [];
         public TaskCompletionSource? ReleaseDeletion;

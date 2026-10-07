@@ -21,6 +21,8 @@ import { Menu, MenuItem } from "../../components/Menu";
 import { Chip } from "../../components/Chip";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
+import { ProcessingSettingsDialog } from "./ProcessingSettingsDialog";
+import { NoteAdmissionStatus } from "./NoteAdmissionStatus";
 
 // A line under the notes saying why AI notes have not appeared or failed.
 const statusStyle = "mx-4.5 mb-2.5 text-[11px] text-[#9a591c]";
@@ -44,9 +46,9 @@ export function NotesPanel({
   const draft = useNoteDraft(session);
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
-  const [noteDialog, setNoteDialog] = useState<"history" | "organize" | null>(
-    null,
-  );
+  const [noteDialog, setNoteDialog] = useState<
+    "history" | "organize" | "settings" | null
+  >(null);
   const body = useRef<HTMLDivElement>(null);
   const renderedNotes = useRef<HTMLDivElement>(null);
   const headings = () =>
@@ -297,6 +299,15 @@ export function NotesPanel({
                 >
                   Revise with AI
                 </MenuItem>
+                <MenuItem
+                  disabled={!session}
+                  onClick={() => {
+                    close();
+                    setNoteDialog("settings");
+                  }}
+                >
+                  Notes settings
+                </MenuItem>
                 <div className="my-1 border-t border-line" />
                 <MenuItem
                   disabled={!session || !health?.sectionNotes}
@@ -504,6 +515,7 @@ export function NotesPanel({
           </div>
         )}
       </div>
+      {session?.noteAdmission && <NoteAdmissionStatus session={session} />}
       {waitingForSpeech ? (
         <p className={statusStyle} role="status">
           Waiting for more recognized speech before generating AI notes.
@@ -559,6 +571,13 @@ export function NotesPanel({
           key={session?.id}
           session={session}
           draftDirty={draft.isDirty}
+          onClose={() => setNoteDialog(null)}
+        />
+      )}
+      {noteDialog === "settings" && session && (
+        <ProcessingSettingsDialog
+          key={session.id}
+          sessionId={session.id}
           onClose={() => setNoteDialog(null)}
         />
       )}

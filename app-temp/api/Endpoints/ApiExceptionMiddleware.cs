@@ -13,6 +13,10 @@ public sealed class ApiExceptionMiddleware(RequestDelegate next)
         {
             await WriteError(context, 404, "Resource not found");
         }
+        catch (Playback.Domain.Notes.ProcessingPolicyValidationException ex)
+        {
+            await WriteError(context, 400, ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             await WriteError(context, 409, AiActivity.SafeError(ex));

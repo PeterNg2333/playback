@@ -15,7 +15,7 @@ player bar and the Ask panel, and hands each the session being shown.
 | `features/transcript/` | The transcript timeline: its entries, virtual list, row kinds (`rows/`), ASR status and session settings | `TranscriptPanel.tsx` |
 | `features/player/` | Playback of saved audio through one `<audio>` element | `useAudioPlayer.ts` |
 | `features/materials/` | Teaching materials: list and attach | `MaterialsList.tsx` |
-| `features/notes/` | Reading, editing and saving notes; history, restore and recovery; organizing; coverage | `NotesPanel.tsx` |
+| `features/notes/` | Reading, editing and saving notes; history, recovery, organizing and coverage; persisted timing/Jev settings and admission status | `NotesPanel.tsx`, `ProcessingSettingsDialog.tsx` |
 | `features/terms/` | Key-term highlights, saved explanations, Jev decisions | `TermHighlight.tsx` |
 | `features/ask/` | Questions about the session, answers and saved conversations | `AskPanel.tsx` |
 | `features/activity/` | The AI execution log and a group's AI flow | `ActivityPopover.tsx` |
@@ -80,25 +80,36 @@ variant, such as `**:data-markdown:max-w-[72ch]` on the notes body.
 
 ## .NET API
 
-`api/Playback.Api.csproj` is a single web project. The .NET 10 `webapi`
-template puts the `.csproj` and `Program.cs` at the project root; an inner
-`src/` folder only pays off once there are several projects.
+Phased migration: [DDD, notes and audio refactor plan](../docs/ddd-notes-audio-refactor-plan.md).
+Phases 0 and 1 are implemented; see [contracts](../docs/ddd-notes-audio-contracts.md)
+and [results](../docs/ddd-notes-audio-phase01-results.md). Timing/settings changes remain Phase 2.
+
+The backend has four .NET 10 projects in one deployment:
+
+| Project | Owns | Depends on |
+| --- | --- | --- |
+| `domain/Playback.Domain.csproj` | Note state, admission, mutation, retention, citations and recovery invariants | .NET only; no packages |
+| `application/Playback.Application.csproj` | Note commands/workflow, prompt input, evidence selection, scheduler and storage/provider/settings ports | Domain |
+| `infrastructure/Playback.Infrastructure.csproj` | Mongo note persistence, Jev decision parsing and provider reply parsing | Application/Domain; existing Mongo driver |
+| `api/Playback.Api.csproj` | HTTP/auth/composition, note bridges and worker host; all not-yet-migrated features | Application and Infrastructure |
 
 Read `Program.cs` first. It registers the store, the providers, the audio
 pipeline and the AI agents in that order, maps one endpoint class per
 resource, and resolves the background workers so they start scanning. Every
-folder has a matching `Playback.Api.*` namespace.
+unmigrated folder has a matching `Playback.Api.*` namespace. Note domain and
+application types have their respective project namespaces; `NoteImports.cs`
+keeps old callers readable during the migration.
 
 | Folder | Holds | Start with |
 | --- | --- | --- |
 | `Endpoints/` | HTTP routes, one class per resource with its request records; error responses | the class named after the resource |
-| `Db/` | MongoDB: one `PlaybackStore`, one file per saved concept (sessions, chunks, transcripts, notes, terms, conversations, activity, the page's change feed, test data) | `PlaybackStore.cs` |
+| `Db/` | MongoDB for unmigrated concepts; note entry points forward to application commands / infrastructure repository | `PlaybackStore.cs`, `Notes.cs` |
 | `Audio/Recording/` | Windows microphone and system-audio capture into WAV chunks | `WindowsAudioCaptureService.cs` |
 | `Audio/Vad/` | Silero speech detection, while recording and before upload | `SpeechActivityDetector.cs` |
 | `Audio/Asr/` | Transcribing saved chunks: the queue, one chunk's processing, the `IAsrAdapter` seam with SenseVoice and OpenRouter in `Providers/`, and interim previews while recording | `AsrQueue.cs`, `IAsrAdapter.cs` |
 | `Audio/` | Shared by the folders above: `AudioSamples` reads device buffers; `SessionAudioRenderer` mixes 30-second windows for the player | — |
 | `Translation/` | Batched translation of transcripts into the session's target language | `TranslationAgent.cs` |
-| `Notes/` | The note document (sections, points, citations, coverage) and the agent that writes it | `NoteAgent.cs` |
+| `Notes/` | Note worker host and compatibility/evidence/provider/activity bridges | `NoteAgent.cs`, `NoteStoreAdapter.cs` |
 | `Terms/` | Key-term candidates, Jev ranking, saved explanations | `TermReviewAgent.cs` |
 | `Ask/` | Questions about a session: which sources, which citations count | `ChatAgent.cs` |
 | `Sources/` | Short citation aliases and material passages, shared by notes and Ask | `SourceReferences.cs` |
@@ -122,13 +133,15 @@ Three files sit at the root because every folder uses them:
 - Transcribe: `AsrQueue` (two workers, retries with backoff) → `AsrProcessor`
   skips digital silence and audio without speech, otherwise calls the adapter
   → `SaveTranscript` (`Db/Transcripts.cs`). New text raises `SourceChanged`,
-  which queues term review; notes pick it up on their next 10-second check.
-- Notes: `NoteAgent.Automatic.cs` runs every 10 s through `NoteScheduler`; the
-  Jev note gate answers allow or wait, saved in `note_gates`; an allow calls
-  `NoteAgent.Revise`, which builds the bounded input (`NoteInput`), applies
-  Gemini's section patch (`NoteSections.Apply`) and saves a new version
-  (`SaveSectionNote` in `Db/Notes.cs`). Revise with AI, Organize and coverage
-  repair call `Revise` directly.
+  which queues term review; notes pick it up on their configured check, Stop or admission deadline.
+- Notes: API `NoteAgent` hosts the scan; application `NoteWorkflow.Automatic.cs`
+  runs every 10 s through `NoteScheduler`. Domain `NoteAdmissionPolicy` owns the
+  unchanged gate/backlog/retry rules. An allow calls `NoteWorkflow.Revise`, which
+  builds bounded input, calls `INoteWriter`, applies domain `NoteSections.Apply`
+  and saves through `INoteRepository` / `MongoNoteRepository`. `NoteMutation`
+  checks version/language/retention and creates the revision. `NoteCommands`
+  owns user edits, history, explicit restore and recovery. API bridges retain
+  current Mongo evidence and Gemini/Activity integrations.
 - Ask: `AskEndpoints` → `ChatAgent` → `ChatContextBuilder` picks and aliases the
   sources → Gemini → the citations are decoded and checked → the turn is saved
   in its conversation.
@@ -145,8 +158,10 @@ Three files sit at the root because every folder uses them:
 - `ChunkStatus` and `ChunkIdentity` (`Db/Chunks.cs`): the chunk lifecycle, and
   the session/source/sequence/hash identity that makes uploads and retries
   idempotent.
-- `NoteInstructions`: the note prompts and their versions. `NoteInput`: what
-  the model sees and its size limits.
+- Application `NoteInstructions`: prompts and versions. Application `NoteInput`:
+  model inputs and size limits. Domain `NoteSections`, `NoteMutation` and
+  `NoteAdmissionPolicy`: mutation and admission rules; API compatibility classes
+  only forward to them.
 - Provider calls use fixed endpoints, timeouts and `ProviderResponseReader`'s
   size limit. `AiActivity` records each call and keeps keys out of errors.
 
@@ -173,6 +188,10 @@ the same question, because it decides whether a check may run now.
 
 Offline check files are named after the product concept they protect
 (`AskChecks`, `NoteSchedulingChecks`, …) and print one line when they pass.
+`RefactorBaselineChecks` characterizes later-phase problems and legacy BSON/HTTP
+readback; `NoteApiChecks` invokes real endpoint delegates entirely in memory;
+`NoteFoundationChecks` verifies actual assembly dependencies. Memory stores use
+the database-free base constructor, so a missed override cannot reach MongoDB.
 `Expect` is the only assertion helper. It throws `CheckFailed`, never
 `InvalidOperationException`, because the product rejects bad input with that
 exception and many checks expect it. `dev.mjs` checks that the NuGet files named

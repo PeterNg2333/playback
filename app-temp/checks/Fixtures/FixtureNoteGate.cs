@@ -6,6 +6,9 @@ using Playback.Api.Providers;
 // session on purpose to show that a slow session does not hold up the others.
 sealed class FixtureNoteGate() : JevNoteGate(new JevTransport(new NoteGateHandler()))
 {
+    public double? Probability;
+    public double? Confidence;
+    public string? Action;
     public override bool IsConfigured => true;
     public int Calls;
     public bool Allow = true, FailNext;
@@ -28,6 +31,6 @@ sealed class FixtureNoteGate() : JevNoteGate(new JevTransport(new NoteGateHandle
             Entered.TrySetResult();
             await Release.Task.WaitAsync(ct);
         }
-        return new(Allow, Allow ? .92 : .1, .9, "fixture-gate", "{\"input_tokens\":12}", 1);
+        return new(Allow, Probability ?? (Allow ? .92 : .1), Confidence ?? .9, "fixture-gate", "{\"input_tokens\":12}", 1, Action);
     }
 }

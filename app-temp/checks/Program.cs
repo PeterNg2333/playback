@@ -10,6 +10,10 @@ try
         case ["--notes"]:
             await RunOffline(notesOnly: true);
             break;
+        case ["--refactor-baseline"]:
+            Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");
+            await RefactorBaselineChecks.Run();
+            break;
 
         // Offline, reading the Week 3 sample in app-temp/data/test-audio/sampleAudio; decoding the M4A needs Windows.
         case ["--sample-audio", var folder]:
@@ -111,8 +115,12 @@ static async Task RunOffline(bool notesOnly)
     NoteDocumentChecks.Run();
     await NoteGenerationChecks.Run();
     await NoteSchedulingChecks.Run();
+    await ProcessingPolicyChecks.Run();
     await NoteCoverageChecks.Run();
     await SessionSyncChecks.Run();
+    await RefactorBaselineChecks.Run();
+    await NoteApiChecks.Run();
+    NoteFoundationChecks.Run();
 }
 
 // A live check can fail with a provider message; never print a credential.

@@ -119,7 +119,53 @@ export const SessionSummarySchema = z.object({
   groupId: z.string().nullish(),
 });
 export const GroupSchema = z.object({ id: z.string(), name: z.string() });
+export const ProcessingPolicySchema = z.object({
+  jevEnabled: z.boolean(),
+  probabilityThreshold: z.number().finite().min(0).max(1),
+  confidenceThreshold: z.number().finite().min(0).max(1),
+  checkIntervalSeconds: z.number().finite().min(2).max(30),
+  maxPendingWaitSeconds: z.number().finite().min(10).max(120),
+  silenceBoundarySeconds: z.number().finite().min(0.7).max(10),
+  boundarySettleSeconds: z.number().finite().min(0).max(5),
+});
+export const ProcessingSettingsSchema = z.object({
+  schemaVersion: z.literal(1),
+  revision: z.number().int().nonnegative(),
+  inheritedRevision: z.number().int().nonnegative(),
+  effectiveRevision: z.string(),
+  overrides: ProcessingPolicySchema.partial().extend({
+    jevEnabled: z.boolean().nullish(),
+    probabilityThreshold: z.number().nullish(),
+    confidenceThreshold: z.number().nullish(),
+    checkIntervalSeconds: z.number().nullish(),
+    maxPendingWaitSeconds: z.number().nullish(),
+    silenceBoundarySeconds: z.number().nullish(),
+    boundarySettleSeconds: z.number().nullish(),
+  }),
+  effective: ProcessingPolicySchema,
+  inherited: ProcessingPolicySchema,
+});
+export const NoteAdmissionSchema = z.object({
+  status: z.string(),
+  admissionReason: z.string(),
+  decision: z.string(),
+  policyRevision: z.string(),
+  firstPendingAt: z.string().nullish(),
+  retryAt: z.string().nullish(),
+  attempts: z.number(),
+  flushRequested: z.boolean(),
+  gateFailure: z.string(),
+});
+export const ProcessingSyncSchema = z.object({
+  processingSettings: ProcessingSettingsSchema,
+  noteAdmission: NoteAdmissionSchema.nullish(),
+});
+export type ProcessingPolicy = z.infer<typeof ProcessingPolicySchema>;
+export type ProcessingSettings = z.infer<typeof ProcessingSettingsSchema>;
+export type ProcessingOverrides = ProcessingSettings["overrides"];
 export const SessionSchema = SessionSummarySchema.extend({
+  processingSettings: ProcessingSettingsSchema.optional(),
+  noteAdmission: NoteAdmissionSchema.nullish(),
   sourceGroups: z
     .array(
       z.object({
@@ -327,6 +373,8 @@ export const AiFlowSchema = z.object({
       changedAt: z.string(),
       flushRequested: z.boolean(),
       generationRequested: z.boolean(),
+      admissionReason: z.string().optional(),
+      policyRevision: z.string().optional(),
     })
     .nullish(),
 });

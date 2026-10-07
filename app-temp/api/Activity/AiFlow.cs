@@ -12,7 +12,8 @@ public sealed record FlowAgent(string Id, string Name, string Provider, string M
     string Prompt, string Trigger, string Lifecycle, string InputRole, string OutputRole, List<string> DependsOn);
 public sealed class AiFlow(PlaybackStore store, GeminiLanguageModel gemini, JevNoteGate gate, IAsrAdapter asr, AiActivity activity)
 {
-    public List<FlowAgent> Agents(SessionRecord? session) {
+    public List<FlowAgent> Agents(SessionRecord? session, ProcessingPolicy? policy = null) {
+        policy ??= ProcessingPolicy.Defaults;
         var offline = PlaybackEnvironment.Offline;
         string GeminiStatus(bool enabled = true) => !enabled ? "disabled" : offline ? "offline" : gemini.IsConfigured ? "configured" : "not configured";
         return [
@@ -21,14 +22,14 @@ public sealed class AiFlow(PlaybackStore store, GeminiLanguageModel gemini, JevN
                 AsrProcessor.Instructions + "\nInterim: " + LiveAsrSession.PreviewPromptVersion + "\n" + LiveAsrSession.PreviewInstructions,
                 "Saved audio chunks; live interim is preview only", "At most 2 ASR requests; saved chunk identity deduplicates retries; failures remain visible; cancellation/stop flushes capture",
                 "Session/source/sequence/hash audio; language hint: " + (session?.AsrLanguage ?? "auto"), "Immutable original ASR + separate display/translation", []),
-            new("gate", "Jev note gate", "typesafe", "GET /v1/models discovery", offline ? "offline" : gate.IsConfigured ? "configured" : "not configured",
+            new("gate", "Jev note gate", "typesafe", "GET /v1/models discovery", !policy.JevEnabled ? "disabled" : offline ? "offline" : gate.IsConfigured ? "configured" : "not configured",
                 JevNoteGate.PromptVersion, System.Text.Json.JsonSerializer.Serialize(JevNoteGate.Questions),
-                "10-second checks with changed confirmed input; stop flush; no idle provider call",
-                "Per-session dedup; 4 admitted sessions; 30s transport timeout; persisted wait/allow/error; bounded retry; explicit backlog/stop safeguard is labelled separately from Jev allow",
+                $"Changed input checked every {policy.CheckIntervalSeconds}s; probability >= {policy.ProbabilityThreshold}, confidence >= {policy.ConfidenceThreshold}; no idle provider call",
+                "Per-session dedup; 4 admitted sessions; persisted policy/deadline/decision; bounded retry; local deadline and Stop remain distinct from Jev allow",
                 "Bounded pending passages and section context", "Structured note-specific allow/wait + probability/confidence/usage", ["asr"]),
             new("notes", "Semantic sections & notes", "vertex / Agent Framework", gemini.Model, GeminiStatus(PlaybackEnvironment.AutomaticNotes),
                 NoteInstructions.Version, NoteInstructions.For(session?.NoteLanguage ?? "zh-Hant"),
-                "Jev allow immediately; labelled stop/backlog safeguard; explicit Revise",
+                $"Jev allow; local deadline after {policy.MaxPendingWaitSeconds}s; Stop; disabled gate; explicit Revise",
                 "Section patches; untouched sections retained; points/provenance checked; deferred sources stay pending; note/language base conflict rejects save; user edits protected; bounded input/output",
                 "Confirmed speech + editable section points + same-session materials", "One versioned note with semantic sections and persistent citations", ["gate"]),
             new("organize", "Section organization", "vertex / Agent Framework", gemini.Model,
@@ -59,8 +60,10 @@ public sealed class AiFlow(PlaybackStore store, GeminiLanguageModel gemini, JevN
         var sessions = (await store.Sessions()).Where(x => x.GroupId == groupId).ToList();
         if (sessionId is not null && !sessions.Any(x => x.Id == sessionId)) throw new InvalidOperationException("Session is not in this group");
         var selected = sessions.FirstOrDefault(x => x.Id == sessionId) ?? sessions.FirstOrDefault();
+        var processing = selected is null ? null : await store.SessionProcessingSettings(selected.Id);
         return new { group, sessions = sessions.Select(x => new { x.Id, x.Title }), selectedSessionId = selected?.Id,
-            agents = Agents(selected), executions = selected is null ? [] : await activity.Read(selected.Id),
+            agents = Agents(selected, processing?.Effective), executions = selected is null ? [] : await activity.Read(selected.Id),
+            processingSettings = processing,
             gate = selected is null ? null : await store.NoteGate(selected.Id),
             automaticOrganization = PlaybackEnvironment.AutomaticOrganization };
     }

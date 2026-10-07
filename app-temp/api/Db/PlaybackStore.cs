@@ -8,16 +8,24 @@ namespace Playback.Api.Db;
 public partial class PlaybackStore
 {
     public event Action<string>? SourceChanged;
-    readonly IMongoDatabase db;
+    readonly IMongoDatabase? db;
     readonly IHttpContextAccessor? http;
+    readonly ProcessingPolicy processingDefaults = ProcessingPolicy.Defaults;
     // Request identity only; background workers operate on session IDs without an HTTP user.
     string? CurrentOwner => http?.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
     // One note write or language change at a time per session, so a save never mixes two bases.
     readonly ConcurrentDictionary<string, SemaphoreSlim> noteWriteLocks = new();
     readonly string audioRoot = PlaybackEnvironment.AudioFolder;
-    public PlaybackStore(IHttpContextAccessor? http = null)
+    // Memory adapters never construct a Mongo client; an unoverridden read/write fails explicitly.
+    protected PlaybackStore(bool inMemory)
+    {
+        if (!inMemory) throw new ArgumentException("Use the public constructor for database storage", nameof(inMemory));
+    }
+    public PlaybackStore(IHttpContextAccessor? http = null, ProcessingPolicy? processingDefaults = null)
     {
         this.http = http;
+        this.processingDefaults = processingDefaults ?? ProcessingPolicy.Defaults;
+        this.processingDefaults.Validate();
         var settings = MongoClientSettings.FromConnectionString(PlaybackEnvironment.MongoUri);
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
         var database = PlaybackEnvironment.Database;
@@ -25,7 +33,8 @@ public partial class PlaybackStore
             throw new InvalidOperationException("MongoDB database is not allowlisted");
         db = new MongoClient(settings).GetDatabase(database);
     }
-    IMongoCollection<T> Collection<T>(string name) => db.GetCollection<T>(name);
+    IMongoCollection<T> Collection<T>(string name) =>
+        (db ?? throw new InvalidOperationException("Database access is unavailable in the in-memory store")).GetCollection<T>(name);
     public async Task<bool> OwnsSession(string id, string owner) =>
         await Collection<SessionRecord>("sessions").CountDocumentsAsync(x => x.Id == id && x.OwnerId == owner) > 0;
     public async Task<bool> OwnsGroup(string id, string owner) =>
@@ -42,6 +51,7 @@ public partial class PlaybackStore
     }
     public async Task<bool> IsReady()
     {
+        if (db is null) throw new InvalidOperationException("Database access is unavailable in the in-memory store");
         try
         {
             await db.RunCommandAsync<MongoDB.Bson.BsonDocument>(new MongoDB.Bson.BsonDocument("ping", 1));

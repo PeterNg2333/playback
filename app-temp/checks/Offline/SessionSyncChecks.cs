@@ -32,6 +32,7 @@ static class SessionSyncChecks
             if (!root.GetProperty("hasMore").GetBoolean()) break;
         }
         Expect.That(total == 2700 && pages > 20 && fragmentCount > 0, "Sync silently truncated a large record or the long transcript");
+        store.SyncReadIds.Clear();
 
         using var idle = JsonDocument.Parse(JsonSerializer.Serialize(await store.SyncSession("long", cursor), JsonOptions));
         Expect.That(idle.RootElement.GetProperty("changes").GetArrayLength() == 0, "Idle sync re-sent a whole session");

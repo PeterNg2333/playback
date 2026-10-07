@@ -6,6 +6,7 @@ import {
   MaterialSchema,
   TermCandidateSchema,
   TermInsightSchema,
+  ProcessingSyncSchema,
 } from "./schemas";
 import { api } from "./client";
 
@@ -68,6 +69,8 @@ function merge(session: Session | null, delta: Delta): Session | null {
         terms: draft?.terms ?? [],
         termInsights: draft?.termInsights ?? [],
       };
+    } else if (draft && change.kind === "processing") {
+      Object.assign(draft, ProcessingSyncSchema.parse(change.value));
     } else if (draft && change.kind === "removed") {
       const [kind, ...rest] = String(change.value).split(":");
       const field = fields[kind];

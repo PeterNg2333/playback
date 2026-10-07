@@ -1,4 +1,6 @@
-namespace Playback.Api.Notes;
+using Playback.Domain.Notes;
+
+namespace Playback.Application.Notes;
 
 // What the note model is told. A prompt change bumps its version, so saved notes and AI activity
 // record which instructions produced them.
@@ -69,8 +71,8 @@ public static class NoteInstructions
 
     public static string For(string language)
     {
-        LanguageSettings.ValidateNote(language);
-        return Sections + "\nWrite section Markdown and point text in " + LanguageSettings.OutputDescription(language) +
+        NoteLanguage.ValidateNote(language);
+        return Sections + "\nWrite section Markdown and point text in " + NoteLanguage.OutputDescription(language) +
             ". This output-language setting overrides the default lecture language. Rewrite existing prose in the requested language " +
             "while preserving user-authored facts and edits. Keep source IDs, [ref:ID] markers, proper names, and code unchanged.";
     }
