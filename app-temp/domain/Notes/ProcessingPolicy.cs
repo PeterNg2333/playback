@@ -8,7 +8,9 @@ public sealed record ProcessingOverrides(
     double? CheckIntervalSeconds = null,
     double? MaxPendingWaitSeconds = null,
     double? SilenceBoundarySeconds = null,
-    double? BoundarySettleSeconds = null);
+    double? BoundarySettleSeconds = null,
+    bool? CombineQuiet = null,
+    double? MaxCombinedSeconds = null);
 
 public sealed record ProcessingPolicy(
     bool JevEnabled = true,
@@ -17,7 +19,9 @@ public sealed record ProcessingPolicy(
     double CheckIntervalSeconds = 10,
     double MaxPendingWaitSeconds = 30,
     double SilenceBoundarySeconds = 2,
-    double BoundarySettleSeconds = 2)
+    double BoundarySettleSeconds = 2,
+    bool CombineQuiet = true,
+    double MaxCombinedSeconds = 60)
 {
     public const int SchemaVersion = 1;
     public static ProcessingPolicy Defaults { get; } = new();
@@ -26,7 +30,8 @@ public sealed record ProcessingPolicy(
         var result = new ProcessingPolicy(value.JevEnabled ?? JevEnabled,
             value.ProbabilityThreshold ?? ProbabilityThreshold, value.ConfidenceThreshold ?? ConfidenceThreshold,
             value.CheckIntervalSeconds ?? CheckIntervalSeconds, value.MaxPendingWaitSeconds ?? MaxPendingWaitSeconds,
-            value.SilenceBoundarySeconds ?? SilenceBoundarySeconds, value.BoundarySettleSeconds ?? BoundarySettleSeconds);
+            value.SilenceBoundarySeconds ?? SilenceBoundarySeconds, value.BoundarySettleSeconds ?? BoundarySettleSeconds,
+            value.CombineQuiet ?? CombineQuiet, value.MaxCombinedSeconds ?? MaxCombinedSeconds);
         result.Validate();
         return result;
     }
@@ -38,6 +43,7 @@ public sealed record ProcessingPolicy(
         Range(MaxPendingWaitSeconds, 10, 120, "Maximum pending wait (seconds)");
         Range(SilenceBoundarySeconds, .7, 10, "Silence boundary (seconds)");
         Range(BoundarySettleSeconds, 0, 5, "Boundary settle grace (seconds)");
+        Range(MaxCombinedSeconds, 10, 300, "Maximum combined quiet duration (seconds)");
     }
     static void Range(double value, double min, double max, string name)
     {

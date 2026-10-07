@@ -30,6 +30,10 @@ public interface INoteSettings
 {
     Task<string> Language(string id);
 }
+public interface INoteSpeechBoundaries
+{
+    Task<Playback.Domain.Audio.SpeechBoundary?> Latest(string sessionId);
+}
 
 public interface INoteWriter
 {

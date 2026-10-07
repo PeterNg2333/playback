@@ -62,6 +62,7 @@ public partial class PlaybackStore
     // such as changing the translation language; audio levels/idle polling never read a session.
     public virtual async Task<List<SyncRecord>> ReadSyncRecords(string id, string kind, string[]? ids) {
         var records = new List<SyncRecord>();
+        if (kind == "combined-audio") records.Add(new(kind, id, new { combinedAudioSegments = await CombinedAudio(id) }));
         if (kind == "processing") records.Add(new(kind, id, new { processingSettings = await SessionProcessingSettings(id), noteAdmission = NoteAdmissionView.Read(await NoteGate(id)) }));
         if (kind == "meta") {
             var session = await SessionSettings(id);
@@ -147,8 +148,9 @@ public partial class PlaybackStore
                     foreach (var item in session.Materials) Add("material", item.Id, item);
                     foreach (var item in session.TermInsights) Add("insight", item.Id, item);
                     foreach (var row in await ReadSyncRecords(id, "processing", [id])) AddRecord(row);
+                    foreach (var row in await ReadSyncRecords(id, "combined-audio", [id])) AddRecord(row);
                     var current = new HashSet<string>(session.Transcripts.Select(x => "transcript:" + x.Id).Concat(session.Chunks.Select(x => "chunk:" + x.Id))
-                        .Concat(session.Materials.Select(x => "material:" + x.Id)).Concat(session.TermInsights.Select(x => "insight:" + x.Id)).Concat(session.Terms.Select(x => "term:" + x.Text))) { "meta:" + id, "processing:" + id };
+                        .Concat(session.Materials.Select(x => "material:" + x.Id)).Concat(session.TermInsights.Select(x => "insight:" + x.Id)).Concat(session.Terms.Select(x => "term:" + x.Text))) { "meta:" + id, "processing:" + id, "combined-audio:" + id };
                     foreach (var removed in state.Hashes.Keys.Except(current)) Remove(removed);
                     state.Terms = session.Terms.ToDictionary(x => x.Text, StringComparer.OrdinalIgnoreCase);
                     foreach (var item in session.Terms) Add("term", item.Text, item);

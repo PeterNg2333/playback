@@ -93,4 +93,5 @@ public sealed class NoteGateRecord
     public int SettledNoteVersion { get; set; }
     public string SettledLanguage { get; set; } = "";
     public string GateFailure { get; set; } = "";
+    public string EvaluatedBoundaryId { get; set; } = "";
 }

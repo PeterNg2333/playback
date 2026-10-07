@@ -17,8 +17,9 @@ public static class NoteAdmissionPolicy
 
     public static bool RetryBlocked(NoteGateRecord state, DateTime now) => state.Attempts >= 3 || state.RetryAt > now;
     public static DateTime RetryAt(int attempts, DateTime now) => now.Add(RetryStep * attempts);
-    public static string? LocalAdmission(NoteGateRecord state, ProcessingPolicy policy, DateTime now) =>
+    public static string? LocalAdmission(NoteGateRecord state, ProcessingPolicy policy, DateTime now, bool boundaryReady = false) =>
         state.FlushRequested ? "stop" :
+        boundaryReady ? "speech-boundary" :
         state.FirstPendingAt is { } first && now >= first.AddSeconds(policy.MaxPendingWaitSeconds) ? "deadline" :
         !policy.JevEnabled ? "gate-disabled" : null;
     public static bool ShouldOrganize(NoteSection section) => !section.UserEdited && section.OrganizedVersion != section.Version &&

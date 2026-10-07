@@ -4,7 +4,7 @@ using Playback.Api.Db;
 namespace Playback.Api.Notes;
 
 // Bridge while non-note persistence remains in PlaybackStore. No admission/mutation rules here.
-public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INoteEvidence, INoteSettings, INoteProcessingPolicy
+public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INoteEvidence, INoteSettings, INoteProcessingPolicy, INoteSpeechBoundaries
 {
     public async Task<NoteSession?> Session(string id) => await store.Session(id) is { } session ? Read(session) : null;
     public Task<NoteProvenance> Provenance(string id, IReadOnlyCollection<string> sourceIds) => store.NoteProvenance(id, sourceIds);
@@ -15,6 +15,7 @@ public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INo
         return new(value.Effective, value.EffectiveRevision);
     }
     public Task MarkNotes(IEnumerable<string> ids, string status, string? error = null) => store.MarkNotes(ids, status, error);
+    public Task<Playback.Domain.Audio.SpeechBoundary?> Latest(string id) => store.LatestSpeechBoundary(id);
     public Task<List<Note>> History(string id) => store.NoteHistory(id);
     public Task<Note?> Version(string id, int version) => store.NoteVersion(id, version);
     public Task<object> Page(string id, int? before, int limit) => store.NotePage(id, before, limit);
@@ -27,7 +28,8 @@ public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INo
 
     public static NoteSession Read(SessionView session) => new(session.Id, session.NoteMarkdown, session.NoteVersion, session.NoteLanguage,
         session.CurrentNote, session.Transcripts.Select(Read).ToList(), session.Materials.Select(Read).ToList(),
-        session.TermInsights.Select(x => x.Id).ToList(), session.Chunks.Any(x => ChunkStatus.AwaitingTranscript(x.Status)));
+        session.TermInsights.Select(x => x.Id).ToList(), session.Chunks.Any(x => ChunkStatus.AwaitingTranscript(x.Status)))
+        { PendingAudio = session.Chunks.Where(x => ChunkStatus.AwaitingTranscript(x.Status)).Select(x => new PendingNoteAudio(x.SourceId, x.EndMs)).ToList() };
     public static NoteTranscript Read(Transcript x) => new() { Id = x.Id, SourceId = x.SourceId, StartMs = x.StartMs, EndMs = x.EndMs,
         RecordedAt = x.RecordedAt, SourceText = x.SourceText, Uncertain = x.Uncertain, NoteStatus = x.NoteStatus, ConfirmedAt = x.ConfirmedAt };
     public static NoteMaterial Read(Material x) => new() { Id = x.Id, SessionId = x.SessionId, Name = x.Name, Text = x.Text };

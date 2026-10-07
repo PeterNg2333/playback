@@ -104,6 +104,7 @@ export const TermInsightSchema = z.object({
 });
 export const ChunkSchema = z.object({
   id: z.string(),
+  streamId: z.string().nullish(),
   sourceId: z.string(),
   sequence: z.number(),
   startMs: z.number(),
@@ -127,6 +128,8 @@ export const ProcessingPolicySchema = z.object({
   maxPendingWaitSeconds: z.number().finite().min(10).max(120),
   silenceBoundarySeconds: z.number().finite().min(0.7).max(10),
   boundarySettleSeconds: z.number().finite().min(0).max(5),
+  combineQuiet: z.boolean().default(true),
+  maxCombinedSeconds: z.number().finite().min(10).max(300).default(60),
 });
 export const ProcessingSettingsSchema = z.object({
   schemaVersion: z.literal(1),
@@ -141,6 +144,8 @@ export const ProcessingSettingsSchema = z.object({
     maxPendingWaitSeconds: z.number().nullish(),
     silenceBoundarySeconds: z.number().nullish(),
     boundarySettleSeconds: z.number().nullish(),
+    combineQuiet: z.boolean().nullish(),
+    maxCombinedSeconds: z.number().nullish(),
   }),
   effective: ProcessingPolicySchema,
   inherited: ProcessingPolicySchema,
@@ -163,7 +168,19 @@ export const ProcessingSyncSchema = z.object({
 export type ProcessingPolicy = z.infer<typeof ProcessingPolicySchema>;
 export type ProcessingSettings = z.infer<typeof ProcessingSettingsSchema>;
 export type ProcessingOverrides = ProcessingSettings["overrides"];
+export const CombinedAudioSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  sourceId: z.string(),
+  streamId: z.string(),
+  startMs: z.number(),
+  endMs: z.number(),
+  recordedAt: z.string().nullish(),
+  state: z.literal("published"),
+  children: z.array(z.object({ chunkId: z.string(), frameOffset: z.number(), frameCount: z.number(), startMs: z.number(), endMs: z.number() })),
+});
 export const SessionSchema = SessionSummarySchema.extend({
+  combinedAudioSegments: z.array(CombinedAudioSchema).optional(),
   processingSettings: ProcessingSettingsSchema.optional(),
   noteAdmission: NoteAdmissionSchema.nullish(),
   sourceGroups: z

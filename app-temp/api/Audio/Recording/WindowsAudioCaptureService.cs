@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
 using NAudio.Wave;
+using Playback.Domain.Audio;
 
 namespace Playback.Api.Audio.Recording;
 
@@ -88,6 +89,8 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             var offset = session.Chunks.Select(chunk => chunk.EndMs)
                 .Concat(Pending(sessionId).Select(chunk => chunk.EndMs)).DefaultIfEmpty().Max();
             var recording = new Recording(sessionId, offset, sourceMode);
+            recording.Policy = (await store.SessionProcessingSettings(sessionId)).Effective;
+            await store.SaveAudioStream(sessionId, recording.StreamId, closed: false);
 
             try
             {
@@ -170,6 +173,26 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 CaptureSource[] sources;
                 lock (recording.Sources) sources = recording.Sources.ToArray();
                 var elapsed = end - recording.LastFinalizeAtMs;
+                if (DateTime.UtcNow >= recording.NextPolicyRead)
+                {
+                    recording.Policy = (await store.SessionProcessingSettings(recording.SessionId)).Effective;
+                    await store.SaveAudioStream(recording.SessionId, recording.StreamId, closed: false);
+                    recording.NextPolicyRead = DateTime.UtcNow.AddSeconds(2);
+                }
+                var policy = recording.Policy;
+                var evidence = sources.Select(source => source.SpeechEvidence()).ToList();
+                if (SpeechBoundaryPolicy.Ready(evidence, end, policy.SilenceBoundarySeconds, recording.HandledSpeechMs))
+                {
+                    await FinalizeChunks(recording);
+                    if (sources.Max(source => source.LastSpeechMs) == evidence.Max(x => x.LastSpeechMs))
+                    {
+                        recording.HandledSpeechMs = evidence.Max(x => x.LastSpeechMs);
+                        await store.SaveSpeechBoundary(new() { Id = ContentHash.Of(recording.StreamId + ":" + recording.HandledSpeechMs),
+                            SessionId = recording.SessionId, StreamId = recording.StreamId, DetectedAt = DateTime.UtcNow,
+                            SourceThroughMs = sources.ToDictionary(source => source.Name, _ => recording.LastFinalizeAtMs) });
+                    }
+                    continue;
+                }
                 if (elapsed >= ChunkMilliseconds || elapsed >= MinChunkBeforePauseMs &&
                     sources.Any(source => source.HasSpeech) && sources.All(source => source.Quiet(end)))
                     await FinalizeChunks(recording);
@@ -238,6 +261,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             await CloseSources(recording);
             recording.Clock.Stop();
             await FinalizeChunks(recording);
+            await store.SaveAudioStream(recording.SessionId, recording.StreamId, closed: true);
             lastError = recording.Error;
             recent = recording;
             active = null;
@@ -258,6 +282,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             active.Clock.Stop();
             await CloseSources(active);
             await FinalizeChunks(active);
+            await store.SaveAudioStream(active.SessionId, active.StreamId, closed: true);
             lock (active.Sources) active.Sources.Clear();
             return Status();
         }
@@ -273,6 +298,9 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             if (active is null || !active.Paused) return Status();
             active.Clock.Start();
             active.LastSoundAt = DateTime.UtcNow;
+            active.StreamId = Guid.NewGuid().ToString("N");
+            active.HandledSpeechMs = -1;
+            await store.SaveAudioStream(active.SessionId, active.StreamId, closed: false);
             try
             {
                 await StartSources(active);
@@ -299,10 +327,10 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             foreach (var file in Directory.EnumerateFiles(directory, "*.wav"))
             {
                 var parts = Path.GetFileNameWithoutExtension(file).Split('-');
-                if (parts.Length == 3 && long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var sequence)
+                if (parts.Length is 3 or 4 && long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var sequence)
                     && long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var start)
                     && long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var end) && end > start)
-                    yield return new(sessionId, source, sequence, start, end, file);
+                    yield return new(sessionId, source, sequence, start, end, file, parts.Length == 4 && ChunkIdentity.IsSessionId(parts[3]) ? parts[3] : null);
             }
         }
     }
@@ -314,7 +342,9 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             try
             {
                 var saved = await store.SaveLocalChunk(chunk.SessionId, chunk.SourceId, chunk.Sequence,
-                    chunk.StartMs, chunk.EndMs, chunk.Path, CancellationToken.None);
+                    chunk.StartMs, chunk.EndMs, chunk.Path, CancellationToken.None, chunk.StreamId);
+                if (recording is null && chunk.StreamId is not null)
+                    await store.SaveAudioStream(sessionId, chunk.StreamId, closed: true);
                 asr.Enqueue(saved.Id);
                 File.Delete(chunk.Path);
             }
@@ -334,11 +364,15 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         transition.Dispose();
     }
 
-    sealed record PendingChunk(string SessionId, string SourceId, long Sequence, long StartMs, long EndMs, string Path);
+    sealed record PendingChunk(string SessionId, string SourceId, long Sequence, long StartMs, long EndMs, string Path, string? StreamId);
 
     sealed class Recording(string sessionId, long offsetMs, string sourceMode)
     {
         public string Id { get; } = Guid.NewGuid().ToString("N");
+        public string StreamId { get; set; } = Guid.NewGuid().ToString("N");
+        public long HandledSpeechMs { get; set; } = -1;
+        public Playback.Domain.Notes.ProcessingPolicy Policy { get; set; } = new();
+        public DateTime NextPolicyRead { get; set; }
         public string SessionId { get; } = sessionId;
         public string SourceMode { get; } = sourceMode;
         public long OffsetMs { get; } = offsetMs;
@@ -368,6 +402,9 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         long bytes;
         int level;
         bool hasSound;
+        long lastSpeechMs = -1, observedThroughMs = -1;
+        public long LastSpeechMs => Interlocked.Read(ref lastSpeechMs);
+        public SourceSpeech SpeechEvidence() => new(Name, LastSpeechMs, Interlocked.Read(ref observedThroughMs) + 250);
 
         public string Name { get; }
         public WasapiRecorder Recorder { get; }
@@ -400,6 +437,8 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             var format = recorder.WaveFormat;
             recorder.DataAvailable += (buffer, _, _, _) =>
             {
+                var observed = recording.OffsetMs + recording.Clock.ElapsedMilliseconds;
+                Interlocked.Exchange(ref observedThroughMs, observed);
                 Volatile.Write(ref level, AudioSamples.Level(buffer, format));
                 var soundDetected = false;
                 try
@@ -412,7 +451,10 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 }
                 catch (Exception ex) { recording.Error = $"{name} VAD stopped: {ex.Message}"; }
                 if (soundDetected)
+                {
+                    Interlocked.Exchange(ref lastSpeechMs, observed);
                     recording.LastSoundAt = DateTime.UtcNow;
+                }
                 lock (gate)
                 {
                     try
@@ -447,7 +489,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 {
                     writer.Dispose();
                     writer = null;
-                    File.Move(partPath!, Path.Combine(directory, FormattableString.Invariant($"{sequence}-{startMs}-{endMs}.wav")));
+                    File.Move(partPath!, Path.Combine(directory, FormattableString.Invariant($"{sequence}-{startMs}-{endMs}-{recording.StreamId}.wav")));
                     partPath = null;
                 }
                 startMs = endMs;

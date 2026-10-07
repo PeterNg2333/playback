@@ -84,6 +84,7 @@ public partial class PlaybackStore
                 .Set(x => x.Status, string.IsNullOrWhiteSpace(original) ? ChunkStatus.AsrEmpty : ChunkStatus.Transcribed)
                 .Set(x => x.Error, null));
         Touch(chunk.SessionId, "source", [chunk.Id]);
+        AudioChanged?.Invoke(chunk.SessionId);
         if (!string.IsNullOrWhiteSpace(original)) SourceChanged?.Invoke(chunk.SessionId);
     }
     public async Task<Transcript?> TranscriptForChunk(string id) =>

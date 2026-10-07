@@ -35,6 +35,8 @@ public static class ChunksEndpoints
             store.ChunkAudioPath(id) is { } path
                 ? Results.File(path, "audio/wav", enableRangeProcessing: true)
                 : Results.NotFound());
+        app.MapGet("/api/sessions/{sessionId}/audio/combined/{segmentId}", async (string sessionId, string segmentId, PlaybackStore store) =>
+            await store.CombinedAudioPath(sessionId, segmentId) is { } path ? Results.File(path, "audio/wav", enableRangeProcessing: true) : Results.NotFound());
         app.MapGet("/api/sessions/{sessionId}/audio/segments/{index:int}", async (
             string sessionId, int index, string? source, SessionAudioRenderer renderer) =>
             await renderer.Render(sessionId, index, source) is { } wav

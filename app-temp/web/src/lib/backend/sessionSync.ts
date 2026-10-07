@@ -7,6 +7,7 @@ import {
   TermCandidateSchema,
   TermInsightSchema,
   ProcessingSyncSchema,
+  CombinedAudioSchema,
 } from "./schemas";
 import { api } from "./client";
 
@@ -71,6 +72,8 @@ function merge(session: Session | null, delta: Delta): Session | null {
       };
     } else if (draft && change.kind === "processing") {
       Object.assign(draft, ProcessingSyncSchema.parse(change.value));
+    } else if (draft && change.kind === "combined-audio") {
+      draft.combinedAudioSegments = CombinedAudioSchema.array().parse((change.value as Record<string, unknown>).combinedAudioSegments);
     } else if (draft && change.kind === "removed") {
       const [kind, ...rest] = String(change.value).split(":");
       const field = fields[kind];

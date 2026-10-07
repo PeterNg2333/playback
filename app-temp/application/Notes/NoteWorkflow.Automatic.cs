@@ -28,12 +28,14 @@ public sealed partial class NoteWorkflow
             state = await repository.Gate(id) ?? new NoteGateRecord { SessionId = id };
             var policyChanged = state.PolicyRevision != effective.Revision;
             var newStop = state.FlushRequested && state.EvaluatedFlushVersion != state.FlushVersion;
+            var boundary = boundaries is null ? null : await boundaries.Latest(id);
+            var newBoundary = boundary is not null && boundary.Id != state.EvaluatedBoundaryId;
             // Polling and provider admission are separate. Deadline/Stop can bypass the decision cadence.
             var local = NoteAdmissionPolicy.LocalAdmission(state, policy, now);
-            if (!newStop && local is not ("stop" or "deadline") && !policyChanged &&
+            if (!newStop && !newBoundary && local is not ("stop" or "deadline") && !policyChanged &&
                 now < (state.LastCheckedAt ?? startedAt).AddSeconds(policy.CheckIntervalSeconds)) return;
-            if (state.LastCheckedAt is null && !state.FlushRequested && now < startedAt.AddSeconds(policy.CheckIntervalSeconds)) return;
-            if (!policyChanged && !newStop && state.Status == "failed" && RetryBlocked(state) &&
+            if (!newBoundary && state.LastCheckedAt is null && !state.FlushRequested && now < startedAt.AddSeconds(policy.CheckIntervalSeconds)) return;
+            if (!policyChanged && !newStop && !newBoundary && state.Status == "failed" && RetryBlocked(state) &&
                 now < (state.LastCheckedAt ?? startedAt).AddSeconds(policy.CheckIntervalSeconds)) return;
             state.LastCheckedAt = now;
             state.PolicyRevision = effective.Revision;
@@ -43,6 +45,8 @@ public sealed partial class NoteWorkflow
 
             var session = await evidence.Session(id);
             if (session is null) return;
+            var boundaryReady = newBoundary && (now >= boundary!.DetectedAt.AddSeconds(policy.BoundarySettleSeconds) ||
+                !session.PendingAudio.Any(x => boundary!.SourceThroughMs.TryGetValue(x.SourceId, out var through) && x.EndMs <= through));
             var written = session.Transcripts.Where(x => x.NoteStatus != "completed" && session.CurrentNote?.Coverage.Any(c =>
                     c.SourceId == x.Id && c.Status == "covered" && c.ContentHash == ContentHash.Of(x.SourceText) &&
                     c.PointIds.Any(p => session.CurrentNote.Sections.Any(s => s.Points.Any(point => point.Id == p)))) == true)
@@ -60,6 +64,7 @@ public sealed partial class NoteWorkflow
                 state.PolicyRevision = effective.Revision;
                 state.PolicySnapshot = policy;
                 state.FirstPendingAt = null;
+                if (boundaryReady && !session.AwaitingTranscripts) state.EvaluatedBoundaryId = boundary!.Id;
                 if (state.FlushRequested && session.AwaitingTranscripts) state.Status = "awaiting-asr";
                 else if (state.Status is not ("completed" or "deferred")) state.Status = "settled";
                 await repository.SaveGate(state);
@@ -82,7 +87,7 @@ public sealed partial class NoteWorkflow
             inputPrepared = true;
             var evidenceHash = EvidenceIdentity(pending, materials);
             // A settled filler/no-change batch is free until input, policy or explicit Stop changes.
-            if (!policyChanged && !newStop && state.SettledEvidenceHash == evidenceHash &&
+            if (!policyChanged && !newStop && !boundaryReady && state.SettledEvidenceHash == evidenceHash &&
                 state.SettledNoteVersion == session.NoteVersion && state.SettledLanguage == session.NoteLanguage)
             {
                 state.LastCheckedAt = now;
@@ -93,7 +98,7 @@ public sealed partial class NoteWorkflow
             var identity = JsonNode.Parse(input.Text)!.AsObject();
             identity.Remove("trigger");
             var hash = ContentHash.Of(NoteGatePrompt.PromptVersion + effective.Revision + identity.ToJsonString());
-            var same = state.InputHash == hash && !policyChanged && !newStop;
+            var same = state.InputHash == hash && !policyChanged && !newStop && !boundaryReady;
             if (!same)
             {
                 state.Attempts = 0;
@@ -111,13 +116,14 @@ public sealed partial class NoteWorkflow
             state.EvidenceHash = evidenceHash;
             state.LastCheckedAt = now;
             state.EvaluatedFlushVersion = state.FlushVersion;
-            local = NoteAdmissionPolicy.LocalAdmission(state, policy, now);
+            local = NoteAdmissionPolicy.LocalAdmission(state, policy, now, boundaryReady);
             // Writer backoff is respected. A failed gate cannot prevent a local deadline.
             if (same && state.Status == "failed" && RetryBlocked(state) && (state.GenerationRequested || local is null))
             { await repository.SaveGate(state); return; }
             if (local is not null && !state.GenerationRequested)
             {
                 state.AdmissionReason = state.GateFailure.Length > 0 ? local + "-after-gate-failure" : local;
+                if (boundaryReady) state.EvaluatedBoundaryId = boundary!.Id;
                 state.GenerationRequested = true;
                 state.Attempts = 0;
                 state.RetryAt = null;

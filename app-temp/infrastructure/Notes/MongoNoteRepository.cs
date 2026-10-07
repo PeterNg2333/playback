@@ -43,7 +43,8 @@ public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoColl
                 .Set(x => x.LastCheckedAt, item.LastCheckedAt).Set(x => x.AdmissionReason, item.AdmissionReason)
                 .Set(x => x.EvidenceHash, item.EvidenceHash).Set(x => x.SettledEvidenceHash, item.SettledEvidenceHash)
                 .Set(x => x.SettledNoteVersion, item.SettledNoteVersion).Set(x => x.SettledLanguage, item.SettledLanguage)
-                .Set(x => x.GateFailure, item.GateFailure),
+                .Set(x => x.GateFailure, item.GateFailure)
+                .Set(x => x.EvaluatedBoundaryId, item.EvaluatedBoundaryId),
             new UpdateOptions { IsUpsert = true });
     }
     public Task RequestFlush(string id) => gates.UpdateOneAsync(x => x.Id == id,

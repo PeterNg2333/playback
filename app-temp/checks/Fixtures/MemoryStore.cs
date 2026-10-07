@@ -21,6 +21,8 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
     public readonly ConcurrentDictionary<string, List<TermInsight>> Insights = new();
     public readonly List<string[]> SyncReadIds = [];
     public readonly MemoryProcessingRepository ProcessingRepository = new();
+    public readonly Dictionary<string, Playback.Domain.Audio.SpeechBoundary> Boundaries = new();
+    public override Task<Playback.Domain.Audio.SpeechBoundary?> LatestSpeechBoundary(string id) => Task.FromResult(Boundaries.GetValueOrDefault(id));
     ProcessingSettings Processing => new(ProcessingRepository, Playback.Domain.Notes.ProcessingPolicy.Defaults);
     public override Task<ProcessingSettingsView> WorkspaceProcessingSettings() => Processing.Workspace("local");
     public override Task<ProcessingSettingsView> SessionProcessingSettings(string id) => Languages.ContainsKey(id)

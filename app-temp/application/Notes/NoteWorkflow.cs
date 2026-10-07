@@ -25,10 +25,11 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
     readonly TimeProvider clock;
     readonly NoteScheduler scheduler;
     readonly INoteProcessingPolicy? processingPolicy;
+    readonly INoteSpeechBoundaries? boundaries;
     readonly DateTime startedAt;
 
     public NoteWorkflow(INoteRepository repository, INoteEvidence evidence, INoteWriter writer, INoteGate gate,
-        INoteActivity activity, TimeProvider? clock = null, INoteProcessingPolicy? processingPolicy = null)
+        INoteActivity activity, TimeProvider? clock = null, INoteProcessingPolicy? processingPolicy = null, INoteSpeechBoundaries? boundaries = null)
     {
         this.repository = repository;
         this.evidence = evidence;
@@ -37,6 +38,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         this.activity = activity;
         this.clock = clock ?? TimeProvider.System;
         this.processingPolicy = processingPolicy;
+        this.boundaries = boundaries;
         startedAt = this.clock.GetUtcNow().UtcDateTime;
         scheduler = new NoteScheduler(this.clock, Automatic, interval: TimeSpan.FromSeconds(2));
     }

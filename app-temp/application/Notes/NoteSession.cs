@@ -9,7 +9,9 @@ public sealed record NoteSession(string Id, string NoteMarkdown, int NoteVersion
 {
     public IEnumerable<string> AllowedSources => MaterialSources.Allowed(this);
     public List<NoteSection> Sections => NoteSections.Read(CurrentNote, AllowedSources);
+    public List<PendingNoteAudio> PendingAudio { get; init; } = [];
 }
+public sealed record PendingNoteAudio(string SourceId, long EndMs);
 
 public sealed class NoteTranscript
 {

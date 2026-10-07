@@ -1,6 +1,6 @@
 # Playback DDD, notes and audio refactor plan
 
-Date: 2026-10-07. Status: Phases 0, 1 and 2 implemented locally with offline checks. See [contracts and fixtures](ddd-notes-audio-contracts.md), [Phase 0/1 results](ddd-notes-audio-phase01-results.md) and [Phase 2 results](ddd-notes-audio-phase02-results.md). Phase 3 has not started; later-phase schemas remain proposals.
+Date: 2026-10-07. Status: Phases 0–3 implemented with offline checks. See [contracts and fixtures](ddd-notes-audio-contracts.md), [Phase 0/1 results](ddd-notes-audio-phase01-results.md), [Phase 2 results](ddd-notes-audio-phase02-results.md) and [Phase 3 results](ddd-notes-audio-phase03-results.md). Later phases remain in progress.
 
 This plan covers the .NET backend in `app-temp/`, its React settings and note/audio presentation, and the checks needed to migrate them in phases. The product requirements in [business-requirements.md](business-requirements.md) remain the acceptance baseline. Each phase should produce a working, reviewable vertical slice before the next begins.
 

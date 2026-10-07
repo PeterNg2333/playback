@@ -29,7 +29,7 @@ public sealed class NoteAgent : IAsyncDisposable
     public NoteAgent(PlaybackStore store, GeminiLanguageModel gemini, JevNoteGate jev, ILogger<NoteAgent> logger,
         AiActivity activity, TimeProvider? clock = null)
         : this(store, new NoteWorkflow(new NoteStoreAdapter(store), new NoteStoreAdapter(store), new GeminiNoteWriter(gemini),
-            jev, new NoteActivityAdapter(activity, logger), clock, new NoteStoreAdapter(store)), logger, clock) { }
+            jev, new NoteActivityAdapter(activity, logger), clock, new NoteStoreAdapter(store), new NoteStoreAdapter(store)), logger, clock) { }
 
     public Task<object> Generate(string id, CancellationToken ct) => workflow.Generate(id, ct);
     public Task<object> Organize(string id, string sectionId, int baseVersion, CancellationToken ct) => workflow.Organize(id, sectionId, baseVersion, ct);

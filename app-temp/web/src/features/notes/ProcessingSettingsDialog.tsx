@@ -49,6 +49,9 @@ const fields = [
     unit: "",
     description: "Jev confidence in its decision, independent of ASR accuracy.",
   },
+  { key: "silenceBoundarySeconds", label: "Speech pause", min: 0.7, max: 10, step: 0.1, unit: "s", description: "A quiet pause on every active source can admit notes early." },
+  { key: "boundarySettleSeconds", label: "ASR settle grace", min: 0, max: 5, step: 0.1, unit: "s", description: "Maximum grace for pending audio at the pause boundary." },
+  { key: "maxCombinedSeconds", label: "Maximum quiet segment", min: 10, max: 300, step: 1, unit: "s", description: "Bounds derived quiet audio files; original chunks remain available." },
 ] satisfies {
   key: keyof ProcessingPolicy;
   label: string;
@@ -228,8 +231,15 @@ export function ProcessingSettingsDialog({
               <summary className="cursor-pointer font-bold">
                 Advanced thresholds
               </summary>
-              {fields.slice(2).map((field) => numberField(field))}
+              {fields.slice(2, 4).map((field) => numberField(field))}
             </details>
+            <h3 className="mt-4 font-bold">Speech pauses and quiet audio</h3>
+            {fields.slice(4).map((field) => numberField(field))}
+            <div className="my-3 flex justify-between gap-2"><label className="flex items-center gap-2">
+              <input type="checkbox" checked={effective!.combineQuiet}
+                disabled={saving || (scope === "session" && overrides.combineQuiet == null)}
+                onChange={event => set("combineQuiet", event.target.checked)} />Combine adjacent quiet audio
+            </label>{inherit("combineQuiet")}</div>
             {!validation?.success && (
               <p className="mt-3 text-red-700" role="alert">
                 {validation?.error.issues[0]?.message}
