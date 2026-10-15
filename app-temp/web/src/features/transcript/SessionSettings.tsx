@@ -1,4 +1,6 @@
 import clsx from "clsx";
+import { useRef } from "react";
+import { useDismiss } from "../../components/Menu";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { Button } from "../../components/Button";
@@ -46,12 +48,17 @@ export function SessionSettings({ session }: { session: Session | null }) {
     session?.transcripts.some(
       (entry) => entry.translationStatus === "failed",
     ) ?? false;
-  const highlightedTerms =
-    session?.termInsights?.filter((item) => item.highlight).length ?? 0;
+  const popup = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useDismiss(popup, settingsOpen, (escape) => {
+    setSettingsOpen(false);
+    if (escape) trigger.current?.focus();
+  });
 
   return (
-    <div className="relative">
+    <div className="relative" ref={popup}>
       <IconButton
+        ref={trigger}
         aria-label="Transcript settings"
         aria-expanded={settingsOpen}
         onClick={() => setSettingsOpen(!settingsOpen)}
@@ -64,16 +71,10 @@ export function SessionSettings({ session }: { session: Session | null }) {
           data-testid="settings-menu"
         >
           <strong className="mb-1 text-[13px]">Transcript settings</strong>
-          {health?.asr && (
-            <small className={noteStyle}>
-              ASR: {session?.asrModel ?? health.asr.model} (
-              {health.asr.provider}, {health.asr.transport})
-            </small>
-          )}
           {!!health?.asrModels?.length && (
             <>
               <label className={labelStyle} htmlFor="asr-model">
-                ASR model
+                Transcription model
               </label>
               <select
                 className={selectStyle}
@@ -95,20 +96,10 @@ export function SessionSettings({ session }: { session: Session | null }) {
                   </option>
                 ))}
               </select>
-              <small className={noteStyle}>
-                Tested 28 Sep: Qwen retained more mixed Cantonese; Whisper/Turbo
-                sometimes rewrote it. All can mishear technical terms.
-              </small>
             </>
           )}
-          <small className={noteStyle}>
-            {health?.asrStreaming
-              ? "Streaming transcription"
-              : "REST fallback · VAD utterances with short preview requests"}
-            . Gray text is interim; saved transcripts replace it.
-          </small>
           <label className={labelStyle} htmlFor="asr-language">
-            ASR spoken language
+            Spoken language
           </label>
           <select
             className={selectStyle}
@@ -128,24 +119,23 @@ export function SessionSettings({ session }: { session: Session | null }) {
             }
           >
             <option value="auto">Auto / mixed languages</option>
-            <option value="yue-en">
-              Cantonese + English (Traditional Chinese display)
-            </option>
-            <option value="yue">Cantonese (Traditional Chinese display)</option>
+            <option value="yue-en">Cantonese + English</option>
+            <option value="yue">Cantonese</option>
             <option value="zh">Mandarin</option>
             <option value="en">English</option>
           </select>
-          <small className={noteStyle}>
-            Applies to future ASR requests. For Cantonese and English, choose
-            the mixed mode to keep automatic recognition.
-            {streamActive &&
-              " Stop recording to change streaming language or model."}
-            {health?.asr &&
-              !health.asr.supportsLanguageHint &&
-              " This provider uses automatic recognition; the language hint is not applied."}
-          </small>
+          {streamActive && (
+            <small className={noteStyle}>
+              Stop recording to change model or language.
+            </small>
+          )}
+          {health?.asr && !health.asr.supportsLanguageHint && (
+            <small className={noteStyle}>
+              This model detects the spoken language automatically.
+            </small>
+          )}
           <label className={labelStyle} htmlFor="note-language">
-            Notes output language
+            Notes language
           </label>
           <select
             className={selectStyle}
@@ -163,10 +153,7 @@ export function SessionSettings({ session }: { session: Session | null }) {
             <option value="zh-Hans">SC · Simplified Chinese</option>
             <option value="en">EN · English</option>
           </select>
-          <small className={noteStyle}>
-            Applies to the next AI revision. Use Revise with AI to update
-            existing notes.
-          </small>
+          <small className={noteStyle}>Used for the next AI revision.</small>
           {health && !health.sessionLanguageSettings && (
             <small className={noteStyle}>
               Restart the API to save language settings.
@@ -206,10 +193,7 @@ export function SessionSettings({ session }: { session: Session | null }) {
             <option value="ja">Japanese</option>
             <option value="ko">Korean</option>
           </select>
-          <small className={noteStyle}>
-            Applies to this session. Existing entries are translated in the
-            background; originals remain unchanged.
-          </small>
+
           {session?.translationEnabled && translationsFailed && (
             <Button
               disabled={!!busy}
@@ -217,23 +201,6 @@ export function SessionSettings({ session }: { session: Session | null }) {
             >
               Retry failed translations
             </Button>
-          )}
-          {!!session?.terms.length && (
-            <div className="grid gap-1.5 border-t border-line pt-2">
-              <small className={noteStyle}>
-                {highlightedTerms} key terms highlighted
-              </small>
-              <small className={noteStyle}>
-                Jev reviews confirmed source terms automatically. Selected terms
-                receive saved AI explanations. Hover or tap a highlighted term
-                to read it.
-              </small>
-              {!health?.jev && (
-                <small className={noteStyle}>
-                  Term detection is unavailable until Jev is configured.
-                </small>
-              )}
-            </div>
           )}
         </div>
       )}

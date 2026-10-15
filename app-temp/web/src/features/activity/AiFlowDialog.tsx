@@ -144,6 +144,12 @@ export function AiFlowDialog({
                     ? "A generation job was requested."
                     : "No generation job requested for this input."}
                 </p>
+                {data.gate.admissionReason && (
+                  <p className={paragraph}>
+                    Admission: {data.gate.admissionReason.replaceAll("-", " ")}{" "}
+                    · policy {data.gate.policyRevision}
+                  </p>
+                )}
                 <pre className={code}>
                   Input identity: {data.gate.inputHash || "not recorded"}
                 </pre>

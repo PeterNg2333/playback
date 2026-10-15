@@ -56,7 +56,15 @@ export const NotePointSchema = z.object({
 });
 export const NoteSectionSchema = z.object({
   id: z.string(),
+  schemaVersion: z.number().int().default(1),
   title: z.string(),
+  parentId: z.string().nullish(),
+  order: z.number().int().nonnegative().default(0),
+  blocks: z.array(z.object({
+    id: z.string(), order: z.number().int().nonnegative(), role: z.string(), body: z.string(),
+    userEdited: z.boolean(), supersedesBlockId: z.string().nullish(), citationIds: z.array(z.string()),
+    anchors: z.array(z.object({id: z.string(), offset: z.number(), length: z.number(), sourceIds: z.array(z.string())})),
+  })).optional(),
   version: z.number(),
   markdown: z.string(),
   userEdited: z.boolean(),
@@ -104,6 +112,7 @@ export const TermInsightSchema = z.object({
 });
 export const ChunkSchema = z.object({
   id: z.string(),
+  streamId: z.string().nullish(),
   sourceId: z.string(),
   sequence: z.number(),
   startMs: z.number(),
@@ -119,7 +128,84 @@ export const SessionSummarySchema = z.object({
   groupId: z.string().nullish(),
 });
 export const GroupSchema = z.object({ id: z.string(), name: z.string() });
+const ProcessingPolicyFields = z.object({
+  jevEnabled: z.boolean(),
+  probabilityThreshold: z.number().finite().min(0).max(1),
+  confidenceThreshold: z.number().finite().min(0).max(1),
+  checkIntervalSeconds: z.number().finite().min(2).max(30),
+  maxPendingWaitSeconds: z.number().finite().min(10).max(120),
+  silenceBoundarySeconds: z.number().finite().min(0.7).max(10),
+  boundarySettleSeconds: z.number().finite().min(0).max(5),
+  combineQuiet: z.boolean().default(true),
+  maxCombinedSeconds: z.number().finite().min(10).max(300).default(60),
+  organizationEnabled: z.boolean().default(true),
+  organizationChangedRevisions: z.number().int().min(1).max(10).default(3),
+  organizationMaxDirtyAgeSeconds: z.number().finite().min(30).max(600).default(120),
+  organizationCooldownSeconds: z.number().finite().min(15).max(300).default(60),
+  organizationScope: z.enum(["affected-topics", "document-outline"]).default("affected-topics"),
+  notePresentation: z.enum(["numbered-hierarchy", "headings"]).default("numbered-hierarchy"),
+});
+export const ProcessingPolicySchema = ProcessingPolicyFields.refine(value => value.organizationCooldownSeconds <= value.organizationMaxDirtyAgeSeconds, "Organization cooldown must not exceed maximum dirty-note age");
+export const ProcessingSettingsSchema = z.object({
+  schemaVersion: z.literal(1),
+  revision: z.number().int().nonnegative(),
+  inheritedRevision: z.number().int().nonnegative(),
+  effectiveRevision: z.string(),
+  overrides: ProcessingPolicyFields.partial().extend({
+    jevEnabled: z.boolean().nullish(),
+    probabilityThreshold: z.number().nullish(),
+    confidenceThreshold: z.number().nullish(),
+    checkIntervalSeconds: z.number().nullish(),
+    maxPendingWaitSeconds: z.number().nullish(),
+    silenceBoundarySeconds: z.number().nullish(),
+    boundarySettleSeconds: z.number().nullish(),
+    combineQuiet: z.boolean().nullish(),
+    maxCombinedSeconds: z.number().nullish(),
+    organizationEnabled: z.boolean().nullish(),
+    organizationChangedRevisions: z.number().int().nullish(),
+    organizationMaxDirtyAgeSeconds: z.number().nullish(),
+    organizationCooldownSeconds: z.number().nullish(),
+    organizationScope: z.enum(["affected-topics", "document-outline"]).nullish(),
+    notePresentation: z.enum(["numbered-hierarchy", "headings"]).nullish(),
+  }),
+  effective: ProcessingPolicySchema,
+  inherited: ProcessingPolicySchema,
+});
+export const NoteAdmissionSchema = z.object({
+  status: z.string(),
+  admissionReason: z.string(),
+  decision: z.string(),
+  policyRevision: z.string(),
+  firstPendingAt: z.string().nullish(),
+  retryAt: z.string().nullish(),
+  attempts: z.number(),
+  flushRequested: z.boolean(),
+  gateFailure: z.string(),
+});
+export const ProcessingSyncSchema = z.object({
+  processingSettings: ProcessingSettingsSchema,
+  noteAdmission: NoteAdmissionSchema.nullish(),
+  organization: z.object({status: z.string(), dirtyRevisions: z.number(), dirtySince: z.string().nullish(), cooldownUntil: z.string().nullish(), lastOrganizedAt: z.string().nullish(), dueReason: z.string()}).nullish(),
+});
+export type ProcessingPolicy = z.infer<typeof ProcessingPolicySchema>;
+export type ProcessingSettings = z.infer<typeof ProcessingSettingsSchema>;
+export type ProcessingOverrides = ProcessingSettings["overrides"];
+export const CombinedAudioSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  sourceId: z.string(),
+  streamId: z.string(),
+  startMs: z.number(),
+  endMs: z.number(),
+  recordedAt: z.string().nullish(),
+  state: z.literal("published"),
+  children: z.array(z.object({ chunkId: z.string(), frameOffset: z.number(), frameCount: z.number(), startMs: z.number(), endMs: z.number() })),
+});
 export const SessionSchema = SessionSummarySchema.extend({
+  combinedAudioSegments: z.array(CombinedAudioSchema).optional(),
+  processingSettings: ProcessingSettingsSchema.optional(),
+  noteAdmission: NoteAdmissionSchema.nullish(),
+  organization: ProcessingSyncSchema.shape.organization,
   sourceGroups: z
     .array(
       z.object({
@@ -148,6 +234,8 @@ export const SessionSchema = SessionSummarySchema.extend({
   currentNote: z
     .object({
       author: z.string(),
+      schemaVersion: z.number().int().optional(),
+      presentation: z.enum(["numbered-hierarchy", "headings"]).optional(),
       basedOnVersion: z.number().nullish(),
       inputHash: z.string().nullish(),
       transcriptIds: z.array(z.string()),
@@ -238,6 +326,7 @@ export const HealthSchema = z.object({
   asrPaused: z.boolean().optional(),
   sessionAudioMix: z.boolean().optional(),
   recordingSourceSelection: z.boolean().optional(),
+  localCapture: z.boolean().optional(),
   sessionLanguageSettings: z.boolean().optional(),
   liveAsrPreview: z.boolean().optional(),
   elapsedRecordingClock: z.boolean().optional(),
@@ -326,6 +415,8 @@ export const AiFlowSchema = z.object({
       changedAt: z.string(),
       flushRequested: z.boolean(),
       generationRequested: z.boolean(),
+      admissionReason: z.string().optional(),
+      policyRevision: z.string().optional(),
     })
     .nullish(),
 });
@@ -359,6 +450,11 @@ export const NoteRecoverySchema = z.object({
       userEdited: z.boolean(),
     }),
   ),
+});
+export const NoteRewriteSchema = z.object({
+  id: z.string(), sessionId: z.string(), basedOnVersion: z.number().int(), topicId: z.string(), createdAt: z.string(), status: z.string(),
+  changes: z.array(z.object({targetBlockId: z.string(), retainedBlockIds: z.array(z.string()), body: z.string(), role: z.string()})),
+  originalBodies: z.record(z.string(), z.string()), issues: z.array(z.string()), readyForAcceptance: z.boolean(),
 });
 
 // One saved version of the notes.

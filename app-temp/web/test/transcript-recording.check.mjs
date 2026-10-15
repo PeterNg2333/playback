@@ -375,8 +375,10 @@ try {
     1,
     "The footer and rows must share one player",
   );
-  const mixedAudio = page.waitForRequest((request) =>
-    request.url().endsWith(`/api/sessions/${id}/audio/segments/0`),
+  const microphoneAudio = page.waitForRequest((request) =>
+    request
+      .url()
+      .endsWith(`/api/sessions/${id}/audio/segments/0?source=microphone`),
   );
   await page.getByLabel("Playback mode").click();
   assert.equal(
@@ -389,7 +391,7 @@ try {
       path: join(tmpdir(), "playback-source-dropdown.png"),
     });
   await page.getByRole("button", { name: "Full session" }).click();
-  await mixedAudio;
+  await microphoneAudio;
   const systemAudio = page.waitForRequest((request) =>
     request
       .url()
@@ -520,12 +522,12 @@ try {
       });
   }
   await page.getByRole("button", { name: "Transcript settings" }).click();
-  await page.getByText("ASR: qwen/qwen3-asr-1.7b (openrouter, rest)").waitFor();
+  await page.getByRole("combobox", { name: "Transcription model" }).waitFor();
   const asrLanguage = page.getByRole("combobox", {
-    name: "ASR spoken language",
+    name: "Spoken language",
   });
   const noteLanguage = page.getByRole("combobox", {
-    name: "Notes output language",
+    name: "Notes language",
   });
   await asrLanguage.selectOption("yue");
   assert.deepEqual(languagesRequest, {
@@ -540,7 +542,7 @@ try {
     asrModel: null,
   });
   await page
-    .getByRole("combobox", { name: "ASR model" })
+    .getByRole("combobox", { name: "Transcription model" })
     .selectOption("openai/whisper-large-v3-turbo");
   assert.deepEqual(languagesRequest, {
     asrLanguage: "yue",
@@ -552,7 +554,9 @@ try {
   await page.getByRole("button", { name: "Transcript settings" }).click();
   assert.equal(await asrLanguage.inputValue(), "yue-en");
   assert.equal(
-    await page.getByRole("combobox", { name: "ASR model" }).inputValue(),
+    await page
+      .getByRole("combobox", { name: "Transcription model" })
+      .inputValue(),
     "openai/whisper-large-v3-turbo",
   );
   assert.equal(await noteLanguage.inputValue(), "en");
@@ -570,9 +574,7 @@ try {
   const translation = page.getByRole("checkbox", {
     name: "Enable translation",
   });
-  await page.waitForFunction(
-    () => !document.querySelector('input[type="checkbox"]')?.disabled,
-  );
+  await translation.click({ trial: true });
   assert.equal(await translation.isDisabled(), false);
   assert.equal(
     await page.getByRole("checkbox", { name: /I confirm lecturer/ }).count(),
@@ -693,9 +695,11 @@ try {
     "Activity material links must open the materials section",
   );
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("combobox", { name: "Recording source" })
-    .selectOption("microphone");
+  assert.equal(
+    await page.getByRole("combobox", { name: "Recording source" }).inputValue(),
+    "microphone",
+    "Recording must default to microphone only",
+  );
   await page.getByRole("button", { name: "Start recording" }).click();
   assert.deepEqual(captureRequest, { sessionId: id, sourceMode: "microphone" });
   assert.equal(
@@ -880,7 +884,10 @@ try {
   await page.setViewportSize({ width: 1440, height: 720 });
   await page.reload();
   await page.getByText("Note paragraph 80.").waitFor();
-  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).check();
   await page
     .getByRole("button", { name: /Open audio sources/ })
     .first()
@@ -958,7 +965,9 @@ try {
   asrPaused = true;
   await page.reload();
   await page.getByText("ASR paused · audio saved locally").waitFor();
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page
     .getByRole("textbox", { name: "Editable Markdown" })
     .fill("Unsaved note");
@@ -970,7 +979,10 @@ try {
     await page.getByRole("button", { name: "Save", exact: true }).isEnabled(),
     true,
   );
-  await page.getByRole("button", { name: "Revise with AI" }).click();
+  await page.getByLabel("Note actions", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Revise with AI", exact: true })
+    .click();
   await page.getByTestId("error-toast").waitFor();
   assert.match(
     await page.getByTestId("error-toast").textContent(),

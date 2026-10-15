@@ -213,7 +213,9 @@ try {
   );
   await shot("scroll-tail");
   // Dirty editor and selection must survive an actual polling refresh and streamed note draft.
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   const editor = page.getByLabel("Editable Markdown");
   await editor.fill("My unsaved explanation\nSecond line");
   await editor.evaluate((el) => {
@@ -250,13 +252,16 @@ try {
   );
   await shot("dirty-caret-stream");
   activities = [];
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   await page
     .getByRole("button", { name: "◇ Ask Playback", exact: true })
     .click();
   await page.getByLabel("Your question", { exact: true }).fill("What is cache");
   await page
-    .getByRole("checkbox", { name: /Include public web search/ })
+    .getByRole("checkbox", { name: "Search the web", exact: true })
     .check();
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page

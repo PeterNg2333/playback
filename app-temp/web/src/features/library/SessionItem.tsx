@@ -13,19 +13,21 @@ export function SessionItem({
   groups,
   onDragStart,
   onDragEnd,
+  onDelete,
 }: {
   item: SessionSummary;
   currentId: string | undefined;
   groups: Group[];
   onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void;
   onDragEnd: () => void;
+  onDelete: (item: SessionSummary) => void;
 }) {
   const busy = usePlaybackStore((state) => state.busy);
   return (
     <SidebarRow>
       <button
         className={clsx(
-          "flex min-w-0 flex-1 items-center gap-2.25 rounded-lg px-2.5 py-2 text-left text-[12px] text-ink aria-[current=page]:bg-[#e3e6ef] aria-[current=page]:font-bold",
+          "flex min-w-0 flex-1 items-center gap-2.25 rounded-r-lg border-l-[3px] border-transparent px-2.5 py-2 text-left text-[12px] text-ink aria-[current=page]:border-accent aria-[current=page]:bg-accent-soft aria-[current=page]:font-bold aria-[current=page]:text-accent",
           !busy && "cursor-grab active:cursor-grabbing",
         )}
         aria-current={currentId === item.id ? "page" : undefined}
@@ -41,7 +43,7 @@ export function SessionItem({
         <Icon name="document" className="size-3.75 flex-none text-[#858fa1]" />
         <span className="min-w-0 truncate">{item.title}</span>
       </button>
-      <RowMenu label={`Move ${item.title}`}>
+      <RowMenu label={`Session options for ${item.title}`}>
         {(close) => (
           <>
             {item.groupId && (
@@ -67,11 +69,17 @@ export function SessionItem({
                   Move to {group.name}
                 </MenuItem>
               ))}
-            {!item.groupId && groups.length === 0 && (
-              <span className="block p-2 text-[11px] text-muted">
-                Create a group to move this session.
-              </span>
-            )}
+            <div className="my-1 border-t border-line" />
+            <MenuItem
+              danger
+              disabled={!!busy}
+              onClick={() => {
+                close();
+                onDelete(item);
+              }}
+            >
+              Delete session
+            </MenuItem>
           </>
         )}
       </RowMenu>

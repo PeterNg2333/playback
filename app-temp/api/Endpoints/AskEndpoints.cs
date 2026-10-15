@@ -9,9 +9,9 @@ public static class AskEndpoints
 {
     public static void MapAsk(this WebApplication app)
     {
-        app.MapGet("/api/sessions/{id}/conversations", async (string id, PlaybackStore store) => await store.Conversations(id));
-        app.MapPost("/api/sessions/{id}/conversations", async (string id, PlaybackStore store) => await store.CreateConversation(id));
-        app.MapGet("/api/sessions/{id}/conversations/{conversationId}", async (string id, string conversationId, PlaybackStore store) =>
+        app.MapGet("/api/sessions/{id}/conversations", async (string id, ChatAgent store) => await store.Conversations(id));
+        app.MapPost("/api/sessions/{id}/conversations", async (string id, ChatAgent store) => await store.CreateConversation(id));
+        app.MapGet("/api/sessions/{id}/conversations/{conversationId}", async (string id, string conversationId, ChatAgent store) =>
             await store.Conversation(id, conversationId));
         app.MapPost("/api/sessions/{id}/ask",
             async (string id, QuestionInput input, ChatAgent service, CancellationToken ct) =>
@@ -27,7 +27,7 @@ public static class AskEndpoints
             {
                 try
                 {
-                    events.Writer.TryWrite(new { type = "status", text = "Checking processed session evidence…" });
+                    events.Writer.TryWrite(new { type = "status", text = "Answering your question…" });
                     var answer = await service.Ask(id, input, deadline.Token,
                         text => events.Writer.TryWrite(new { type = "draft", text }));
                     events.Writer.TryWrite(new { type = "result", answer });

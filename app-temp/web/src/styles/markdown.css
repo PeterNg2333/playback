@@ -4,6 +4,26 @@
    Preflight removes browser defaults; `revert` brings back the browser's own value where
    notes rely on it (list markers, monospace code, underlined links, inline diagrams). */
 @layer components {
+  .ask-panel [data-markdown] table {
+    width: 100%;
+    margin: 10px 0;
+    border-radius: 6px;
+    background: white;
+  }
+  .ask-panel [data-markdown] :is(th, td) {
+    min-width: 7rem;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .ask-panel [data-markdown] th {
+    background: var(--color-accent-soft);
+    font-weight: 700;
+  }
+  .ask-panel [data-markdown] tr:nth-child(even) td {
+    background: #f8f8fc;
+  }
   [data-markdown] {
     max-width: 64ch;
   }

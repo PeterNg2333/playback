@@ -9,6 +9,7 @@ sealed class NoteGateHandler : HttpMessageHandler
     public int Models;
     public string? Request;
     public double Confidence = .9;
+    public double Probability = .95;
     public bool Invalid;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -26,7 +27,7 @@ sealed class NoteGateHandler : HttpMessageHandler
                 model = "fixture-version",
                 answers = new
                 {
-                    update = new { type = "noul", noul = Invalid ? 2 : .95 },
+                    update = new { type = "noul", noul = Invalid ? 2 : Probability },
                     action = new { type = "choice", choice = "update", confidence = Confidence, probabilities = new { update = .95, wait = .05 } }
                 },
                 usage = new { input_tokens = 12, output_tokens = 3 }

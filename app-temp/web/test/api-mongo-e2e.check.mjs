@@ -242,7 +242,9 @@ try {
   });
   await page.getByText(materialText).waitFor();
 
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page.getByLabel("Editable Markdown").fill(markdown);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByText("v1", { exact: true }).waitFor();
@@ -254,16 +256,19 @@ try {
     .filter({ hasText: groupName + " renamed" })
     .getByRole("button", { name: title })
     .waitFor();
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   await page.getByRole("heading", { name: "Demo notes" }).waitFor();
   await page.locator("#session-materials > summary").click();
   await page.getByText(materialText).waitFor();
   await page.getByRole("button", { name: "Transcript settings" }).click();
-  await page.getByLabel("ASR spoken language").selectOption("yue-en");
+  await page.getByLabel("Spoken language").selectOption("yue-en");
   await page
-    .getByLabel("ASR model", { exact: true })
+    .getByLabel("Transcription model", { exact: true })
     .selectOption("openai/whisper-large-v3-turbo");
-  await page.getByLabel("Notes output language").selectOption("zh-Hans");
+  await page.getByLabel("Notes language").selectOption("zh-Hans");
   await page.waitForFunction(async (id) => {
     const saved = await (await fetch(`/api/sessions/${id}`)).json();
     return (
@@ -277,18 +282,12 @@ try {
   await page.waitForFunction(
     () => document.getElementById("asr-language")?.disabled === false,
   );
+  assert.equal(await page.getByLabel("Spoken language").inputValue(), "yue-en");
   assert.equal(
-    await page.getByLabel("ASR spoken language").inputValue(),
-    "yue-en",
-  );
-  assert.equal(
-    await page.getByLabel("ASR model", { exact: true }).inputValue(),
+    await page.getByLabel("Transcription model", { exact: true }).inputValue(),
     "openai/whisper-large-v3-turbo",
   );
-  assert.equal(
-    await page.getByLabel("Notes output language").inputValue(),
-    "zh-Hans",
-  );
+  assert.equal(await page.getByLabel("Notes language").inputValue(), "zh-Hans");
   await page.getByLabel("Enable translation").check();
   await page.getByLabel("Translation target language").selectOption("en");
   await page.waitForFunction(async (id) => {

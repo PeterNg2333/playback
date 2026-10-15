@@ -23,6 +23,7 @@ const env = {
   PLAYBACK_AUTO_TERMS: "no",
   PLAYBACK_OFFLINE_TEST: "no",
   PLAYBACK_PAUSE_EXTERNAL_ASR: "no",
+  PLAYBACK_SAMPLE_AUDIO_LIVE: "yes",
   Logging__LogLevel__Microsoft: "Warning",
 };
 

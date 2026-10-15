@@ -188,7 +188,10 @@ try {
       view.noteVersion > before.noteVersion,
       "Automatic note must be saved",
     );
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   await shot("hardware-final");
   await page
     .getByRole("button", { name: "AI activity history", exact: true })

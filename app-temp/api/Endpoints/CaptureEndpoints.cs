@@ -6,18 +6,12 @@ public static class CaptureEndpoints
 {
     public static void MapCapture(this WebApplication app)
     {
-        app.MapGet("/api/capture/status", (WindowsAudioCaptureService capture) => capture.Status());
-        app.MapPost("/api/capture/start", async (CaptureInput input, WindowsAudioCaptureService capture) =>
-            await capture.Start(input.SessionId, input.SourceMode));
-        app.MapPost("/api/capture/stop", async (WindowsAudioCaptureService capture, PlaybackStore store) => {
-            var id = capture.Status().SessionId;
-            var status = await capture.Stop();
-            if (id is not null) await store.RequestNoteFlush(id);
-            return status;
-        });
-        app.MapPost("/api/capture/pause", async (WindowsAudioCaptureService capture) => await capture.Pause());
-        app.MapPost("/api/capture/resume", async (WindowsAudioCaptureService capture) => await capture.Resume());
+        app.MapGet("/api/capture/status", (Playback.Application.Recording.RecordingCommands capture) => capture.Status());
+        app.MapPost("/api/capture/start", (CaptureInput input, Playback.Application.Recording.RecordingCommands capture) => capture.Start(input.SessionId, input.SourceMode));
+        app.MapPost("/api/capture/stop", (Playback.Application.Recording.RecordingCommands capture) => capture.Stop());
+        app.MapPost("/api/capture/pause", (Playback.Application.Recording.RecordingCommands capture) => capture.Pause());
+        app.MapPost("/api/capture/resume", (Playback.Application.Recording.RecordingCommands capture) => capture.Resume());
     }
 }
 
-public record CaptureInput(string SessionId, string SourceMode = "both");
+public record CaptureInput(string SessionId, string SourceMode = "microphone");

@@ -51,7 +51,17 @@ function requestScope(signal?: AbortSignal) {
 }
 async function fetchApi(path: string, options: RequestInit) {
   try {
-    return await fetch("/api" + path, options);
+    const headers = new Headers(options.headers);
+    const token = csrfToken();
+    if (token && options.method && options.method !== "GET")
+      headers.set("X-CSRF-TOKEN", token);
+    const response = await fetch("/api" + path, {
+      ...options,
+      headers,
+      credentials: "same-origin",
+    });
+    if (response.status === 401 && token) window.location.assign("/login");
+    return response;
   } catch (reason) {
     if (reason instanceof TypeError)
       throw new Error(
@@ -59,6 +69,15 @@ async function fetchApi(path: string, options: RequestInit) {
       );
     throw reason;
   }
+}
+
+export function csrfToken() {
+  const cookie = document.cookie
+    .split("; ")
+    .find((value) => value.startsWith("Playback.Csrf="));
+  return cookie
+    ? decodeURIComponent(cookie.slice("Playback.Csrf=".length))
+    : undefined;
 }
 
 async function responseError(response: Response) {

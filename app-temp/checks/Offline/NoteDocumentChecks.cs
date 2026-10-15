@@ -75,9 +75,8 @@ static class NoteDocumentChecks
         };
         Expect.Rejects(() => NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "x"), "Dropping a coverage point was accepted");
         bad.Sections[0].Points[0].Retains = ["formula"];
-        var safeguarded = NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "y");
-        Expect.That(NoteSections.Render(safeguarded.Sections).Contains("R/n") && NoteSections.Render(safeguarded.Sections).Contains("n=10"),
-            "A model retaining an ID while dropping its formula bypassed literal retention");
+        Expect.Rejects(() => NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "y"), "A model retaining an ID while dropping its formula bypassed the rewrite preview");
+        Expect.That(early.Markdown.Contains("R/n") && early.Markdown.Contains("n=10") && !early.Markdown.Contains("Earlier source-backed points"), "Rejected rewrite moved old prose into a catch-all");
         early.UserEdited = true;
         Expect.Rejects(() => NoteSections.Apply("s", note, note.Sections, bad, ["fair"], [], ["early"], "x"), "Automatic generation replaced a user-edited section");
         early.UserEdited = false;
@@ -103,7 +102,8 @@ static class NoteDocumentChecks
         var deleted = new List<string>();
         var suppressed = new List<string>();
         var edited = NoteSections.UserEdit(note, "s", security.Markdown, ["early", "security-source"], [], deleted, suppressed);
-        Expect.That(deleted.Contains("fair") && suppressed.Contains("early") && edited.Single() == security,
+        Expect.That(deleted.Contains("fair") && suppressed.Contains("early") && edited.Single().Id == security.Id && edited.Single().Markdown == security.Markdown &&
+            edited.Single().Points.Select(x => x.Id).SequenceEqual(security.Points.Select(x => x.Id)),
             "Intentional deletion was not recorded: " + JsonSerializer.Serialize(new { deleted, suppressed, edited }));
         var latest = new Note { Id = "new", Version = 113, SessionId = "s", Sections = edited, DeletedSectionIds = deleted, SuppressedSourceIds = suppressed };
         Expect.That(!NoteSections.Recover(note, latest, ["early", "security-source"]).Candidates.Any(x => x.MissingSourceIds.Contains("early")),
@@ -111,7 +111,7 @@ static class NoteDocumentChecks
         latest.DeletedSectionIds.Clear();
         latest.SuppressedSourceIds.Clear();
         var preview = NoteSections.Recover(note, latest, ["early", "security-source"]);
-        Expect.That(preview.Candidates.Single().Markdown.Contains("R/10") && preview.CurrentSections.Single() == security && latest.Version == 113,
+        Expect.That(preview.Candidates.Single().Markdown.Contains("R/10") && preview.CurrentSections.Single().Id == security.Id && preview.CurrentSections.Single().Markdown == security.Markdown && latest.Version == 113,
             "Recovery preview overwrote current notes or lost the formula");
     }
 
@@ -128,6 +128,15 @@ static class NoteDocumentChecks
         Expect.Rejects(() => NoteAgent.ValidateSourceReferences($"Point [{longNoteSource}, {new string('f', 32)}]", [longNoteSource]),
             "An invented source in a mixed citation was accepted");
         NoteAgent.ValidateSourceReferences($"Code `[{new string('f', 32)}]`\n```text\n[{new string('f', 32)}]\n```", []);
+        foreach (var marker in new[] { "cite_T003, T004", "T999", "cite_deadbeef", "cite_" })
+            Expect.Rejects(() => NoteAgent.ValidateSourceReferences($"Point [{marker}]", []),
+                "An unresolved prompt alias or fabricated citation was accepted: " + marker);
+        var prompt = new NotePrompt("", new() { ["T001"] = longNoteSource, ["T002"] = secondNoteSource });
+        var decoded = prompt.Decode("Point [T001; T002]. Literal `[T001]`.\n```text\n[T002]\n```\n[T001](https://example.com)");
+        Expect.That(decoded == $"Point [{longNoteSource}, {secondNoteSource}]. Literal `[T001]`.\n```text\n[T002]\n```\n[T001](https://example.com)",
+            "Note aliases were not decoded consistently with code and Markdown link boundaries");
+        NoteAgent.ValidateSourceReferences(decoded, [longNoteSource, secondNoteSource]);
+        NoteAgent.ValidateSourceReferences("Literal `[cite_T003, T004]`\n```text\n[cite_unknown]\n```\n[cite_T001](https://example.com)", []);
 
         var widePassage = LectureFixtures.WidestPassage();
         var wideCitation = "Point [" + string.Join(", ", widePassage.Select(x => x.Id)) + "]";

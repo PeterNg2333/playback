@@ -10,8 +10,27 @@ static class NoteCoverageChecks
     public static async Task Run()
     {
         await GapRepair();
+        DeferredGaps();
         Retention();
-        Console.WriteLine("Note coverage checks passed: body citations only, earliest gap repaired without reviving deletions, stale repair rejected, formulas retained");
+        Console.WriteLine("Note coverage checks passed: body citations only, earliest actionable gap repaired without reviving deletions, " +
+            "deferred gaps do not block later speech, stale repair rejected, formulas retained");
+    }
+
+    static void DeferredGaps()
+    {
+        var store = new MemoryStore();
+        store.Add("deferred-gaps");
+        store.Speech("deferred-gaps", "filler", "Um.");
+        store.Speech("deferred-gaps", "bridge", "An already written definition.");
+        store.Speech("deferred-gaps", "later", "A complete later example.");
+        store.Transcripts["deferred-gaps"][0].NoteStatus = "deferred";
+        store.Notes["deferred-gaps"] = new Note { Markdown = "Definition. [bridge]" };
+        var session = store.Session("deferred-gaps").GetAwaiter().GetResult()!;
+        Expect.That(NoteCoverage.Audit(session).Unreferenced == 2 && NoteCoverage.OldestBatch(session).Single().Id == "later",
+            "An entirely deferred early gap blocked later unaddressed speech or disappeared from the audit");
+        session = session with { NoteMarkdown = "Definition. [bridge]\nExample. [later]" };
+        Expect.That(NoteCoverage.OldestBatch(session).Single().Id == "filler",
+            "Deferred speech could not be explicitly revisited after later gaps were handled");
     }
 
     static async Task GapRepair()
@@ -62,12 +81,11 @@ static class NoteCoverageChecks
             Sections = [new SectionPatch { Id = "formula", BaseVersion = 1, Title = "Capacity", Markdown = "## Capacity\n\nFlows share capacity. [b, a]",
                 Points = [new PointPatch { Text = "Flows share capacity. [b, a]", SourceIds = ["a", "b"], Retains = ["proof"] }] }]
         };
-        var guarded = NoteSections.Apply("s", note, [prior], deceptive, [prior.Id], [], ["a", "b"], "organize", allowUserEdited: true);
-        Expect.That(NoteSections.Render(guarded.Sections).Contains("n=10 yields R/10, assuming one shared bottleneck"),
-            "Organizer claimed a retained ID and citations while deleting a formula/condition");
+        Expect.Rejects(() => NoteSections.Apply("s", note, [prior], deceptive, [prior.Id], [], ["a", "b"], "organize", allowUserEdited: true), "Organizer bypassed the rewrite preview while deleting a formula/condition");
+        Expect.That(prior.Markdown.Contains("n=10 yields R/10, assuming one shared bottleneck") && !prior.Markdown.Contains("Earlier source-backed points"), "Rejected organizer moved or lost the original formula");
         Expect.Rejects(() => NoteSections.RequireRetention(note, new SectionUpdate([], [], []), ["a", "b"]),
             "Persistence boundary accepted deleting a whole saved section");
-        NoteSections.RequireRetention(note, guarded, ["a", "b"]);
+        NoteSections.RequireRetention(note, new SectionUpdate([prior], [], []), ["a", "b"]);
         var reordered = new NotePatch
         {
             Sections = [new SectionPatch { Id = "formula", BaseVersion = 1, Title = "Capacity", Markdown = prior.Markdown.Replace("[a, b]", "[b, a]"),

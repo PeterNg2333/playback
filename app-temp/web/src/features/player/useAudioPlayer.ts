@@ -69,18 +69,22 @@ function sessionParts(session: Session, source: string): Part[] {
     });
 }
 
-function rowParts(session: Session, chunks: PlayableChunk[]): Part[] {
-  return [...chunks]
-    .sort((a, b) => a.startMs - b.startMs)
-    .map((chunk) => ({
-      url: `/api/chunks/${chunk.id}/audio`,
-      startMs: chunk.startMs,
-      fromMs: 0,
-      toMs: chunk.endMs - chunk.startMs,
-      wallOriginMs: chunk.recordedAt
-        ? new Date(chunk.recordedAt).getTime()
-        : new Date(session.createdAt).getTime() + chunk.startMs,
-    }));
+export function rowParts(session: Session, chunks: PlayableChunk[]): Part[] {
+  const ids = new Set(chunks.map(x => x.id));
+  const used = new Set<string>();
+  const parts: Part[] = [];
+  for (const chunk of [...chunks].sort((a, b) => a.startMs - b.startMs)) {
+    if (used.has(chunk.id)) continue;
+    const segment = session.processingSettings?.effective.combineQuiet === false ? undefined : session.combinedAudioSegments?.filter(x => x.children.length > 1 && x.children[0]?.chunkId === chunk.id && x.children.every(child => ids.has(child.chunkId))).sort((a, b) => b.children.length - a.children.length)[0];
+    if (segment) segment.children.forEach(child => used.add(child.chunkId));
+    const selected = segment ?? chunk;
+    parts.push({
+      url: segment ? `/api/sessions/${session.id}/audio/combined/${segment.id}` : `/api/chunks/${chunk.id}/audio`,
+      startMs: selected.startMs, fromMs: 0, toMs: selected.endMs - selected.startMs,
+      wallOriginMs: selected.recordedAt ? new Date(selected.recordedAt).getTime() : new Date(session.createdAt).getTime() + selected.startMs,
+    });
+  }
+  return parts;
 }
 
 function partAt(parts: Part[], positionMs: number) {
@@ -107,8 +111,8 @@ export function useAudioPlayer(
   const latestSession = useRef(session);
   latestSession.current = session;
   const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const [sourceMode, setSourceModeState] = useState("mix");
-  const sourceModeRef = useRef("mix");
+  const [sourceMode, setSourceModeState] = useState("microphone");
+  const sourceModeRef = useRef("microphone");
   const [speed, setSpeedState] = useState(1);
   const speedRef = useRef(1);
   const partsCache = useRef<
@@ -143,9 +147,28 @@ export function useAudioPlayer(
     audio.current?.removeAttribute("src");
     queue.current = null;
     setPlayingKey(null);
-    sourceModeRef.current = "mix";
-    setSourceModeState("mix");
+    sourceModeRef.current = "microphone";
+    setSourceModeState("microphone");
   }, [session?.id]);
+
+  // Older sessions may contain only system audio. Keep the default playable
+  // when the preferred microphone track is absent, including after sync loads it.
+  useEffect(() => {
+    const sources = [
+      ...new Set(session?.chunks.map((chunk) => chunk.sourceId)),
+    ];
+    if (
+      sources.length &&
+      sourceModeRef.current !== "mix" &&
+      !sources.includes(sourceModeRef.current)
+    ) {
+      const available = sources.includes("microphone")
+        ? "microphone"
+        : sources[0];
+      sourceModeRef.current = available;
+      setSourceModeState(available);
+    }
+  }, [session?.id, session?.chunks]);
 
   function playCurrent(selected: Queue) {
     const player = audio.current;

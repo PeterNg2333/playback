@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "../../lib/queryClient";
 import { useHealth } from "../../lib/useHealth";
 import { api } from "../../lib/backend/client";
 import { runAction, usePlaybackStore } from "../../lib/store";
@@ -44,6 +45,24 @@ export async function deleteGroup(id: string) {
   await runAction("group", async () => {
     await api.delete("/groups/" + id);
     deleted = true;
+    await refreshWorkspace(shownSessionId());
+  });
+  return deleted;
+}
+
+export async function deleteSession(id: string) {
+  let deleted = false;
+  await runAction("delete-session", async () => {
+    await api.delete("/sessions/" + id);
+    deleted = true;
+    await queryClient.cancelQueries({ queryKey: ["session", id] });
+    if (shownSessionId() === id)
+      usePlaybackStore.setState({
+        selectedSessionId: null,
+        selection: null,
+        question: "",
+      });
+    queryClient.removeQueries({ queryKey: ["session", id] });
     await refreshWorkspace(shownSessionId());
   });
   return deleted;

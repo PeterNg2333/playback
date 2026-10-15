@@ -216,9 +216,14 @@ async function select(title) {
     .waitFor({ state: "hidden" });
 }
 async function edit(text) {
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page.getByLabel("Editable Markdown").fill(text);
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   if (!baseline && text.includes("$p$"))
     await page.getByTestId("note-content").locator("math").first().waitFor();
 }
@@ -292,13 +297,18 @@ try {
       mathAssets.every((x) => !/mermaid/i.test(x.name)),
       "Equations loaded the flowchart engine",
     );
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("markdown");
     assert.equal(
       await page.getByLabel("Editable Markdown").inputValue(),
       formulaNote,
       "Rendering changed the source note",
     );
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
   }
   await screenshot("equations-desktop");
   await edit(formulaNote + diagram);
@@ -307,7 +317,10 @@ try {
     .getByLabel("Rendered flowchart")
     .locator("svg")
     .waitFor({ timeout: 30000 });
-  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).check();
   await page
     .getByTestId("note-content")
     .getByRole("button", { name: /^Open audio sources/ })
@@ -315,7 +328,10 @@ try {
     .click();
   await page.getByRole("dialog", { name: "Grouped audio sources" }).waitFor();
   await page.getByLabel("Close sources", { exact: true }).click();
-  await page.getByRole("button", { name: "Reading", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   await screenshot("equations-flowchart");
   await page.evaluate(() => {
     document.documentElement.style.zoom = "1.25";
@@ -442,12 +458,13 @@ $$
     );
     await unavailable.goto(url);
     await unavailable
-      .getByRole("button", { name: "Edit", exact: true })
-      .click();
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("markdown");
     await unavailable.getByLabel("Editable Markdown").fill("Equation $p^{2}$");
     await unavailable
-      .getByRole("button", { name: "Preview", exact: true })
-      .click();
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await unavailable.getByRole("switch", { name: "Show sources" }).uncheck();
     await unavailable
       .getByTestId("formula")
       .locator('code[title*="could not load"]')

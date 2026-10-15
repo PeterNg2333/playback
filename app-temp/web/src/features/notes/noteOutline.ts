@@ -1,0 +1,23 @@
+import type { Session } from "../../lib/backend/schemas";
+
+export function noteOutline(sections: NonNullable<Session["currentNote"]>["sections"] = []) {
+  const result: { section: (typeof sections)[number]; number: string; depth: number }[] = [];
+  const known = new Set(sections.map(x => x.id));
+  const visited = new Set<string>();
+  function visit(parent: string | null, prefix: string, depth: number) {
+    if (depth > 3) return;
+    sections!.map((section, index) => ({section, index})).filter(({section}) => (known.has(section.parentId ?? "") ? section.parentId : null) === parent)
+      .sort((a, b) => a.section.order - b.section.order || (a.section.schemaVersion < 2 && b.section.schemaVersion < 2 ? a.index - b.index : a.section.id.localeCompare(b.section.id))).forEach(({section}, i) => {
+        if (visited.has(section.id)) return;
+        visited.add(section.id); const number = prefix + (i + 1);
+        result.push({section, number, depth}); visit(section.id, number + ".", depth + 1);
+      });
+  }
+  visit(null, "", 1); return result;
+}
+
+export function topicMarkdown(section: NonNullable<Session["currentNote"]>["sections"] extends (infer T)[] | undefined ? T : never, number: string, depth: number, numbered: boolean) {
+  if (section.schemaVersion < 2) return section.markdown;
+  return "#".repeat(depth + 1) + " " + (numbered ? number + " " : "") + section.title + "\n\n" +
+    [...(section.blocks ?? [])].sort((a, b) => a.order - b.order).map(x => x.body).join("\n\n");
+}

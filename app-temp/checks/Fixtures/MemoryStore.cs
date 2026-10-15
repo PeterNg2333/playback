@@ -3,13 +3,15 @@ using System.Text.Json;
 using Playback.Api.Db;
 using Playback.Api.Notes;
 using Playback.Api.Terms;
+using Playback.Application.Notes;
 
 // PlaybackStore with the note, activity and sync reads kept in memory, for checks without MongoDB.
 // Every read returns a copy, as a database would.
-sealed class MemoryStore : PlaybackStore
+sealed class MemoryStore() : PlaybackStore(inMemory: true)
 {
     public readonly ConcurrentDictionary<string, List<Transcript>> Transcripts = new();
     public readonly ConcurrentDictionary<string, Note> Notes = new();
+    public readonly ConcurrentDictionary<string, List<Note>> Versions = new();
     public readonly ConcurrentDictionary<string, string> Languages = new();
     public readonly ConcurrentDictionary<string, List<Material>> Materials = new();
     public readonly ConcurrentDictionary<string, List<ChunkRecord>> Chunks = new();
@@ -18,6 +20,49 @@ sealed class MemoryStore : PlaybackStore
     public readonly ConcurrentDictionary<string, List<TermCandidate>> Terms = new();
     public readonly ConcurrentDictionary<string, List<TermInsight>> Insights = new();
     public readonly List<string[]> SyncReadIds = [];
+    public readonly MemoryProcessingRepository ProcessingRepository = new();
+    public readonly Dictionary<string, Playback.Domain.Audio.SpeechBoundary> Boundaries = new();
+    public TimeProvider? Clock;
+    public readonly Dictionary<string, Playback.Domain.Notes.NoteOrganizationState> Organizations = new();
+    public readonly Dictionary<string, Playback.Domain.Notes.NoteRewriteProposal> RewriteProposals = new();
+    public override Task<List<Playback.Domain.Notes.NoteRewriteProposal>> NoteRewrites(string id) => Task.FromResult(RewriteProposals.Values.Where(x => x.SessionId == id && x.Status != "applied").Select(Copy).ToList());
+    public override Task<Playback.Domain.Notes.NoteRewriteProposal?> NoteRewrite(string id, string proposalId) => Task.FromResult(RewriteProposals.TryGetValue(proposalId, out var value) && value.SessionId == id ? Copy(value) : null);
+    public override Task SaveNoteRewrite(Playback.Domain.Notes.NoteRewriteProposal proposal) { RewriteProposals[proposal.Id] = Copy(proposal); return Task.CompletedTask; }
+    public override Task<Playback.Domain.Notes.NoteOrganizationState?> NoteOrganization(string id) => Task.FromResult(Organizations.TryGetValue(id, out var value) ? Copy(value) : null);
+    public override Task SaveNoteOrganization(Playback.Domain.Notes.NoteOrganizationState state, int expectedRevision)
+    {
+        lock (Organizations)
+        {
+            if ((Organizations.GetValueOrDefault(state.Id)?.Revision ?? 0) != expectedRevision) throw new InvalidOperationException("Organization state changed");
+            state.Revision = expectedRevision + 1; Organizations[state.Id] = Copy(state); Touch(state.Id, "processing");
+        }
+        return Task.CompletedTask;
+    }
+    public override async Task<OrganizationStatusView?> NoteOrganizationStatus(string id)
+    {
+        if (!Notes.TryGetValue(id, out var note)) return null;
+        var state = await NoteOrganization(id) ?? new() {Id = id};
+        var due = Playback.Domain.Notes.NoteOrganization.Due(note, state, (await SessionProcessingSettings(id)).Effective, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
+        return new(state.Status, due.DirtyRevisions, due.DirtySince, due.CooldownUntil, state.LastOrganizedAt, due.Reason ?? "");
+    }
+    public override Task<Playback.Domain.Audio.SpeechBoundary?> LatestSpeechBoundary(string id) => Task.FromResult(Boundaries.GetValueOrDefault(id));
+    ProcessingSettings Processing => new(ProcessingRepository, Playback.Domain.Notes.ProcessingPolicy.Defaults);
+    public override Task<ProcessingSettingsView> WorkspaceProcessingSettings() => Processing.Workspace("local");
+    public override Task<ProcessingSettingsView> SessionProcessingSettings(string id) => Languages.ContainsKey(id)
+        ? Processing.Session("local", id) : throw new InvalidOperationException("Session not found");
+    public override async Task<ProcessingSettingsView> SaveWorkspaceProcessingSettings(ProcessingSettingsUpdate input)
+    {
+        var result = await Processing.SaveWorkspace("local", input);
+        foreach (var id in Languages.Keys) Touch(id, "processing");
+        return result;
+    }
+    public override async Task<ProcessingSettingsView> SaveSessionProcessingSettings(string id, ProcessingSettingsUpdate input)
+    {
+        if (!Languages.ContainsKey(id)) throw new InvalidOperationException("Session not found");
+        var result = await Processing.SaveSession("local", id, input);
+        Touch(id, "processing");
+        return result;
+    }
 
     public void Add(string id)
     {
@@ -27,6 +72,7 @@ sealed class MemoryStore : PlaybackStore
         Chunks[id] = [];
         Terms[id] = [];
         Insights[id] = [];
+        Versions[id] = [];
     }
 
     // Confirmed speech in 8-second steps, one source per session.
@@ -42,22 +88,24 @@ sealed class MemoryStore : PlaybackStore
 
     public override Task<SessionView?> Session(string id)
     {
+        if (!Languages.ContainsKey(id)) return Task.FromResult<SessionView?>(null);
         Notes.TryGetValue(id, out var note);
         var copy = note is null ? null : Copy(note);
         return Task.FromResult<SessionView?>(new(id, id, null, DateTime.UtcNow.Date, copy?.Markdown ?? "", copy?.Version ?? 0, 0, false, "zh-Hant",
             Copy(Materials[id]), Copy(Transcripts[id]), Copy(Chunks[id]), Copy(Terms[id]), Copy(Insights[id]), copy, NoteLanguage: Languages[id]));
     }
 
-    public override Task<List<SyncRecord>> ReadSyncRecords(string id, string kind, string[]? ids)
+    public override async Task<List<SyncRecord>> ReadSyncRecords(string id, string kind, string[]? ids)
     {
         SyncReadIds.Add(ids ?? []);
-        return Task.FromResult(kind switch
+        return kind switch
         {
+            "processing" => [new SyncRecord(kind, id, new { processingSettings = await SessionProcessingSettings(id), noteAdmission = NoteAdmissionView.Read(await NoteGate(id)), organization = await NoteOrganizationStatus(id) })],
             "transcript" => Transcripts[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
             "material" => Materials[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
             "insight" => Insights[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
             _ => new List<SyncRecord>()
-        });
+        };
     }
 
     public override Task<TermCandidate?> ReadSyncTerm(string id, string term) => Task.FromResult(Terms[id].FirstOrDefault(x => x.Text == term));
@@ -66,13 +114,28 @@ sealed class MemoryStore : PlaybackStore
 
     public override Task SaveNoteGate(NoteGateRecord item)
     {
-        Gates[item.SessionId] = Copy(item);
+        var copy = Copy(item);
+        if (Gates.TryGetValue(item.SessionId, out var latest))
+        {
+            copy.FlushRequested = latest.FlushRequested;
+            copy.FlushVersion = latest.FlushVersion;
+        }
+        Gates[item.SessionId] = copy;
+        Touch(item.SessionId, "processing");
         return Task.CompletedTask;
     }
 
     public override Task AcknowledgeNoteFlush(string id, int version)
     {
         if (Gates.TryGetValue(id, out var gate) && gate.FlushVersion == version) gate.FlushRequested = false;
+        return Task.CompletedTask;
+    }
+    public override Task RequestNoteFlush(string id)
+    {
+        var gate = Gates.GetOrAdd(id, _ => new() { SessionId = id });
+        gate.FlushRequested = true;
+        gate.FlushVersion++;
+        Touch(id, "processing");
         return Task.CompletedTask;
     }
 
@@ -91,36 +154,48 @@ sealed class MemoryStore : PlaybackStore
         return Task.CompletedTask;
     }
 
-    // The same base, language and retention rules as the MongoDB store, without its source bookkeeping.
-    public override Task<object> SaveSectionNote(string id, SectionUpdate update, string hash, int basedOnVersion, string language,
+    public override Task<List<Note>> NoteHistory(string id) => Task.FromResult(Copy(Versions[id].TakeLast(100).ToList()));
+    public override Task<Note?> NoteVersion(string id, int version) =>
+        Task.FromResult(Versions[id].FirstOrDefault(x => x.Version == version) is { } note ? Copy(note) : null);
+    public override Task<NoteProvenance> NoteProvenance(string id, IReadOnlyCollection<string> sourceIds) => Task.FromResult(new NoteProvenance(
+        Materials[id].Select(x => x.Id).ToList(), Transcripts[id].Where(x => sourceIds.Contains(x.Id))
+            .Select(x => new NoteSourceTiming(x.StartMs, x.EndMs, x.RecordedAt)).ToList()));
+
+    // Storage is in memory; the mutation rules are the production domain implementation.
+    public override async Task<object> SaveSectionNote(string id, SectionUpdate update, string hash, int basedOnVersion, string language,
         string author = "agent", List<string>? deleted = null, List<string>? suppressed = null)
     {
         Notes.TryGetValue(id, out var previous);
-        if ((previous?.Version ?? 0) != basedOnVersion || Languages[id] != language) throw new InvalidOperationException("Base changed during generation");
-        if (author.StartsWith("agent"))
-            NoteSections.RequireRetention(previous, update, update.Sections.SelectMany(x => x.Points).SelectMany(x => x.SourceIds),
-                allowProtectedReformat: author == "agent organization");
-        var coverage = (previous?.Coverage ?? []).Where(x => !update.Coverage.Any(y => y.SourceId == x.SourceId)).Concat(update.Coverage).ToList();
-        var note = new Note
-        {
-            SessionId = id,
-            Version = basedOnVersion + 1,
-            BasedOnVersion = basedOnVersion,
-            CreatedAt = DateTime.UtcNow,
-            Markdown = NoteSections.Render(update.Sections),
-            Sections = Copy(update.Sections),
-            Citations = Copy(update.Citations),
-            Coverage = Copy(coverage),
-            InputHash = hash,
-            Author = author,
-            InputTranscriptIds = update.Coverage.Select(x => x.SourceId).ToList(),
-            TranscriptIds = update.Sections.SelectMany(s => s.Points).SelectMany(p => p.SourceIds).Distinct().ToList(),
-            SuppressedSourceIds = suppressed ?? previous?.SuppressedSourceIds.ToList() ?? [],
-            DeletedSectionIds = deleted ?? previous?.DeletedSectionIds.ToList() ?? []
-        };
-        Notes[id] = note;
-        return Task.FromResult<object>(new { note.Version, note.Markdown, note.Author });
+        if (previous?.InputHash == hash) return new { previous.Version, previous.Markdown, previous.Author };
+        var presentation = (await SessionProcessingSettings(id)).Effective.NotePresentation;
+        if (update.Presentation is not null && update.Presentation != presentation) throw new InvalidOperationException("Note presentation changed during this operation");
+        update = update with {Presentation = presentation};
+        var note = NoteMutation.Create(id, previous is null ? null : Copy(previous), NoteMutation.Prepare(id, update), hash,
+            basedOnVersion, language, Languages[id], author, deleted, suppressed, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
+        Notes[id] = Copy(note);
+        Versions[id].Add(Copy(note));
+        return new { note.Version, note.Markdown, note.Author };
     }
 
+    static T Copy<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
+}
+
+sealed class MemoryProcessingRepository : IProcessingSettingsRepository
+{
+    readonly Dictionary<string, ProcessingSettingsRecord> records = new();
+    public Task<ProcessingSettingsRecord?> Read(string key)
+    {
+        lock (records) return Task.FromResult(records.TryGetValue(key, out var value) ? Copy(value) : null);
+    }
+    public Task Save(ProcessingSettingsRecord value, int expectedRevision)
+    {
+        lock (records)
+        {
+            if ((records.GetValueOrDefault(value.Id)?.Revision ?? 0) != expectedRevision)
+                throw new InvalidOperationException("Processing settings changed; reload before saving");
+            records[value.Id] = Copy(value);
+        }
+        return Task.CompletedTask;
+    }
     static T Copy<T>(T value) => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value))!;
 }

@@ -52,6 +52,10 @@ function takeSavedNotes(draft: Draft, session: Session): Draft {
 export function useNoteDraft(session: Session | null) {
   const [stored, setDraft] = useState(emptyDraft);
   let draft = stored;
+  if (!session && stored.sessionId) {
+    draft = emptyDraft;
+    setDraft(emptyDraft);
+  }
   if (
     session &&
     (stored.sessionId !== session.id ||

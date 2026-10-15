@@ -124,6 +124,8 @@ wav.write("data", 36);
 wav.writeUInt32LE(3200, 40);
 let mode = "offline",
   asks = 0;
+let holdReply = false;
+let releaseReply;
 let activities = [];
 const conversations = new Map();
 let conversationNumber = 0;
@@ -150,6 +152,21 @@ await page.route("**/api/**", async (route) => {
       evidence: [{ kind: "lecture", id: sourceId, label: "11:18:04" }],
       inference: false,
     };
+    if (mode === "table") {
+      answer.answer =
+        "| 機制 | 用途 | 認證 | 加密 | 限制 | 補充 |\n| --- | --- | --- | --- | --- | --- |\n" +
+        Array.from(
+          { length: 14 },
+          (_, n) =>
+            `| 比較 ${n + 1} | 保護連線 | 憑證 | 對稱加密 | 一般說明 | 請核對來源 |`,
+        ).join("\n");
+      answer.lectureStatus = "unverified";
+      answer.evidence = [];
+      answer.inference = true;
+      answer.webError =
+        "Google Search returned no verifiable web sources. " +
+        "Check source availability. ".repeat(20);
+    }
     const conversation = conversations.get(input.conversationId);
     assert(
       conversation && conversation.sessionId === id,
@@ -162,6 +179,10 @@ await page.route("**/api/**", async (route) => {
       answer,
       createdAt: new Date().toISOString(),
     });
+    if (holdReply)
+      await new Promise((resolve) => {
+        releaseReply = resolve;
+      });
     return route.fulfill({
       contentType: "application/x-ndjson",
       body: JSON.stringify({ type: "result", answer }) + "\n",
@@ -231,7 +252,10 @@ try {
   assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(testUrl));
   await page.goto(testUrl);
   const content = page.getByTestId("note-content");
-  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).check();
   await content
     .getByRole("button", {
       name: "Open audio sources 00:00–00:08",
@@ -371,13 +395,15 @@ try {
     0,
     "Preview must not append the live draft",
   );
-  await page.getByRole("button", { name: "Live draft", exact: true }).click();
+  await page.getByRole("combobox", { name: "Note view" }).selectOption("draft");
   await page
     .getByRole("region", { name: "Live note draft" })
     .getByRole("heading", { name: "Draft topic" })
     .waitFor();
   await page.screenshot({ path: "output/playwright/notes-live-draft.png" });
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page.getByLabel("Editable Markdown").fill("My unsaved edit");
   activities[0].draft += "\n- Another point.";
   await page.waitForTimeout(900);
@@ -386,7 +412,10 @@ try {
     "My unsaved edit",
   );
   await page.getByLabel("Editable Markdown").fill(markdown);
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   activities = [];
   await page.getByRole("button", { name: "Transcript settings" }).click();
   await page.getByLabel("Enable translation").waitFor();
@@ -423,10 +452,29 @@ try {
     assert.equal(await input.inputValue(), "What is the bottleneck?");
   }
   mode = "success";
+  holdReply = true;
   await input.press("Shift+Enter");
   assert.match(await input.inputValue(), /\n/);
   await input.press("Enter");
+  await page.waitForFunction(
+    () => document.querySelector("#chat-input").value === "",
+  );
+  await page
+    .getByRole("status")
+    .getByText("Thinking…", { exact: true })
+    .waitFor();
+  await input.fill("My next question");
+  assert.equal(asks, 4, "Sending while busy must not duplicate the request");
+  await input.press("Enter");
+  assert.equal(asks, 4);
+  holdReply = false;
+  releaseReply();
   await page.getByTestId("answer").getByRole("listitem").waitFor();
+  assert.equal(
+    await input.inputValue(),
+    "My next question",
+    "A completed send must preserve the next draft",
+  );
   assert.equal(
     await page
       .getByRole("region", { name: "Ask Playback" })
@@ -443,9 +491,7 @@ try {
       .count(),
     1,
   );
-  await page
-    .getByRole("button", { name: "＋ New conversation", exact: true })
-    .click();
+  await page.getByRole("button", { name: "＋ New chat", exact: true }).click();
   await page
     .getByRole("region", { name: "Ask Playback" })
     .getByRole("article")
@@ -457,6 +503,11 @@ try {
       .getByRole("article")
       .count(),
     0,
+  );
+  assert.equal(
+    conversations.size,
+    1,
+    "New chat must not save an empty history item before a question is sent",
   );
   await input.fill("How should resources be allocated?");
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -478,6 +529,17 @@ try {
     .getByRole("article")
     .getByText("What is the bottleneck?", { exact: true })
     .waitFor();
+  for (let n = 1; n <= 24; n++) {
+    const updatedAt = new Date(Date.now() - n * 60_000).toISOString();
+    conversations.set(`history-${n}`, {
+      id: `history-${n}`,
+      sessionId: id,
+      title: `TLS mechanism ${n} comparison with certificate verification and key exchange`,
+      createdAt: updatedAt,
+      updatedAt,
+      turns: [],
+    });
+  }
   await page.reload();
   await page
     .getByRole("button", { name: "◇ Ask Playback", exact: true })
@@ -488,6 +550,44 @@ try {
     .getByText("What is the bottleneck?", { exact: true })
     .waitFor();
   await page.getByRole("button", { name: "Chat conversations" }).click();
+  const history = page.getByRole("dialog", {
+    name: "Chat history",
+    exact: true,
+  });
+  const search = history.getByRole("searchbox", {
+    name: "Search recent chats",
+  });
+  assert(
+    await search.evaluate((el) => document.activeElement === el),
+    "Opening history must focus search",
+  );
+  assert.equal(
+    await history
+      .getByRole("list", { name: "Saved conversations" })
+      .getByRole("button")
+      .count(),
+    26,
+  );
+  await search.fill("TLS mechanism 7 ");
+  assert.equal(
+    await history
+      .getByRole("list", { name: "Saved conversations" })
+      .getByRole("button")
+      .count(),
+    1,
+  );
+  await search.fill("No such conversation");
+  await history.getByText("No matching chats.", { exact: true }).waitFor();
+  await search.fill("");
+  await search.press("ArrowDown");
+  assert(
+    await history
+      .locator("[data-chat-row]")
+      .first()
+      .evaluate((el) => document.activeElement === el),
+  );
+  await page.keyboard.press("ArrowUp");
+  assert(await search.evaluate((el) => document.activeElement === el));
   await page
     .getByLabel("Lecture session", { exact: true })
     .selectOption(secondId);
@@ -512,6 +612,45 @@ try {
     .getByText("What is the bottleneck?", { exact: true })
     .waitFor();
   await page.keyboard.press("Escape");
+  mode = "table";
+  await input.fill("用中文 table 比較機制");
+  await input.press("Enter");
+  const messages = page.getByTestId("chat-messages");
+  await page
+    .getByText("General answer · Not verified against sources", { exact: true })
+    .waitFor();
+  assert.equal(await input.inputValue(), "");
+  const table = page.getByRole("table", { name: "Table" });
+  assert.equal(await table.getByRole("row").count(), 15);
+  await page.waitForFunction(() => {
+    const el = document.querySelector('[data-testid="chat-messages"]');
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 2;
+  });
+  await messages.evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await page
+    .getByRole("button", { name: "↓ Latest reply", exact: true })
+    .waitFor();
+  await page
+    .getByText("Web sources unavailable", { exact: true })
+    .evaluate((el) => el.click());
+  await page.waitForTimeout(150);
+  assert.equal(
+    await messages.evaluate((el) => el.scrollTop),
+    0,
+    "Growing answers must not pull the reader away from earlier messages",
+  );
+  await page
+    .getByRole("button", { name: "↓ Latest reply", exact: true })
+    .click();
+  await page.waitForFunction(() => {
+    const el = document.querySelector('[data-testid="chat-messages"]');
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 2;
+  });
+  await page
+    .getByText("Web sources unavailable", { exact: true })
+    .evaluate((el) => el.click());
   for (const [name, width, height, zoom] of [
     ["desktop", 1440, 1000, 1],
     ["desktop-125", 1440, 1000, 1.25],
@@ -541,7 +680,28 @@ try {
         field.y + field.height <= chat.y + chat.height + 1,
       `Input bounds at ${name}`,
     );
-    if (name === "desktop") assert(chat.width >= 555 && chat.height >= 720);
+    if (name === "desktop")
+      assert(
+        chat.width <= 480 && chat.height <= 600,
+        "Quick chat must stay compact",
+      );
+    assert(
+      await messages.evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+      `Chat horizontal overflow at ${name}`,
+    );
+    if (name === "narrow") {
+      assert(
+        await table.evaluate((el) => el.scrollWidth > el.clientWidth),
+        "Wide tables must scroll within the reply",
+      );
+      await table.evaluate((el) => {
+        el.scrollLeft = 80;
+      });
+      assert(
+        await table.evaluate((el) => el.scrollLeft > 0),
+        "Table horizontal scrolling must work",
+      );
+    }
     assert(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -549,6 +709,41 @@ try {
       `Horizontal overflow at ${name}`,
     );
     await page.screenshot({ path: `output/playwright/notes-chat-${name}.png` });
+    await page.getByRole("button", { name: "Chat conversations" }).click();
+    const historyBounds = await history.boundingBox();
+    assert(
+      historyBounds &&
+        historyBounds.x >= chat.x &&
+        historyBounds.x + historyBounds.width <= chat.x + chat.width + 1 &&
+        historyBounds.y + historyBounds.height <= chat.y + chat.height,
+      `History bounds at ${name}`,
+    );
+    assert(
+      await history
+        .getByRole("list", { name: "Saved conversations" })
+        .evaluate(
+          (el) => el.parentElement.scrollHeight > el.parentElement.clientHeight,
+        ),
+      "Long history must scroll within the picker",
+    );
+    assert(
+      await history
+        .locator("[data-chat-row] span")
+        .last()
+        .evaluate((el) => el.scrollWidth > el.clientWidth),
+      "Long chat titles must truncate to one line",
+    );
+    await page.screenshot({
+      path: `output/playwright/notes-chat-history-${name}.png`,
+    });
+    await page.keyboard.press("Escape");
+    await history.waitFor({ state: "detached" });
+    assert(
+      await page
+        .getByRole("button", { name: "Chat conversations" })
+        .evaluate((el) => document.activeElement === el),
+      "Escape must return focus to history control",
+    );
   }
   await page.locator("html").evaluate((el) => {
     el.style.zoom = "1";
@@ -561,7 +756,7 @@ try {
   await page.screenshot({ path: "output/playwright/notes-topic-tree.png" });
   assert.deepEqual(errors, []);
   console.log(
-    "Offline notes/chat check passed: source chips, unresolved references, code preservation, diagrams, topic navigation, saved terms, English settings, failures/retry, desktop/zoom/mobile bounds.",
+    "Offline notes/chat check passed: source chips, diagrams, saved terms, failures/retry, clear-on-send and next draft, unverified warning, tables, automatic scrolling and reader position, searchable history and keyboard focus, deferred conversation creation, conversation isolation, desktop/zoom/mobile bounds.",
   );
 } finally {
   await browser.close();

@@ -151,6 +151,7 @@ try {
           r.request().method() === "POST",
         { timeout: 140000 },
       );
+      await page.getByLabel("Note actions", { exact: true }).click();
       await page
         .getByRole("button", { name: "Revise with AI", exact: true })
         .click();
@@ -218,6 +219,10 @@ try {
     );
     const before = current;
     const selected = current.currentNote.sections[0];
+    await page.getByLabel("Note actions", { exact: true }).click();
+    await page
+      .getByRole("button", { name: "Organize section\u2026", exact: true })
+      .click();
     await page.getByLabel("Section to organize").selectOption(selected.id);
     const response = page.waitForResponse(
       (r) =>
@@ -261,7 +266,7 @@ try {
           ),
           "The bounded web Q&A was already attempted",
         );
-        await page.getByLabel(/Include public web search/).check();
+        await page.getByLabel("Search the web", { exact: true }).check();
       }
       await page
         .getByLabel("Your question", { exact: true })
@@ -392,9 +397,15 @@ try {
     if (readChat)
       assert.equal(calls.length, 0, "Reading saved chat generated a POST");
   } else {
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     assert((await page.locator("[data-section-id]").count()) > 0);
-    await page.getByRole("button", { name: "Sources", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).check();
     const source = page
       .getByTestId("note-content")
       .getByRole("button", { name: /^Open audio sources/ })
@@ -407,9 +418,8 @@ try {
     );
     await screenshot("sources");
     await sources.getByRole("button", { name: "Close sources" }).click();
-    await page
-      .getByRole("button", { name: "History & recovery", exact: true })
-      .click();
+    await page.getByLabel("Note actions", { exact: true }).click();
+    await page.getByRole("button", { name: "History & recovery" }).click();
     await page
       .getByRole("dialog", { name: "Note history & recovery" })
       .getByRole("button", { name: /^v1 ·/ })
@@ -456,7 +466,10 @@ try {
     });
     await screenshot("flow");
     await page.getByRole("button", { name: "Close AI flow" }).click();
-    await page.getByRole("button", { name: "Reading", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     await screenshot("saved");
     await page.setViewportSize({ width: 760, height: 950 });
     await screenshot("narrow");

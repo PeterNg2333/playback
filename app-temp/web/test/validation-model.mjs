@@ -43,16 +43,16 @@ try {
   await page
     .getByRole("button", { name: "Transcript settings", exact: true })
     .click();
-  await page.getByLabel("ASR spoken language").selectOption("en");
+  await page.getByLabel("Spoken language").selectOption("en");
   await page
-    .getByLabel("ASR model", { exact: true })
+    .getByLabel("Transcription model", { exact: true })
     .selectOption("openai/whisper-large-v3-turbo");
   await page.reload();
   await page
     .getByRole("button", { name: "Transcript settings", exact: true })
     .click();
   assert.equal(
-    await page.getByLabel("ASR model", { exact: true }).inputValue(),
+    await page.getByLabel("Transcription model", { exact: true }).inputValue(),
     "openai/whisper-large-v3-turbo",
   );
   const audio = await readFile("app-temp/data/validation/fixtures/english.wav"),

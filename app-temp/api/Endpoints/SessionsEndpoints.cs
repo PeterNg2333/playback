@@ -1,39 +1,41 @@
 using Playback.Api.Db;
+using Playback.Api.Audio.Recording;
 namespace Playback.Api.Endpoints;
 
 public static class SessionsEndpoints
 {
     public static void MapSessions(this WebApplication app)
     {
-        app.MapPost("/api/sessions", async (CreateSessionInput input, PlaybackStore store) =>
+        app.MapPost("/api/sessions", async (CreateSessionInput input, Playback.Application.Workspace.WorkspaceCommands store) =>
             await store.CreateSession(input.Title, input.GroupId));
-        app.MapGet("/api/sessions", async (PlaybackStore store) =>
+        app.MapDelete("/api/sessions/{id}", async (string id, Playback.Application.Recording.RecordingCommands capture) =>
+        {
+            await capture.DeleteSession(id);
+            return Results.NoContent();
+        });
+        app.MapGet("/api/sessions", async (Playback.Application.Workspace.WorkspaceCommands store) =>
             await store.Sessions());
         app.MapPut("/api/sessions/{id}/group", async (
-            string id, MoveSessionInput input, PlaybackStore store) =>
+            string id, MoveSessionInput input, Playback.Application.Workspace.WorkspaceCommands store) =>
             await store.MoveSession(id, input.GroupId));
         app.MapPut("/api/sessions/{id}/translation", async (
-            string id, TranslationInput input, PlaybackStore store) =>
+            string id, TranslationInput input, Playback.Application.Workspace.WorkspaceCommands store) =>
             await store.SetTranslation(id, input.Enabled, input.Language));
         app.MapPut("/api/sessions/{id}/languages", async (
-            string id, LanguagesInput input, PlaybackStore store) =>
+            string id, LanguagesInput input, Playback.Application.Workspace.WorkspaceCommands store) =>
             await store.SetLanguages(id, input.AsrLanguage, input.NoteLanguage, input.AsrModel));
-        app.MapPost("/api/sessions/{id}/translation/retry", async (string id, PlaybackStore store) =>
+        app.MapPost("/api/sessions/{id}/translation/retry", async (string id, Playback.Application.Workspace.WorkspaceCommands store) =>
         {
-            var session = await store.Session(id)
-                ?? throw new InvalidOperationException("Session not found");
-            if (!session.TranslationEnabled)
-                throw new InvalidOperationException("Translation is disabled");
             await store.RetryTranslations(id);
             return Results.Accepted();
         });
-        app.MapGet("/api/sessions/{id}", async (string id, PlaybackStore store) =>
+        app.MapGet("/api/sessions/{id}", async (string id, Playback.Application.Workspace.WorkspaceCommands store) =>
             await store.Session(id) is { } session
                 ? Results.Ok(session)
                 : Results.NotFound());
-        app.MapGet("/api/sessions/{id}/sync", async (string id, string? cursor, PlaybackStore store) => await store.SyncSession(id, cursor));
+        app.MapGet("/api/sessions/{id}/sync", async (string id, string? cursor, Playback.Application.Workspace.WorkspaceCommands store) => await store.SyncSession(id, cursor));
         app.MapPost("/api/sessions/{id}/materials", async (
-            string id, MaterialInput input, PlaybackStore store) =>
+            string id, MaterialInput input, Playback.Application.Workspace.WorkspaceCommands store) =>
             await store.AddMaterial(id, input.Name, input.Text));
     }
 }

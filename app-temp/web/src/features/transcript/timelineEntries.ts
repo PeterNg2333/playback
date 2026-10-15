@@ -30,6 +30,7 @@ export function transcriptDays(
     session.transcripts.map((entry) => [entry.id, entry]),
   );
   const entries: TimelineEntry[] = [];
+  const combinedByChild = new Map(session.combinedAudioSegments?.flatMap(segment => segment.children.map(child => [child.chunkId, segment.id] as const)) ?? []);
   const bySource = new Map<string, Chunk[]>();
   for (const chunk of session.chunks) {
     if (!bySource.has(chunk.sourceId)) bySource.set(chunk.sourceId, []);
@@ -43,16 +44,19 @@ export function transcriptDays(
       const transcript = transcripts.get(chunk.id);
       if (
         chunk.status === "silent" ||
-        chunk.status === "vad-silence" ||
-        chunk.status === "asr-empty"
+        chunk.status === "vad-silence"
       ) {
         audio = null;
         transcripts.delete(chunk.id);
         const previous = silence?.chunks.at(-1);
         if (
           previous &&
-          chunk.startMs >= previous.endMs - 1000 &&
-          chunk.startMs <= previous.endMs + 1000 &&
+          session.processingSettings?.effective.combineQuiet !== false &&
+          combinedByChild.has(chunk.id) && combinedByChild.get(chunk.id) === combinedByChild.get(previous.id) &&
+          chunk.startMs === previous.endMs &&
+          chunk.streamId === previous.streamId &&
+          Math.abs(at.getTime() - silence!.at.getTime() - (chunk.startMs - silence!.chunks[0].startMs)) <= 50 &&
+          chunk.endMs - silence!.chunks[0].startMs <= (session.processingSettings?.effective.maxCombinedSeconds ?? 60) * 1000 &&
           silence!.chunks.length < 100 &&
           at.getHours() === silence!.at.getHours() &&
           at.toDateString() === silence!.at.toDateString()
@@ -140,10 +144,6 @@ export function transcriptDays(
     entries.push({ kind: "live", segment, at: new Date(segment.recordedAt) });
   }
   entries.sort((a, b) => a.at.getTime() - b.at.getTime());
-  const quietByHour = new Map<
-    string,
-    Extract<TimelineEntry, { kind: "silence" }>
-  >();
   for (const entry of entries) {
     const at = entry.at;
     const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
@@ -151,15 +151,7 @@ export function transcriptDays(
     if (!days.has(day)) days.set(day, new Map());
     const hours = days.get(day)!;
     if (!hours.has(hour)) hours.set(hour, []);
-    if (entry.kind === "silence") {
-      const key = `${day}/${hour}`;
-      const previous = quietByHour.get(key);
-      if (previous) previous.chunks.push(...entry.chunks);
-      else {
-        quietByHour.set(key, entry);
-        hours.get(hour)!.push(entry);
-      }
-    } else hours.get(hour)!.push(entry);
+    hours.get(hour)!.push(entry);
   }
   return days;
 }

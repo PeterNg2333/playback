@@ -10,6 +10,16 @@ try
         case ["--notes"]:
             await RunOffline(notesOnly: true);
             break;
+        case ["--refactor-acceptance"]:
+            await RefactorAcceptanceChecks.Run();
+            break;
+        case ["--refactor-mongo"]:
+            await RefactorMongoChecks.Run();
+            break;
+        case ["--refactor-baseline"]:
+            Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");
+            await RefactorBaselineChecks.Run();
+            break;
 
         // Offline, reading the Week 3 sample in app-temp/data/test-audio/sampleAudio; decoding the M4A needs Windows.
         case ["--sample-audio", var folder]:
@@ -98,19 +108,31 @@ static async Task RunOffline(bool notesOnly)
     if (!notesOnly)
     {
         RecordingChecks.Run();
+        await AudioProjectionChecks.Run();
+        await SessionDeletionChecks.Run();
         await AsrChecks.Run();
         await LiveAsrChecks.Run();
         LanguageChecks.Run();
         TranslationChecks.Run();
         AskChecks.Run();
+        await AskChecks.QuickAnswers();
         await TermChecks.Run();
         await GeminiChecks.Run();
     }
     NoteDocumentChecks.Run();
+    await NoteTreeChecks.Run();
+    await NoteOrganizationChecks.Run();
+    await NoteHistoryJournalChecks.Run();
+    await MigrationChecks.Run();
+    await TranscriptionWorkflowChecks.Run();
     await NoteGenerationChecks.Run();
     await NoteSchedulingChecks.Run();
+    await ProcessingPolicyChecks.Run();
     await NoteCoverageChecks.Run();
     await SessionSyncChecks.Run();
+    await RefactorBaselineChecks.Run();
+    await NoteApiChecks.Run();
+    NoteFoundationChecks.Run();
 }
 
 // A live check can fail with a provider message; never print a credential.

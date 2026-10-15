@@ -10,8 +10,7 @@ import { RetryButton } from "./TimelineRow";
 
 const quietRule = "flex-1 border-t border-dashed border-line";
 
-// One hour's audio with no recognised words, folded into a single "No audio" line that can be
-// expanded to play each part or send the empty ones back to ASR.
+// Adjacent classified quiet audio retains chronological position and original child playback.
 export function SilenceRow({
   chunks,
   sessionCreatedAt,
@@ -37,10 +36,14 @@ export function SilenceRow({
     >
       <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2.25 text-[11px] before:text-accent before:content-['▸'] group-open/quiet:before:content-['▾'] [&::-webkit-details-marker]:hidden">
         <span className={quietRule} />
-        <span>No audio · {chunks.length} parts</span>
+        <span>Quiet audio · {Math.round(chunks.reduce((total, chunk) => total + chunk.endMs - chunk.startMs, 0) / 1000)} s</span>
         <span className={quietRule} />
       </summary>
       <div className="grid justify-items-start gap-2.5 pt-1 pr-2.25 pb-3 pl-4.75 text-[11px]">
+        <PlayButton id={`quiet-${chunks[0].id}`} chunks={chunks}
+          startTime={recordedRange(chunks[0].recordedAt, sessionCreatedAt, chunks[0].startMs, chunks[0].endMs).start}
+          endTime={recordedRange(chunks.at(-1)!.recordedAt, sessionCreatedAt, chunks.at(-1)!.startMs, chunks.at(-1)!.endMs).end}
+          playingKey={playingKey} onToggle={onTogglePlayback} />
         <span>
           {emptyIds.length
             ? `${emptyIds.length} parts returned no words from ASR. `

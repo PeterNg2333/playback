@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { once } from "node:events";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { week3Fixture } from "./week3-fixture.mjs";
 
@@ -22,13 +23,23 @@ const dataSeconds = (rawCount / 2) * 8;
 const natural =
   process.env.MEMORY_WEEK3 === "yes"
     ? await week3Fixture(
-        "../data/test-audio/sampleAudio/transcript.txt",
+        fileURLToPath(
+          new URL(
+            "../../data/test-audio/sampleAudio/transcript.txt",
+            import.meta.url,
+          ),
+        ),
         dataSeconds,
       )
     : null;
 const folder = `output/playwright/frontend-memory/${label}`;
 await mkdir(folder, { recursive: true });
-const input = "../data/validation/runs/2026-09-28-notes-retention-125936";
+const input = fileURLToPath(
+  new URL(
+    "../../data/validation/runs/2026-09-28-notes-retention-125936",
+    import.meta.url,
+  ),
+);
 const readJson = async (name) =>
   JSON.parse(
     (await readFile(`${input}/${name}.json`, "utf8")).replace(/^\uFEFF/, ""),
@@ -444,9 +455,14 @@ async function select(title) {
     .waitFor();
 }
 async function edit(text) {
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   await page.getByLabel("Editable Markdown").fill(text);
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
 }
 try {
   await page.goto(url);
@@ -581,7 +597,10 @@ try {
         .locator("[data-markdown]")
         .waitFor();
       await page.waitForTimeout(800);
-      await page.getByRole("button", { name: "Preview", exact: true }).click();
+      await page
+        .getByRole("combobox", { name: "Note view" })
+        .selectOption("preview");
+      await page.getByRole("switch", { name: "Show sources" }).uncheck();
     }
     await edit(
       long.noteMarkdown +
@@ -593,7 +612,10 @@ try {
       .locator("svg")
       .last()
       .waitFor();
-    await page.getByRole("button", { name: "Sources", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).check();
     const source = page
       .getByTestId("note-content")
       .getByRole("button", { name: /^Open audio sources/ })
@@ -605,7 +627,10 @@ try {
         .waitFor();
       await page.getByLabel("Close sources", { exact: true }).click();
     }
-    await page.getByRole("button", { name: "Reading", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     if (cycle % 7 === 0) {
       await select(small.title);
       await page.waitForTimeout(300);

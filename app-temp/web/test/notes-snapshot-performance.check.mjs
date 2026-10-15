@@ -145,11 +145,16 @@ try {
   await page.waitForTimeout(4000);
   await metric("737 snapshot interim replay");
   for (let cycle = 1; cycle <= 24; cycle++) {
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("markdown");
     await page
       .getByLabel("Editable Markdown")
       .fill(session.noteMarkdown + `\n\nLocal edit ${cycle}`);
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
     if (cycle % 4 === 0)
       await metric(`737 snapshot ${cycle} edit/preview cycles`);
   }

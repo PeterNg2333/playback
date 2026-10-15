@@ -128,13 +128,18 @@ try {
   }));
   const initialJs = await resources();
   await page.screenshot({ path: `${folder}/plain-notes.png` });
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("markdown");
   const diagramNote =
     session.noteMarkdown +
     '\n\n```mermaid\nflowchart LR\n A["Source"] --> B["Notes"]\n```\n';
   await page.getByLabel("Editable Markdown").fill(diagramNote);
   const diagramStart = Date.now();
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Note view" })
+    .selectOption("preview");
+  await page.getByRole("switch", { name: "Show sources" }).uncheck();
   if (process.env.LOADING_RENDERER_FAILURE === "yes") {
     await page
       .getByRole("alert")
@@ -154,7 +159,9 @@ try {
     await page.screenshot({ path: `${folder}/renderer-load-failed.png` });
     // Browsers cache a rejected dynamic module within the document. Reload is
     // required; the UI explicitly tells readers to preserve an unsaved draft first.
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("markdown");
     assert.equal(
       await page.getByLabel("Editable Markdown").inputValue(),
       diagramNote,
@@ -164,9 +171,14 @@ try {
       .getByRole("status")
       .filter({ hasText: "Loading session…" })
       .waitFor({ state: "hidden" });
-    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("markdown");
     await page.getByLabel("Editable Markdown").fill(diagramNote);
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await page
+      .getByRole("combobox", { name: "Note view" })
+      .selectOption("preview");
+    await page.getByRole("switch", { name: "Show sources" }).uncheck();
   }
   await page
     .getByTestId("note-content")

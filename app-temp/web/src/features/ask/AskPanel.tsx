@@ -1,4 +1,6 @@
 import clsx from "clsx";
+import { useEffect, useRef, useState } from "react";
+import { Markdown } from "../../components/markdown/Markdown";
 import { useHealth } from "../../lib/useHealth";
 import { recordedRange } from "../../lib/time";
 import { usePlaybackField, usePlaybackStore } from "../../lib/store";
@@ -19,7 +21,6 @@ export function AskPanel({
 }) {
   const [selection, setSelection] = usePlaybackField("selection");
   const [chatOpen, setChatOpen] = usePlaybackField("chatOpen");
-  const view = usePlaybackStore((state) => state.view);
   const [question, setQuestion] = usePlaybackField("question");
   const error = usePlaybackStore((state) => state.error);
   const [focusMaterialId, setFocusMaterialId] =
@@ -31,10 +32,32 @@ export function AskPanel({
     conversations,
     answer,
     answerDraft,
+    sentQuestion,
     ask,
     newConversation,
     selectConversation,
   } = useAsk(session);
+  const messages = useRef<HTMLDivElement>(null);
+  const messageContent = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
+  function scrollToLatest() {
+    followLatest.current = true;
+    setShowLatest(false);
+    if (messages.current)
+      messages.current.scrollTop = messages.current.scrollHeight;
+  }
+  useEffect(() => {
+    scrollToLatest();
+  }, [chatOpen, session?.id, conversations.current?.id, sentQuestion]);
+  useEffect(() => {
+    if (!chatOpen || !messageContent.current) return;
+    const observer = new ResizeObserver(() => {
+      if (followLatest.current) scrollToLatest();
+    });
+    observer.observe(messageContent.current);
+    return () => observer.disconnect();
+  }, [chatOpen]);
   const selectedTranscript = session?.transcripts.find(
     (entry) => entry.id === selection?.transcriptId,
   );
@@ -65,13 +88,7 @@ export function AskPanel({
       )}
       {!chatOpen ? (
         <button
-          className={clsx(
-            "fixed right-3.5 z-10 flex items-center gap-1.75 rounded-full bg-accent px-4 py-2.75 text-[12px] font-[750] text-white shadow-[0_8px_22px_#44417e36] md:right-7",
-            // Below xl the notes tab ends in its own footer, so the button sits higher there.
-            view === "notes"
-              ? "bottom-32.5 md:bottom-20.5 xl:bottom-22.5"
-              : "bottom-22.5",
-          )}
+          className="fixed right-3.5 bottom-22.5 z-10 flex items-center gap-1.75 rounded-full bg-accent px-4 py-2.75 text-[12px] font-[750] text-white shadow-[0_8px_22px_#44417e36] md:right-7"
           onClick={() => setChatOpen(true)}
         >
           ◇ Ask Playback
@@ -79,14 +96,14 @@ export function AskPanel({
       ) : (
         <section
           className={clsx(
-            "fixed top-[max(75px,calc(100dvh-1210px))] right-3 bottom-22.5 z-10 flex max-h-280 w-[min(555px,calc(100vw-40px))] flex-col overflow-hidden rounded-[15px] border border-line bg-white shadow-[0_15px_45px_#27325f29] md:right-7",
+            "ask-panel fixed right-3 bottom-22.5 z-10 flex h-[min(600px,calc(100dvh-170px))] w-[min(480px,calc(100vw-24px))] flex-col overflow-hidden rounded-[15px] border border-line bg-white shadow-[0_15px_45px_#27325f29] md:right-7",
             // Answers use the panel's whole width, with smaller headings than the notes.
             "**:data-markdown:max-w-full [&_[data-markdown]_:is(h1,h2,h3)]:text-[14px] [&_[data-markdown]_:is(ul,ol)]:pl-5",
           )}
           aria-label="Ask Playback"
         >
           <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3.5">
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <strong className="block text-[13px]">Ask Playback</strong>
                 <ChatConversationMenu
@@ -96,84 +113,112 @@ export function AskPanel({
                   onSelectConversation={selectConversation}
                 />
               </div>
-              <small className="block text-[10px] text-muted">
+              <small className="block truncate text-[10px] text-muted">
                 {session?.title ?? "Select a lecture session"} ·{" "}
                 {conversations.current?.title ?? "New conversation"}
               </small>
             </div>
             <ChatIconButton
+              className="ml-2 shrink-0"
               onClick={() => setChatOpen(false)}
               aria-label="Close chat"
             >
               ×
             </ChatIconButton>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-3.75">
-            {busy === "ask" && (
-              <div className="py-2.5 text-accent" role="status">
-                <strong>
-                  Checking sources{useWeb ? " and public web" : ""}…
-                </strong>
-                {answerDraft && (
-                  <p className="mb-4 whitespace-pre-wrap opacity-62">
-                    Unverified draft ·{" "}
-                    {answerDraft.replace(
-                      "INSUFFICIENT_SOURCE",
-                      "Lecture evidence is insufficient; checking the allowed sources…",
-                    )}
+          <div
+            ref={messages}
+            data-testid="chat-messages"
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3"
+            onScroll={() => {
+              const el = messages.current!;
+              followLatest.current =
+                el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+              setShowLatest(!followLatest.current);
+            }}
+          >
+            <div ref={messageContent} className="min-w-0">
+              {error && <ChatError>{error}</ChatError>}
+              {!health ? (
+                <p className={hintStyle} role="status">
+                  Backend connection is unavailable. Start the Playback server,
+                  then reload to reconnect. Your question stays here.
+                </p>
+              ) : (
+                !health.gemini && (
+                  <p className={hintStyle}>
+                    Gemini is unavailable; questions and translations can be
+                    retried when configured.
+                  </p>
+                )
+              )}
+              {conversations.error && (
+                <ChatError>{conversations.error}</ChatError>
+              )}
+              {conversations.current?.turns.map((turn) => (
+                <article className="[article+&]:mt-5" key={turn.id}>
+                  <p className="my-2.5 rounded-[10px] bg-[#f4f4f8] px-3 py-2.5 text-[12px] whitespace-pre-wrap">
+                    {turn.question}
+                  </p>
+                  <ChatAnswer
+                    answer={turn.answer}
+                    jump={jump}
+                    sourceGroups={session?.sourceGroups}
+                  />
+                </article>
+              ))}
+              {sentQuestion &&
+                (busy === "ask" ||
+                  (answer &&
+                    !conversations.current?.turns.some(
+                      (turn) => turn.answer.questionId === answer.questionId,
+                    ))) && (
+                  <p className="my-2.5 rounded-[10px] bg-[#f4f4f8] px-3 py-2.5 text-[12px] whitespace-pre-wrap [overflow-wrap:anywhere]">
+                    {sentQuestion}
                   </p>
                 )}
-              </div>
-            )}
-            {error && <ChatError>{error}</ChatError>}
-            {!health ? (
-              <p className={hintStyle} role="status">
-                Backend connection is unavailable. Start the Playback server,
-                then reload to reconnect. Your question stays here.
-              </p>
-            ) : (
-              !health.gemini && (
-                <p className={hintStyle}>
-                  Gemini is unavailable; questions and translations can be
-                  retried when configured.
-                </p>
-              )
-            )}
-            {conversations.error && (
-              <ChatError>{conversations.error}</ChatError>
-            )}
-            {conversations.current?.turns.map((turn) => (
-              <article className="[article+&]:mt-5" key={turn.id}>
-                <p className="my-2.5 rounded-[10px] bg-[#f4f4f8] px-3 py-2.5 text-[12px] whitespace-pre-wrap">
-                  {turn.question}
-                </p>
+              {busy === "ask" && !answer && (
+                <div className="py-2 text-[12px] text-accent" role="status">
+                  <strong>Thinking…</strong>
+                  {answerDraft &&
+                    !answerDraft.includes("INSUFFICIENT_SOURCE") && (
+                      <div className="mt-2 opacity-70">
+                        <small>Draft · not verified</small>
+                        <Markdown value={answerDraft} />
+                      </div>
+                    )}
+                </div>
+              )}
+              {answer &&
+              !conversations.current?.turns.some(
+                (turn) =>
+                  !!answer.questionId &&
+                  turn.answer.questionId === answer.questionId,
+              ) ? (
                 <ChatAnswer
-                  answer={turn.answer}
+                  answer={answer}
                   jump={jump}
                   sourceGroups={session?.sourceGroups}
                 />
-              </article>
-            ))}
-            {answer &&
-            !conversations.current?.turns.some(
-              (turn) =>
-                !!answer.questionId &&
-                turn.answer.questionId === answer.questionId,
-            ) ? (
-              <ChatAnswer
-                answer={answer}
-                jump={jump}
-                sourceGroups={session?.sourceGroups}
-              />
-            ) : (
-              !conversations.current?.turns.length &&
-              !answer && (
-                <p className={hintStyle}>
-                  Ask about processed lecture content.
-                </p>
-              )
-            )}
+              ) : (
+                !conversations.current?.turns.length &&
+                !answer && (
+                  <p className={hintStyle}>
+                    Ask a quick question about this lecture.
+                  </p>
+                )
+              )}
+            </div>
           </div>
+          {showLatest && (
+            <button
+              type="button"
+              onClick={scrollToLatest}
+              className="self-center rounded-full border border-line bg-white px-3 py-1 text-[11px] text-accent"
+            >
+              ↓ Latest reply
+            </button>
+          )}
           {(selection || focusMaterialId) && (
             <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line bg-[#f7f8fb] px-3.25 py-2 text-[10px] text-muted">
               <span className="truncate">
@@ -193,14 +238,17 @@ export function AskPanel({
               </button>
             </div>
           )}
-          <label className="shrink-0 px-3.25 py-1.25 text-[10px] text-muted">
+          <label
+            title="Sends this question to Gemini Search"
+            className="shrink-0 px-3.25 py-1.25 text-[10px] text-muted"
+          >
             <input
               type="checkbox"
               className="my-0.75 mr-0.75 ml-1"
               checked={useWeb}
               onChange={(e) => setUseWeb(e.target.checked)}
             />{" "}
-            Include public web search (sends this question to Gemini Search)
+            Search the web
           </label>
           <form
             className="flex shrink-0 gap-1.75 border-t border-line p-3"

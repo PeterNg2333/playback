@@ -2,6 +2,20 @@
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
+2026-10-08 refactor update: Phases 0–5 and the main Phase 6 migration (`4bfcf84`) are committed. The preserved translation migration still needs explicit commit approval after automatic approval review rejected staging it. All 25 offline groups passed in the working tree and staged source, plus the three-hour virtual lecture (2,700 cited sources/45 fixture generations), repository transcript lookup, Edge/React fixtures and API publish. Original database/recordings and the active host were not modified. Phase 7 has an opt-in runner for isolated Mongo, authenticated browser/API restart and a retained paid/live sample; these integrated runs remain unexecuted pending opt-in. See [Phase 6](../docs/ddd-notes-audio-phase06-results.md) and [Phase 7](../docs/ddd-notes-audio-phase07-results.md). Older dated entries below describe earlier behavior/evidence.
+
+2026-10-07：DDD 重構 Phase 0／1／2 已完成離線實作。Notes 規則位於 `domain/`、用例／scheduler 位於 `application/`，Mongo／provider notes adapters 位於 `infrastructure/`。Phase 2 新增 workspace defaults／session overrides、Notes settings、可調 Jev probability／confidence／check interval／maximum wait、持久化 deadline／Stop 與 admission reason；不再以字數或 unchanged wait 阻止本地 deadline。設定修改採 revision conflict，filler／deferred 不會反覆付費重試。見 [合約](../docs/ddd-notes-audio-contracts.md)、[Phase 0／1 結果](../docs/ddd-notes-audio-phase01-results.md) 及 [Phase 2 結果／review units](../docs/ddd-notes-audio-phase02-results.md)。現有錄音與資料保持不變；沒有重啟原 API、查詢或修改資料庫、讀取 `.env`、commit 或 push。新版行為需運行重建的 API。Phase 3 的真實 silence boundary／quiet-file combination 及 Phase 5 organization controls 尚未實作。
+
+2026-10-05 Quick chat：Ask Playback 改成較小的浮動視窗。歷史選單以搜尋、精簡 lecture filter、單行標題／最近時間及選取底色呈現；支援方向鍵及 Escape，長列表在選單內捲動。New chat 只開空白 composer，第一題送出才建立保存紀錄，避免累積空白聊天。送出後即清空輸入，失敗且未開始下一題才還原文字；背景回覆不覆蓋下一題草稿。Markdown 比較表有清晰邊線／交替列色，寬表在回覆內橫向捲動及支援鍵盤焦點。新回覆自動捲到底，向上閱讀時停止追蹤，可按 Latest reply 返回。`chat-v4` 以單次 LLM 呼叫直接回答，課堂／網頁来源不是必要條件。沒有引用時明示 Not verified against sources；有效課堂引用只代表身份已核對，不保證所有回答內容。無效引用不阻止顯示解釋，搜尋最多 15 秒，失敗或逾時只顯示警告。來源失敗改為可展開的黃色警告；模型本身失敗仍顯示真實錯誤。Web build、in-memory backend checks 和離線 browser fixture 通過；沒有新增外部模型請求，此 API 行為需運行新版後端。
+
+單一 frontend＋backend Docker image、MongoDB 多用戶登入及 same-origin／CSRF 保護：見 [Cloud Run 部署指南](../docs/cloud-run-deployment.md)。用戶自行輸入 username，通過共用 `PLAYBACK_DEMO_PASSWORD=demo123!` 後首次登入自動在 MongoDB 建立帳戶；重用同一 username 會開啟同一 workspace。`/data` 及 `/data/keys` 在 `api/appsettings.json` 設定；session／group 保存 owner，筆記、材料、聊天及音訊依 owner 隔離。雙用戶本機 Docker／MongoDB／browser 驗證通過，包括跨用戶 read／write／音訊拒絕及 restart。舊資料不分配 owner、不刪除，在 secured accounts 下隱藏。Cloud Run 建議外置 MongoDB、private bucket 掛載 `/data/audio`（仍需實際雲端驗證）；原 Windows 收音不能在 Linux container 使用，尚未新增 browser recorder。
+
+2026-10-05 UI 簡化：Lecture notes 的 Show sources 開關獨立控制引用顯示；view 選單只切換 Notes／Edit draft／Live AI edit。筆記頂部以單行圓角控制列、`[Save | ▾]` split button 及引用狀態圖示排列；Revise with AI、History & recovery 及 Organize section 放進 Save 箭頭選單，整理時才開啟 section 選擇視窗。引用缺口以 `!` 圖示開啟獨立 Review note references 視窗，分開顯示引用數、缺少連結數、時間段及修復動作；底部不再放 Save 或警告列。視窗顯示最近一次已記錄的修復失敗，並區分無效引用遭拒與 AI 全部延後、沒有儲存變更的結果。缺少引用不等同全部正文缺失，視窗保留此說明及原有修復／草稿保護。Transcript settings 移除 provider 診斷及冗長說明，保留語言、模型、翻譯及必要狀態提示。左側以紫色選取線、群組縮排線及分隔線表示層次，session 的「…」加入 Delete session 和永久刪除確認。錄音預設 Microphone，回聽優先 Microphone（舊 session 只有其他來源時使用現有來源）。
+
+刪除 session 需新版 API：`DELETE /api/sessions/{id}`，只移除該 session 的音訊目錄、筆記／版本、逐字稿／翻譯、材料、聊天、術語及 AI 紀錄；錄音／暫停中或 AI 工作未完成時拒絕刪除。UI 取消、失敗重試、最後一個 session 的畫面清理、窄屏及筆記既有功能已用離線 browser fixture 驗證；背景工作與刪除互斥已用 in-memory checks 驗證。未在實際資料庫執行刪除測試，未刪除使用者 session，未呼叫外部模型。
+
+2026-10-05 全棧驗證及筆記修復：Docker MongoDB、本機 API／browser、錄音控制及獲批准的真實 Week 3 首 20 分鐘 ASR／Gemini 問答通過。修正 malformed citation 漏檢、deferred 缺口阻塞後段及模型虛構 deferred source ID；prompt 為 v8。重用已辨識文字補寫，引用由 19/37 增至 34/37，三段純語助詞明示 deferred，既有 section 全部保留，原資料庫未改寫。獨立 ASR 準確度及完整語義品質仍未驗收。詳見 [測試、修復及驗收邊界](../docs/full-stack-validation-2026-10-05.md)。
+
 2026-09-29 筆記缺口後續：原 Week 3 v146 有 1,110 段曾標 completed 卻未被正文引用，缺失主要由舊全篇生成遺留。現新增 coverage 時間段／兩分鐘大缺口、逐批 Repair earliest gap、organizer 正文保留及寫入前 retention guard；1,156 段完整離線重播、真實 Mongo 防刪及窄屏 UI 通過。自然 Gemini 重跑待明確文字傳送／付費批准，原 v146 未改寫。詳見 [調查及重跑結果](../docs/note-coverage-investigation.zh-HK.md)。Review API 5081 已為 v7；原 5078 未重啟。
 
 2026-09-29 後續補完：逐 record DB 查詢、完成段落展示合併、session／diagram loading、Mermaid 延後載入、失敗 usage，以及 section 的單一正文 JSON contract 已加入。使用 repo Week 3 首一小時文字完成一小時 frontend load；批准後的真實 API／Mongo 保存、126 版歷史、restart／cursor、group flow、材料及本地音訊 E2E 通過。Jev／Gemini 真實結果及成本已保存；九次筆記生成得到三版，仍有30條 pending、65條 deferred，自然筆記品質未通過。詳見 [Week 3 驗收報告](../docs/week3-one-hour-validation.zh-HK.md)。
@@ -16,11 +30,11 @@ Code layout: [STRUCTURE.md](STRUCTURE.md).
 
 ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenRouter `qwen/qwen3-asr-1.7b`，否則保留 SenseVoice；亦可明確設 `PLAYBACK_ASR_PROVIDER`。兩者目前是 REST：錄音最多約 8 秒封存，約每 2 秒嘗試更新灰字預覽，正式稿完成後替換。Streaming adapter 的 PCM 接線已具備，但尚未有具體 realtime provider。設定可按 session 切換 Whisper V3／Turbo，以及「廣東話 + English」自動辨識、繁體顯示。預覽增加音訊請求費用；三款模型的短音訊 live 比較、raw/display 差異及局限已保存於 validation。詳見 [ASR adapters 研究](docs/asr-adapters.zh-HK.md)。下方較早測試紀錄並非新流程的實測。
 
-此目錄是 .NET 10 + React/Vite 的本機驗證版。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**此版本沒有登入或分享權限，不可當作已可部署的產品。**
+此目錄是 .NET 10 + React/Vite 的 prototype。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**Docker Production 現有 MongoDB 多用戶登入及 workspace owner 隔離，demo 密碼共用，沒有分享功能，仍不是已驗收的正式產品。**
 
 ## 介面與錄音狀態
 
-左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。偵測到音量活動時，Transcript 先顯示淡色待完成列；音訊保存後以原文或音訊狀態取代。列上顯示「Microphone」或「System audio」來源，目前沒有真人講者分離。連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本，底部固定 Save 和 Revise with AI。
+左側可建立 session 和 group、為 group 改名，以及把目前 session 移到 group。頂部顯示 Playback、目前 session 和錄音控制；窄螢幕用 Notes／Transcript 切換面板。偵測到音量活動時，Transcript 先顯示淡色待完成列；音訊保存後以原文或音訊狀態取代。列上顯示「Microphone」或「System audio」來源，目前沒有真人講者分離。連續而未轉錄的片段在同一小時內合成一列，原文優先顯示，音訊播放與來源細節預設收合。啟用翻譯後，完成的譯文顯示於原文下方，待處理譯文以淡色標示。筆記標題旁的 `vN` 是已儲存版本；頂部固定 Save split button，Revise with AI 位於箭頭選單。
 
 **Activity** 已移至 Lecture notes 標題旁的 ↶。Popover 支援 hover／click／keyboard／Escape／touch，顯示本 session 最近 100 條真實執行、provider/model、queued/running/completed/failed/cache-hit、時間、耗時、來源及脫敏錯誤，並沿用保存的 note edits 和 Jev 決定。Restore this version 會新增還原版本。開啟紀錄不呼叫模型；舊版本沒有的執行資料不會補造。
 
@@ -69,7 +83,7 @@ pnpm.cmd dev
 
 `dev` 在同一個終端啟動 API 與 Vite；不會自行錄音。瀏覽器開 `http://127.0.0.1:5173/`。若兩個新版服務已在運行，再執行 `dev` 會檢查資料庫並提示開網頁；若只運行其中一個或 API 是舊版，先在原來終端按 `Ctrl+C`，再執行 `pnpm.cmd dev`。錄音時先按網頁的 Stop Recording，再於終端按 `Ctrl+C` 停止兩個程式。要停止 MongoDB，可執行 `pnpm.cmd db:stop`，資料 volume 會保留。Windows PowerShell 使用 `pnpm.cmd`，因為本機執行原則可能封鎖 `pnpm.ps1`。
 
-先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每段最多約八秒，滿三秒且語音結束時可提早完成 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記底部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
+先建立 session，再在 Transcript 頁按 Start Recording。API 會嘗試開啟預設咪高峰與預設播放裝置的 loopback；任何一個可用便繼續，兩者分開保存。一般錄音每段最多約八秒，滿三秒且語音結束時可提早完成 WAV，暫停及停止時會封存剩餘片段。咪高峰與系統聲以不同講者來源顯示；點逐字稿列只播該列的音訊，底部唯一播放器的「Full session」則連播整段，並可切換同步混合／只播咪高峰／只播系統聲、拖曳時間及調整速度。整個工作區固定於視窗高度，筆記與 Transcript 各自捲動，Save 保持在筆記頂部可見。收音發生在**運行 API 的那部 Windows 電腦**，遠端 API 無法錄到你電腦的聲音。此功能尚未完成連續三小時實機錄音驗證；若 API 被強制終止，最後尚未封口的 `.wav.part` 需要人工檢查。
 
 錄音音訊會自動上傳目前配置的 ASR provider。介面與 API 不設同意勾選或同意 header；AI 筆記、提問和翻譯直接觸發 Gemini，術語評估直接觸發 Jev。憑證只從 process environment 讀 `GOOGLE_AI_STUDIO_API_KEY`、`OPENROUTER_API_KEY`、`JEV_API_KEY`；沒有 key 時顯示實際錯誤，不會回傳假成功。
 
