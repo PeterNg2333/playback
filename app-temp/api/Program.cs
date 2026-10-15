@@ -31,8 +31,11 @@ var processingDefaults = builder.Configuration.GetSection("Processing").Get<Proc
 if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_ORGANIZE") == "no") processingDefaults = processingDefaults with {OrganizationEnabled = false};
 processingDefaults.Validate();
 builder.Services.AddPlayback(processingDefaults);
-builder.Services.AddSingleton<TranslationAgent>();
-// Translation migration remains a separate review unit.
+if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TRANSLATION") != "no")
+{
+    builder.Services.AddSingleton<TranslationAgent>();
+    builder.Services.AddHostedService(s => s.GetRequiredService<TranslationAgent>());
+}
 
 var app = builder.Build();
 app.UseMiddleware<ApiExceptionMiddleware>();
@@ -59,6 +62,4 @@ app.MapTesting();
 app.Map("/api/{**path}", () => Results.NotFound(new { error = "API route not found" }));
 app.MapFallbackToFile("index.html");
 
-if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TRANSLATION") != "no")
-    app.Services.GetRequiredService<TranslationAgent>();
 app.Run();
