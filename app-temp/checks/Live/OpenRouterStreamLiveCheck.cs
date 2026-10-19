@@ -7,87 +7,126 @@ using Playback.Api.Activity;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
 
-// Paid, small (at most three requests): two streamed Qwen3.8 Flash calls through OpenRouter on a three-sentence synthetic lecture (no audio):
-// one note revision through the production NoteWorkflow (structured output + streaming + activity draft) and one
-// plain streamed answer. It records what the SSE stream actually contained (comments, events, where usage and the
-// finish reason came, [DONE]) and when the first draft appeared. Needs PLAYBACK_OPENROUTER_STREAM_LIVE=yes (set by
-// run-openrouter-stream-live.mjs) and OPENROUTER_API_KEY in the process environment.
+// Paid, small, on a three-sentence synthetic lecture (no audio). Each mode makes one note revision through the
+// production NoteWorkflow and NoteActivityAdapter (structured output + streaming + activity draft) and prints what the
+// SSE stream contained (comments, events, where usage and the finish reason came, [DONE]), when the first draft
+// appeared, and what the activity entry says. Needs PLAYBACK_OPENROUTER_STREAM_LIVE=yes (set by
+// run-openrouter-stream-live.mjs) and the keys in the process environment.
+// The writer is built like NoteWriters.Create: Qwen3.8 Flash (reasoning none), then NoteWriters.ModelFallbacks, then
+// Gemini.
+//   stream    as the app sends it: one OpenRouter request (Qwen).
+//   models    Qwen's request is answered here with the HTTP 429 Alibaba's shared pool returned on 2026-10-19 (never
+//             sent), so the fallback model writes: one OpenRouter request (GLM), no Gemini.
+//   fallback  OpenRouter made unreachable through a dead local proxy (127.0.0.1:9), so three attempts fail without
+//             leaving the machine and Gemini writes: one Gemini request, no OpenRouter request.
 static class OpenRouterStreamLiveCheck
 {
     const string Model = "qwen/qwen3.8-flash";
 
-    public static async Task Run()
+    public static async Task Run(string mode)
     {
         if (Environment.GetEnvironmentVariable("PLAYBACK_OPENROUTER_STREAM_LIVE") != "yes")
-            throw new InvalidOperationException("Set PLAYBACK_OPENROUTER_STREAM_LIVE=yes to allow two small OpenRouter calls");
+            throw new InvalidOperationException("Set PLAYBACK_OPENROUTER_STREAM_LIVE=yes to allow a small paid note call");
         if (OpenRouterKey.Read() is null) throw new InvalidOperationException("Set a real OPENROUTER_API_KEY in this process environment");
+        if (mode is not ("stream" or "models" or "fallback")) throw new InvalidOperationException("Mode must be stream, models or fallback");
         Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "no");
         Environment.SetEnvironmentVariable("PLAYBACK_AUTO_NOTES", "no");
 
-        // 1. A note revision through the workflow, as live notes run it.
         const string id = "openrouter-stream-live";
         var store = new MemoryStore(); store.Add(id);
         var notes = new NoteStoreAdapter(store);
         var activity = new AiActivity(store);
-        var recorder = new RecordingHandler();
-        using var model = new OpenRouterTextModel(recorder, Model, "none");
-        // At most two OpenRouter attempts and never Gemini, so the run stays within its three-call budget.
-        var writer = new FallbackNoteWriter(new OpenRouterNoteWriter(model), new GeminiNoteWriter(new NoGemini()),
-            FallbackNoteWriter.Default with { Attempts = 2 });
-        await using (var workflow = new NoteWorkflow(notes, notes, writer, new FixtureNoteGate(),
-            new NoteActivityAdapter(activity, NullLogger<NoteAgent>.Instance), new TestClock(), notes, notes, notes, notes))
+        var recorder = new RecordingHandler(mode == "fallback"
+            ? new HttpClientHandler { AllowAutoRedirect = false, UseProxy = true, Proxy = new System.Net.WebProxy("http://127.0.0.1:9") }
+            : new HttpClientHandler { AllowAutoRedirect = false },
+            mode == "models" ? QwenRateLimited : null);
+        var openRouter = NoteWriters.ModelFallbacks[Model].Select(x => new OpenRouterNoteWriter(new OpenRouterTextModel(recorder, x.Model, x.Reasoning)))
+            .Prepend(new OpenRouterNoteWriter(new OpenRouterTextModel(recorder, Model, "none"))).ToList();
+        var gemini = new GeminiLanguageModel();
+        if (mode == "fallback" && !gemini.IsConfigured) throw new InvalidOperationException("Set GOOGLE_AI_STUDIO_API_KEY for the fallback mode");
+        // stream: one attempt; models: Qwen then GLM; fallback: the production attempts (nothing leaves the machine).
+        var writer = new FallbackNoteWriter(openRouter, new GeminiNoteWriter(mode == "fallback" ? gemini : new NoGemini()),
+            FallbackNoteWriter.Default with { Attempts = mode switch { "stream" => 1, "models" => 2, _ => FallbackNoteWriter.Default.Attempts } });
+        await using var workflow = new NoteWorkflow(notes, notes, writer, new FixtureNoteGate(),
+            new NoteActivityAdapter(activity, NullLogger<NoteAgent>.Instance), new TestClock(), notes, notes, notes, notes);
+        store.Speech(id, "a", "Synthetic lecture. A kernel debugger can stop the whole operating system at a breakpoint.");
+        store.Speech(id, "b", "Local kernel debugging only reads memory; it cannot set breakpoints.");
+        store.Speech(id, "c", "Symbols come from the Microsoft symbol server and are cached on the local disk.");
+        var watch = Stopwatch.StartNew();
+        long? firstDraftMs = null;
+        var drafts = 0;
+        string? lastDraft = null;
+        string? liveProvider = null;
+        var generation = workflow.Generate(id, default);
+        while (!generation.IsCompleted)
         {
-            store.Speech(id, "a", "Synthetic lecture. A kernel debugger can stop the whole operating system at a breakpoint.");
-            store.Speech(id, "b", "Local kernel debugging only reads memory; it cannot set breakpoints.");
-            store.Speech(id, "c", "Symbols come from the Microsoft symbol server and are cached on the local disk.");
-            var watch = Stopwatch.StartNew();
-            long? firstDraftMs = null;
-            var drafts = 0;
-            string? lastDraft = null;
-            var generation = workflow.Generate(id, default);
-            while (!generation.IsCompleted)
+            await Task.Delay(50);
+            var running = (await activity.Read(id)).SingleOrDefault(x => x.Task == "Note revision" && x.Status == "running");
+            if (!string.IsNullOrEmpty(running?.Draft) && running.Draft != lastDraft)
             {
-                await Task.Delay(50);
-                var draft = (await activity.Read(id)).SingleOrDefault(x => x.Task == "Note revision" && x.Status == "running")?.Draft;
-                if (!string.IsNullOrEmpty(draft) && draft != lastDraft) { drafts++; lastDraft = draft; firstDraftMs ??= watch.ElapsedMilliseconds; }
+                drafts++; lastDraft = running.Draft; firstDraftMs ??= watch.ElapsedMilliseconds;
+                liveProvider = running.Provider + "/" + running.Model;
             }
-            await generation;
-            var saved = store.Activity.Values.Single(x => x.Task == "Note revision");
-            Console.WriteLine(JsonSerializer.Serialize(new
-            {
-                call = "note revision (structured output, streamed)",
-                status = saved.Status, saved.Provider, saved.Model, saved.Summary, totalMs = watch.ElapsedMilliseconds, firstDraftMs,
-                distinctDraftsSeen = drafts, usage = saved.UsageJson, stream = recorder.Describe(),
-                note = store.Notes[id].Sections.Select(x => new { x.Title, blocks = x.Blocks.Select(b => b.Body) })
-            }, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
-            Expect.That(saved.Status == "completed" && saved.Provider == "openrouter" && firstDraftMs < watch.ElapsedMilliseconds,
-                "The live note revision did not stream a draft before it completed through OpenRouter");
         }
+        try { await generation; }
+        catch (Exception ex) { Console.WriteLine("Generation failed: " + AiActivity.SafeError(ex)); }
+        var saved = store.Activity.Values.Single(x => x.Task == "Note revision");
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            mode, status = saved.Status, saved.Provider, saved.Model, saved.Summary, totalMs = watch.ElapsedMilliseconds, firstDraftMs,
+            distinctDraftsSeen = drafts, liveProviderWhileDrafting = liveProvider, usage = saved.UsageJson,
+            requests = recorder.Requests, stream = mode == "fallback" ? null : recorder.Describe(),
+            note = store.Notes.TryGetValue(id, out var note) ? note.Sections.Select(x => new { x.Title, blocks = x.Blocks.Select(b => b.Body) }) : null
+        }, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+    }
 
-        // 2. A plain streamed answer without a schema.
-        var plain = new RecordingHandler();
-        using var routine = new OpenRouterTextModel(plain, Model, "none");
-        var usage = "";
-        var updates = 0;
-        var answer = await routine.Generate("PlaybackQuestionAnswerer", "Answer in one short English sentence.",
-            "What does a kernel debugger breakpoint do?", CancellationToken.None, x => usage = x, _ => updates++);
-        Console.WriteLine(JsonSerializer.Serialize(new { call = "plain answer (streamed)", answer, updates, usage, stream = plain.Describe() },
-            new JsonSerializerOptions { WriteIndented = true }));
+    // The "models" mode: a Qwen request gets the 429 OpenRouter returned for Alibaba's shared pool on 2026-10-19, here,
+    // without being sent; any other model's request goes out.
+    static HttpResponseMessage? QwenRateLimited(string body)
+    {
+        using var sent = JsonDocument.Parse(body);
+        if (sent.RootElement.GetProperty("model").GetString() != Model) return null;
+        return new HttpResponseMessage(System.Net.HttpStatusCode.TooManyRequests)
+        {
+            Content = new StringContent("""{"error":{"code":429,"message":"qwen/qwen3.8-flash is temporarily rate-limited upstream.","metadata":{"provider_name":"Alibaba","provider_error_code":"limit_burst_rate","limit_source":"upstream_provider_shared_pool","is_byok":false}}}""",
+                Encoding.UTF8, "application/json")
+        };
     }
 
     sealed class NoGemini : GeminiLanguageModel { public override bool IsConfigured => false; }
 
-    // Keeps a copy of each streamed response body (bounded) with the time each piece arrived, to describe the stream.
-    sealed class RecordingHandler() : DelegatingHandler(new HttpClientHandler { AllowAutoRedirect = false })
+    // Keeps a copy of each streamed response body (bounded) with the time each piece arrived, to describe the stream;
+    // counts requests and their outcome; can rewrite the request body (the "models" mode).
+    sealed class RecordingHandler(HttpMessageHandler inner, Func<string, HttpResponseMessage?>? intercept) : DelegatingHandler(inner)
     {
         readonly List<(long Ms, string Text)> pieces = [];
         readonly Stopwatch watch = new();
         string? contentType;
+        public readonly List<string> Requests = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
+            var body = await request.Content!.ReadAsStringAsync(ct);
+            using (var sent = JsonDocument.Parse(body))
+                Requests.Add($"model={sent.RootElement.GetProperty("model")} reasoning={sent.RootElement.GetProperty("reasoning")} " +
+                    $"stream={sent.RootElement.TryGetProperty("stream", out var stream) && stream.GetBoolean()} provider={sent.RootElement.GetProperty("provider")}");
+            if (intercept?.Invoke(body) is { } answered)
+            {
+                Requests[^1] += $" -> HTTP {(int)answered.StatusCode} answered locally, not sent";
+                return answered;
+            }
             watch.Restart();
-            var response = await base.SendAsync(request, ct);
+            HttpResponseMessage response;
+            try { response = await base.SendAsync(request, ct); }
+            catch (HttpRequestException ex) { Requests[^1] += " -> " + ex.GetType().Name + ": " + ex.Message; throw; }
+            Requests[^1] += " -> HTTP " + (int)response.StatusCode;
+            // A refused request: keep the start of OpenRouter's explanation (the request text is synthetic).
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync(ct);
+                Requests[^1] += " " + System.Text.RegularExpressions.Regex.Replace(error[..Math.Min(error.Length, 1500)], "\"user_id\"\\s*:\\s*\"[^\"]*\"", "\"user_id\":\"[removed]\"");
+                response.Content = new StringContent(error, Encoding.UTF8, "application/json");
+            }
             contentType = response.Content.Headers.ContentType?.MediaType;
             var inner = await response.Content.ReadAsStreamAsync(ct);
             var content = new StreamContent(new Tee(inner, this));

@@ -59,8 +59,8 @@ try
         case ["--sample-audio-live", var folder]:
             await SampleAudioLiveCheck.Run(folder);
             break;
-        case ["--openrouter-stream-live"]:
-            await OpenRouterStreamLiveCheck.Run();
+        case ["--openrouter-stream-live", var mode]:
+            await OpenRouterStreamLiveCheck.Run(mode);
             break;
         case ["--asr-compare", "--live"]:
             await AsrComparison.Run(live: true);

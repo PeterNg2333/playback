@@ -17,11 +17,22 @@ public sealed class GeminiNoteWriter(GeminiLanguageModel model) : INoteWriter
 }
 
 // PLAYBACK_NOTE_MODEL picks the model that writes and organizes notes: "openrouter:<model>[@reasoning]" or
-// "vertex:<model>". An OpenRouter writer retries transient failures and then falls back to the Gemini model
-// (FallbackNoteWriter). Chat, translation and term explanations stay on Gemini (they use Google Search grounding).
+// "vertex:<model>". An OpenRouter writer has three layers (FallbackNoteWriter): the model, then the models in
+// ModelFallbacks, each through OpenRouter's provider routing, then the Gemini model. Chat, translation and term
+// explanations stay on Gemini (they use Google Search grounding).
 public static class NoteWriters
 {
     public const string Default = "openrouter:qwen/qwen3.8-flash@none";
+
+    // The OpenRouter model (and reasoning effort) that writes when a note model fails transiently. Qwen3.8 Flash has one
+    // provider (Alibaba, whose shared pool returned 429 limit_burst_rate on 2026-10-19). GLM-5.3-Flash follows: it wrote
+    // accurate notes in the 2026-10-18 comparison, has many providers, and needs reasoning (it refuses "none"; "low" is
+    // what the comparison ran). DeepSeek V4.1 Flash is left out: its providers returned corrupted operations under the
+    // edit contract, an unreadable reply is not retried, and Gemini is the better last layer (docs/phases/p4-results.zh-HK.md).
+    public static readonly Dictionary<string, (string Model, string Reasoning)[]> ModelFallbacks = new()
+    {
+        ["qwen/qwen3.8-flash"] = [("z-ai/glm-5.3-flash", "low")]
+    };
 
     public static INoteWriter Create(GeminiLanguageModel gemini, FallbackNoteWriter.Policy? retries = null)
     {
@@ -31,10 +42,13 @@ public static class NoteWriters
         var separator = choice.IndexOf(':');
         if (separator < 1) throw new InvalidOperationException("PLAYBACK_NOTE_MODEL must be provider:model");
         var (provider, model) = (choice[..separator], choice[(separator + 1)..]);
+        var name = model.Split('@')[0];
         return provider switch
         {
             "openrouter" => new FallbackNoteWriter(
-                new OpenRouterNoteWriter(new OpenRouterTextModel(model.Split('@')[0], model.Contains('@') ? model[(model.IndexOf('@') + 1)..] : "low")),
+                ModelFallbacks.GetValueOrDefault(name, []).Select(x => new OpenRouterNoteWriter(new OpenRouterTextModel(x.Model, x.Reasoning)))
+                    .Prepend(new OpenRouterNoteWriter(new OpenRouterTextModel(name, model.Contains('@') ? model[(model.IndexOf('@') + 1)..] : "low")))
+                    .ToList(),
                 new GeminiNoteWriter(gemini), retries),
             "vertex" when model == gemini.Model => new GeminiNoteWriter(gemini),
             "vertex" => throw new InvalidOperationException("For a Vertex note model, set PLAYBACK_GEMINI_MODEL to the same allowlisted model"),
@@ -57,24 +71,27 @@ public sealed class OpenRouterNoteWriter(OpenRouterTextModel model) : INoteWrite
     }
 }
 
-// The activity entry names the writer that actually answered: when the usage report says a call was retried or fell
-// back (FallbackNoteWriter), the entry's provider and model become that writer's and its summary says why, both live
-// in the popover and in the saved record.
+// The activity entry of an OpenRouter note call names who actually answered (NoteWriterReport): the entry's provider and
+// model become the writer and model that answered (after retries, the fallback model or Gemini),
+// and its summary says why and which provider served it, both live in the popover and in the saved record.
 public sealed class NoteActivityAdapter(AiActivity activity, ILogger<NoteAgent> logger) : INoteActivity
 {
-    readonly ConcurrentDictionary<string, ActivityRecord> records = new();
+    readonly ConcurrentDictionary<string, (ActivityRecord Record, string Model)> records = new();
     public async Task<NoteActivity> Begin(string sessionId, string task, string provider, string model,
         IEnumerable<string>? sources = null, int? basedOnVersion = null)
     {
         var record = await activity.Begin(sessionId, task, provider, model, sources, basedOnVersion);
-        records[record.Id] = record;
+        // Only OpenRouter calls carry this report; other tasks (Jev, local admission) keep what they began with.
+        records[record.Id] = (record, provider == "openrouter" ? model : "");
         return new NoteActivity { Id = record.Id, StartedAt = record.StartedAt };
     }
+    (string Provider, string Model, string Note)? Answered(string requested, string? usage) =>
+        requested.Length == 0 ? null : NoteWriterReport.Describe(usage, requested);
     ActivityRecord Record(NoteActivity item)
     {
-        var record = records[item.Id];
+        var (record, requested) = records[item.Id];
         record.SectionId = item.SectionId;
-        if (record.UsageJson != item.UsageJson && FallbackNoteWriter.Describe(item.UsageJson) is var (provider, model, _))
+        if (record.UsageJson != item.UsageJson && Answered(requested, item.UsageJson) is var (provider, model, _))
             (record.Provider, record.Model) = (provider, model);
         record.UsageJson = item.UsageJson;
         record.ProviderLatencyMs = item.ProviderLatencyMs;
@@ -87,7 +104,7 @@ public sealed class NoteActivityAdapter(AiActivity activity, ILogger<NoteAgent> 
     public async Task End(NoteActivity item, string status, string summary, string? model = null)
     {
         var record = Record(item);
-        if (FallbackNoteWriter.Describe(record.UsageJson) is var (_, _, note)) summary = summary + " · " + note;
+        if (Answered(records[item.Id].Model, record.UsageJson) is var (_, _, note)) summary = summary + " · " + note;
         await activity.End(record, status, summary, model);
         records.TryRemove(item.Id, out _);
     }

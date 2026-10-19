@@ -34,8 +34,9 @@ static class NoteWriterFallbackChecks
             await FailuresNotRetried();
             await WorkflowRecordsWriter();
             await LiveDraftWhileStreaming();
-            Expect.That(NoteWriters.Create(new FakeGemini()) is FallbackNoteWriter { Provider: "openrouter", Model: Model },
-                "The default OpenRouter note writer has no Gemini fallback");
+            await ThreeLayers();
+            Expect.That(NoteWriters.Create(new FakeGemini()) is FallbackNoteWriter { Provider: "openrouter", Model: Model, Models: [Model, "z-ai/glm-5.3-flash"] },
+                "The default OpenRouter note writer is not Qwen, then GLM, then Gemini");
         }
         finally
         {
@@ -44,7 +45,8 @@ static class NoteWriterFallbackChecks
         }
         Console.WriteLine("Note writer fallback checks passed (in-memory HTTP): 503 and mid-stream errors retried after 1 s and 4 s, Retry-After honoured " +
             "and capped, Gemini writes after three transient failures or the retry window, other failures and cancellation not retried, " +
-            "activity names the actual writer live and saved, streamed draft visible in activity before the reply ends");
+            "activity names the actual writer live and saved, streamed draft visible in activity before the reply ends; " +
+            "Qwen (reasoning none) → GLM (reasoning low) → Gemini in order, with the answering model and serving provider in the activity");
     }
 
     // HTTP 503, then a provider error mid-stream, then a streamed answer: two waits, one reply, failures in usage.
@@ -63,7 +65,7 @@ static class NoteWriterFallbackChecks
         Expect.That(patch.Sections.Single().Title == "OpenRouter" && stub.Calls == 3 && gemini.Calls == 0, "Two transient failures were not retried to an answer");
         Expect.That(waits.SequenceEqual([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(4)]), "Retries did not wait 1 s and then 4 s");
         Expect.That(drafts.Contains("") && drafts[^1] == Reply("OpenRouter"), "The draft did not restart with the next attempt");
-        var described = FallbackNoteWriter.Describe(usage[^1]);
+        var described = NoteWriterReport.Describe(usage[^1], Model);
         Expect.That(usage[^1].Contains("\"cost\"") && described is ("openrouter", Model, var note) &&
             note.Contains("2 failed attempts") && note.Contains("HTTP 503") && note.Contains("server_error"),
             "The answered call's usage did not keep its cost and the failed attempts");
@@ -102,7 +104,7 @@ static class NoteWriterFallbackChecks
         Expect.That(gemini.Names.Single() == "LectureSectionWriter" && gemini.Inputs.Single() == NoteInput,
             "Gemini did not receive the same task and input");
         Expect.That(drafts[^1] == Reply("Gemini"), "The Gemini draft was not shown");
-        var described = FallbackNoteWriter.Describe(usage[^1]);
+        var described = NoteWriterReport.Describe(usage[^1], Model);
         Expect.That(usage[^1].Contains("\"InputTokenCount\"") && described is ("vertex", var model, var note) && model == gemini.Model &&
             note == $"Fallback: written by vertex/{gemini.Model} after openrouter/{Model} failed 3 times: OpenRouter text HTTP 503",
             "The fallback reply's usage did not name Gemini as the writer and why");
@@ -167,6 +169,59 @@ static class NoteWriterFallbackChecks
         }
     }
 
+    // Three layers in order, through the real workflow and the writer NoteWriters builds from its fallback list: Qwen
+    // (reasoning none), then GLM (reasoning low) at once when Qwen is rate-limited, then Gemini after the attempts. The
+    // activity entry names whichever answered and which provider served it.
+    static async Task ThreeLayers()
+    {
+        foreach (var layer in new[] { "qwen", "glm", "gemini" })
+        {
+            const string id = "layers";
+            var store = new MemoryStore(); store.Add(id);
+            var notes = new NoteStoreAdapter(store);
+            var sentModels = new List<string>();
+            var stub = new OpenRouterStub(async (request, ct) =>
+            {
+                using var sent = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+                var model = sent.RootElement.GetProperty("model").GetString()!;
+                sentModels.Add(model + "@" + sent.RootElement.GetProperty("reasoning").GetProperty("effort").GetString());
+                var reply = Placement("除錯器示範", "講者示範如何設定中斷點。", Alias(sent.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!));
+                // Alibaba's shared pool is rate-limited for Qwen in the "glm" and "gemini" layers, GLM's providers too in "gemini".
+                return (layer, model) switch
+                {
+                    ("qwen", Model) => OpenRouterStub.Stream([reply], model: "qwen/qwen3.8-flash-20260826"),
+                    ("glm", "z-ai/glm-5.3-flash") => OpenRouterStub.Stream([reply], model: "z-ai/glm-5.3-flash", provider: "Fireworks"),
+                    _ => Status(HttpStatusCode.TooManyRequests)
+                };
+            });
+            var gemini = new FakeGemini();
+            var openRouter = NoteWriters.ModelFallbacks[Model].Select(x => new OpenRouterNoteWriter(new OpenRouterTextModel(stub, x.Model, x.Reasoning, Quick)))
+                .Prepend(new OpenRouterNoteWriter(new OpenRouterTextModel(stub, Model, "none", Quick))).ToList();
+            var waits = new List<TimeSpan>();
+            var writer = new FallbackNoteWriter(openRouter, new GeminiNoteWriter(gemini), Policy(waits, TimeSpan.FromSeconds(60)));
+            await using var workflow = new NoteWorkflow(notes, notes, writer, new FixtureNoteGate(),
+                new NoteActivityAdapter(new AiActivity(store), NullLogger<NoteAgent>.Instance), new TestClock(), notes, notes, notes, notes);
+            store.Speech(id, "a", "The lecturer demonstrates the kernel debugger.");
+            await workflow.Generate(id, default);
+            var saved = store.Activity.Values.Single(x => x.Task == "Note revision");
+            var (provider, model, summary, requests) = layer switch
+            {
+                "qwen" => ("openrouter", Model, " · Served by Alibaba", new[] { "qwen/qwen3.8-flash@none" }),
+                "glm" => ("openrouter", "z-ai/glm-5.3-flash", $" · Fallback: written by openrouter/z-ai/glm-5.3-flash after openrouter/{Model} failed 1 time: " +
+                    "OpenRouter text HTTP 429 · Served by Fireworks", ["qwen/qwen3.8-flash@none", "z-ai/glm-5.3-flash@low"]),
+                _ => ("vertex", gemini.Model, $" · Fallback: written by vertex/{gemini.Model} after openrouter/{Model} failed 3 times: OpenRouter text HTTP 429",
+                    ["qwen/qwen3.8-flash@none", "z-ai/glm-5.3-flash@low", "qwen/qwen3.8-flash@none"])
+            };
+            Expect.That(saved.Status == "completed" && saved.Provider == provider && saved.Model == model && saved.Summary!.EndsWith(summary) &&
+                sentModels.SequenceEqual(requests) && gemini.Calls == (layer == "gemini" ? 1 : 0) &&
+                waits.SequenceEqual(layer == "gemini" ? [TimeSpan.FromSeconds(1)] : []),
+                $"The {layer} layer was not reached in order or not shown in the activity ({string.Join(", ", sentModels)}; {saved.Provider}/{saved.Model}: {saved.Summary})");
+            if (layer == "glm")
+                Expect.That(saved.UsageJson!.Contains("\"failures\":[{\"model\":\"qwen/qwen3.8-flash\",\"error\":\"OpenRouter text HTTP 429\"") &&
+                    saved.UsageJson.Contains("\"provider\":\"Fireworks\""), "The usage did not keep Qwen's failure and GLM's serving provider");
+        }
+    }
+
     // The draft in the activity popover shows the streamed body while the provider is still sending it.
     static async Task LiveDraftWhileStreaming()
     {
@@ -205,7 +260,7 @@ static class NoteWriterFallbackChecks
         body.Done();
         await generation;
         var saved = store.Activity.Values.Single(x => x.Task == "Note revision");
-        Expect.That(saved.Status == "completed" && saved.Provider == "openrouter" && saved.Model == Model && !saved.Summary!.Contains("Fallback") &&
+        Expect.That(saved.Status == "completed" && saved.Provider == "openrouter" && saved.Model == Model && !saved.Summary!.Contains("Fallback") && saved.Summary.EndsWith(" · Served by Alibaba") &&
             saved.UsageJson!.Contains("\"cached_tokens\":1000") && saved.Draft is null &&
             store.Notes[id].Sections.Single().Blocks.Single().Body.StartsWith("講者示範如何在核心除錯器中設定中斷點。"),
             "The streamed note was not saved with its usage and writer");
