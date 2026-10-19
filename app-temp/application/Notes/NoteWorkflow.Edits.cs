@@ -80,29 +80,33 @@ public sealed partial class NoteWorkflow
     }
 
     // What an organizer reply named that cannot apply, by cause, so a run shows whether the model reached outside its
-    // scope or only left out where a block goes. In the saved Qwen runs every dropped move named an in-scope block:
-    // the destination was missing, "" or the block's own topic, never another topic.
+    // scope or only left out where something goes. In the saved Qwen runs every dropped move named an in-scope block
+    // or topic: the destination was missing, "" or where it already was, never another topic.
     sealed record OrganizerDrops(int OutOfScope, int WithoutDestination, int InPlace)
     {
         public override string ToString() => (OutOfScope == 0 ? "" : $"; {OutOfScope} operations outside the selected scope dropped") +
             (WithoutDestination == 0 ? "" : $"; {WithoutDestination} moves without a destination dropped") +
-            (InPlace == 0 ? "" : $"; {InPlace} moves into the topic the block is already in ignored");
+            (InPlace == 0 ? "" : $"; {InPlace} moves that leave a block or topic where it is ignored");
     }
 
     // Organization works on the selected topic and its subtopics. An operation reaching outside them is dropped
     // rather than failing the whole regrouping, together with the moves into a new topic that was dropped. A move
-    // with no destination, or into the topic its block is already in, changes nothing and is dropped as well.
+    // with no destination, or one that leaves its block or topic where it is, changes nothing and is dropped as well.
     static OrganizerDrops DropOutOfScope(NotePatch patch, List<NoteSection> context)
     {
         var scope = context.Select(x => x.Id).ToHashSet();
         var home = context.SelectMany(topic => topic.Blocks.Select(block => (Block: block.Id, Topic: topic.Id))).DistinctBy(x => x.Block).ToDictionary(x => x.Block, x => x.Topic);
+        var parents = context.ToDictionary(x => x.Id, x => x.ParentId);
         var created = new HashSet<string>();
         int outOfScope = 0, withoutDestination = 0, inPlace = 0;
         foreach (var operation in patch.Operations.ToList())
         {
             bool Known(string? id) => id is null || scope.Contains(id) || created.Contains(id);
-            if (operation.Kind == "move-block" && string.IsNullOrWhiteSpace(operation.TopicId)) { patch.Operations.Remove(operation); withoutDestination++; continue; }
-            if (operation.Kind == "move-block" && home.GetValueOrDefault(operation.BlockId) == operation.TopicId) { patch.Operations.Remove(operation); inPlace++; continue; }
+            if (operation.Kind == "move-block" && string.IsNullOrWhiteSpace(operation.TopicId) || operation.Kind == "move-topic" && operation.ParentId == operation.TopicId)
+            { patch.Operations.Remove(operation); withoutDestination++; continue; }
+            if (operation.Kind == "move-block" && home.GetValueOrDefault(operation.BlockId) == operation.TopicId ||
+                operation.Kind == "move-topic" && parents.TryGetValue(operation.TopicId, out var parent) && parent == operation.ParentId)
+            { patch.Operations.Remove(operation); inPlace++; continue; }
             var inside = operation.Kind == "create-topic" ? Known(operation.ParentId)
                 : Known(operation.TopicId) && Known(operation.ParentId) && (operation.BlockId.Length == 0 || operation.Kind == "add-block" || home.ContainsKey(operation.BlockId));
             if (!inside) { patch.Operations.Remove(operation); outOfScope++; }
@@ -115,7 +119,7 @@ public sealed partial class NoteWorkflow
 
     // The placement plan becomes tree operations: each declared topic a create-topic (parents first, so a new
     // subtopic can sit under a new topic), each block an add-block in the topic it names, and each of the
-    // organizer's moves a move-block into the topic it names. Runs before decoding.
+    // organizer's moves a move-block or move-topic into the topic it names. Runs before decoding.
     static void ExpandPlacements(NotePatch patch)
     {
         string Alias(string key) => "new:" + key;
@@ -134,6 +138,7 @@ public sealed partial class NoteWorkflow
         operations.AddRange(patch.Blocks.Select((block, i) => new NoteTreeOperation { Kind = "add-block", BlockId = "new:block" + (i + 1),
             TopicId = IsNew(block.Topic) ? Alias(block.Topic) : block.Topic, Role = block.Role, Body = block.Body, SourceIds = block.SourceIds.ToList(), Order = i }));
         operations.AddRange(patch.Moves.Select(move => new NoteTreeOperation { Kind = "move-block", BlockId = move.Block, TopicId = IsNew(move.To) ? Alias(move.To) : move.To }));
+        operations.AddRange(patch.TopicMoves.Select(move => new NoteTreeOperation { Kind = "move-topic", TopicId = move.Topic, ParentId = IsNew(move.To) ? Alias(move.To) : move.To }));
         // A rename without a title changes nothing; models send one for a topic their outline just named.
         patch.Operations.RemoveAll(x => x.Kind == "rename-topic" && string.IsNullOrWhiteSpace(x.Title));
         // A move, rename or reorder may name a new key as its target; a move-topic to parent "" goes to the top
@@ -145,7 +150,7 @@ public sealed partial class NoteWorkflow
             if (operation.Kind == "move-topic" && operation.ParentId?.Length == 0) operation.ParentId = null;
         }
         patch.Operations.InsertRange(0, operations);
-        patch.Outline.Clear(); patch.Blocks.Clear(); patch.Moves.Clear();
+        patch.Outline.Clear(); patch.Blocks.Clear(); patch.Moves.Clear(); patch.TopicMoves.Clear();
     }
 
     // New text from the model (bodies, titles, replacements) in the note's script. find stays as written: it has to

@@ -173,7 +173,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                 pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)), allowed, hash, allowUserEdited: organize);
             if (patch.Operations.Count > 0)
             {
-                if (outlineOnly && patch.Operations.Any(x => x.Kind is not ("create-topic" or "move-topic" or "reorder-topic"))) throw new InvalidOperationException("Outline organization may change only topic structure");
+                if (outlineOnly && patch.Operations.Any(x => x.Kind is not ("create-topic" or "move-topic" or "reorder-topic" or "rename-topic"))) throw new InvalidOperationException("Outline organization may change only topic structure");
                 List<NoteSection> operated;
                 List<string> edited = [];
                 if (edits is null)

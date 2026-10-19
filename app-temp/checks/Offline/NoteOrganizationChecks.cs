@@ -12,8 +12,8 @@ static class NoteOrganizationChecks
 {
     public static async Task Run()
     {
-        await TriggersAndRestart(); await SavedRunMoves(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
-        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block moves name their destination (saved Qwen split replayed), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
+        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
+        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
     }
     static NoteAgent Agent(MemoryStore store, OrganizationModel model, TestClock clock) => new(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
     static async Task Configure(MemoryStore store, string id, ProcessingOverrides overrides)
@@ -135,6 +135,48 @@ static class NoteOrganizationChecks
             !Enum(schema.GetProperty("operations").GetProperty("items").GetProperty("properties").GetProperty("kind")).Contains("move-block"),
             "The organizer schema let a move leave out its destination or name one outside the selected scope");
     }
+    // The first v14 live run regrouped a crowded level seven times without effect: every move-topic left out its
+    // parentId, so each topic "moved" to the top level where it already was. Topics now move as placements too,
+    // with a required destination; a move that leaves a topic where it is gets counted, and an outline regroup may
+    // rename (two calls in that run failed on a rename).
+    static async Task SavedRunRegroup()
+    {
+        const string id = "saved-regroup";
+        async Task<(MemoryStore Store, OrganizationModel Model)> Regroup(string reply)
+        {
+            var clock = new TestClock(); var store = new MemoryStore {Clock = clock};
+            Seed(store, clock, id, Enumerable.Range(0, 7).Select(i => ("t" + i, (string?)null, 1)).ToArray());
+            await Configure(store, id, new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+            var model = new OrganizationModel { Reply = reply };
+            await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, id);
+            Expect.That(model.Organizations == 1 && store.Organizations[id].DueReason == "crowded-level", "Seven top-level topics were not regrouped from the outline");
+            return (store, model);
+        }
+        static ActivityRecord Call(MemoryStore store) => store.Activity.Values.Single(x => x.Task == "Section organization");
+
+        var (saved, _) = await Regroup(SavedOrganizerReplies.SavedRegroupReply);
+        Expect.That((Call(saved).Summary ?? "").Contains("7 moves that leave a block or topic where it is ignored") && saved.Notes[id].Sections.All(x => x.ParentId is null),
+            "A regroup whose topic moves named no parent was not reported: " + Call(saved).Summary);
+
+        var (placed, model) = await Regroup(SavedOrganizerReplies.PlacedRegroupReply);
+        var topics = placed.Notes[id].Sections;
+        string? Parent(string topic) => topics.Single(x => x.Id == topic).ParentId is { } parent ? topics.Single(x => x.Id == parent).Title : null;
+        Expect.That(Call(placed).Status == "completed" && topics.Count(x => x.ParentId is null) == 2 &&
+            new[] { "t0", "t1", "t2" }.All(x => Parent(x) == "AI 輔助教學與簡報製作") && new[] { "t3", "t4", "t5", "t6" }.All(x => Parent(x) == "Kernel 調試與地址查詢") &&
+            topics.Single(x => x.Id == "t6").Title == "使用者共享資料",
+            "An outline regroup did not place each topic under the parent it named, or refused a rename: " + Call(placed).Status + " " + Call(placed).Summary);
+
+        var schema = ((Microsoft.Extensions.AI.ChatResponseFormatJson)ModelOutputContract.ResponseFormat("LectureSectionOrganizer", model.LastOrganizationInput)!).Schema!.Value.GetProperty("properties");
+        static List<string> Enum(JsonElement property) => property.TryGetProperty("enum", out var values) ? values.EnumerateArray().Select(x => x.GetString()!).ToList() : [];
+        var move = schema.TryGetProperty("topicMoves", out var moves) ? moves.GetProperty("items") : default;
+        var aliases = Enumerable.Range(0, 7).Select(i => "S" + i.ToString("D3")).ToList();
+        var kinds = Enum(schema.GetProperty("operations").GetProperty("items").GetProperty("properties").GetProperty("kind"));
+        Expect.That(move.ValueKind == JsonValueKind.Object && Enum(move.GetProperty("properties").GetProperty("to")).SequenceEqual([.. aliases, .. NoteWorkflow.NewTopicKeys]) &&
+            Enum(move.GetProperty("properties").GetProperty("topic")).SequenceEqual(aliases) &&
+            move.GetProperty("required").EnumerateArray().Select(x => x.GetString()).SequenceEqual(["topic", "to"]) &&
+            kinds.SequenceEqual(["rename-topic", "reorder-topic"]),
+            "The outline regroup schema let a topic move leave out its parent, or offered operations an outline cannot apply");
+    }
     static async Task DirtyAgeAndDisable()
     {
         var clock = new TestClock(); var store = new MemoryStore {Clock = clock}; var model = new OrganizationModel();
@@ -206,7 +248,7 @@ static class NoteOrganizationChecks
             if (Reply is not null) return Reply;
             using var doc = JsonDocument.Parse(prompt); var root = doc.RootElement; NotePatch patch;
             if (root.GetProperty("trigger").GetString() == "document-outline")
-                patch = new() {Operations = [new() {Kind = "move-topic", TopicId = root.GetProperty("topicOutline")[1][0].GetString()!, ParentId = root.GetProperty("topicOutline")[0][0].GetString()}]};
+                patch = new() {TopicMoves = [new() {Topic = root.GetProperty("topicOutline")[1][0].GetString()!, To = root.GetProperty("topicOutline")[0][0].GetString()!}]};
             else
             {
                 var topic = root.GetProperty("editableSections")[0];

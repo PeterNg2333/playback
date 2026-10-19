@@ -7,7 +7,7 @@ namespace Playback.Application.Notes;
 public static class NoteInstructions
 {
     public const string Version = "tree-notes-v14";
-    public const string OrganizeVersion = "tree-organize-v14";
+    public const string OrganizeVersion = "tree-organize-v15";
 
     public const string Sections = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
@@ -90,28 +90,33 @@ public static class NoteInstructions
         """;
     public const string Organize = """
         Reorganize the selected scope like an author restructuring a document's headings: declare new topics in
-        outline, place existing blocks in them, move topics under them, reorder siblings and rename. Copy IDs from
+        outline, place existing blocks and topics under them, reorder siblings and rename. Copy IDs from
         topicOutline and editableSections. Return empty sections and blocks.
-        moves: one entry per block that changes topic, {"block": its ID, "to": the topic it goes to}, a new key
-        from outline or a selected topic, never the topic it is in now. A block you do not list stays where it is.
-        Blocks move only through moves; operations are rename-topic, move-topic (parentId: the new parent, a new
-        key or a selected topic, "" for the top level), reorder-topic and reorder-block.
+        moves: one entry per block that changes topic, {"block": its ID, "to": the topic it goes to}.
+        topicMoves: one entry per topic that changes parent, {"topic": its ID, "to": its new parent}.
+        "to" is a new key from outline or a selected topic, never where the block or topic is now. Anything you do
+        not list stays where it is. Blocks and topics move only through moves and topicMoves; operations are
+        rename-topic, reorder-topic and reorder-block.
         Make the notes a hierarchy, like nested folders, not a flat list. A topic should hold at most six
         blocks: split a larger topic into two to five subtopics by subject (outline entries whose parent is that
         topic, then a moves entry for each block, "to" the new key). A level should hold at most six topics: group
-        related siblings under a new parent topic (an outline entry, then move-topic with parentId set to its key).
+        related siblings under a new parent topic (an outline entry, then a topicMoves entry for each sibling, "to" its key).
         outline: key new1 to new8, a short title that names the subject (a noun phrase like a heading, never a
         sentence, "Part 2", "Continued" or a copy of the parent), and parent: "" for top level, a topic ID from
-        the selected scope, or another new key. Use up to three levels and up to 80 moves and operations together.
+        the selected scope, or another new key. Use up to three levels and up to 80 moves, topicMoves and operations together.
         Rename (rename-topic, with its title) a topic whose title is a sentence or does not name its subject.
         Only touch the selected topics, their subtopics and their blocks; other topics are context.
         Keep every body and citation byte-for-byte. This structural action does not rewrite, summarize or merge prose.
         Preserve every coverage point, definition, mathematical condition, derivation, example, argument and source.
         Do not shorten by losing meaning, invent facts, or touch another section. User facts must survive.
-        This task uses the same JSON contract as the section note task, without blocks and with moves. Example:
+        This task uses the same JSON contract as the section note task, without blocks and with moves and
+        topicMoves. Example of a split:
         {"outline":[{"key":"new1","title":"符號搜尋指令","parent":"section_abc"},{"key":"new2","title":"位址計算","parent":"section_abc"}],
-        "moves":[{"block":"point_1","to":"new1"},{"block":"point_2","to":"new1"},{"block":"point_3","to":"new2"}],
+        "moves":[{"block":"point_1","to":"new1"},{"block":"point_2","to":"new1"},{"block":"point_3","to":"new2"}],"topicMoves":[],
         "operations":[{"kind":"rename-topic","topicId":"section_abc","blockId":"","title":"WinDbg 實作"}],"deferred":[]}
+        Example of grouping a crowded level:
+        {"outline":[{"key":"new1","title":"課程安排","parent":""}],"moves":[],
+        "topicMoves":[{"topic":"S000","to":"new1"},{"topic":"S002","to":"new1"}],"operations":[],"deferred":[]}
         """;
     public const string Instruction = """
         This call carries out an explicit instruction from the person who owns these notes, given below.

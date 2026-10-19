@@ -44,6 +44,9 @@ public sealed record RejectedOperation(NoteTreeOperation Operation, string Reaso
 // the topic it goes to, a topic in the selected scope or a new key from Outline. A field that only means
 // "destination" replaces move-block's topicId, which Qwen left out or read as the block's current topic.
 public sealed class BlockMove { public string Block { get; set; } = ""; public string To { get; set; } = ""; }
+// The same for a topic: To is its new parent. move-topic's parentId was optional, and Qwen left it out of every
+// regroup in the first v14 live run, so each topic stayed where it was.
+public sealed class TopicMove { public string Topic { get; set; } = ""; public string To { get; set; } = ""; }
 public static class NoteTree
 {
     public static NoteSection Canonical(NoteSection section, NoteSection? previous = null)

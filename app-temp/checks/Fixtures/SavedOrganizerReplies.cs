@@ -34,6 +34,31 @@ static class SavedOrganizerReplies
         "deferred":[]}
         """;
 
+    // A crowded-level regroup from the first tree-organize-v14 live run (2026-10-19-p3-organize-v14b, organizer call
+    // 8; titles and count shortened to fit seven topics S000–S006): new parents declared, then move-topic operations
+    // with no parentId, so every topic stayed at the top level and the regroup changed nothing. All seven regroups
+    // in that run had this shape; two more failed on a rename, which an outline regroup used to refuse.
+    public const string SavedRegroupReply = """
+        {"outline":[{"key":"new1","title":"AI 輔助教學與簡報製作","parent":""},{"key":"new2","title":"Kernel 調試與地址查詢","parent":""}],
+        "moves":[],
+        "operations":[{"kind":"move-topic","topicId":"S000","blockId":""},{"kind":"move-topic","topicId":"S001","blockId":""},
+        {"kind":"move-topic","topicId":"S002","blockId":""},{"kind":"move-topic","topicId":"S003","blockId":""},
+        {"kind":"move-topic","topicId":"S004","blockId":""},{"kind":"move-topic","topicId":"S005","blockId":""},
+        {"kind":"move-topic","topicId":"S006","blockId":""}],
+        "deferred":[]}
+        """;
+
+    // The same regroup in the contract after that run: topics move as placements naming their new parent, and a
+    // rename with its title applies in an outline regroup. Written from the saved reply, not a provider reply.
+    public const string PlacedRegroupReply = """
+        {"outline":[{"key":"new1","title":"AI 輔助教學與簡報製作","parent":""},{"key":"new2","title":"Kernel 調試與地址查詢","parent":""}],
+        "moves":[],
+        "topicMoves":[{"topic":"S000","to":"new1"},{"topic":"S001","to":"new1"},{"topic":"S002","to":"new1"},
+        {"topic":"S003","to":"new2"},{"topic":"S004","to":"new2"},{"topic":"S005","to":"new2"},{"topic":"S006","to":"new2"}],
+        "operations":[{"kind":"rename-topic","topicId":"S006","blockId":"","title":"使用者共享資料"}],
+        "deferred":[]}
+        """;
+
     // The same decisions in the tree-organize-v14 contract: each moved block names the topic it goes to; the two
     // blocks the reply kept in place are not listed. Written from the saved reasons, not a provider reply.
     public const string PlacedReply = """

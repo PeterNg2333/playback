@@ -97,13 +97,15 @@ public static class ModelOutputContract
         else block["properties"]!["sourceIds"]!["items"]!["enum"] = Strings(sourceIds);
         block["required"] = new JsonArray("topic", "role", "body", "sourceIds");
         schema["properties"]!.AsObject().Remove("moves");
+        schema["properties"]!.AsObject().Remove("topicMoves");
         schema["required"] = new JsonArray("outline", "blocks", "deferred");
     }
 
     // Organization declares its new topics the same way, as outline keys under a topic in the selected scope, then
-    // places existing blocks in moves, each naming the topic it goes to, and moves topics with move-topic; it never
-    // writes blocks. Every destination is a selected topic or a new key, so none can be missing or outside the scope
-    // (tree-organize-v14; Qwen left move-block's topicId out or named the block's current topic). Topic IDs come
+    // places existing blocks in moves and topics in topicMoves, each naming where it goes; it never writes blocks.
+    // Every destination is required and is a selected topic or a new key, so none can be missing or outside the
+    // scope: Qwen left move-block's topicId out or named the block's current topic (tree-organize-v13), and left
+    // move-topic's optional parentId out of every regroup (v14). Operations only rename and reorder. Topic IDs come
     // from editableSections, or from the outline rows of an outline-only request, which has no blocks to move.
     static void Regrouping(JsonNode schema, JsonElement root, string[] blockIds)
     {
@@ -119,15 +121,20 @@ public static class ModelOutputContract
         else moves["items"]!["properties"]!["block"]!["enum"] = Strings(blockIds);
         moves["items"]!["properties"]!["to"]!["enum"] = Strings(scope.Concat(keys));
         moves["items"]!["required"] = new JsonArray("block", "to");
-        schema["properties"]!["operations"]!["items"]!["properties"]!["parentId"]!["enum"] = Strings(scope.Prepend("").Concat(keys));
-        schema["required"] = new JsonArray("outline", "moves", "operations", "deferred");
+        var topicMoves = schema["properties"]!["topicMoves"]!["items"]!;
+        if (scope.Length == 0) schema["properties"]!["topicMoves"]!["maxItems"] = 0;
+        else topicMoves["properties"]!["topic"]!["enum"] = Strings(scope);
+        topicMoves["properties"]!["to"]!["enum"] = Strings(scope.Concat(keys));
+        topicMoves["required"] = new JsonArray("topic", "to");
+        schema["properties"]!["operations"]!["items"]!["properties"]!["kind"]!["enum"] = Strings(blockIds.Length == 0 ? ["rename-topic", "reorder-topic"] : StructuralKinds);
+        schema["required"] = new JsonArray("outline", "moves", "topicMoves", "operations", "deferred");
     }
 
     static IEnumerable<string> Scope(JsonElement root) => root.GetProperty("editableSections").EnumerateArray().Select(x => x.GetProperty("id").GetString()!)
         .Concat(root.TryGetProperty("topicOutline", out var outline) ? outline.EnumerateArray()
             .Where(x => x.ValueKind == JsonValueKind.Array).Select(x => x[0].GetString()!) : []).Distinct();
 
-    static readonly string[] StructuralKinds = ["rename-topic", "move-topic", "reorder-topic", "reorder-block"];
+    static readonly string[] StructuralKinds = ["rename-topic", "reorder-topic", "reorder-block"];
     static readonly string[] EditingKinds = ["rename-topic", "move-topic", "reorder-topic", "move-block", "reorder-block", "replace-text", "delete-block"];
     static readonly string[] BlockRoles = ["definition", "example", "derivation", "correction", "detail"];
     static JsonArray Strings(IEnumerable<string> values) => new(values.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
