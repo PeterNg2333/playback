@@ -59,6 +59,9 @@ try
         case ["--sample-audio-live", var folder]:
             await SampleAudioLiveCheck.Run(folder);
             break;
+        case ["--openrouter-stream-live"]:
+            await OpenRouterStreamLiveCheck.Run();
+            break;
         case ["--asr-compare", "--live"]:
             await AsrComparison.Run(live: true);
             break;
@@ -134,6 +137,8 @@ static async Task RunOffline(bool notesOnly)
     await TranscriptionWorkflowChecks.Run();
     await NoteGenerationChecks.Run();
     await NoteEditChecks.Run();
+    NoteScriptChecks.Run();
+    await NoteWriterFallbackChecks.Run();
     await NoteSchedulingChecks.Run();
     await ProcessingPolicyChecks.Run();
     await NoteCoverageChecks.Run();
