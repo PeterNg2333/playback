@@ -7,6 +7,7 @@ public sealed partial class NoteWorkflow
 {
     // A review of crowded third-level subtopics sees at most this many of them, with their blocks.
     const int MaxReviewedSubtopics = 16;
+    // Reviewed structures remembered (crowded levels and full topics left as they were).
     const int MaxRememberedLevels = 32;
 
     async Task OrganizeIfDue(NoteSession session, EffectiveProcessingPolicy effective, CancellationToken ct)
@@ -26,9 +27,10 @@ public sealed partial class NoteWorkflow
                 await organization.SaveOrganization(state, state.Revision);
             }
             var now = clock.GetUtcNow().UtcDateTime;
-            var due = NoteOrganization.Due(note, state, effective.Values, now);
+            var spoken = session.Transcripts.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First().StartMs);
+            var due = NoteOrganization.Due(note, state, effective.Values, now, spoken);
             if (due.Reason is null) return;
-            // A crowded level that can take a parent is regrouped from the whole outline (titles only). A large topic,
+            // A crowded level that can take a parent is regrouped from the whole outline (titles only). A full topic,
             // or a parent with over six third-level subtopics, is reviewed together with its subtopics and their
             // blocks, so blocks can move between them (a split, or a merge that empties a subtopic).
             var outlineOnly = effective.Values.OrganizationScope == "document-outline" || due.Reason == "crowded-level";
@@ -57,8 +59,10 @@ public sealed partial class NoteWorkflow
             var outcome = await Revise(session, [], scope, ct, organize: true, outlineOnly: outlineOnly, automaticOrganization: true, persistenceHash: hash);
             if (outcome is NoteRewritePending) { state.Status = "review-required"; await organization.SaveOrganization(state, state.Revision); return; }
             var latest = await evidence.Session(session.Id) ?? throw new InvalidOperationException("Session disappeared during organization");
-            // Leaving a crowded level as it is is a valid review; it is not asked again until a topic joins or leaves it.
-            state.ReviewedLevels = state.ReviewedLevels.Concat(NoteOrganization.StillCrowdedAfterReview(latest.Sections, due.Reason, due.AffectedTopics))
+            // Leaving a full topic or a crowded level as it is is a valid review; it is not asked again until it changes.
+            var reviewed = due.Reason == "large-topic" ? affected.Take(3).Select(x => x.Id).ToList() : due.AffectedTopics;
+            var latestSpoken = latest.Transcripts.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First().StartMs);
+            state.ReviewedStructures = state.ReviewedStructures.Concat(NoteOrganization.StillOverAfterReview(latest.Sections, due.Reason, reviewed, latestSpoken))
                 .Distinct().TakeLast(MaxRememberedLevels).ToList();
             state.OrganizedMeaningfulRevision = latest.CurrentNote?.MeaningfulRevision ?? note.MeaningfulRevision;
             state.LastOrganizedAt = clock.GetUtcNow().UtcDateTime; state.Status = "completed"; state.Attempts = 0; state.RetryAt = null;

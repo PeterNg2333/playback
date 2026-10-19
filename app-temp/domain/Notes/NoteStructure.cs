@@ -29,10 +29,22 @@ public static class NoteStructure
         return false;
     }
 
-    // Topics over the block threshold, at any depth. Above MaxDepth one may get subtopics; at MaxDepth it is reviewed
-    // with its parent, so some of its blocks may move into a new or existing sibling.
-    public static IEnumerable<NoteSection> Overfull(IReadOnlyCollection<NoteSection> topics) =>
-        topics.Where(x => x.Blocks.Count > ReviewBlocks);
+    // Topics past "full", at any depth: more than ReviewBlocks blocks, or blocks spanning MaxTopicMinutes of lecture
+    // or more (spoken: when each source was spoken; without it only blocks count). The writer cannot add to a full
+    // topic, so such a topic took a block a reply still aimed at it, or a move. It gets one organizer review, which
+    // may split it or leave it. Above MaxDepth it may get subtopics; at MaxDepth it is reviewed with its parent.
+    public static IEnumerable<NoteSection> Overfull(IReadOnlyCollection<NoteSection> topics, IReadOnlyDictionary<string, long>? spoken = null) =>
+        topics.Where(x => x.Blocks.Count > ReviewBlocks || spoken is not null && SpanMs(x, spoken) >= MaxTopicMinutes * 60_000L);
+
+    static long SpanMs(NoteSection topic, IReadOnlyDictionary<string, long> spoken)
+    {
+        var times = topic.Blocks.SelectMany(x => x.Anchors).SelectMany(x => x.SourceIds).Where(spoken.ContainsKey).Select(x => spoken[x]).ToList();
+        return times.Count == 0 ? 0 : times.Max() - times.Min();
+    }
+
+    // A reviewed topic is asked again only when its blocks change, not when it is renamed or its text is edited.
+    public static string ReviewIdentity(NoteSection topic) =>
+        ContentHash.Of("topic:" + topic.Id + ":" + string.Join(",", topic.Blocks.Select(x => x.Id).Order(StringComparer.Ordinal)));
 
     // The topic a review of this topic starts from: itself, or its parent when it sits at MaxDepth.
     public static string ReviewRoot(NoteSection topic, IReadOnlyCollection<NoteSection> topics) =>

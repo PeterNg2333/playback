@@ -137,12 +137,15 @@ public static class NoteInput
         return prompt.Text.Length - lectureChars <= MaxInputChars ? prompt : throw TooLarge();
     }
 
-    // largeTopics: topics over six blocks that may be split into subtopics. crowdedSubtopics: parents with over six
-    // subtopics at the third level, where no new parent fits; they may be merged, renamed, reordered or left.
+    // largeTopics: topics past full (over six blocks, or blocks spanning eight minutes or more) that may be split or
+    // left. crowdedSubtopics: parents with over six subtopics at the third level, where no new parent fits; they may
+    // be merged, renamed, reordered or left.
     static object Review(NoteSession session, List<NoteSection> context) => new
     {
         threshold = NoteStructure.ReviewBlocks,
-        largeTopics = NoteStructure.Overfull(session.Sections).Where(x => context.Any(c => c.Id == x.Id)).Select(x => new { topic = x.Id, blocks = x.Blocks.Count }),
+        thresholdMinutes = NoteStructure.MaxTopicMinutes,
+        largeTopics = NoteStructure.Overfull(session.Sections, session.Transcripts.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First().StartMs))
+            .Where(x => context.Any(c => c.Id == x.Id)).Select(x => new { topic = x.Id, blocks = x.Blocks.Count }),
         crowdedSubtopics = NoteStructure.CrowdedLevels(session.Sections).Where(x => x.AtMaxDepth && context.Any(c => c.Id == x.ParentId))
             .Select(x => new { parent = x.ParentId, subtopics = x.TopicIds.Count })
     };
