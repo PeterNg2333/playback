@@ -23,18 +23,78 @@
 | --- | --- | --- | --- |
 | P1 | 未開始 | — | 實機測試要喺使用者睇住嘅 session 做 |
 | P2 | 未開始 | — | 收費 live，要喺使用者睇住嘅 session 做；廣東話樣本未答 |
-| P3 | 完成，等 Wave 收尾 | `d4c0804` | 已做：B fallback 照收已滿主題嘅 block，organizer review 決定拆唔拆，唔拆都得，block 冇變就唔再問；按時間（八分鐘）滿嘅主題都會 review。第三層 review 接受離線 check，唔跑完整 Week 3。剩低：Storage／`MemoryStore` 嘅整理狀態顯示未計時間滿（範圍外，交 M 或者之後 phase） |
-| P4 | 進行中 | `89b84da`（merge `5791f5d`） | Qwen 限流時用 OpenRouter `models` fallback 轉 GLM／DeepSeek，Gemini 留做最後一層；做 P4 結果文件嘅 live 驗收計劃（已批）；「上周／周末」唔強制轉，靠 prompt 嘅繁體／香港用語提示 |
-| P5 | 暫停 | — | 使用者之後再叫開 |
-| P6 | 暫停 | — | 使用者之後再叫開 |
+| P3 | 完成，已入 main | `d4c0804` | 已做：B fallback 照收已滿主題嘅 block，organizer review 決定拆唔拆，唔拆都得，block 冇變就唔再問；按時間（八分鐘）滿嘅主題都會 review。第三層 review 接受離線 check，唔跑完整 Week 3。剩低：Storage／`MemoryStore` 嘅整理狀態顯示未計時間滿（範圍外，交 M） |
+| P4 | 完成，已入 main；有跟進 P4b | `f17f77e` | 已做：streaming、Qwen → GLM → Qwen → Gemini fallback（逐個 model 一個 request）、Activity 記錄實際 model／provider、「上周／周末」唔強制轉。剩低四個決定，見下面「P4b」 |
+| P5 | 暫停 | — | 使用者叫先開，prompt 喺 Wave 1 一節 |
+| P6 | 暫停 | — | 使用者叫先開，prompt 喺 Wave 1 一節 |
 
-已入 main 嘅行為：OpenRouter 筆記 streaming、可重試錯誤重試後改用 Gemini、OpenCC 共用字詞組轉換、organizer 用 `moves`／`topicMoves` 必須寫目標、writer 宣告 subtopic 取代句子標題、六係 review 門檻（唯一硬上限係三層深度）、第三層超過六個 subtopic 會 review（可以合併或者唔郁）。
+已入 main 嘅行為：
+- OpenRouter 筆記 streaming，草稿約早 5 秒出現。
+- Qwen 撞可重試錯誤即刻轉 GLM 5.3 Flash，再試 Qwen，最後 Gemini。
+- OpenCC 共用字詞組轉換。
+- Organizer 用 `moves`／`topicMoves`，一定要寫目標。
+- Writer 宣告 subtopic，取代句子標題。
+- 六係 review 門檻，唯一硬上限係三層深度；第三層超過六個 subtopic 會 review，可以合併或者唔郁。
 
-已知問題：`qwen/qwen3.8-flash` 喺 OpenRouter 只有 Alibaba 一個 provider，繁忙時會 429（`limit_burst_rate`，共用容量），P4 跟進。
+已知事項：
+- `qwen/qwen3.8-flash` 喺 OpenRouter 只有 Alibaba 一個 provider，繁忙時會 429（`limit_burst_rate`，共用容量）。OpenRouter `models` 清單唔可以用：Qwen 要 reasoning `none`，GLM 唔准關 reasoning。
+- P2 要知：比較 runner（`NoteModelComparison.cs`）而家用 streaming，亦有 P3 加嘅 429 停止開關（`PLAYBACK_NOTE_MODELS_STOP_ON_429=yes`）。
+- Live run 資料（git 唔追蹤）：`app-temp/data/validation/runs/2026-10-19-p3-organize-*`、`2026-10-20-p4-qwen-stream`。
+- `.claude/worktrees/` 仲有 6 個 worktree：4 個係開 subagent 失敗留低嘅空 worktree，另外 2 個係 P3、P4 已合併嘅 worktree。清理要使用者批准。
 
-P3 嘅 live run 資料（git 唔追蹤）：`app-temp/data/validation/runs/2026-10-19-p3-organize-*`。
+Wave 2 等 P1、P2、P4b、P5、P6 完成同合併先開始。
 
-Wave 2 等 P3、P4 收尾合併，同埋 P5、P6 完成先開始。
+### 明日繼續：統籌 session
+
+```text
+你係統籌，唔親自寫 code。讀 C:\Users\a1831\Documents\GitHub\playback\docs\parallel-phases.zh-HK.md 嘅「進度」一節同「共同規則」。
+
+今日要做（照次序，每項開始前問我要唔要做）：
+1. 清 worktree：跑 git worktree list，列出 .claude/worktrees 入面每個 worktree 嘅 branch、有冇未提交改動、branch 係咪已經合併入 main、有冇 git 唔追蹤嘅 run folder 未抄去 main checkout。等我批准先清。
+2. P4b：用本檔案「P4b」嘅 prompt（我會先填好決定）開一個 subagent（Agent tool，isolation: "worktree"，背景執行）。
+3. P5、P6：用 Wave 1 一節嘅原文 prompt 各開一個 subagent。上次 auto mode 擋咗呢兩個 Agent call；如果再被擋，唔好繞過，同我講。
+4. P1、P2 要我睇住做，唔好交俾背景 subagent。我叫先開，到時喺呢個 session 直接做。
+
+每個 subagent 嘅 prompt 後面加：「你喺 worktree 入面，冇得中途問使用者；遇到 prompt 叫你『先問我』嘅決定，就用 prompt 入面已答嘅答案；冇答案就停喺嗰度，報告問題同你建議嘅答案。」
+
+每個 subagent 完成或者停低時，用三行話同我講結果（branch、完成條件達到未、要我決定嘅嘢）。我答完之後，用 SendMessage 叫返同一個 subagent 繼續。唔好自己合併 branch，唔好 push，除非我叫。
+
+全部完成後：列出每條 branch 嘅 commit、結果文件同範圍外改動，建議合併次序，再更新本檔案「進度」一節。
+```
+
+### P4b：GLM fallback 收尾
+
+貼之前先填好「已答嘅決定」。
+
+```text
+你負責 Playback 嘅 phase P4b。先讀 C:\Users\a1831\Documents\GitHub\playback\docs\parallel-phases.zh-HK.md 嘅「共同規則」，然後照規則做。Branch：phase/p4b-glm-fallback（由 main 開）。
+
+背景：main 已有 P4（f17f77e）。筆記 writer 逐個 model 發 request：Qwen（reasoning none）撞可重試錯誤即刻轉 GLM 5.3 Flash（reasoning low），再試 Qwen，最多 3 次 OpenRouter 嘗試、60 秒內，之後 Gemini。詳情同 live 數據見 docs/phases/p4-results.zh-HK.md。
+
+已答嘅決定：
+1. 逐個 model request 取代 OpenRouter models 清單：<接受／其他>
+2. GLM request 嘅數據政策：<預設／data_collection: deny／zdr: true>
+3. Stream 45 秒冇數據當斷線：<維持 45 秒／改做 N 秒>
+4. 用比較 runner 跑一次 GLM 筆記：<批／唔批>
+
+擁有：app-temp/infrastructure/Providers/OpenRouterTextModel.cs、app-temp/infrastructure/Notes/**、app-temp/checks/Offline/OpenRouterTextChecks.cs、NoteWriterFallbackChecks.cs、STRUCTURE.md 嘅 Notes 同 Note script 兩行、docs/phases/p4b-*。
+
+步驟：
+1. 第 1 項唔係「接受」就停低報告，唔好改。
+2. 第 2 項唔係「預設」：先用 OpenRouter 免費公開 endpoints 查詢，確認 z-ai/glm-5.3-flash 加咗限制之後仍然有支援 structured output、fp8 或以上嘅 provider。冇就停低報告。有就加入 GLM request，加離線 check 檢查 request body。結果文件寫低數據去邊。
+3. 第 3 項改咗秒數就更新常數同對應離線 check。
+4. 第 4 項批咗：用 npm run test:note-models-live（或者 runner 直接用 dotnet）跑 openrouter:z-ai/glm-5.3-flash@low，Week 3 頭 20 分鐘 batch+organize 一次。量度：來源覆蓋、繁體字（模型原始輸出同 OpenCC 之後分開報告）、organizer 套用／丟棄數、每次 call 延遲、費用。同 docs/phases/p4-results.zh-HK.md 嘅 Qwen run 比較，結論寫明 GLM 夠唔夠做第二層。
+
+完成條件：build 同全部離線 checks 綠；每個已答決定有對應改動同 check，或者寫明唔使改嘅原因；結果寫入 docs/phases/p4b-results.zh-HK.md。
+
+授權：可以 commit 到 phase/p4b-glm-fallback（唔可以 push）。可以做免費嘅 OpenRouter endpoints 查詢。第 4 項批咗嘅話，可以跑一次 GLM 比較 run，上限 US$0.05，失敗最多重跑一次；頭 10 個 writer call 有 3 個 429 就停。
+```
+
+### M 收尾要處理嘅項目（Wave 1）
+
+- P3：Storage／`MemoryStore` 嘅整理狀態顯示未計「按時間滿」。
+- 各結果文件「範圍外改動」一節：P3 改咗 `ModelOutputContract.cs`（P4 擁有）、`NoteSections.cs`、`NoteWorkflow.cs`、`NoteModelComparison.cs`（P2 擁有）、`checks/Program.cs`；P4 改咗 `checks/Program.cs`。
+- 套件管理：使用者話用 pnpm，但 repo 用 npm（`app-temp/web/package-lock.json`，`setup` 用 `npm ci`）。等使用者決定要唔要轉。
 
 ---
 
