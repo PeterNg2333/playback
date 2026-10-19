@@ -20,27 +20,28 @@ sealed class OpenRouterStub(Func<HttpRequestMessage, CancellationToken, Task<Htt
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     // A whole stream at once: each content piece becomes a delta chunk, then the finish, the usage chunk and [DONE].
-    public static HttpResponseMessage Stream(IEnumerable<string> pieces, string finish = "stop")
+    // model and provider: who answered, as OpenRouter reports it in every chunk (a fallback model when the asked one could not).
+    public static HttpResponseMessage Stream(IEnumerable<string> pieces, string finish = "stop", string model = "qwen/qwen3.8-flash", string provider = "Alibaba")
     {
         var body = new SseBody();
-        foreach (var piece in pieces) body.Event(Delta(piece));
-        body.Event(Delta("", finish));
-        body.Event(UsageChunk(finish));
+        foreach (var piece in pieces) body.Event(Delta(piece, null, model, provider));
+        body.Event(Delta("", finish, model, provider));
+        body.Event(UsageChunk(finish, model, provider));
         body.Done();
         return body.Response();
     }
 
     // Chinese stays as UTF-8 bytes, so a network read can end inside a character.
-    public static string Delta(string content, string? finish = null) => JsonSerializer.Serialize(new
+    public static string Delta(string content, string? finish = null, string model = "qwen/qwen3.8-flash", string provider = "Alibaba") => JsonSerializer.Serialize(new
     {
-        id = "gen-fixture", provider = "Alibaba", model = "qwen/qwen3.8-flash", @object = "chat.completion.chunk",
+        id = "gen-fixture", provider, model, @object = "chat.completion.chunk",
         choices = new[] { new { index = 0, delta = new { role = "assistant", content }, finish_reason = finish } }
     }, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
 
     // OpenRouter repeats the finish reason on the usage chunk, with one content-free choice.
-    public static string UsageChunk(string finish = "stop") => JsonSerializer.Serialize(new
+    public static string UsageChunk(string finish = "stop", string model = "qwen/qwen3.8-flash", string provider = "Alibaba") => JsonSerializer.Serialize(new
     {
-        id = "gen-fixture", provider = "Alibaba", model = "qwen/qwen3.8-flash", @object = "chat.completion.chunk",
+        id = "gen-fixture", provider, model, @object = "chat.completion.chunk",
         choices = new[] { new { index = 0, delta = new { role = "assistant", content = "" }, finish_reason = finish } },
         usage = new { prompt_tokens = 1200, completion_tokens = 80, cost = 0.00011, prompt_tokens_details = new { cached_tokens = 1000 } }
     });

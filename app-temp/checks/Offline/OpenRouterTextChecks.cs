@@ -118,6 +118,14 @@ static class OpenRouterTextChecks
         }), "qwen/qwen3.8-flash", "none");
         await cached.Generate("PlaybackQuestionAnswerer", "Answer.", "Question", CancellationToken.None);
         Expect.That(orders.Single() == "alibaba", "A cached model was not pinned to its caching provider");
+
+        // Provider routing: Alibaba is preferred, other providers stay allowed (allow_fallbacks left at its default true),
+        // and each request names one model with its own reasoning setting (no "models" list; see NoteWriterFallback.cs).
+        using var routed = new OpenRouterTextModel(new OpenRouterStub((_, _) => Task.FromResult(Reply(Completion("x", "stop")))), "qwen/qwen3.8-flash", "none");
+        var payload = routed.Payload("LectureSectionWriter", "Write notes.", NoteInput);
+        Expect.That(payload["model"]!.GetValue<string>() == "qwen/qwen3.8-flash" && !payload.ContainsKey("models") && !payload.ContainsKey("usage") &&
+            payload["provider"]!["order"]![0]!.GetValue<string>() == "alibaba" && payload["provider"]!["allow_fallbacks"] is null &&
+            payload["provider"]!["require_parameters"]!.GetValue<bool>(), "The note request's provider routing changed");
         using var low = new OpenRouterTextModel(handler, "z-ai/glm-5.3-flash");
         using var none = new OpenRouterTextModel(handler, "deepseek/deepseek-v4.1-flash", "none");
         Expect.That(await low.Generate("PlaybackQuestionAnswerer", "Answer.", "Question", CancellationToken.None) == "Plain answer" &&
@@ -186,7 +194,14 @@ static class OpenRouterTextChecks
         body.Done();
         Expect.That(await reply == NoteReply && drafts[^1] == NoteReply, "The streamed reply or its final draft was not the whole reply");
         Expect.That(usage.Count == 1 && usage[0].Contains("\"cached_tokens\":1000") && usage[0].Contains("\"provider\":\"Alibaba\"") &&
-            usage[0].Contains("\"cost\""), "Usage, cached tokens and the serving provider must come from the last chunk");
+            usage[0].Contains("\"model\":\"qwen/qwen3.8-flash\"") && usage[0].Contains("\"cost\""),
+            "Usage, cached tokens, the serving provider and the answering model must come from the last chunk");
+        using (var stats = JsonDocument.Parse(usage[0]))
+        {
+            var stream = stats.RootElement.GetProperty("stream");
+            Expect.That(stream.GetProperty("keepAlives").GetInt32() == 2 && stream.GetProperty("firstContentMs").GetInt64() <= stream.GetProperty("totalMs").GetInt64() &&
+                stream.GetProperty("longestGapMs").GetInt64() >= 0, "The usage report did not describe the stream (keep-alives, first content, longest gap)");
+        }
 
         // A note writer streams for its draft and still parses the finished reply.
         var writerDrafts = new List<string>();

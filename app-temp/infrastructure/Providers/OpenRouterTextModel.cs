@@ -84,6 +84,7 @@ public sealed class OpenRouterTextModel : IDisposable
             var payload = Payload(name, instructions, prompt);
             if (onUpdate is not null) payload["stream"] = true;
             request.Content = JsonContent.Create(payload);
+            var since = Stopwatch.StartNew();
             HttpResponseMessage response;
             try { response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token); }
             catch (HttpRequestException ex) when (ex.StatusCode is null)
@@ -94,7 +95,7 @@ public sealed class OpenRouterTextModel : IDisposable
             {
                 if (!response.IsSuccessStatusCode) throw StatusError(response);
                 if (onUpdate is not null && response.Content.Headers.ContentType?.MediaType == "text/event-stream")
-                    return await ReadStream(response, onUpdate, onUsage, silence, read.Token);
+                    return await ReadStream(response, onUpdate, onUsage, silence, since, read.Token);
                 return ParseReply(await ProviderResponseReader.ReadBounded(response, ResponseLimit, deadline.Token), onUsage);
             }
         }
@@ -129,6 +130,8 @@ public sealed class OpenRouterTextModel : IDisposable
                 ["quantizations"] = new JsonArray("fp8", "mxfp8", "fp16", "bf16", "fp32", "unknown")
             }
         };
+        // "order" names the preferred provider; other providers of the model stay allowed (allow_fallbacks defaults to
+        // true, https://openrouter.ai/docs/guides/routing/provider-selection), though Qwen3.8 Flash has no other.
         if (CachingProvider.TryGetValue(Model, out var provider)) payload["provider"]!["order"] = new JsonArray(provider);
         if (ModelOutputContract.ResponseFormat(name, prompt) is ChatResponseFormatJson { Schema: { } schema } format)
             payload["response_format"] = new JsonObject
@@ -163,9 +166,16 @@ public sealed class OpenRouterTextModel : IDisposable
 
     // Server-sent events: "data:" lines (several join with a newline) make one event, a blank line ends it, lines
     // starting with ":" are comments. Each event is one chat.completion.chunk whose delta extends the reply.
+    // The usage report of a stream also says how the stream went ("stream": headers, first content, keep-alive comments,
+    // the longest gap between lines, all in ms from the request), so the silence limit can be checked against real calls.
     async Task<string> ReadStream(HttpResponseMessage response, Action<string> onUpdate, Action<string>? onUsage,
-        CancellationTokenSource silence, CancellationToken ct)
+        CancellationTokenSource silence, Stopwatch since, CancellationToken ct)
     {
+        var headersMs = since.ElapsedMilliseconds;
+        long? firstContentMs = null;
+        long longestGapMs = 0, lastLineMs = headersMs;
+        var keepAlives = 0;
+        string? usage = null;
         await using var body = new BoundedStream(await response.Content.ReadAsStreamAsync(ct), ResponseLimit);
         using var reader = new StreamReader(body, Encoding.UTF8);
         var text = new StringBuilder();
@@ -174,34 +184,54 @@ public sealed class OpenRouterTextModel : IDisposable
         var shown = 0;
         var sinceDraft = Stopwatch.StartNew();
         var first = true;
-        while (true)
+        try
         {
-            silence.CancelAfter(limits.Silence);
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null || line.Length == 0)
+            while (true)
             {
-                if (data.Length > 0)
+                silence.CancelAfter(limits.Silence);
+                var line = await reader.ReadLineAsync(ct);
+                var now = since.ElapsedMilliseconds;
+                longestGapMs = Math.Max(longestGapMs, now - lastLineMs);
+                lastLineMs = now;
+                if (line is null || line.Length == 0)
                 {
-                    var payload = data.ToString();
-                    data.Clear();
-                    if (payload == "[DONE]") break;
-                    finish = Chunk(payload, text, onUsage) ?? finish;
-                    if (text.Length > shown && (first || sinceDraft.Elapsed >= DraftInterval))
+                    if (data.Length > 0)
                     {
-                        onUpdate(text.ToString());
-                        shown = text.Length;
-                        first = false;
-                        sinceDraft.Restart();
+                        var payload = data.ToString();
+                        data.Clear();
+                        if (payload == "[DONE]") break;
+                        finish = Chunk(payload, text, report => usage = report) ?? finish;
+                        if (text.Length > 0) firstContentMs ??= now;
+                        if (text.Length > shown && (first || sinceDraft.Elapsed >= DraftInterval))
+                        {
+                            onUpdate(text.ToString());
+                            shown = text.Length;
+                            first = false;
+                            sinceDraft.Restart();
+                        }
                     }
+                    if (line is null) break;
+                    continue;
                 }
-                if (line is null) break;
-                continue;
+                if (line[0] == ':') { keepAlives++; continue; }
+                if (line.StartsWith("data:", StringComparison.Ordinal))
+                {
+                    if (data.Length > 0) data.Append('\n');
+                    data.Append(line.AsSpan(line.Length > 5 && line[5] == ' ' ? 6 : 5));
+                }
             }
-            if (line[0] == ':') continue;
-            if (line.StartsWith("data:", StringComparison.Ordinal))
+        }
+        finally
+        {
+            if (usage is not null && onUsage is not null)
             {
-                if (data.Length > 0) data.Append('\n');
-                data.Append(line.AsSpan(line.Length > 5 && line[5] == ' ' ? 6 : 5));
+                var record = JsonNode.Parse(usage)!.AsObject();
+                record["stream"] = new JsonObject
+                {
+                    ["headersMs"] = headersMs, ["firstContentMs"] = firstContentMs, ["keepAlives"] = keepAlives,
+                    ["longestGapMs"] = longestGapMs, ["totalMs"] = since.ElapsedMilliseconds
+                };
+                onUsage(record.ToJsonString());
             }
         }
         if (finish is null) throw new OpenRouterTransientException("OpenRouter stream ended before the reply finished", null);
@@ -247,8 +277,11 @@ public sealed class OpenRouterTextModel : IDisposable
     {
         if (!root.TryGetProperty("usage", out var usage) || usage.ValueKind != JsonValueKind.Object) return;
         var record = JsonNode.Parse(usage.GetRawText())!.AsObject();
+        // Who answered: the serving provider and the model as OpenRouter names it.
         if (root.TryGetProperty("provider", out var provider) && provider.ValueKind == JsonValueKind.String)
             record["provider"] = provider.GetString();
+        if (root.TryGetProperty("model", out var model) && model.ValueKind == JsonValueKind.String)
+            record["model"] = model.GetString();
         onUsage?.Invoke(record.ToJsonString());
     }
 
