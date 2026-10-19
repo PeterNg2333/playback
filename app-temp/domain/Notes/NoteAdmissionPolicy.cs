@@ -19,6 +19,5 @@ public static class NoteAdmissionPolicy
     public static string? LocalAdmission(NoteGateRecord state, ProcessingPolicy policy, DateTime now, bool boundaryReady = false) =>
         state.FlushRequested ? "stop" :
         boundaryReady ? "speech-boundary" :
-        state.FirstPendingAt is { } first && now >= first.AddSeconds(policy.MaxPendingWaitSeconds) ? "deadline" :
-        !policy.JevEnabled ? "gate-disabled" : null;
+        state.FirstPendingAt is { } first && now >= first.AddSeconds(policy.MaxPendingWaitSeconds) ? "deadline" : null;
 }

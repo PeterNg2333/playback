@@ -1,6 +1,5 @@
 using Playback.Api;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Playback.Api.Db;
 using Playback.Api.Activity;
@@ -24,25 +23,13 @@ static class Week3ProviderRun
         Environment.SetEnvironmentVariable("PLAYBACK_AUTO_TERMS", "no");
         Environment.SetEnvironmentVariable("PLAYBACK_AUTO_ORGANIZE", "no");
         Directory.CreateDirectory(folder);
-        var file = Path.GetFullPath("app-temp/data/test-audio/sampleAudio/transcript.txt");
+        var file = Path.GetFullPath(Week3Transcript.RelativePath);
         var text = await File.ReadAllTextAsync(file); var sourceHash = ContentHash.Of(text);
         var store = new MemoryStore(); const string id = "week3-natural-provider"; store.Add(id);
-        var paragraphs = new List<(long Start, long End, string Text)>(); long start = 0; var lines = new List<string>();
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n')) {
-            if (Regex.IsMatch(line.Trim(), @"^\d{1,3}:\d{2}(?::\d{2})?$")) {
-                var end = line.Trim().Split(':').Aggregate(0L, (value, part) => value * 60 + long.Parse(part)) * 1000;
-                if (lines.Count > 0 && start < 3600000 && end > start) paragraphs.Add((start, Math.Min(end, 3600000), string.Join(' ', lines).Trim()));
-                start = end; lines.Clear();
-            } else if (line.Trim().Length > 0) lines.Add(line.Trim());
-        }
-        var epoch = DateTime.UtcNow.Date;
-        // Pair neighboring timed text passages for a bounded text-import fixture. Original
-        // paragraphs and their exact times remain in provenance; this is not fresh audio/ASR.
-        var groups = paragraphs.Chunk(2).Select(parts => (Start: parts[0].Start, End: parts[^1].End, Text: string.Join(" ", parts.Select(x => x.Text)))).ToList();
-        foreach (var p in groups) store.Transcripts[id].Add(new Transcript {
-            Id = "week3_" + ContentHash.Of($"{sourceHash}:{p.Start}:{p.Text}")[..24], SessionId = id, SourceId = "week3-text",
-            StartMs = p.Start, EndMs = p.End, RecordedAt = epoch.AddMilliseconds(p.Start), Original = p.Text, NoteStatus = "pending"
-        });
+        // Original paragraphs and their exact times remain in provenance; this is not fresh audio/ASR.
+        var paragraphs = Week3Transcript.Passages(text, 3600000);
+        var groups = Week3Transcript.Pairs(paragraphs);
+        store.Transcripts[id].AddRange(Week3Transcript.Sources(id, text, 3600000));
         await File.WriteAllTextAsync(Path.Combine(folder, "input-provenance.json"), JsonSerializer.Serialize(new {
             file, sourceHash, rawPassages = paragraphs.Select(p => new { startMs = p.Start, endMs = p.End, original = p.Text }),
             textImportSources = store.Transcripts[id], interpretation = "Exact repository transcript text paired for provider-input validation, not new audio recognition or semantic quality proof."

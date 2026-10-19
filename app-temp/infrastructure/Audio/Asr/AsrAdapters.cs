@@ -1,4 +1,5 @@
 using Playback.Api.Audio.Asr.Providers;
+using Playback.Api.Providers;
 namespace Playback.Api.Audio.Asr;
 
 public static class AsrAdapters
@@ -12,13 +13,10 @@ public static class AsrAdapters
 
     public static string ResolveProvider(string? configured, string? key) => configured switch
     {
-        null or "" => HasOpenRouterKey(key) ? "openrouter" : "sensevoice",
+        null or "" => OpenRouterKey.IsUsable(key) ? "openrouter" : "sensevoice",
         "openrouter" or "sensevoice" => configured,
         _ => throw new InvalidOperationException("PLAYBACK_ASR_PROVIDER must be openrouter or sensevoice")
     };
-
-    public static bool HasOpenRouterKey(string? key) =>
-        !string.IsNullOrWhiteSpace(key) && key != "your_openrouter_api_key_here";
 
     public static IAsrAdapter Create() => ConfiguredProvider() switch
     {

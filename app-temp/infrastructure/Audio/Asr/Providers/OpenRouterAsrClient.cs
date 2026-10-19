@@ -27,9 +27,7 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
         var model = request.Model ?? Model.Model;
         if (PlaybackEnvironment.Offline)
             throw new InvalidOperationException("External ASR is disabled for offline tests");
-        var key = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
-        if (!AsrAdapters.HasOpenRouterKey(key))
-            throw new InvalidOperationException("OPENROUTER_API_KEY is unavailable");
+        var key = OpenRouterKey.Read() ?? throw new InvalidOperationException("OPENROUTER_API_KEY is unavailable");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(70));
         ct = deadline.Token;

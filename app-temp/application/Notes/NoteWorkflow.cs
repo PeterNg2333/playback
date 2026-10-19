@@ -8,9 +8,9 @@ using Playback.Domain.Notes;
 
 namespace Playback.Application.Notes;
 
-// Writes a session's notes with Gemini: new confirmed speech, Revise with AI, one organized section or
-// a coverage-gap repair. Every run saves one section patch as a new note version. When automatic runs
-// happen is decided in NoteWorkflow.Automatic.cs.
+// Writes a session's notes with the configured note writer (Gemini or an OpenRouter model): new confirmed
+// speech, Revise with AI, one organized section or a coverage-gap repair. Every run saves one section patch
+// as a new note version. When automatic runs happen is decided in NoteWorkflow.Automatic.cs.
 public sealed partial class NoteWorkflow : IAsyncDisposable
 {
     const int MaxConcurrentGenerations = 4;
@@ -20,7 +20,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
     readonly SemaphoreSlim organizationSlots = new(1, 1);
     readonly INoteRepository repository;
     readonly INoteEvidence evidence;
-    readonly INoteWriter gemini;
+    readonly INoteWriter writer;
     readonly INoteGate jev;
     readonly INoteActivity activity;
     readonly TimeProvider clock;
@@ -29,14 +29,16 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
     readonly INoteSpeechBoundaries? boundaries;
     readonly INoteOrganizationRepository? organization;
     readonly INoteRewriteRepository? rewrites;
+    readonly INoteScript? script;
     readonly DateTime startedAt;
 
     public NoteWorkflow(INoteRepository repository, INoteEvidence evidence, INoteWriter writer, INoteGate gate,
-        INoteActivity activity, TimeProvider? clock = null, INoteProcessingPolicy? processingPolicy = null, INoteSpeechBoundaries? boundaries = null, INoteOrganizationRepository? organization = null, INoteRewriteRepository? rewrites = null)
+        INoteActivity activity, TimeProvider? clock = null, INoteProcessingPolicy? processingPolicy = null, INoteSpeechBoundaries? boundaries = null, INoteOrganizationRepository? organization = null, INoteRewriteRepository? rewrites = null,
+        INoteScript? script = null)
     {
         this.repository = repository;
         this.evidence = evidence;
-        gemini = writer;
+        this.writer = writer;
         jev = gate;
         this.activity = activity;
         this.clock = clock ?? TimeProvider.System;
@@ -44,6 +46,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         this.boundaries = boundaries;
         this.organization = organization;
         this.rewrites = rewrites;
+        this.script = script;
         startedAt = this.clock.GetUtcNow().UtcDateTime;
         scheduler = new NoteScheduler(this.clock, Automatic, interval: TimeSpan.FromSeconds(2));
     }
@@ -118,7 +121,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         var policy = processingPolicy is null ? ProcessingPolicy.Defaults : (await processingPolicy.Effective(session.Id)).Values;
         var materials = organize || repair ? new List<NoteMaterial>() : NoteInput.Materials(session.Materials, session.CurrentNote);
         var instructions = NoteInstructions.For(session.NoteLanguage) + (organize ? "\n" + NoteInstructions.Organize : "");
-        var call = await activity.Begin(session.Id, organize ? "Section organization" : "Note revision", "vertex", gemini.Model,
+        var call = await activity.Begin(session.Id, organize ? "Section organization" : "Note revision", writer.Provider, writer.Model,
             pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Concat(context.SelectMany(x => x.Points).SelectMany(x => x.SourceIds)),
             session.NoteVersion);
         call.SectionId = organize ? context[0].Id : null;
@@ -128,7 +131,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             var input = outlineOnly ? NoteInput.Outline(session, context) : organize
                 ? NoteInput.Build(session, pending, context, materials, "organize")
                 : NoteInput.Bounded(session, pending, context, materials, repair ? "gap-repair" : admissionReason);
-            var hash = persistenceHash ?? ContentHash.Of(gemini.Model + instructions + input.Text);
+            var hash = persistenceHash ?? ContentHash.Of(writer.Model + instructions + input.Text);
             activity.Context(call, organize ? NoteInstructions.OrganizeVersion : NoteInstructions.Version, instructions, input.Text);
             await generationSlots.WaitAsync(ct);
             admitted = true;
@@ -137,14 +140,22 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             NotePatch patch;
             try
             {
-                patch = await gemini.Generate(organize ? "LectureSectionOrganizer" : "LectureSectionWriter", instructions, input.Text, ct,
+                patch = await writer.Generate(organize ? "LectureSectionOrganizer" : "LectureSectionWriter", instructions, input.Text, ct,
                     onUpdate: text => activity.Draft(call, input.Decode(ReadableDraft(text))), onUsage: usage => call.UsageJson = usage);
             }
             finally { call.ProviderLatencyMs = watch.ElapsedMilliseconds; }
 
             var allowed = session.AllowedSources.ToList();
+            ExpandPlacements(patch);
+            SplitTopicContent(patch);
+            InScript(patch, session.NoteLanguage);
+            var distantMoves = 0;
+            var outOfScope = 0;
             DecodePatch(patch, input, context, session, allowed);
-            var proposals = RewriteCandidates(session, patch);
+            if (organize) { outOfScope = DropOutOfScope(patch, context); distantMoves = DropDistantMoves(patch, session); }
+            // Organization stays structural and all-or-nothing; writing applies each change on its own.
+            var edits = organize ? null : await TriageEdits(session, patch, allowed, pending);
+            var proposals = organize ? RewriteCandidates(session, patch) : [];
             if (proposals.Count > 0)
             {
                 if (rewrites is null) throw new InvalidOperationException("Body rewrite requires a saved preview; prior content remains unchanged");
@@ -162,20 +173,23 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                 pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)), allowed, hash, allowUserEdited: organize);
             if (patch.Operations.Count > 0)
             {
-                if (organize)
-                {
-                    var scope = context.Select(x => x.Id).ToHashSet();
-                    var newTopics = patch.Operations.Where(x => x.Kind == "create-topic").Select(x => x.TopicId).ToHashSet();
-                    foreach (var operation in patch.Operations)
-                    {
-                        if (!scope.Contains(operation.TopicId) && !newTopics.Contains(operation.TopicId) ||
-                            operation.ParentId is not null && !scope.Contains(operation.ParentId) && !newTopics.Contains(operation.ParentId) ||
-                            operation.BlockId.Length > 0 && operation.Kind != "add-block" && !context.SelectMany(x => x.Blocks).Any(x => x.Id == operation.BlockId))
-                            throw new InvalidOperationException("Organizer touched content outside the selected scope");
-                    }
-                }
                 if (outlineOnly && patch.Operations.Any(x => x.Kind is not ("create-topic" or "move-topic" or "reorder-topic"))) throw new InvalidOperationException("Outline organization may change only topic structure");
-                var operated = NoteTree.Apply(update.Sections, patch.Operations, allowed, hash, allowProtected: organize && !automaticOrganization, structuralOnly: organize);
+                List<NoteSection> operated;
+                List<string> edited = [];
+                if (edits is null)
+                {
+                    // Splitting a large topic moves each block, so organization may use more operations than writing.
+                    operated = NoteTree.Apply(update.Sections, patch.Operations, allowed, hash, allowProtected: organize && !automaticOrganization, structuralOnly: organize,
+                        maxOperations: organize ? NoteTree.MaxOrganizationOperations : NoteTree.MaxOperations);
+                    KeepLectureOrder(operated, update.Sections.Select(x => x.Id).ToHashSet(), session);
+                }
+                else
+                {
+                    (operated, var rejected) = NoteTree.ApplyEach(update.Sections, patch.Operations, allowed, hash);
+                    edits.Dropped.AddRange(rejected);
+                    KeepLectureOrder(operated, update.Sections.Select(x => x.Id).ToHashSet(), session);
+                    edited = patch.Operations.Where(x => x.Kind is "replace-text" or "delete-block" && rejected.All(r => r.Operation != x)).Select(x => x.BlockId).ToList();
+                }
                 var points = operated.SelectMany(x => x.Points).ToList();
                 var coverage = pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Select(source =>
                 {
@@ -184,12 +198,13 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                     return new SourceDisposition { SourceId = source, PointIds = written, Status = written.Count > 0 ? "covered" : deferred is not null ? "deferred" : "pending",
                         Reason = written.Count > 0 ? "Source-backed canonical block saved" : deferred?.Reason ?? "No block or deferral; source remains pending" };
                 }).ToList();
-                update = new(operated, update.Citations, coverage);
+                update = new(operated, update.Citations, coverage, EditedBlockIds: edited);
             }
             if (patch.Sections.Count == 0 && patch.Operations.Count == 0)
             {
                 await evidence.MarkNotes(pending.Select(x => x.Id), "deferred", "Generation deferred this input; it has not been incorporated into notes");
-                await activity.End(call, "completed", "No section change; all input deferred, no note version saved");
+                await activity.End(call, "completed", "No section change; all input deferred, no note version saved" + EditSummary(edits) +
+                    Dropped(distantMoves, outOfScope));
                 return new { Version = session.NoteVersion, Markdown = session.NoteMarkdown, Author = session.CurrentNote?.Author };
             }
             if (organize)
@@ -209,7 +224,8 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             await MarkSources(update, pending);
             await activity.End(call, "completed",
                 $"Section patch saved; untouched sections retained; {update.Coverage.Count(x => x.Status == "covered")} sources have written points, " +
-                $"{update.Coverage.Count(x => x.Status == "deferred")} deferred, {update.Coverage.Count(x => x.Status == "pending")} remain pending without a model disposition");
+                $"{update.Coverage.Count(x => x.Status == "deferred")} deferred, {update.Coverage.Count(x => x.Status == "pending")} remain pending without a model disposition" +
+                EditSummary(edits) + Dropped(distantMoves, outOfScope));
             return result;
         }
         catch (Exception ex) { await activity.Fail(call, ex); throw; }
@@ -224,7 +240,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             section.BaseVersion = context.FirstOrDefault(x => x.Id == section.Id)?.Version ?? 0;
             foreach (var point in section.Points)
             {
-                point.Text = input.Decode(point.Text);
+                point.Text = input.Decode(SourceRefsAsCitations(point.Text, input));
                 point.SourceIds = point.SourceIds.SelectMany(x => input.Aliases.TryGetValue(x, out var source) ? new[] { source } :
                     session.CurrentNote?.Citations.FirstOrDefault(c => c.Id == x)?.SourceIds.ToArray() ?? [x]).Distinct().ToList();
                 var cited = NoteSections.Sources(NoteSections.Expand(point.Text, session.CurrentNote?.Citations ?? []), allowed);
@@ -237,12 +253,16 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             if (input.Aliases.TryGetValue(deferred.SourceId, out var source)) deferred.SourceId = source;
         foreach (var operation in patch.Operations)
         {
+            operation.Body = SourceRefsAsCitations(operation.Body, input);
+            operation.Replace = SourceRefsAsCitations(operation.Replace, input);
             operation.TopicId = input.Aliases.GetValueOrDefault(operation.TopicId, operation.TopicId);
             if (operation.ParentId is not null) operation.ParentId = input.Aliases.GetValueOrDefault(operation.ParentId, operation.ParentId);
             operation.Body = input.Decode(operation.Body);
+            operation.Replace = input.Decode(operation.Replace);
             operation.SourceIds = operation.SourceIds.Select(x => input.Aliases.GetValueOrDefault(x, x)).ToList();
             if (operation.Kind == "add-block")
             {
+                operation.Body = WithoutCopiedCitations(operation.Body);
                 var cited = NoteSections.Sources(operation.Body, allowed);
                 var missing = operation.SourceIds.Except(cited).ToList();
                 if (missing.Count > 0) operation.Body += " [" + string.Join(", ", missing) + "]";
@@ -250,6 +270,20 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         }
         foreach (var rewrite in patch.Rewrites) rewrite.Body = input.Decode(rewrite.Body);
     }
+
+    // Models write source citations as term references ("[ref:T001, T002]"). When every ID is a source alias in
+    // this input it is a source citation; any other [ref:...] stays and is checked as a term reference.
+    static string SourceRefsAsCitations(string text, NotePrompt input) => Regex.Replace(text, @"\[ref:\s*([^\]]+)\]", match =>
+    {
+        var ids = match.Groups[1].Value.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        return ids.Length > 0 && ids.All(input.Aliases.ContainsKey) ? "[" + string.Join(", ", ids) + "]" : match.Value;
+    });
+
+    // A new block cites through its sourceIds. Models also paste an existing cite_* marker into the text as a
+    // generic citation, which attributes the claim to an unrelated earlier source, so those markers are removed.
+    static string WithoutCopiedCitations(string body) => Regex.Replace(
+        CitationSyntax.Rewrite(body, inner => inner.Split([',', ';'], StringSplitOptions.TrimEntries).All(x => x.StartsWith("cite_", StringComparison.Ordinal)) ? "" : inner),
+        @"[ \t]*\[\]", "");
 
     // Older versions can contain unavailable historical IDs. Copying them remains visibly unavailable;
     // no new source ID may be invented and none can be counted as coverage.
@@ -265,12 +299,14 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             NoteReferences.ValidateSourceReferences(NoteSections.Expand(section.Markdown, update.Citations),
                 allowed.Concat(priorReferences).Concat(update.Citations.Select(c => c.Id)));
         }
-        foreach (var operation in patch.Operations.Where(x => x.Kind == "add-block"))
-        {
-            NoteReferences.ValidateReferences(operation.Body, session.TermReferenceIds);
-            NoteReferences.ValidateSourceReferences(operation.Body, allowed);
-        }
+        // Operation text was checked one operation at a time in TriageEdits; organization adds no text.
     }
+
+    static string EditSummary(EditOutcome? edits) => edits is null ? "" :
+        $"; {edits.Appended} appended to existing topics, {edits.AutoEdited} edits applied automatically, {edits.Suggested} suggestions for review" +
+        (edits.RepeatDeferrals == 0 ? "" : $", {edits.RepeatDeferrals} repeated deferrals ignored") +
+        (edits.Redirected == 0 ? "" : $", {edits.Redirected} blocks moved from closed topics into new subtopics") +
+        (edits.Dropped.Count == 0 ? "" : $", {edits.Dropped.Count} changes not applied ({string.Join("; ", edits.Dropped.Select(x => x.Reason).Distinct().Take(3))})");
 
     async Task MarkSources(SectionUpdate update, List<NoteTranscript> pending)
     {
@@ -296,5 +332,13 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         return string.Join("\n\n", sections);
     }
 
-    public async ValueTask DisposeAsync() => await Drain();
+    static string Dropped(int distant, int outOfScope) =>
+        (distant == 0 ? "" : $"; {distant} moves under distant topics dropped") + (outOfScope == 0 ? "" : $"; {outOfScope} operations outside the selected scope dropped");
+
+    // Work cancelled by its caller's deadline has already recorded its outcome; disposal only waits for it.
+    public async ValueTask DisposeAsync()
+    {
+        try { await Drain(); }
+        catch (OperationCanceledException) { }
+    }
 }

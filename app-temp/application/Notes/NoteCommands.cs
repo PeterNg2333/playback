@@ -88,7 +88,41 @@ public sealed class NoteCommands(INoteRepository repository, INoteEvidence evide
         block.CitationIds = CitationSyntax.Bodies(block.Body).Distinct().ToList(); topic.Version++;
         return await repository.Save(id, new(sections, citations, []), ContentHash.Of("block-edit:" + basedOnVersion + blockId + body), basedOnVersion, session.NoteLanguage, "user block edit");
     }
-    public Task<List<NoteRewriteProposal>> Rewrites(string id) => rewrites?.Rewrites(id) ?? Task.FromResult(new List<NoteRewriteProposal>());
+    // A locked block is never edited, moved or deleted by automatic writing or instructions (the same protection
+    // a user edit gives); unlocking lets AI change it again. Each toggle is a saved version.
+    public async Task<object> LockBlock(string id, int basedOnVersion, string blockId, bool locked)
+    {
+        var session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
+        if (session.NoteVersion != basedOnVersion) throw new InvalidOperationException("Notes changed; reload before locking");
+        var sections = session.Sections.Select(x => NoteTree.Canonical(x)).ToList();
+        var topic = sections.SingleOrDefault(x => x.Blocks.Any(b => b.Id == blockId)) ?? throw new InvalidOperationException("Block not found");
+        var block = topic.Blocks.Single(x => x.Id == blockId);
+        if (block.UserEdited == locked) return new { Version = session.NoteVersion, Markdown = session.NoteMarkdown };
+        block.UserEdited = locked; topic.Version++;
+        return await repository.Save(id, new(sections, NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []), []),
+            ContentHash.Of("block-lock:" + basedOnVersion + blockId + locked), basedOnVersion, session.NoteLanguage, locked ? "user lock" : "user unlock");
+    }
+
+    public async Task<NoteRewriteProposal> DismissRewrite(string id, string proposalId)
+    {
+        if (rewrites is null) throw new InvalidOperationException("Suggestions are unavailable");
+        var proposal = await rewrites.Rewrite(id, proposalId) ?? throw new InvalidOperationException("Suggestion not found");
+        if (proposal.Status == "applied") throw new InvalidOperationException("This suggestion was already applied");
+        proposal.Status = "dismissed";
+        await rewrites.SaveRewrite(proposal);
+        return proposal;
+    }
+
+    // A suggestion whose block changed since it was made is listed as "stale" (not saved), matching what Accept refuses.
+    public async Task<List<NoteRewriteProposal>> Rewrites(string id)
+    {
+        if (rewrites is null) return [];
+        var proposals = await rewrites.Rewrites(id);
+        if ((await evidence.Session(id))?.CurrentNote is { } note)
+            foreach (var proposal in proposals.Where(x => x.Status is "review-required" or "blocked-retention" && NoteRewrite.IsStale(note, x)))
+                proposal.Status = "stale";
+        return proposals;
+    }
     public async Task<object> AcceptRewrite(string id, string proposalId, bool semanticAccepted)
     {
         if (rewrites is null) throw new InvalidOperationException("Rewrite previews are unavailable");

@@ -1,9 +1,7 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Google.GenAI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using Playback.Api.Notes;
 
 namespace Playback.Api.Providers;
 
@@ -16,42 +14,6 @@ public class GeminiLanguageModel : ITextGenerator
     public const string ExplanationPromptVersion = Playback.Domain.Assistance.ModelInstructions.ExplanationPromptVersion;
     public const string ExplanationInstructions = Playback.Domain.Assistance.ModelInstructions.Explanation;
     public const string SearchInstructions = Playback.Domain.Assistance.ModelInstructions.Search;
-    public static int OutputLimit(string name) => name is "LectureSectionWriter" or "LectureSectionOrganizer" ? 8192 :
-        name.Contains("Translator", StringComparison.Ordinal) ? 4096 : 1024;
-    public static ChatResponseFormat? ResponseFormat(string name, string prompt) {
-        if (name is not ("LectureSectionWriter" or "LectureSectionOrganizer")) return null;
-        var format = ChatResponseFormat.ForJsonSchema<NotePatch>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        var schema = JsonNode.Parse(format.Schema!.Value.GetRawText())!;
-        using var input = JsonDocument.Parse(prompt);
-        var ids = input.RootElement.GetProperty("editableSections").EnumerateArray().Select(x => x.GetProperty("id").GetString()!).Prepend("new").Distinct();
-        var section = schema["properties"]!["sections"]!["items"]!;
-        section["properties"]!.AsObject().Remove("markdown");
-        section["properties"]!.AsObject().Remove("baseVersion");
-        section["required"] = new JsonArray("id", "title", "points");
-        section["properties"]!["id"]!["enum"] = new JsonArray(ids.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
-        schema["required"] = new JsonArray("sections", "deferred");
-        section["properties"]!["points"]!["items"]!["required"] = new JsonArray("text", "sourceIds", "retains");
-        var root = input.RootElement;
-        var inputIds = root.GetProperty("pending").EnumerateArray().Concat(root.GetProperty("materials").EnumerateArray())
-            .Select(x => x.GetProperty("id").GetString()!).ToArray();
-        IEnumerable<JsonElement> Rows(string key) => root.TryGetProperty(key, out var value) ? value.EnumerateArray() : [];
-        var sourceIds = inputIds.Concat(Rows("sectionSources").Concat(Rows("sectionMaterials"))
-                .Select(x => x.GetProperty("id").GetString()!))
-            .Concat(root.GetProperty("editableSections").EnumerateArray().SelectMany(x => x.GetProperty("points").EnumerateArray())
-                .SelectMany(x => x.GetProperty("sourceIds").EnumerateArray()).Select(x => x.GetString()!))
-            .Concat(Rows("citationSources").Select(x => x.GetProperty("id").GetString()!))
-            .Distinct().ToArray();
-        var pointSources = section["properties"]!["points"]!["items"]!["properties"]!["sourceIds"]!;
-        if (sourceIds.Length == 0) pointSources["maxItems"] = 0;
-        else pointSources["items"]!["enum"] = new JsonArray(sourceIds.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
-        var deferred = schema["properties"]!["deferred"]!["items"]!;
-        foreach (var key in deferred["properties"]!.AsObject().Select(x => x.Key).Where(x => x is not ("sourceId" or "reason")).ToList())
-            deferred["properties"]!.AsObject().Remove(key);
-        deferred["required"] = new JsonArray("sourceId", "reason");
-        if (inputIds.Length == 0) schema["properties"]!["deferred"]!["maxItems"] = 0;
-        else deferred["properties"]!["sourceId"]!["enum"] = new JsonArray(inputIds.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
-        return ChatResponseFormat.ForJsonSchema(JsonSerializer.SerializeToElement(schema), "LectureSectionPatch");
-    }
     readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
     public virtual bool IsConfigured => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY"));
 
@@ -65,7 +27,8 @@ public class GeminiLanguageModel : ITextGenerator
         using var client = new Client(vertexAI: true, apiKey: key);
         using var chat = new OutputGuardChatClient(client.AsIChatClient(model ?? Model), onUsage);
         var agent = new ChatClientAgent(chat, new ChatClientAgentOptions {
-            Name = name, ChatOptions = new ChatOptions { Instructions = instructions, MaxOutputTokens = OutputLimit(name), ResponseFormat = ResponseFormat(name, prompt) }
+            Name = name, ChatOptions = new ChatOptions { Instructions = instructions, MaxOutputTokens = ModelOutputContract.OutputLimit(name),
+                ResponseFormat = ModelOutputContract.ResponseFormat(name, prompt) }
         });
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(100));

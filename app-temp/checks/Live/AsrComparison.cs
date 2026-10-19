@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Playback.Api.Audio.Asr;
 using Playback.Api.Audio.Asr.Providers;
+using Playback.Api.Providers;
 
 // Latency of SenseVoice against OpenRouter on two 30-second chunks of the Week 3 sample. Without --live it only
 // prepares the audio; with --live it uploads both chunks twice to each provider (8 paid requests).
@@ -19,7 +20,7 @@ static class AsrComparison
         }
         if (Environment.GetEnvironmentVariable("PLAYBACK_OFFLINE_TEST") == "yes")
             throw new InvalidOperationException("Remove PLAYBACK_OFFLINE_TEST to run the explicitly requested live comparison");
-        if (!AsrAdapters.HasOpenRouterKey(Environment.GetEnvironmentVariable("OPENROUTER_API_KEY")))
+        if (!OpenRouterKey.IsUsable(Environment.GetEnvironmentVariable("OPENROUTER_API_KEY")))
             throw new InvalidOperationException("A real OPENROUTER_API_KEY is required for the live comparison");
         using var senseVoice = new SenseVoiceClient();
         using var openRouter = new OpenRouterAsrClient();

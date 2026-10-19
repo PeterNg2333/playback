@@ -25,7 +25,7 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
     public TimeProvider? Clock;
     public readonly Dictionary<string, Playback.Domain.Notes.NoteOrganizationState> Organizations = new();
     public readonly Dictionary<string, Playback.Domain.Notes.NoteRewriteProposal> RewriteProposals = new();
-    public override Task<List<Playback.Domain.Notes.NoteRewriteProposal>> NoteRewrites(string id) => Task.FromResult(RewriteProposals.Values.Where(x => x.SessionId == id && x.Status != "applied").Select(Copy).ToList());
+    public override Task<List<Playback.Domain.Notes.NoteRewriteProposal>> NoteRewrites(string id) => Task.FromResult(RewriteProposals.Values.Where(x => x.SessionId == id && x.Status is not ("applied" or "dismissed")).Select(Copy).ToList());
     public override Task<Playback.Domain.Notes.NoteRewriteProposal?> NoteRewrite(string id, string proposalId) => Task.FromResult(RewriteProposals.TryGetValue(proposalId, out var value) && value.SessionId == id ? Copy(value) : null);
     public override Task SaveNoteRewrite(Playback.Domain.Notes.NoteRewriteProposal proposal) { RewriteProposals[proposal.Id] = Copy(proposal); return Task.CompletedTask; }
     public override Task<Playback.Domain.Notes.NoteOrganizationState?> NoteOrganization(string id) => Task.FromResult(Organizations.TryGetValue(id, out var value) ? Copy(value) : null);
@@ -46,7 +46,8 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
         return new(state.Status, due.DirtyRevisions, due.DirtySince, due.CooldownUntil, state.LastOrganizedAt, due.Reason ?? "");
     }
     public override Task<Playback.Domain.Audio.SpeechBoundary?> LatestSpeechBoundary(string id) => Task.FromResult(Boundaries.GetValueOrDefault(id));
-    ProcessingSettings Processing => new(ProcessingRepository, Playback.Domain.Notes.ProcessingPolicy.Defaults);
+    // Most note checks exercise the optional Jev gate, so the fixture keeps it on; NoteEditChecks covers the batching default.
+    ProcessingSettings Processing => new(ProcessingRepository, Playback.Domain.Notes.ProcessingPolicy.Defaults with { JevEnabled = true });
     public override Task<ProcessingSettingsView> WorkspaceProcessingSettings() => Processing.Workspace("local");
     public override Task<ProcessingSettingsView> SessionProcessingSettings(string id) => Languages.ContainsKey(id)
         ? Processing.Session("local", id) : throw new InvalidOperationException("Session not found");

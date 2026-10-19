@@ -50,9 +50,18 @@ public interface INoteSpeechBoundaries
 public interface INoteWriter
 {
     bool IsConfigured { get; }
+    // Saved in AI activity so a note version names who actually wrote it, e.g. "vertex" or "openrouter".
+    string Provider { get; }
     string Model { get; }
     Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null);
+}
+
+// Puts note text into the session's script after the model writes it, e.g. Simplified characters that slip into
+// Traditional notes. Returns the text unchanged when nothing needs converting.
+public interface INoteScript
+{
+    string Apply(string text, string language);
 }
 
 public interface INoteGate

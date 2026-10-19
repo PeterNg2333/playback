@@ -17,7 +17,18 @@ export function RewriteDialog({session, draftDirty, onClose, onOpenSource, onPla
   const path = `/sessions/${session.id}/notes/rewrites`;
   const query = useQuery({queryKey: ["noteRewrites", session.id, session.noteVersion], queryFn: ({signal}) => api.get(path, NoteRewriteSchema.array(), {signal})});
   const selected = query.data?.find(x => x.id === selectedId) ?? query.data?.[0];
+  // The API lists a suggestion as stale once one of its own blocks changed; new notes elsewhere do not matter.
+  const stale = selected?.status === "stale";
+  const before = selected ? selected.changes.flatMap(x => x.retainedBlockIds).map(id => selected.originalBodies[id]).filter(Boolean) : [];
   useEffect(() => {dialog.current?.showModal(); return () => request.current?.abort();}, []);
+  // Dismissing keeps the notes as they are and removes the suggestion from the list.
+  async function dismiss() {
+    if (!selected) return;
+    setBusy(true); setError("");
+    try { await api.post(path + `/${selected.id}/dismiss`); setSelectedId(""); setSemanticAccepted(false); await query.refetch(); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setBusy(false); }
+  }
   async function perform(preview: boolean) {
     const controller = new AbortController(); request.current = controller; setBusy(true); setError("");
     try {
@@ -33,8 +44,8 @@ export function RewriteDialog({session, draftDirty, onClose, onOpenSource, onPla
   }
   const render = (body: string) => <NotePreview session={{...session, noteMarkdown: body, currentNote: session.currentNote ? {...session.currentNote, sections: []} : null}} markdown={body} reading={false} onReference={() => {}} onOpenSource={onOpenSource} onPlay={onPlay} />;
   return <Dialog ref={dialog} aria-labelledby="rewrite-title" onClose={onClose} onCancel={event => {if (busy) event.preventDefault();}}>
-    <div className="grid max-h-[85vh] gap-3 overflow-y-auto p-5 text-[12px]"><h2 id="rewrite-title" className="text-base font-bold">Review a rewrite</h2>
-      <p>Original text stays in place until you review and accept a preview.</p>
+    <div className="grid max-h-[85vh] gap-3 overflow-y-auto p-5 text-[12px]"><h2 id="rewrite-title" className="text-base font-bold">Review suggestions</h2>
+      <p>Original text stays in place until you accept a suggestion. Live notes keep growing meanwhile.</p>
       <label>Topic<select aria-label="Rewrite topic" className="mt-1 w-full rounded border border-line p-2" value={sectionId} onChange={event => setSectionId(event.target.value)}><option value="">Select topic…</option>{session.currentNote?.sections?.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
       <DialogButton disabled={busy || draftDirty || !sectionId} onClick={() => void perform(true)}>Generate preview</DialogButton>
       {draftDirty && <p>Save your editor changes before previewing or applying.</p>}
@@ -42,12 +53,13 @@ export function RewriteDialog({session, draftDirty, onClose, onOpenSource, onPla
       {query.data && query.data.length > 1 && <select aria-label="Saved preview" value={selected?.id ?? ""} onChange={event => {setSelectedId(event.target.value); setSemanticAccepted(false);}}>{query.data.map(x => <option key={x.id} value={x.id}>Version {x.basedOnVersion} · {x.status}</option>)}</select>}
       {selected ? <>
         <p>{selected.readyForAcceptance ? "Mechanical retention checks passed. Review the meaning and source support." : "Retention checks blocked this preview. Original text is preserved."}</p>
-        {selected.basedOnVersion !== session.noteVersion && <p role="alert">Notes changed since this preview. Generate a fresh preview to apply changes.</p>}
+        {stale && <p role="alert">Notes changed since this preview. Generate a fresh preview to apply changes.</p>}
+        {selected.changes.filter(x => x.reason).map((x, i) => <p key={i}>Why: {x.reason}</p>)}
         {selected.issues.length > 0 && <ul className="list-disc pl-5">{selected.issues.map((issue, i) => <li key={i}>{issue.replace(/: (?:block|point)_[a-f0-9]+/, "")}</li>)}</ul>}
-        <div className="grid gap-4 md:grid-cols-2"><section><h3 className="mb-2 font-bold">Before</h3>{render(Object.values(selected.originalBodies).join("\n\n"))}</section><section><h3 className="mb-2 font-bold">Proposed</h3>{render(selected.changes.map(x => x.body).join("\n\n"))}</section></div>
-        <label className="flex items-start gap-2"><input type="checkbox" checked={semanticAccepted} onChange={event => setSemanticAccepted(event.target.checked)} disabled={!selected.readyForAcceptance || selected.basedOnVersion !== session.noteVersion || busy} />I reviewed the meaning, qualifications, examples and source support.</label>
+        <div className="grid gap-4 md:grid-cols-2"><section><h3 className="mb-2 font-bold">Before</h3>{render((before.length ? before : Object.values(selected.originalBodies)).join("\n\n"))}</section><section><h3 className="mb-2 font-bold">Proposed</h3>{selected.changes.every(x => x.kind === "delete") ? <p>Delete this text.</p> : render(selected.changes.filter(x => x.kind !== "delete").map(x => x.body).join("\n\n"))}</section></div>
+        <label className="flex items-start gap-2"><input type="checkbox" checked={semanticAccepted} onChange={event => setSemanticAccepted(event.target.checked)} disabled={!selected.readyForAcceptance || stale || busy} />I reviewed the meaning, qualifications, examples and source support.</label>
       </> : <p>No saved rewrite preview.</p>}
       {error && <p role="alert">{error} The preview is retained.</p>}
-      <DialogActions><DialogButton disabled={busy} onClick={onClose}>Close</DialogButton><DialogButton disabled={busy || draftDirty || !semanticAccepted || !selected?.readyForAcceptance || selected.basedOnVersion !== session.noteVersion} onClick={() => void perform(false)}>Accept rewrite</DialogButton></DialogActions>
+      <DialogActions><DialogButton disabled={busy} onClick={onClose}>Close</DialogButton><DialogButton disabled={busy || !selected} onClick={() => void dismiss()}>Dismiss</DialogButton><DialogButton disabled={busy || draftDirty || !semanticAccepted || !selected?.readyForAcceptance || stale} onClick={() => void perform(false)}>Accept suggestion</DialogButton></DialogActions>
     </div></Dialog>;
 }

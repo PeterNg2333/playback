@@ -29,7 +29,7 @@ const fields = [
     max: 120,
     step: 1,
     unit: "s",
-    description: "Queues notes by this age; provider time is additional.",
+    description: "Writes the batch by this age, sooner at a speech pause or Stop; provider time is additional.",
   },
   {
     key: "probabilityThreshold",
@@ -52,8 +52,6 @@ const fields = [
   { key: "silenceBoundarySeconds", label: "Speech pause", min: 0.7, max: 10, step: 0.1, unit: "s", description: "A quiet pause on every active source can admit notes early." },
   { key: "boundarySettleSeconds", label: "ASR settle grace", min: 0, max: 5, step: 0.1, unit: "s", description: "Maximum grace for pending audio at the pause boundary." },
   { key: "maxCombinedSeconds", label: "Maximum quiet segment", min: 10, max: 300, step: 1, unit: "s", description: "Bounds derived quiet audio files; original chunks remain available." },
-  { key: "organizationChangedRevisions", label: "Changed revisions", min: 1, max: 10, step: 1, unit: "", description: "Actual content or outline changes before organization." },
-  { key: "organizationMaxDirtyAgeSeconds", label: "Maximum dirty-note age", min: 30, max: 600, step: 1, unit: "s", description: "Organization can be admitted by this age, even for small notes." },
   { key: "organizationCooldownSeconds", label: "Organization cooldown", min: 15, max: 300, step: 1, unit: "s", description: "Minimum time between organization jobs." },
 ] satisfies {
   key: keyof ProcessingPolicy;
@@ -224,10 +222,10 @@ export function ProcessingSettingsDialog({
                   }
                   onChange={(event) => set("jevEnabled", event.target.checked)}
                 />
-                Allow Jev to admit notes before the deadline
+                Ask Jev whether a passage is complete before the deadline
               </label>
               <p className="mt-1 text-muted">
-                When off, local batching sends notes directly to Gemini.
+                Off (default): notes are written in batches. In a live replay Jev admitted 1 of 40 passages, so it saved no calls.
               </p>
             </div>
             <details>

@@ -39,8 +39,13 @@ public static class NoteOrganization
         var changes = note.RecentChanges.Where(x => x.Revision > state.OrganizedMeaningfulRevision).ToList();
         DateTime? since = dirty > 0 ? changes.Select(x => (DateTime?)x.At).Append(state.PendingTopics.Count > 0 ? state.PendingDirtySince : null).Where(x => x is not null).Min() ?? note.CreatedAt : null;
         var cooldown = state.LastOrganizedAt?.AddSeconds(policy.OrganizationCooldownSeconds);
+        // Organization follows structure, not time: a changed topic that grew too large gets subtopics, and a
+        // level with too many topics gets grouped (the whole outline). An unchanged structure is never re-asked.
+        var changed = state.PendingTopics.Concat(changes.SelectMany(x => x.TopicIds)).ToHashSet();
+        var eligible = EligibleTopics(note.Sections).ToList();
+        var overfull = NoteStructure.Overfull(note.Sections).Where(x => changed.Contains(x.Id) && eligible.Contains(x)).Select(x => x.Id).ToList();
         var reason = !policy.OrganizationEnabled || dirty == 0 || cooldown > now ? null :
-            dirty >= policy.OrganizationChangedRevisions ? "changed-revisions" : now >= since!.Value.AddSeconds(policy.OrganizationMaxDirtyAgeSeconds) ? "dirty-age" : null;
-        return new(dirty, since, cooldown, reason, state.PendingTopics.Concat(changes.SelectMany(x => x.TopicIds)).Distinct().ToList());
+            overfull.Count > 0 ? "large-topic" : NoteStructure.HasCrowdedLevel(note.Sections) ? "crowded-level" : null;
+        return new(dirty, since, cooldown, reason, overfull.Count > 0 ? overfull : changed.ToList());
     }
 }

@@ -39,14 +39,14 @@ public sealed partial class NoteWorkflow
             var canonical = NoteTree.Canonical(topic);
             var input = NoteInput.Build(session, [], [canonical], [], "rewrite-preview");
             var instructions = NoteInstructions.For(session.NoteLanguage) + "\n" + NoteInstructions.Rewrite;
-            if (!gemini.IsConfigured) throw new InvalidOperationException("Gemini is not configured; no rewrite preview was generated");
-            var call = await activity.Begin(id, "Note rewrite preview", "vertex", gemini.Model, canonical.Points.SelectMany(x => x.SourceIds), baseVersion);
+            if (!writer.IsConfigured) throw new InvalidOperationException("The note model is not configured; no rewrite preview was generated");
+            var call = await activity.Begin(id, "Note rewrite preview", writer.Provider, writer.Model, canonical.Points.SelectMany(x => x.SourceIds), baseVersion);
             activity.Context(call, "retained-block-rewrite-v1", instructions, input.Text);
             await generationSlots.WaitAsync(ct);
             try
             {
                 await activity.Start(call);
-                var patch = await gemini.Generate("LectureBlockRewrite", instructions, input.Text, ct, onUpdate: text => activity.Draft(call, input.Decode(ReadableDraft(text))), onUsage: usage => call.UsageJson = usage);
+                var patch = await writer.Generate("LectureBlockRewrite", instructions, input.Text, ct, onUpdate: text => activity.Draft(call, input.Decode(ReadableDraft(text))), onUsage: usage => call.UsageJson = usage);
                 foreach (var change in patch.Rewrites) change.Body = input.Decode(change.Body);
                 var proposal = NoteRewrite.Preview(session.CurrentNote, sectionId, patch.Rewrites, session.AllowedSources, clock.GetUtcNow().UtcDateTime);
                 await rewrites.SaveRewrite(proposal);

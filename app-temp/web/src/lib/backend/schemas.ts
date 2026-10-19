@@ -60,11 +60,27 @@ export const NoteSectionSchema = z.object({
   title: z.string(),
   parentId: z.string().nullish(),
   order: z.number().int().nonnegative().default(0),
-  blocks: z.array(z.object({
-    id: z.string(), order: z.number().int().nonnegative(), role: z.string(), body: z.string(),
-    userEdited: z.boolean(), supersedesBlockId: z.string().nullish(), citationIds: z.array(z.string()),
-    anchors: z.array(z.object({id: z.string(), offset: z.number(), length: z.number(), sourceIds: z.array(z.string())})),
-  })).optional(),
+  blocks: z
+    .array(
+      z.object({
+        id: z.string(),
+        order: z.number().int().nonnegative(),
+        role: z.string(),
+        body: z.string(),
+        userEdited: z.boolean(),
+        supersedesBlockId: z.string().nullish(),
+        citationIds: z.array(z.string()),
+        anchors: z.array(
+          z.object({
+            id: z.string(),
+            offset: z.number(),
+            length: z.number(),
+            sourceIds: z.array(z.string()),
+          }),
+        ),
+      }),
+    )
+    .optional(),
   version: z.number(),
   markdown: z.string(),
   userEdited: z.boolean(),
@@ -140,12 +156,23 @@ const ProcessingPolicyFields = z.object({
   maxCombinedSeconds: z.number().finite().min(10).max(300).default(60),
   organizationEnabled: z.boolean().default(true),
   organizationChangedRevisions: z.number().int().min(1).max(10).default(3),
-  organizationMaxDirtyAgeSeconds: z.number().finite().min(30).max(600).default(120),
+  organizationMaxDirtyAgeSeconds: z
+    .number()
+    .finite()
+    .min(30)
+    .max(600)
+    .default(120),
   organizationCooldownSeconds: z.number().finite().min(15).max(300).default(60),
-  organizationScope: z.enum(["affected-topics", "document-outline"]).default("affected-topics"),
-  notePresentation: z.enum(["numbered-hierarchy", "headings"]).default("numbered-hierarchy"),
+  organizationScope: z
+    .enum(["affected-topics", "document-outline"])
+    .default("affected-topics"),
+  notePresentation: z
+    .enum(["numbered-hierarchy", "headings"])
+    .default("numbered-hierarchy"),
 });
-export const ProcessingPolicySchema = ProcessingPolicyFields.refine(value => value.organizationCooldownSeconds <= value.organizationMaxDirtyAgeSeconds, "Organization cooldown must not exceed maximum dirty-note age");
+// Organization now follows note structure (large topics, crowded levels); the revision and dirty-age fields
+// remain in saved settings for compatibility but no longer schedule anything.
+export const ProcessingPolicySchema = ProcessingPolicyFields;
 export const ProcessingSettingsSchema = z.object({
   schemaVersion: z.literal(1),
   revision: z.number().int().nonnegative(),
@@ -165,7 +192,9 @@ export const ProcessingSettingsSchema = z.object({
     organizationChangedRevisions: z.number().int().nullish(),
     organizationMaxDirtyAgeSeconds: z.number().nullish(),
     organizationCooldownSeconds: z.number().nullish(),
-    organizationScope: z.enum(["affected-topics", "document-outline"]).nullish(),
+    organizationScope: z
+      .enum(["affected-topics", "document-outline"])
+      .nullish(),
     notePresentation: z.enum(["numbered-hierarchy", "headings"]).nullish(),
   }),
   effective: ProcessingPolicySchema,
@@ -185,7 +214,16 @@ export const NoteAdmissionSchema = z.object({
 export const ProcessingSyncSchema = z.object({
   processingSettings: ProcessingSettingsSchema,
   noteAdmission: NoteAdmissionSchema.nullish(),
-  organization: z.object({status: z.string(), dirtyRevisions: z.number(), dirtySince: z.string().nullish(), cooldownUntil: z.string().nullish(), lastOrganizedAt: z.string().nullish(), dueReason: z.string()}).nullish(),
+  organization: z
+    .object({
+      status: z.string(),
+      dirtyRevisions: z.number(),
+      dirtySince: z.string().nullish(),
+      cooldownUntil: z.string().nullish(),
+      lastOrganizedAt: z.string().nullish(),
+      dueReason: z.string(),
+    })
+    .nullish(),
 });
 export type ProcessingPolicy = z.infer<typeof ProcessingPolicySchema>;
 export type ProcessingSettings = z.infer<typeof ProcessingSettingsSchema>;
@@ -199,7 +237,15 @@ export const CombinedAudioSchema = z.object({
   endMs: z.number(),
   recordedAt: z.string().nullish(),
   state: z.literal("published"),
-  children: z.array(z.object({ chunkId: z.string(), frameOffset: z.number(), frameCount: z.number(), startMs: z.number(), endMs: z.number() })),
+  children: z.array(
+    z.object({
+      chunkId: z.string(),
+      frameOffset: z.number(),
+      frameCount: z.number(),
+      startMs: z.number(),
+      endMs: z.number(),
+    }),
+  ),
 });
 export const SessionSchema = SessionSummarySchema.extend({
   combinedAudioSegments: z.array(CombinedAudioSchema).optional(),
@@ -452,9 +498,32 @@ export const NoteRecoverySchema = z.object({
   ),
 });
 export const NoteRewriteSchema = z.object({
-  id: z.string(), sessionId: z.string(), basedOnVersion: z.number().int(), topicId: z.string(), createdAt: z.string(), status: z.string(),
-  changes: z.array(z.object({targetBlockId: z.string(), retainedBlockIds: z.array(z.string()), body: z.string(), role: z.string()})),
-  originalBodies: z.record(z.string(), z.string()), issues: z.array(z.string()), readyForAcceptance: z.boolean(),
+  id: z.string(),
+  sessionId: z.string(),
+  basedOnVersion: z.number().int(),
+  topicId: z.string(),
+  createdAt: z.string(),
+  status: z.string(),
+  // kind "delete" removes the target block; reason says why the AI or Jev sent it for review.
+  changes: z.array(
+    z.object({
+      targetBlockId: z.string(),
+      retainedBlockIds: z.array(z.string()),
+      body: z.string(),
+      role: z.string(),
+      kind: z.string().default("replace"),
+      reason: z.string().default(""),
+    }),
+  ),
+  originalBodies: z.record(z.string(), z.string()),
+  issues: z.array(z.string()),
+  readyForAcceptance: z.boolean(),
+});
+
+// What an owner's instruction changed: how many operations applied and why the others did not.
+export const InstructionResultSchema = z.object({
+  applied: z.number().int(),
+  notApplied: z.array(z.string()),
 });
 
 // One saved version of the notes.

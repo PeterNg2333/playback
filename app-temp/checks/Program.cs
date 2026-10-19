@@ -88,6 +88,12 @@ try
         case ["--week3-term-live", var folder]:
             await Week3StoreRun.Term(folder);
             break;
+        case ["--note-models", var folder]:
+            await NoteModelComparison.Run(folder, live: false);
+            break;
+        case ["--note-models-live", var folder]:
+            await NoteModelComparison.Run(folder, live: true);
+            break;
 
         default:
             Console.Error.WriteLine("Unknown check. Run without arguments for the offline checks; Program.cs lists the other groups.");
@@ -118,6 +124,7 @@ static async Task RunOffline(bool notesOnly)
         await AskChecks.QuickAnswers();
         await TermChecks.Run();
         await GeminiChecks.Run();
+        await OpenRouterTextChecks.Run();
     }
     NoteDocumentChecks.Run();
     await NoteTreeChecks.Run();
@@ -126,6 +133,7 @@ static async Task RunOffline(bool notesOnly)
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();
     await NoteGenerationChecks.Run();
+    await NoteEditChecks.Run();
     await NoteSchedulingChecks.Run();
     await ProcessingPolicyChecks.Run();
     await NoteCoverageChecks.Run();

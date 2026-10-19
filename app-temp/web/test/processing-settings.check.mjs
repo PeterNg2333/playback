@@ -156,7 +156,7 @@ try {
     .check();
   await dialog
     .getByRole("checkbox", {
-      name: "Allow Jev to admit notes before the deadline",
+      name: "Ask Jev whether a passage is complete before the deadline",
     })
     .uncheck();
   await dialog
@@ -222,10 +222,10 @@ try {
     () => !document.querySelector("dialog button:last-child")?.disabled,
   );
   assert.equal(workspace.overrides.maxPendingWaitSeconds, 40);
-  await dialog.getByLabel("Maximum dirty-note age", {exact: true}).fill("30");
+  await dialog.getByLabel("Organization cooldown", {exact: true}).fill("301");
   assert.equal(await dialog.getByRole("button", {name: "Save settings", exact: true}).isDisabled(), true);
   await dialog.getByLabel("Organization cooldown", {exact: true}).fill("15");
-  await dialog.getByLabel("Changed revisions", {exact: true}).fill("1");
+  assert.equal(await dialog.getByLabel("Changed revisions", {exact: true}).count(), 0);
   await dialog.getByLabel("Organize automatically", {exact: true}).uncheck();
   await dialog.getByLabel("Organization scope", {exact: true}).selectOption("document-outline");
   await dialog.getByLabel("Note presentation", {exact: true}).selectOption("headings");

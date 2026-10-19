@@ -18,8 +18,10 @@ public sealed record ProcessingOverrides(
     string? OrganizationScope = null,
     string? NotePresentation = null);
 
+// JevEnabled is off by default: in a live replay Jev allowed 1 of 40 passages, so notes are written in batches
+// (MaxPendingWaitSeconds after the first new speech, at a speech boundary, or at Stop). On, Jev may admit earlier.
 public sealed record ProcessingPolicy(
-    bool JevEnabled = true,
+    bool JevEnabled = false,
     double ProbabilityThreshold = .70,
     double ConfidenceThreshold = .50,
     double CheckIntervalSeconds = 10,
@@ -62,7 +64,6 @@ public sealed record ProcessingPolicy(
         Range(OrganizationChangedRevisions, 1, 10, "Changed revisions before organization");
         Range(OrganizationMaxDirtyAgeSeconds, 30, 600, "Maximum dirty-note age (seconds)");
         Range(OrganizationCooldownSeconds, 15, 300, "Organization cooldown (seconds)");
-        if (OrganizationCooldownSeconds > OrganizationMaxDirtyAgeSeconds) throw new ProcessingPolicyValidationException("Organization cooldown must not exceed maximum dirty-note age");
         if (OrganizationScope is not ("affected-topics" or "document-outline")) throw new ProcessingPolicyValidationException("Invalid organization scope");
         if (NotePresentation is not ("numbered-hierarchy" or "headings")) throw new ProcessingPolicyValidationException("Invalid note presentation");
     }

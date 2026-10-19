@@ -34,7 +34,12 @@ public sealed class NoteTreeOperation
     public string Body { get; set; } = "";
     public string? SupersedesBlockId { get; set; }
     public List<string> SourceIds { get; set; } = [];
+    // replace-text: the exact text in BlockId and what replaces it. delete-block: why the block goes.
+    public string Find { get; set; } = "";
+    public string Replace { get; set; } = "";
+    public string Reason { get; set; } = "";
 }
+public sealed record RejectedOperation(NoteTreeOperation Operation, string Reason);
 public static class NoteTree
 {
     public static NoteSection Canonical(NoteSection section, NoteSection? previous = null)
@@ -134,46 +139,90 @@ public static class NoteTree
             }
         }
     }
+    // All or nothing: the first operation the tree refuses rejects the whole reply (organization uses this).
     public static List<NoteSection> Apply(IEnumerable<NoteSection> previous, IReadOnlyList<NoteTreeOperation> operations,
-        IEnumerable<string> allowedSources, string inputHash, bool allowProtected = false, bool structuralOnly = false)
+        IEnumerable<string> allowedSources, string inputHash, bool allowProtected = false, bool structuralOnly = false, int maxOperations = MaxOperations)
     {
-        if (operations.Count > 24) throw new InvalidOperationException("Tree operation budget exceeded");
-        var result = previous.Select(x => Canonical(x)).ToList(); var allowed = allowedSources.ToHashSet();
-        var aliases = new Dictionary<string, string>();
+        if (operations.Count > maxOperations) throw new InvalidOperationException("Tree operation budget exceeded");
+        var tree = new Editor(previous, allowedSources, inputHash, allowProtected, structuralOnly);
+        foreach (var op in operations) tree.Apply(op);
+        Validate(tree.Topics);
+        tree.DropEmptyNewTopics();
+        return tree.Topics;
+    }
+
+    // Like an editor applying a list of edits: each operation applies on its own, and one the tree refuses is
+    // reported and skipped while the rest still apply. Operations that depend on a refused one fail in turn.
+    public static (List<NoteSection> Topics, List<RejectedOperation> Rejected) ApplyEach(IEnumerable<NoteSection> previous,
+        IReadOnlyList<NoteTreeOperation> operations, IEnumerable<string> allowedSources, string inputHash)
+    {
+        var tree = new Editor(previous, allowedSources, inputHash, allowProtected: false, structuralOnly: false);
+        var rejected = operations.Skip(MaxOperations).Select(x => new RejectedOperation(x, "Tree operation budget exceeded")).ToList();
+        foreach (var op in operations.Take(MaxOperations))
+        {
+            var before = tree.Snapshot();
+            try { tree.Apply(op); Validate(tree.Topics); }
+            catch (InvalidOperationException ex) { tree.Restore(before); rejected.Add(new(op, ex.Message)); }
+        }
+        rejected.AddRange(tree.DropEmptyNewTopics().Select(x => new RejectedOperation(x, "A new topic without content was not kept")));
+        return (tree.Topics, rejected);
+    }
+
+    public const int MaxOperations = 24;
+    public const int MaxOrganizationOperations = 80;
+
+    // A reply names new topics and blocks with any short alias (the prompt suggests "new:slug"); stored IDs are
+    // derived from it, so the alias only has to be unambiguous within the reply and differ from existing IDs.
+    static bool IsAlias(string id) => Regex.IsMatch(id, @"^[^\s\[\]]{1,80}$");
+
+    sealed class Editor(IEnumerable<NoteSection> previous, IEnumerable<string> allowedSources, string inputHash, bool allowProtected, bool structuralOnly)
+    {
+        public List<NoteSection> Topics = previous.Select(x => Canonical(x)).ToList();
+        Dictionary<string, string> aliases = [];
+        List<(NoteTreeOperation Op, string Id)> created = [];
+        readonly HashSet<string> allowed = allowedSources.ToHashSet();
+
+        public (List<NoteSection>, Dictionary<string, string>, List<(NoteTreeOperation, string)>) Snapshot() =>
+            (Topics.Select(x => Canonical(x)).ToList(), new(aliases), created.ToList());
+        public void Restore((List<NoteSection> Topics, Dictionary<string, string> Aliases, List<(NoteTreeOperation, string)> Created) state) =>
+            (Topics, aliases, created) = (state.Topics, state.Aliases, state.Created);
+
         string Resolve(string id) => aliases.GetValueOrDefault(id, id);
-        NoteSection Topic(string id) => result.SingleOrDefault(x => x.Id == Resolve(id)) ?? throw new InvalidOperationException("Unknown topic");
-        foreach (var op in operations)
+        NoteSection Topic(string id) => Topics.SingleOrDefault(x => x.Id == Resolve(id)) ?? throw new InvalidOperationException("Unknown topic");
+
+        public void Apply(NoteTreeOperation op)
         {
             if (op.Order < 0 || op.Order > 10000) throw new InvalidOperationException("Invalid sibling order");
-            if (op.Kind == "create-topic")
-            {
-                if (!Regex.IsMatch(op.TopicId, @"^new:[a-z0-9-]{1,60}$") || aliases.ContainsKey(op.TopicId) || op.Title.Trim().Length is < 1 or > 200) throw new InvalidOperationException("Invalid new topic");
-                var id = "section_" + ContentHash.Of(inputHash + op.TopicId)[..20]; aliases.Add(op.TopicId, id);
-                result.Add(new() { Id = id, Title = op.Title.Trim(), ParentId = op.ParentId is null ? null : Topic(op.ParentId).Id, Order = op.Order });
-                continue;
-            }
+            if (op.Kind == "create-topic") { CreateTopic(op); return; }
+            if (op.Kind is "replace-text" or "delete-block") { EditBlock(op); return; }
             var topic = Topic(op.TopicId);
+            if (op.Kind == "rename-topic")
+            {
+                if (topic.UserEdited && !allowProtected) throw new InvalidOperationException("Protected topic requires an explicit scope action");
+                if (op.Title.Trim().Length is < 1 or > 200) throw new InvalidOperationException("Invalid topic title");
+                topic.Title = op.Title.Trim(); topic.Version++; return;
+            }
             if (op.Kind == "move-topic" || op.Kind == "reorder-topic")
             {
                 if (topic.UserEdited && !allowProtected) throw new InvalidOperationException("Protected topic requires an explicit scope action");
                 if (op.Kind == "move-topic") topic.ParentId = op.ParentId is null ? null : Topic(op.ParentId).Id;
-                topic.Order = op.Order; topic.Version++; continue;
+                topic.Order = op.Order; topic.Version++; return;
             }
             if (op.Kind == "add-block")
             {
-                if (structuralOnly || !Regex.IsMatch(op.BlockId, @"^new:[a-z0-9-]{1,60}$") || op.Body.Trim().Length is < 1 or > 8000 || op.SourceIds.Count == 0 || op.SourceIds.Except(allowed).Any()) throw new InvalidOperationException("Invalid new evidence block");
+                if (structuralOnly || !IsAlias(op.BlockId) || Topics.Any(x => x.Blocks.Any(b => b.Id == op.BlockId)) || op.Body.Trim().Length is < 1 or > 8000 || op.SourceIds.Count == 0 || op.SourceIds.Except(allowed).Any()) throw new InvalidOperationException("Invalid new evidence block");
+                if (NoteContent.IsPlaceholder(op.Body)) throw new InvalidOperationException("A placeholder is not note content");
                 if (op.Role is not ("definition" or "example" or "derivation" or "correction" or "detail")) throw new InvalidOperationException("Unknown block role");
-                if (op.SupersedesBlockId is not null && !result.SelectMany(x => x.Blocks).Any(x => x.Id == op.SupersedesBlockId || x.RetainedBlockIds.Contains(op.SupersedesBlockId))) throw new InvalidOperationException("Unknown correction target");
+                if (op.SupersedesBlockId is not null && !Topics.SelectMany(x => x.Blocks).Any(x => x.Id == op.SupersedesBlockId || x.RetainedBlockIds.Contains(op.SupersedesBlockId))) throw new InvalidOperationException("Unknown correction target");
                 var cited = NoteSections.Sources(op.Body, allowed);
                 if (op.SourceIds.Except(cited).Any()) throw new InvalidOperationException("New block lacks observable citations");
                 var id = "point_" + ContentHash.Of(inputHash + op.BlockId)[..20];
+                if (Topics.Any(x => x.Blocks.Any(b => b.Id == id))) throw new InvalidOperationException("Duplicate new block alias");
                 topic.Blocks.Add(new() { Id = id, Body = op.Body, Order = op.Order, Role = op.Role, SupersedesBlockId = op.SupersedesBlockId,
                     CitationIds = CitationSyntax.Bodies(op.Body).Distinct().ToList(), Anchors = [new() { Id = id, Length = op.Body.Length, SourceIds = op.SourceIds.Distinct().ToList() }] });
-                topic.Version++; continue;
+                topic.Version++; return;
             }
-            var sourceTopic = result.SingleOrDefault(x => x.Blocks.Any(b => b.Id == op.BlockId)) ?? throw new InvalidOperationException("Unknown block");
-            var block = sourceTopic.Blocks.Single(x => x.Id == op.BlockId);
-            if ((sourceTopic.UserEdited || block.UserEdited) && !allowProtected) throw new InvalidOperationException("Protected block requires an explicit scope action");
+            var (sourceTopic, block) = ProtectedCheck(op);
             if (op.Kind is "move-block" or "reorder-block")
             {
                 sourceTopic.Blocks.Remove(block); topic.Blocks.Add(block); block.Order = op.Order; sourceTopic.Version++; if (sourceTopic != topic) topic.Version++;
@@ -184,6 +233,55 @@ public static class NoteTree
             }
             else throw new InvalidOperationException("Unknown tree operation");
         }
-        Validate(result); return result;
+
+        // A topic whose title already exists under the same parent receives the content instead of a duplicate.
+        void CreateTopic(NoteTreeOperation op)
+        {
+            if (!IsAlias(op.TopicId) || aliases.ContainsKey(op.TopicId) || Topics.Any(x => x.Id == op.TopicId) || op.Title.Trim().Length is < 1 or > 200) throw new InvalidOperationException("Invalid new topic");
+            var parent = op.ParentId is null ? null : Topic(op.ParentId).Id;
+            var title = op.Title.Trim();
+            var existing = Topics.FirstOrDefault(x => x.ParentId == parent && string.Equals(x.Title.Trim(), title, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null) { aliases.Add(op.TopicId, existing.Id); return; }
+            var id = "section_" + ContentHash.Of(inputHash + op.TopicId)[..20];
+            aliases.Add(op.TopicId, id);
+            Topics.Add(new() { Id = id, Title = title, ParentId = parent, Order = op.Order });
+            created.Add((op, id));
+        }
+
+        // Text edits find their block by ID alone; a topic ID in the reply is not needed.
+        void EditBlock(NoteTreeOperation op)
+        {
+            if (structuralOnly) throw new InvalidOperationException("Structural organization cannot edit text");
+            var (topic, block) = ProtectedCheck(op);
+            if (op.Kind == "replace-text") NoteContent.ReplaceOnce(block, op.Find, op.Replace);
+            else topic.Blocks.Remove(block);
+            topic.Version++;
+        }
+
+        (NoteSection Topic, NoteBlock Block) ProtectedCheck(NoteTreeOperation op)
+        {
+            var topic = Topics.SingleOrDefault(x => x.Blocks.Any(b => b.Id == op.BlockId)) ?? throw new InvalidOperationException("Unknown block");
+            var block = topic.Blocks.Single(x => x.Id == op.BlockId);
+            if ((topic.UserEdited || block.UserEdited) && !allowProtected) throw new InvalidOperationException("Protected block requires an explicit scope action");
+            return (topic, block);
+        }
+
+        // Created topics that ended with neither blocks nor subtopics are removed, innermost first.
+        public List<NoteTreeOperation> DropEmptyNewTopics()
+        {
+            var dropped = new List<NoteTreeOperation>();
+            bool removed;
+            do
+            {
+                removed = false;
+                foreach (var (op, id) in created.ToList())
+                {
+                    var topic = Topics.SingleOrDefault(x => x.Id == id);
+                    if (topic is null || topic.Blocks.Count > 0 || Topics.Any(x => x.ParentId == id)) continue;
+                    Topics.Remove(topic); created.Remove((op, id)); dropped.Add(op); removed = true;
+                }
+            } while (removed);
+            return dropped;
+        }
     }
 }

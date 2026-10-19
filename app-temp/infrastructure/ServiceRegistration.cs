@@ -52,14 +52,16 @@ public static class ServiceRegistration
         services.AddSingleton<Playback.Application.Recording.ChunkCommands>();
         services.AddHostedService<CombinedAudioWorker>();
 
+        services.AddSingleton<Playback.Application.Notes.INoteWriter>(s => NoteWriters.Create(s.GetRequiredService<GeminiLanguageModel>()));
         services.AddSingleton<JevNoteGate>();
         services.AddSingleton<IJevTransport>(s => s.GetRequiredService<JevTransport>());
         services.AddSingleton<NoteStoreAdapter>();
         services.AddSingleton<NoteCommands>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>()));
         services.AddSingleton<NoteWorkflow>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>(),
-            new GeminiNoteWriter(s.GetRequiredService<GeminiLanguageModel>()), s.GetRequiredService<JevNoteGate>(),
+            s.GetRequiredService<Playback.Application.Notes.INoteWriter>(), s.GetRequiredService<JevNoteGate>(),
             new NoteActivityAdapter(s.GetRequiredService<AiActivity>(), s.GetRequiredService<ILogger<NoteAgent>>()),
-            processingPolicy: s.GetRequiredService<NoteStoreAdapter>(), boundaries: s.GetRequiredService<NoteStoreAdapter>(), organization: s.GetRequiredService<NoteStoreAdapter>(), rewrites: s.GetRequiredService<NoteStoreAdapter>()));
+            processingPolicy: s.GetRequiredService<NoteStoreAdapter>(), boundaries: s.GetRequiredService<NoteStoreAdapter>(), organization: s.GetRequiredService<NoteStoreAdapter>(), rewrites: s.GetRequiredService<NoteStoreAdapter>(),
+            script: new OpenccNoteScript()));
         services.AddSingleton<NoteAgent>(s => new(s.GetRequiredService<PlaybackStore>(), s.GetRequiredService<NoteWorkflow>(),
             s.GetRequiredService<ILogger<NoteAgent>>()));
         services.AddHostedService(s => s.GetRequiredService<NoteAgent>());

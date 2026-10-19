@@ -86,11 +86,14 @@ static class ProcessingPolicyChecks
             Expect.That(model.Calls == 1 && gate.Calls == 1 && store.Gates["deadline"].Decision == "wait" && store.Gates["deadline"].AdmissionReason == "deadline", "Restart reset the deadline or fabricated a Jev allow");
         }
         store.Add("disabled"); store.Speech("disabled", "s2", "Short speech still writes.");
-        await Configure(store, "disabled", new(JevEnabled: false, CheckIntervalSeconds: 2));
+        await Configure(store, "disabled", new(JevEnabled: false, CheckIntervalSeconds: 2, MaxPendingWaitSeconds: 10));
         await using (var agent = Agent(store, model, gate, clock))
         {
+            // Without Jev, speech waits for its batch deadline and is then written, however short.
             await Tick(agent, clock, 2, "disabled");
-            Expect.That(gate.Calls == 1 && model.Calls == 2 && store.Gates["disabled"].AdmissionReason == "gate-disabled", "Disabled gate called Jev or applied a character minimum");
+            Expect.That(gate.Calls == 1 && model.Calls == 1 && store.Gates["disabled"].Status == "batching", "Batching wrote early or asked Jev");
+            await Tick(agent, clock, 10, "disabled");
+            Expect.That(gate.Calls == 1 && model.Calls == 2 && store.Gates["disabled"].AdmissionReason == "deadline", "A batch without Jev was not written at its deadline or asked Jev");
         }
     }
     static async Task ThresholdChange()
@@ -140,10 +143,11 @@ static class ProcessingPolicyChecks
             Expect.That(gate.Calls == 2 && model.Calls == 2 && store.Gates["gate-failure"].AdmissionReason == "deadline-after-gate-failure" && store.Gates["gate-failure"].Decision != "allow", "Gate backoff blocked the deadline or fabricated allow");
         }
         store.Add("writer-failure"); store.Speech("writer-failure", "s3", "Writer retries reuse local admission.");
-        await Configure(store, "writer-failure", new(JevEnabled: false, CheckIntervalSeconds: 2));
+        await Configure(store, "writer-failure", new(JevEnabled: false, CheckIntervalSeconds: 2, MaxPendingWaitSeconds: 10));
         await using (var agent = Agent(store, model, gate, clock))
         {
-            for (var i = 0; i < 3; i++) { model.FailNext = true; await Tick(agent, clock, i == 0 ? 2 : i * 30, "writer-failure"); }
+            await Tick(agent, clock, 2, "writer-failure"); // starts the batch
+            for (var i = 0; i < 3; i++) { model.FailNext = true; await Tick(agent, clock, i == 0 ? 10 : i * 30, "writer-failure"); }
             var calls = model.Calls; await Tick(agent, clock, 300, "writer-failure");
             Expect.That(model.Calls == calls && store.Gates["writer-failure"].Attempts == 3 && store.Transcripts["writer-failure"][0].NoteStatus == "pending", "Writer failure exceeded retry bounds or lost sources");
             model.FailNext = false; await agent.Generate("writer-failure", CancellationToken.None);

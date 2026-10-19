@@ -10,11 +10,12 @@ namespace Playback.Api.Activity;
 
 public sealed record FlowAgent(string Id, string Name, string Provider, string Model, string Status, string PromptVersion,
     string Prompt, string Trigger, string Lifecycle, string InputRole, string OutputRole, List<string> DependsOn);
-public sealed class AiFlow(PlaybackStore store, GeminiLanguageModel gemini, JevNoteGate gate, IAsrAdapter asr, AiActivity activity)
+public sealed class AiFlow(PlaybackStore store, GeminiLanguageModel gemini, Playback.Application.Notes.INoteWriter noteWriter, JevNoteGate gate, IAsrAdapter asr, AiActivity activity)
 {
     public List<FlowAgent> Agents(SessionRecord? session, ProcessingPolicy? policy = null) {
         policy ??= ProcessingPolicy.Defaults;
         var offline = PlaybackEnvironment.Offline;
+        string WriterStatus(bool enabled = true) => !enabled ? "disabled" : offline ? "offline" : noteWriter.IsConfigured ? "configured" : "not configured";
         string GeminiStatus(bool enabled = true) => !enabled ? "disabled" : offline ? "offline" : gemini.IsConfigured ? "configured" : "not configured";
         return [
             new("asr", "ASR", asr.Model.Provider, session?.AsrModel ?? asr.Model.Model,
@@ -27,14 +28,14 @@ public sealed class AiFlow(PlaybackStore store, GeminiLanguageModel gemini, JevN
                 $"Changed input checked every {policy.CheckIntervalSeconds}s; probability >= {policy.ProbabilityThreshold}, confidence >= {policy.ConfidenceThreshold}; no idle provider call",
                 "Per-session dedup; 4 admitted sessions; persisted policy/deadline/decision; bounded retry; local deadline and Stop remain distinct from Jev allow",
                 "Bounded pending passages and section context", "Structured note-specific allow/wait + probability/confidence/usage", ["asr"]),
-            new("notes", "Semantic sections & notes", "vertex / Agent Framework", gemini.Model, GeminiStatus(PlaybackEnvironment.AutomaticNotes),
+            new("notes", "Semantic sections & notes", noteWriter.Provider, noteWriter.Model, WriterStatus(PlaybackEnvironment.AutomaticNotes),
                 NoteInstructions.Version, NoteInstructions.For(session?.NoteLanguage ?? "zh-Hant"),
-                $"Jev allow; local deadline after {policy.MaxPendingWaitSeconds}s; Stop; disabled gate; explicit Revise",
+                $"Batch {policy.MaxPendingWaitSeconds}s after new speech; speech pause; Stop; optional Jev allow; explicit Revise",
                 "Section patches; untouched sections retained; points/provenance checked; deferred sources stay pending; note/language base conflict rejects save; user edits protected; bounded input/output",
                 "Confirmed speech + editable section points + same-session materials", "One versioned note with semantic sections and persistent citations", ["gate"]),
-            new("organize", "Section organization", "vertex / Agent Framework", gemini.Model,
-                GeminiStatus(), NoteInstructions.OrganizeVersion, NoteInstructions.For(session?.NoteLanguage ?? "zh-Hant") + "\n" + NoteInstructions.Organize,
-                "Explicit selected section; optional PLAYBACK_AUTO_ORGANIZE=yes scan every 30 minutes for long/repetitive new sections",
+            new("organize", "Section organization", noteWriter.Provider, noteWriter.Model,
+                WriterStatus(), NoteInstructions.OrganizeVersion, NoteInstructions.For(session?.NoteLanguage ?? "zh-Hant") + "\n" + NoteInstructions.Organize,
+                "Explicit selected section; automatically when a changed topic exceeds six blocks or a level exceeds six topics",
                 "Same document/history; one section; note/section base validation; retained points; at most one eligible automatic section per session per scan; disabled automatic policy by default",
                 "Selected section and its actual sources", "A reversible note version with only that section updated", ["notes"]),
             new("terms", "Term ranking", "typesafe", "GET /v1/models discovery", offline ? "offline" : gate.IsConfigured && PlaybackEnvironment.AutomaticTerms ? "configured" : "disabled",

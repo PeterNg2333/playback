@@ -9,10 +9,50 @@ namespace Playback.Api.Notes;
 public sealed class GeminiNoteWriter(GeminiLanguageModel model) : INoteWriter
 {
     public bool IsConfigured => model.IsConfigured;
+    public string Provider => "vertex";
     public string Model => model.Model;
     public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
         NoteReplyParser.Parse(await model.Generate(name, instructions, input, ct, onUpdate: onUpdate, onUsage: onUsage));
+}
+
+// PLAYBACK_NOTE_MODEL picks the model that writes and organizes notes: "openrouter:<model>[@reasoning]" or
+// "vertex:<model>". Chat, translation and term explanations stay on Gemini (they use Google Search grounding).
+public static class NoteWriters
+{
+    public const string Default = "openrouter:qwen/qwen3.8-flash@none";
+
+    public static INoteWriter Create(GeminiLanguageModel gemini)
+    {
+        // Without a setting the default needs an OpenRouter key; with none, notes stay on the Gemini model.
+        var choice = Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODEL") is { Length: > 0 } configured ? configured
+            : OpenRouterKey.Read() is not null ? Default : "vertex:" + gemini.Model;
+        var separator = choice.IndexOf(':');
+        if (separator < 1) throw new InvalidOperationException("PLAYBACK_NOTE_MODEL must be provider:model");
+        var (provider, model) = (choice[..separator], choice[(separator + 1)..]);
+        return provider switch
+        {
+            "openrouter" => new OpenRouterNoteWriter(new OpenRouterTextModel(model.Split('@')[0], model.Contains('@') ? model[(model.IndexOf('@') + 1)..] : "low")),
+            "vertex" when model == gemini.Model => new GeminiNoteWriter(gemini),
+            "vertex" => throw new InvalidOperationException("For a Vertex note model, set PLAYBACK_GEMINI_MODEL to the same allowlisted model"),
+            _ => throw new InvalidOperationException("PLAYBACK_NOTE_MODEL provider must be openrouter or vertex")
+        };
+    }
+}
+
+// Not streamed: the whole reply arrives at once, so the live draft shows it only when complete.
+public sealed class OpenRouterNoteWriter(OpenRouterTextModel model) : INoteWriter
+{
+    public bool IsConfigured => model.IsConfigured;
+    public string Provider => "openrouter";
+    public string Model => model.Model;
+    public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
+        Action<string>? onUpdate = null, Action<string>? onUsage = null)
+    {
+        var reply = await model.Generate(name, instructions, input, ct, onUsage);
+        onUpdate?.Invoke(reply);
+        return NoteReplyParser.Parse(reply);
+    }
 }
 
 public sealed class NoteActivityAdapter(AiActivity activity, ILogger<NoteAgent> logger) : INoteActivity

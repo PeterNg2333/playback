@@ -108,8 +108,14 @@ public static class NoteSections
         citations.AddRange(update.Citations.Where(x => citations.All(c => c.Id != x.Id)));
         string Canonical(string text) => Compact(previous.SessionId, Expand(text, citations), allowed, citations).Replace("\r\n", "\n");
         foreach (var old in Read(previous, allowed)) {
-            var current = update.Sections.SingleOrDefault(x => x.Id == old.Id)
-                ?? throw new InvalidOperationException("AI update removed a saved section; result was not applied");
+            var current = update.Sections.SingleOrDefault(x => x.Id == old.Id);
+            if (current is null)
+            {
+                // A topic the organizer emptied may go once every block it held lives on elsewhere; no text goes with it.
+                var remaining = update.Sections.SelectMany(x => x.Blocks).Select(x => x.Id).ToHashSet();
+                if (!old.UserEdited && (old.Blocks.Count > 0 || old.Points.Count == 0) && old.Blocks.All(x => remaining.Contains(x.Id))) continue;
+                throw new InvalidOperationException("AI update removed a saved section; result was not applied");
+            }
             var body = Canonical(current.Markdown);
             if (old.Blocks.Count > 0 && update.Sections.Any(x => x.Blocks.Count > 0))
             {
@@ -117,6 +123,14 @@ public static class NoteSections
                 foreach (var prior in old.Blocks)
                 {
                     var retained = blocks.SingleOrDefault(x => x.Id == prior.Id);
+                    if (update.EditedBlockIds?.Contains(prior.Id) == true)
+                    {
+                        // An approved edit may change or remove the block, never the evidence it cites.
+                        var kept = (retained is null ? blocks : [retained]).SelectMany(x => x.Anchors).SelectMany(x => x.SourceIds);
+                        if (prior.Anchors.SelectMany(x => x.SourceIds).Except(kept).Any())
+                            throw new InvalidOperationException("An approved edit lost a block's evidence");
+                        continue;
+                    }
                     if (retained is null || Canonical(retained.Body) != Canonical(prior.Body) || prior.Anchors.SelectMany(x => x.SourceIds).Except(retained.Anchors.SelectMany(x => x.SourceIds)).Any())
                         throw new InvalidOperationException("Structural operation lost a canonical block or its evidence");
                     if ((old.UserEdited || prior.UserEdited) && !allowProtectedReformat && !current.Blocks.Any(x => x.Id == prior.Id))
@@ -212,11 +226,28 @@ public static class NoteSections
         return new RecoveryPreview(latest?.Version ?? 0, historical.Version, current, citations, candidates);
     }
 }
-public sealed class NotePatch { public List<SectionPatch> Sections { get; set; } = []; public List<SourceDisposition> Deferred { get; set; } = []; public List<NoteTreeOperation> Operations { get; set; } = []; public List<RewriteBlockChange> Rewrites { get; set; } = []; }
+// A note reply. Like an author planning a document, the writer first places new content: Outline declares the
+// new topics (key, title, parent) and every Block names the topic it goes in, an open existing topic or a new key.
+// Operations edit, move, reorder or rename. Property order is the order the model writes them.
+public sealed class NotePatch
+{
+    public List<OutlinePlacement> Outline { get; set; } = [];
+    public List<PlacedBlock> Blocks { get; set; } = [];
+    public List<NoteTreeOperation> Operations { get; set; } = [];
+    public List<SourceDisposition> Deferred { get; set; } = [];
+    public List<SectionPatch> Sections { get; set; } = [];
+    public List<RewriteBlockChange> Rewrites { get; set; } = [];
+}
+// Key: new1…new8. Parent: "" for the top level, an existing topic ID, or another new key.
+public sealed class OutlinePlacement { public string Key { get; set; } = ""; public string Title { get; set; } = ""; public string Parent { get; set; } = ""; }
+// Topic: an open existing topic ID or a new key from Outline.
+public sealed class PlacedBlock { public string Topic { get; set; } = ""; public string Role { get; set; } = "detail"; public string Body { get; set; } = ""; public List<string> SourceIds { get; set; } = []; }
 public sealed class SectionPatch { public string Id { get; set; } = "new"; public int BaseVersion { get; set; } public string Title { get; set; } = "";
     public string? ParentId { get; set; }
     public string Markdown { get; set; } = ""; public List<PointPatch> Points { get; set; } = []; }
 public sealed class PointPatch { public string Text { get; set; } = ""; public List<string> SourceIds { get; set; } = []; public List<string> Retains { get; set; } = []; }
-public sealed record SectionUpdate(List<NoteSection> Sections, List<NoteCitation> Citations, List<SourceDisposition> Coverage, string? Presentation = null);
+// EditedBlockIds: blocks an approved edit (replace-text/delete-block judged by Jev) may change or remove in this update.
+public sealed record SectionUpdate(List<NoteSection> Sections, List<NoteCitation> Citations, List<SourceDisposition> Coverage, string? Presentation = null,
+    IReadOnlyCollection<string>? EditedBlockIds = null);
 public sealed record RecoveryCandidate(string Id, string Title, string Markdown, List<string> MissingSourceIds, bool Blocked, bool UserEdited, List<NotePoint> Points);
 public sealed record RecoveryPreview(int BasedOnVersion, int HistoricalVersion, List<NoteSection> CurrentSections, List<NoteCitation> Citations, List<RecoveryCandidate> Candidates);

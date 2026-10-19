@@ -16,12 +16,12 @@ static class GeminiChecks
     {
         await TruncatedReplies();
         GroundedSearch();
-        var outlineFormat = GeminiLanguageModel.ResponseFormat("LectureSectionOrganizer", """
+        var outlineFormat = ModelOutputContract.ResponseFormat("LectureSectionOrganizer", """
             {"trigger":"document-outline","pending":[],"materials":[],"editableSections":[],"topicOutline":[["S000","TCP",null,0,false]]}
             """);
         Expect.That(outlineFormat is not null, "Outline-only input failed the real provider schema builder");
-        Expect.That(GeminiLanguageModel.OutputLimit("LectureSectionWriter") == 8192 && GeminiLanguageModel.OutputLimit("PlaybackTranslator") == 4096 &&
-            GeminiLanguageModel.OutputLimit("PlaybackQuestionAnswerer") == 1024 && NoteScheduler.Interval.TotalSeconds == 10,
+        Expect.That(ModelOutputContract.OutputLimit("LectureSectionWriter") == 8192 && ModelOutputContract.OutputLimit("PlaybackTranslator") == 4096 &&
+            ModelOutputContract.OutputLimit("PlaybackQuestionAnswerer") == 1024 && NoteScheduler.Interval.TotalSeconds == 10,
             "Automatic notes and routine answers must retain explicit cost limits");
         Console.WriteLine("Gemini checks passed (in-memory HTTP): SDK token cap and section schema, truncation rejected with usage kept, safe grounded sources, cost limits");
     }
@@ -63,7 +63,7 @@ static class GeminiChecks
             ChatOptions = new ChatOptions
             {
                 MaxOutputTokens = 8192,
-                ResponseFormat = GeminiLanguageModel.ResponseFormat("LectureSectionWriter", """
+                ResponseFormat = ModelOutputContract.ResponseFormat("LectureSectionWriter", """
                     {"pending":[{"id":"T001"}],"materials":[{"id":"T002"}],
                     "sectionSources":[{"id":"T003"}],"sectionMaterials":[{"id":"T004"}],
                     "editableSections":[{"id":"known-section","points":[{"sourceIds":["T003","T004"]}]}],
@@ -78,7 +78,7 @@ static class GeminiChecks
         {
             Name = "OfflineOrganizerSchemaCheck",
             ChatOptions = new ChatOptions { MaxOutputTokens = 8192,
-                ResponseFormat = GeminiLanguageModel.ResponseFormat("LectureSectionOrganizer", """
+                ResponseFormat = ModelOutputContract.ResponseFormat("LectureSectionOrganizer", """
                     {"pending":[],"materials":[],"sectionSources":[],"sectionMaterials":[],
                     "editableSections":[{"id":"known-section","points":[]}],"citationSources":[]}
                     """) }

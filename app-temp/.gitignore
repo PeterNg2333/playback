@@ -7,3 +7,4 @@ data/
 browser-*.png
 *.log
 *.tsbuildinfo
+checks/output/

@@ -7,7 +7,7 @@ public sealed partial class NoteWorkflow
 {
     async Task OrganizeIfDue(NoteSession session, EffectiveProcessingPolicy effective, CancellationToken ct)
     {
-        if (organization is null || session.CurrentNote is null || !effective.Values.OrganizationEnabled || !gemini.IsConfigured) return;
+        if (organization is null || session.CurrentNote is null || !effective.Values.OrganizationEnabled || !writer.IsConfigured) return;
         if (!await organizationSlots.WaitAsync(0, ct)) return;
         var state = new NoteOrganizationState {Id = session.Id};
         try
@@ -24,10 +24,13 @@ public sealed partial class NoteWorkflow
             var now = clock.GetUtcNow().UtcDateTime;
             var due = NoteOrganization.Due(note, state, effective.Values, now);
             if (due.Reason is null) return;
-            var outlineOnly = effective.Values.OrganizationScope == "document-outline";
+            // A crowded level is regrouped from the whole outline (titles only); a large topic gets subtopics.
+            var outlineOnly = effective.Values.OrganizationScope == "document-outline" || due.Reason == "crowded-level";
             var candidates = NoteOrganization.EligibleTopics(session.Sections).ToList();
             var affected = candidates.Where(x => due.AffectedTopics.Contains(x.Id)).ToList();
-            var scope = outlineOnly ? candidates : affected.Take(3).ToList();
+            // A large topic is organized together with its existing subtopics, so blocks can move into them.
+            var scope = outlineOnly ? candidates : affected.Take(3)
+                .SelectMany(topic => candidates.Where(x => x.Id == topic.Id || NoteStructure.IsWithin(x, topic.Id, session.Sections))).Distinct().Take(8).ToList();
             var hash = ContentHash.Of("organization:" + effective.Revision + ":" + session.NoteVersion + ":" + string.Join("|", scope.Select(x => x.Id)));
             if (state.InputHash == hash && (state.Status == "review-required" || state.Attempts >= 3 || state.RetryAt > now)) return;
             if (state.InputHash != hash) state.Attempts = 0;

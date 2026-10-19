@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <OpenccVersion>1.7.0</OpenccVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../application/Playback.Application.csproj" />
@@ -11,6 +12,12 @@
     <PackageReference Include="Microsoft.Agents.AI" Version="1.22.0" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.29.0" />
     <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+    <PackageReference Include="OpenccNetLib" Version="$(OpenccVersion)" ExcludeAssets="contentFiles" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <!-- OpenCC's character lists with every candidate, which decide which characters exist only in Simplified. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(NuGetPackageRoot)openccnetlib/$(OpenccVersion)/contentFiles/any/any/dicts/STCharacters.txt" LogicalName="OpenCC.STCharacters.txt" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)openccnetlib/$(OpenccVersion)/contentFiles/any/any/dicts/TSCharacters.txt" LogicalName="OpenCC.TSCharacters.txt" />
   </ItemGroup>
 </Project>

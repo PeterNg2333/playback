@@ -9,6 +9,9 @@ public sealed class RewriteBlockChange
     public List<string> RetainedBlockIds { get; set; } = [];
     public string Body { get; set; } = "";
     public string Role { get; set; } = "detail";
+    // "replace" swaps the mapped blocks for Body; "delete" removes the target block (an AI deletion awaiting review).
+    public string Kind { get; set; } = "replace";
+    public string Reason { get; set; } = "";
 }
 public sealed class NoteRewriteProposal
 {
@@ -36,6 +39,12 @@ public static class NoteRewrite
         if (changes.Count is < 1 or > 4) proposal.Issues.Add("Select one to four rewrite/merge changes");
         foreach (var change in changes)
         {
+            if (change.Kind == "delete")
+            {
+                if (change.RetainedBlockIds.SequenceEqual([change.TargetBlockId]) && blocks.Any(x => x.Id == change.TargetBlockId) && used.Add(change.TargetBlockId)) continue;
+                proposal.Issues.Add("A deletion must name exactly one existing block"); continue;
+            }
+            if (change.Kind != "replace") { proposal.Issues.Add("Unknown change kind"); continue; }
             var retained = blocks.Where(x => change.RetainedBlockIds.Contains(x.Id)).OrderBy(x => x.Order).ToList();
             if (change.RetainedBlockIds.Count is < 1 or > 10 || retained.Count != change.RetainedBlockIds.Distinct().Count() || !retained.Any(x => x.Id == change.TargetBlockId) || change.Body.Trim().Length is < 1 or > 32000)
             { proposal.Issues.Add("Unknown/invalid retained-block mapping or body size"); continue; }
@@ -57,7 +66,8 @@ public static class NoteRewrite
         if (!proposal.ReadyForAcceptance) proposal.Status = "blocked-retention";
         return proposal;
     }
-    static IEnumerable<string> ProtectedFragments(string body)
+    // Code, formulas, numbers and paragraphs stating conditions, uncertainty or examples: text no automatic change may lose.
+    public static IEnumerable<string> ProtectedFragments(string body)
     {
         foreach (Match match in Regex.Matches(body, @"```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\r\n]+`|\$\$[\s\S]*?\$\$|(?<!\$)\$[^$\r\n]+\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]")) yield return match.Value;
         var withoutCitations = CitationSyntax.Rewrite(body, _ => "");
@@ -65,15 +75,26 @@ public static class NoteRewrite
         foreach (var paragraph in Regex.Split(body, @"\r?\n\s*\r?\n"))
             if (Regex.IsMatch(paragraph, @"\b(?:only|if|unless|provided|assuming|except|when|under|may|might|uncertain|unclear|example)\b|如果|除非|條件|条件|假設|假设|不確定|不确定|例子|示例", RegexOptions.IgnoreCase)) yield return paragraph.Trim();
     }
+    // Live notes keep growing while a suggestion waits; it stays valid until one of its own blocks changes or goes.
+    public static bool IsStale(Note note, NoteRewriteProposal proposal)
+    {
+        var topic = note.Sections.SingleOrDefault(x => x.Id == proposal.TopicId);
+        if (topic is null) return true;
+        var bodies = NoteTree.Canonical(topic).Blocks.ToDictionary(x => x.Id, x => x.Body);
+        return proposal.Changes.SelectMany(x => x.RetainedBlockIds).Distinct().Any(id =>
+            !bodies.TryGetValue(id, out var body) || !proposal.OriginalBodies.TryGetValue(id, out var original) || body != original);
+    }
+
     public static List<NoteSection> Accept(Note note, NoteRewriteProposal proposal, IEnumerable<string> allowedSources, bool semanticAccepted)
     {
         if (!semanticAccepted) throw new InvalidOperationException("Review and explicitly accept the semantic changes before applying");
-        if (note.Version != proposal.BasedOnVersion) throw new InvalidOperationException("Notes changed; retain this proposal and create a fresh preview");
+        if (IsStale(note, proposal)) throw new InvalidOperationException("Notes changed; retain this proposal and create a fresh preview");
         var inspected = Preview(note, proposal.TopicId, proposal.Changes, allowedSources, proposal.CreatedAt);
-        if (!inspected.ReadyForAcceptance || inspected.OriginalBodies.Any(x => !proposal.OriginalBodies.TryGetValue(x.Key, out var body) || body != x.Value)) throw new InvalidOperationException("Rewrite failed retention checks; prior bodies remain in place");
+        if (!inspected.ReadyForAcceptance) throw new InvalidOperationException("Rewrite failed retention checks; prior bodies remain in place");
         var topics = note.Sections.Select(x => NoteTree.Canonical(x)).ToList(); var topic = topics.Single(x => x.Id == proposal.TopicId);
         foreach (var change in proposal.Changes)
         {
+            if (change.Kind == "delete") { topic.Blocks.RemoveAll(x => x.Id == change.TargetBlockId); continue; }
             var retained = topic.Blocks.Where(x => change.RetainedBlockIds.Contains(x.Id)).ToList(); var target = retained.Single(x => x.Id == change.TargetBlockId);
             var anchors = retained.SelectMany(x => x.Anchors).Select(x => new PointAnchor {Id = x.Id, Length = change.Body.Length, SourceIds = x.SourceIds.ToList()}).ToList();
             var newlyCited = NoteSections.Sources(NoteSections.Expand(change.Body, note.Citations), allowedSources).Except(anchors.SelectMany(x => x.SourceIds)).ToList();

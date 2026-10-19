@@ -30,6 +30,24 @@ Code layout: [STRUCTURE.md](STRUCTURE.md).
 
 ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenRouter `qwen/qwen3-asr-1.7b`，否則保留 SenseVoice；亦可明確設 `PLAYBACK_ASR_PROVIDER`。兩者目前是 REST：錄音最多約 8 秒封存，約每 2 秒嘗試更新灰字預覽，正式稿完成後替換。Streaming adapter 的 PCM 接線已具備，但尚未有具體 realtime provider。設定可按 session 切換 Whisper V3／Turbo，以及「廣東話 + English」自動辨識、繁體顯示。預覽增加音訊請求費用；三款模型的短音訊 live 比較、raw/display 差異及局限已保存於 validation。詳見 [ASR adapters 研究](docs/asr-adapters.zh-HK.md)。下方較早測試紀錄並非新流程的實測。
 
+2026-10-18 筆記寫作重構（`tree-notes-v11`）：
+- **輸入格式**：模型先讀按時序排列、只會在尾部增加的完整講課稿，之後才讀現有筆記及今次要寫的來源。Jev 另用精簡輸入。
+- **編輯操作**：筆記以 code editor 式操作逐項套用。細小、保留數字、公式及條件的改字自動套用；最多兩段、且來源仍在其他地方有引用的刪除亦會自動套用；其餘成為可接受或拒絕的建議。
+- **延後與次序**：每段來源最多延後一次。AI 每次改動後，主題按講課時間排序，清空了的主題會移除。
+- **聽唔清楚的字**：可由模型還原，但須標「(?)」。
+- **使用者操作**：可鎖定 block、對全份筆記、某主題或某 block（comment）下指令讓 AI 直接修改，亦可 dismiss 建議。
+
+2026-10-18 位置決定（`tree-notes-v13`）：模型要好似寫文件／簡報咁，先喺 `outline` 宣告新主題（標題、放喺邊個主題下面），再將每段內容放入一個仍開放嘅主題。Organizer 用同一方式開新主題，只會搬動、排序同改名。筆記模型由 `PLAYBACK_NOTE_MODEL` 揀（`openrouter:<model>[@reasoning]` 或 `vertex:<model>`）；未設定而有 OpenRouter key 時用 Qwen3.8 Flash（Alibaba provider，有自動 cache），否則用 Gemini。提問、翻譯同術語解釋仍用 Gemini。繁體筆記喺儲存前用 OpenCC（`s2hk`）將模型夾雜嘅簡體字轉做繁體，只轉純簡體字，「干擾、公里、游泳、着」等正確繁體保持不變。
+
+Jev note gate 預設關閉：新語音出現後 30 秒、講話停頓或 Stop 時寫入一批。Live 重播中 Jev 在 40 次判斷只允許 1 次，沒有慳到呼叫。
+
+結構規則：
+- 一個主題滿 6 段，或者講了 8 分鐘，就關閉；新內容自動放入新子主題。
+- 一個主題超過 6 段，或者一層超過 6 個主題時，organizer 會拆分或歸組成最多三層。
+- 目前最好結果：20 分鐘 12 個主題、三層、58／58 段有引用，約 US$0.11。
+
+所有來源均寫入筆記。Vertex Flash-Lite 沒有 implicit cache 折扣。主題分段仍不穩定。詳見[比較報告](../docs/note-model-comparison-2026-10-18.md)；重跑用 `pnpm.cmd test:note-models-live`（已有結果時預設重用，不再付費）。
+
 此目錄是 .NET 10 + React/Vite 的 prototype。網頁的錄音、暫停／繼續、停止控制同機運行的 .NET API；網頁重載不會停止 API 的收音。Electron 候選保留在 [`archive/desktop`](archive/desktop/README.archived.zh-HK.md)。**Docker Production 現有 MongoDB 多用戶登入及 workspace owner 隔離，demo 密碼共用，沒有分享功能，仍不是已驗收的正式產品。**
 
 ## 介面與錄音狀態

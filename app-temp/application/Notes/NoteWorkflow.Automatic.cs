@@ -78,7 +78,8 @@ public sealed partial class NoteWorkflow
             if (state.InputHash == preparationHash && !policyChanged && !newStop && RetryBlocked(state))
             { await repository.SaveGate(state); return; }
             var context = NoteInput.ContextSections(session.Sections, pending);
-            var input = NoteInput.Bounded(session, pending, context, materials, "automatic");
+            // Jev only decides whether the passage is complete, so it gets the compact gate input, not the lecture.
+            var input = NoteInput.Gate(session, pending, materials, "automatic");
             inputPrepared = true;
             var evidenceHash = EvidenceIdentity(pending, materials);
             // A settled filler/no-change batch is free until input, policy or explicit Stop changes.
@@ -129,6 +130,13 @@ public sealed partial class NoteWorkflow
                 await activity.End(call, "completed", $"{state.AdmissionReason}: queue notes; local admission, saved Jev decision remains {state.Decision}");
                 call = null;
             }
+            if (!state.GenerationRequested && !policy.JevEnabled)
+            {
+                // Batching: the deadline, a speech boundary or Stop admits the batch; nothing is asked meanwhile.
+                state.Status = "batching";
+                await repository.SaveGate(state);
+                return;
+            }
             if (!state.GenerationRequested)
             {
                 if (same && state.Status == "wait") { await repository.SaveGate(state); return; }
@@ -164,7 +172,7 @@ public sealed partial class NoteWorkflow
                 if (!allow) return;
             }
 
-            if (!gemini.IsConfigured) throw new InvalidOperationException("Gemini is not configured; admission and pending sources are retained");
+            if (!writer.IsConfigured) throw new InvalidOperationException("The note model is not configured; admission and pending sources are retained");
             state.Status = "writing";
             await repository.SaveGate(state);
             await Revise(session, pending, context, ct, admissionReason: state.AdmissionReason);

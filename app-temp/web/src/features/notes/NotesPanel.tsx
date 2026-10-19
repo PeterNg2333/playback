@@ -25,6 +25,10 @@ import { ProcessingSettingsDialog } from "./ProcessingSettingsDialog";
 import { NoteAdmissionStatus } from "./NoteAdmissionStatus";
 import { OrganizationStatus } from "./OrganizationStatus";
 import { RewriteDialog } from "./RewriteDialog";
+import { InstructionDialog } from "./InstructionDialog";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../lib/backend/client";
+import { NoteRewriteSchema } from "../../lib/backend/schemas";
 
 // A line under the notes saying why AI notes have not appeared or failed.
 const statusStyle = "mx-4.5 mb-2.5 text-[11px] text-[#9a591c]";
@@ -49,8 +53,12 @@ export function NotesPanel({
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
   const [noteDialog, setNoteDialog] = useState<
-  "history" | "organize" | "settings" | "rewrites" | null
+  "history" | "organize" | "settings" | "rewrites" | "instruction" | null
   >(null);
+  // Same query key as the suggestion dialog, so opening it reuses this list.
+  const suggestions = useQuery({ queryKey: ["noteRewrites", session?.id, session?.noteVersion], enabled: Boolean(session?.currentNote),
+    queryFn: ({ signal }) => api.get(`/sessions/${session!.id}/notes/rewrites`, NoteRewriteSchema.array(), { signal }) });
+  const suggestionCount = suggestions.data?.filter(x => x.status !== "stale").length ?? 0;
   const body = useRef<HTMLDivElement>(null);
   const renderedNotes = useRef<HTMLDivElement>(null);
   const headings = () =>
@@ -329,7 +337,8 @@ export function NotesPanel({
                 >
                   Organize section…
                 </MenuItem>
-                <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("rewrites");}}>Review rewrites…</MenuItem>
+                <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("rewrites");}}>Review suggestions{suggestionCount ? ` (${suggestionCount})` : ""}…</MenuItem>
+                <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("instruction");}}>Revise with instruction…</MenuItem>
               </div>
             )}
           </Menu>
@@ -593,6 +602,7 @@ export function NotesPanel({
           onClose={() => setNoteDialog(null)}
         />
       )}
+      {noteDialog === "instruction" && session && <InstructionDialog key={session.id} session={session} onClose={() => setNoteDialog(null)} />}
       {noteDialog === "rewrites" && session && <RewriteDialog key={session.id} session={session} draftDirty={draft.isDirty} onClose={() => setNoteDialog(null)} onOpenSource={onOpenSource} onPlay={player.togglePlayback} />}
       {reference && session && (
         <TermExplanation
