@@ -1,13 +1,21 @@
 # P3 結果：筆記結構（organizer 範圍、subtopic 標題）
 
-Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `tree-notes-v14`；organizer `tree-organize-v13` → `v14`（第一次 live）→ `v15`（live 之後再修）。
+Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `tree-notes-v14`；organizer `tree-organize-v13` → `v14`（第一、二次 live）→ `v15`（第三次 live）→ `v16`（再修，未 live）。
 
 ## 摘要
 
 - **A（organizer 丟棄操作）**：保存咗嘅 run 入面，被丟棄嘅操作**冇一個係改範圍外主題**。每個被丟棄嘅搬動都係搬範圍內嘅 block 或主題，只係冇講搬去邊：`move-block` 嘅 `topicId` 冇填、填 `""`，或者填返 block 而家所在嘅主題。修法：organizer 改用「放置」，`moves: [{block, to}]` 同 `topicMoves: [{topic, to}]`，同 writer 嘅 `blocks[].topic` 一樣，`to` 只解作目的地，而且 required。Schema 只容許 `to` 揀範圍內主題或者新 key，所以冇得漏、冇得揀範圍外。仍然套用唔到嘅操作按原因分開計。
 - **B（自動 subtopic 標題）**：句子標題只會喺 writer 嘅回覆指向已滿主題時出現，application 用 block 第一句做標題。修法：application 唔再自己起標題。Block 放入同一個回覆喺 outline 宣告嘅 subtopic（writer 起嘅名詞短語標題）；冇宣告就留喺原主題，超過六段時由 organizer 拆。冇加 model call。
-- **另外修咗**：(1) 新增或者搬入嘅 block 以前用回覆入面嘅位置做 `Order`，會排喺之前嘅 block 中間；而家排喺主題最後。(2) 只有 outline 嘅重組（同一層太多主題）以前遇到 `rename-topic` 就成次失敗；而家可以改名。
-- 離線 checks 全綠（27 組）。兩次 live 驗收（US$0.056）：拆大主題 7 個 move 全部套用、0 丟棄、0 句子標題；但重組太擠嘅一層 7 次都冇效，因為 Qwen 冇填 `move-topic` 嘅 `parentId`。呢個已經用 `topicMoves`（`tree-organize-v15`）修好，有離線 check，**但未 live 驗證**（授權嘅重跑次數已用完）。
+- **另外修咗**：
+  1. 新增或者搬入嘅 block 以前用回覆入面嘅位置做 `Order`，會排喺之前嘅 block 中間；而家排喺主題最後。
+  2. 只有 outline 嘅重組（同一層太多主題）以前遇到 `rename-topic` 就成次失敗；而家可以改名。
+  3. 已經喺第三層、加唔到 parent 嘅擠迫層唔再觸發重組。
+  4. Outline 重組嘅 input 講明邊一層擠迫、每個主題下面有幾多層。
+  5. 會令主題超過三層嘅 move 會被丟棄，唔再令成次重組失敗。
+- 離線 checks 全綠（27 組）。三次 live 驗收合共 US$0.0827：
+  - **拆大主題（v14）**：7 個 move 全部套用，0 丟棄。
+  - **擠迫層重組**：v14 嘅 7 次都冇效，因為 Qwen 冇填 `parentId`。用 `topicMoves` 之後（v15），第一次重組 9 個 topicMoves 同 9 個改名全部套用、0 丟棄，頂層由 11 個減到 3 個。之後 3 次 call 因為擠迫層喺第三層而浪費咗，其中 2 次因為深度成次失敗；已經喺 `tree-organize-v16` 修好，**未 live 驗證**。
+  - 三次都係 0 句子標題，冇已滿主題被轉走。
 
 ## A. Organizer 被丟棄嘅操作
 
@@ -122,40 +130,51 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 
 量度方法：用 `all-activity.json` 嘅 organizer summary 按原因數被丟棄操作；用 `replies.json` 數 `moves`／operation；用 `note.json` 睇最後主題標題（句子標題 = 有「。！？，」或者「講師／說明／提及／指出…」，再人手睇）。
 
-| | Run 1 `2026-10-19-p3-organize-v14` | Run 2（重跑）`2026-10-19-p3-organize-v14b` | 參考：`2026-10-18-qwen-organize-v13` |
-| --- | --- | --- | --- |
-| Prompt | notes v14 / organize v14 | notes v14 / organize v14 | v13 / v13 |
-| Writer calls（failed） | 29（1） | 29（0） | 30（0） |
-| 來源引用 | 58/58 | 58/58 | 58/58 |
-| Median call | 9.4 s | 8.0 s | 10.1 s |
-| 費用 | $0.0276 | $0.0286 | $0.0350 |
-| Organizer calls（failed） | 0 | 8（2） | 3（0） |
-| 拆大主題：搬動／套用／丟棄 | — | 7 / 7 / 0 | 15 / 0 / 15 |
-| 重組太擠一層：有效果 | — | 0 / 7 | 1 / 1 |
-| 「範圍外」丟棄 | 0 | 0 | 15 |
-| 已滿主題轉走（宣告／留低） | 0 / 0 | 0 / 0 | 0 |
-| 最後主題（頂層） | 19（5） | 15（11） | 12（2） |
-| 句子標題 | 0 | 0 | 0 |
+| | Run 1 `2026-10-19-p3-organize-v14` | Run 2（重跑）`…-v14b` | Run 3 `2026-10-19-p3-organize-v15` | 參考：`2026-10-18-qwen-organize-v13` |
+| --- | --- | --- | --- | --- |
+| Prompt（notes／organize） | v14 / v14 | v14 / v14 | v14 / v15 | v13 / v13 |
+| Writer calls（failed） | 29（1） | 29（0） | 28（0） | 30（0） |
+| 來源引用 | 58/58 | 58/58 | 58/58 | 58/58 |
+| Median（max）call | 9.4 s | 8.0 s | 12.2 s（23.7 s） | 10.1 s |
+| 費用 | $0.0276 | $0.0286 | $0.0265 | $0.0350 |
+| Organizer calls（failed） | 0 | 8（2） | 4（2） | 3（0） |
+| 拆大主題：block 搬動／套用／丟棄 | — | 7 / 7 / 0 | 冇觸發 | 15 / 0 / 15 |
+| 擠迫層重組：有效果／次數 | — | 0 / 7 | 1 / 4 | 1 / 1 |
+| 擠迫層：主題搬動／套用／丟棄 | — | 5 次 completed 嘅 47 個 `move-topic` 全部冇 `parentId`、留喺原位；另外 2 次因 rename 失敗 | 15 / 9 / 0，另外 2 次成次失敗（6 個）| 7 / 7 / 0 |
+| 「範圍外」丟棄 | 0 | 0 | 0 | 15 |
+| 已滿主題轉走（宣告／留低） | 0 / 0 | 0 / 0 | 0 / 0 | 0 |
+| 最後主題（頂層） | 19（5） | 15（11） | 27（3） | 12（2） |
+| 句子標題 | 0 | 0 | 0 | 0 |
 
 - **Run 1** 冇觸發 organizer：writer 自己喺現有主題下面宣告咗 12 個 subtopic，冇主題喺第三層以上超過六段，亦冇一層超過六個主題。所以 A 量度唔到，用咗授權嘅一次重跑。唯一失敗嘅 writer call 係 Qwen 喺 block 內文寫咗自創嘅 `[cite_T46,T47,T48]`，被引用檢查拒絕；同 P3 改動無關。
 - **Run 2** 拆大主題：Qwen 用咗 `moves`，7 個 block 全部搬入兩個新 subtopic，0 丟棄（v13 同類 call：7/7 丟棄）。
-- **Run 2** 重組太擠一層（7 次）：每個 `move-topic` 都**冇 `parentId`**。主題「搬」去頂層（本身已經喺頂層），新 parent 空咗被刪；5 次 completed 但冇效果，2 次因為 outline 重組唔准 `rename-topic` 而失敗。v13 兩次同類 call 都有填 `parentId`，所以應該係 v14 俾 `parentId` 加 enum 但唔係 required 引起。已經用 `topicMoves`（required `to`）同准許改名修好（`tree-organize-v15`），有離線 check，**未 live 驗證**。
-- 兩次 live 都冇句子標題、冇已滿主題被轉走：writer 跟 schema，自己宣告 subtopic。
-- 兩次報告都有 2 個簡體字（runner 量度未經 OpenCC 嘅模型原始輸出），屬 P2／P4。
+- **Run 2** 重組太擠一層（7 次）：每個 `move-topic` 都**冇 `parentId`**。主題「搬」去頂層（本身已經喺頂層），新 parent 空咗被刪；5 次 completed 但冇效果，2 次因為 outline 重組唔准 `rename-topic` 而失敗。v13 兩次同類 call 都有填 `parentId`，所以應該係 v14 俾 `parentId` 加 enum 但唔係 required 引起。已經用 `topicMoves`（required `to`）同准許改名修好（`tree-organize-v15`）。
+- **Run 3（v15，使用者另外授權）** organizer 觸發 4 次，全部係擠迫層重組，冇拆大主題：
+  1. 第 1 次：頂層 11 個主題。Qwen 用 `topicMoves` 將 9 個主題分入兩個新 parent，另外 9 個改名，全部套用、0 丟棄，頂層變 3 個。v14 嘅問題已經解決。
+  2. 第 2、3 次：擠迫嘅其實係「Notepad 創建檔案的呼叫鏈」下面 7 個**第三層** subtopic。第三層加唔到 parent，但 `HasCrowdedLevel` 照樣觸發。Qwen 唔知邊層擠迫，就再包一次頂層：將已經有兩層 subtopic 嘅 parent 搬入新 parent，會變第四層。`NoteTree` 全部或冇，所以兩次都成次失敗（`Unknown parent, cycle or topic depth exceeds three`）。
+  3. 第 4 次：空回覆，冇改動。
+  - 修法（`tree-organize-v16`，離線 check `NoteOrganizationChecks.RegroupDepth`，改之前 red：`Seven subtopics at the third level, which no new parent can hold, were sent for regrouping`）：
+    - `NoteStructure.CrowdedParents` 只計加得到 parent 嘅層（主題喺第三層以上）。
+    - Outline input 加 `crowdedLevels`（邊個 parent 下面擠迫，`""` 係頂層）同 `levelsBelow` 欄（每個主題下面有幾多層）。
+    - 會超過三層或者搬入自己下面嘅 move／新主題會被丟棄，按 `moves that would nest deeper than three levels dropped` 計，其餘照套用。
+  - 第三層 7 個 subtopic 嘅擠迫冇自動處理（只可以合併，organizer 唔改內文）。
+- 三次 live 都冇句子標題、冇已滿主題被轉走：writer 跟 schema，自己宣告 subtopic。Run 3 標題例子：「位址計算與版本差異」、「調試器符號下載與啟動」、「學生提問：核心地址與使用者資料」。
+- 報告入面嘅簡體字（2、2、6 個）係 runner 量度未經 OpenCC 嘅模型原始輸出，屬 P2／P4。
 
-合計 live 費用 US$0.0562（授權約 US$0.05，一次重跑）。Run folder 喺 worktree 嘅 `app-temp/data/validation/runs/`（git ignore），合併 worktree 前如果要保留，要抄去 main checkout。
+合計 live 費用：Run 1、2 US$0.0562（第一次授權）；Run 3 US$0.0265（第二次授權，上限 US$0.07；organizer 有觸發，所以冇跑第二次）。Run folder 喺 worktree 嘅 `app-temp/data/validation/runs/`（git ignore），合併 worktree 前如果要保留，要抄去 main checkout。
 
 ### 下一次 live 驗收計劃（未授權，未做）
 
-- 目的：驗證 `tree-organize-v15` 嘅 `topicMoves` 喺重組太擠一層時有效，同埋 `moves` 再次 0 丟棄。
-- 指令：同上，`--folder app-temp/data/validation/runs/<日期>-p3-organize-v15`，Qwen3.8 Flash batch+organize，Week 3 頭 20 分鐘；如果 P2 嘅 runner 已經合併，用佢嘅 OpenCC 選項量度最終筆記。
-- 請求數：約 29 次 writer call、0–8 次 organizer call（視乎結構）；冇上傳音訊。
-- 預計費用：每次約 US$0.03（兩次 v14 run：$0.0276、$0.0286）；建議授權最多兩次（organizer 唔一定觸發），上限 US$0.07。
-- 量度：organizer 各原因丟棄數（目標：範圍外 0、冇目的地 0、原位 ≤ 2）；重組後頂層主題數（目標 ≤ 6）；`topicMoves` 套用數；句子標題數（目標 0）；已滿主題轉走（宣告／留低）。
+- 目的：驗證 `tree-organize-v16`：第三層擠迫唔再觸發，重組唔再因深度成次失敗；`moves`／`topicMoves` 繼續 0 丟棄。
+- 指令：同上，`--folder app-temp/data/validation/runs/<日期>-p3-organize-v16`，Qwen3.8 Flash batch+organize，Week 3 頭 20 分鐘；如果 P2 嘅 runner 已經合併，用佢嘅 OpenCC 選項量度最終筆記。
+- 請求數：約 28–29 次 writer call、0–8 次 organizer call；冇上傳音訊。
+- 預計費用：每次約 US$0.03（三次 run：$0.0276、$0.0286、$0.0265）；建議最多兩次（organizer 唔一定觸發），上限 US$0.07。
+- 量度：organizer 次數同失敗數（目標：失敗 0、冇效果嘅重組 0）；各原因丟棄數（範圍外 0、冇目的地 0、原位 ≤ 2、超過三層 ≤ 2）；重組後頂層同其他擠迫層主題數（≤ 6）；句子標題數（0）；已滿主題轉走（宣告／留低）。
 
 ## 未完成同限制
 
-- `tree-organize-v15`（`topicMoves`、outline 重組可改名）只有離線 check，未 live。
+- `tree-organize-v16`（擠迫層限可加 parent 嘅層、`crowdedLevels`／`levelsBelow`、丟棄過深 move）只有離線 check，未 live。`topicMoves` 同 outline 重組改名已經喺 Run 3 live 驗證。
+- 第三層超過六個 subtopic 時冇補救：organizer 唔拆、唔合併。要處理就要令 writer 少啲喺第二層主題下面開 subtopic，或者俾 organizer 合併主題（會改內文，要另外決定）。
 - Fixture 入面嘅 `PlacedReply`、`PlacedRegroupReply` 係按保存回覆寫返出嚟嘅新形狀，唔係 provider 真正嘅回覆；`moves` 部分已經喺 Run 2 由 Qwen 真正用過。
 - Organizer 仍然可以將 block 或主題「搬」去原位（schema 冇辦法逐個排除）。呢種 move 唔會改到嘢，會分開計，prompt 亦講明唔好咁做。
 - B 嘅後備（冇宣告就留喺原主題）會令已滿主題暫時超過六段，要等 organizer 拆；organizer 停用時會一直咁。
@@ -168,10 +187,11 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 | --- | --- | --- |
 | `app-temp/infrastructure/Providers/ModelOutputContract.cs`（P4 擁有） | `Regrouping` 加 `moves`、`topicMoves`（enum、required；冇 block／主題時 `maxItems: 0`），organizer operation 種類改為 rename／reorder（outline 冇 `reorder-block`），`required` 加兩個欄位；`StructuralKinds` 拎走 `move-topic`、`move-block`；`Placement` 拎走 `moves`、`topicMoves`（writer 同 owner instruction 冇呢兩個欄位） | A 嘅修法本身就係 schema，呢個檔案係唯一砌 schema 嘅地方。改動只喺 `ResponseFormat` 傳 blockIds 嗰一行、`Regrouping`、`Placement` 尾同 `StructuralKinds`，同 P4 嘅 streaming／fallback 應該唔重疊 |
 | `app-temp/domain/Notes/NoteSections.cs` | `NotePatch` 加 `Moves`、`TopicMoves` 兩行同註解 | 回覆嘅 CLR 型別喺呢度；`BlockMove`／`TopicMove` class 放咗喺 `NoteTree.cs`（屬 P3） |
-| `app-temp/application/Notes/NoteWorkflow.cs` | `DropOutOfScope` 回傳分類計數；summary 文字（`Dropped`、`EditSummary` 嘅已滿主題兩句）；outline 重組准許 `rename-topic` | 按原因計丟棄、B 嘅新 summary，同埋 Run 2 嘅 rename 失敗都喺呢度 |
+| `app-temp/application/Notes/NoteWorkflow.cs` | `DropOutOfScope` 回傳分類計數，並傳入全部主題（計深度）；summary 文字（`Dropped`、`EditSummary` 嘅已滿主題兩句）；outline 重組准許 `rename-topic` | 按原因計丟棄、過深 move 嘅判斷、B 嘅新 summary，同埋 Run 2 嘅 rename 失敗都喺呢度 |
 
 ## 要使用者決定嘅嘢
 
-- 授權一次 `tree-organize-v15` live 驗收（見上面計劃，約 US$0.03–0.07）。
+- 授權一次 `tree-organize-v16` live 驗收（見上面計劃，約 US$0.03–0.07）。
+- 第三層超過六個 subtopic 要唔要處理（writer 方向定 organizer 合併），見「未完成同限制」。
 - B 嘅後備：回覆冇宣告 subtopic 時，我揀咗「留喺原主題，等 organizer 拆」，唔再自動開 subtopic。另一個做法係拒收嗰段（source 留 pending，下一批再寫），但可能多一次 writer call。建議維持現狀。
 - Run folder 要唔要由 worktree 抄去 main checkout 保留。

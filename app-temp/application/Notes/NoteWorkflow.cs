@@ -152,7 +152,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             var distantMoves = 0;
             OrganizerDrops? outOfScope = null;
             DecodePatch(patch, input, context, session, allowed);
-            if (organize) { outOfScope = DropOutOfScope(patch, context); distantMoves = DropDistantMoves(patch, session); }
+            if (organize) { outOfScope = DropOutOfScope(patch, context, session.Sections); distantMoves = DropDistantMoves(patch, session); }
             // Organization stays structural and all-or-nothing; writing applies each change on its own.
             var edits = organize ? null : await TriageEdits(session, patch, allowed, pending);
             var proposals = organize ? RewriteCandidates(session, patch) : [];

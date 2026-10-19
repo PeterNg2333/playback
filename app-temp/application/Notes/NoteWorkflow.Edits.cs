@@ -82,23 +82,35 @@ public sealed partial class NoteWorkflow
     // What an organizer reply named that cannot apply, by cause, so a run shows whether the model reached outside its
     // scope or only left out where something goes. In the saved Qwen runs every dropped move named an in-scope block
     // or topic: the destination was missing, "" or where it already was, never another topic.
-    sealed record OrganizerDrops(int OutOfScope, int WithoutDestination, int InPlace)
+    sealed record OrganizerDrops(int OutOfScope, int WithoutDestination, int InPlace, int TooDeep)
     {
         public override string ToString() => (OutOfScope == 0 ? "" : $"; {OutOfScope} operations outside the selected scope dropped") +
             (WithoutDestination == 0 ? "" : $"; {WithoutDestination} moves without a destination dropped") +
-            (InPlace == 0 ? "" : $"; {InPlace} moves that leave a block or topic where it is ignored");
+            (InPlace == 0 ? "" : $"; {InPlace} moves that leave a block or topic where it is ignored") +
+            (TooDeep == 0 ? "" : $"; {TooDeep} moves that would nest deeper than three levels dropped");
     }
 
     // Organization works on the selected topic and its subtopics. An operation reaching outside them is dropped
     // rather than failing the whole regrouping, together with the moves into a new topic that was dropped. A move
     // with no destination, or one that leaves its block or topic where it is, changes nothing and is dropped as well.
-    static OrganizerDrops DropOutOfScope(NotePatch patch, List<NoteSection> context)
+    // So is a new topic or topic move that would put a topic below the third level (or under itself): in the v15
+    // live run one such move failed a whole regroup. The outline of all topics (all) follows each kept change.
+    static OrganizerDrops DropOutOfScope(NotePatch patch, List<NoteSection> context, IReadOnlyCollection<NoteSection> all)
     {
         var scope = context.Select(x => x.Id).ToHashSet();
         var home = context.SelectMany(topic => topic.Blocks.Select(block => (Block: block.Id, Topic: topic.Id))).DistinctBy(x => x.Block).ToDictionary(x => x.Block, x => x.Topic);
         var parents = context.ToDictionary(x => x.Id, x => x.ParentId);
+        var tree = all.ToDictionary(x => x.Id, x => x.ParentId);
+        int Depth(string? id)
+        {
+            var depth = 0;
+            for (; id is not null && depth <= NoteStructure.MaxDepth; depth++) id = tree.GetValueOrDefault(id);
+            return depth;
+        }
+        int Below(string id, int guard = 0) => guard > NoteStructure.MaxDepth ? guard : tree.Where(x => x.Value == id).Select(x => 1 + Below(x.Key, guard + 1)).DefaultIfEmpty(0).Max();
+        bool Under(string? parent, string topic) { for (var depth = 0; parent is not null && depth <= NoteStructure.MaxDepth; depth++, parent = tree.GetValueOrDefault(parent)) if (parent == topic) return true; return false; }
         var created = new HashSet<string>();
-        int outOfScope = 0, withoutDestination = 0, inPlace = 0;
+        int outOfScope = 0, withoutDestination = 0, inPlace = 0, tooDeep = 0;
         foreach (var operation in patch.Operations.ToList())
         {
             bool Known(string? id) => id is null || scope.Contains(id) || created.Contains(id);
@@ -109,10 +121,14 @@ public sealed partial class NoteWorkflow
             { patch.Operations.Remove(operation); inPlace++; continue; }
             var inside = operation.Kind == "create-topic" ? Known(operation.ParentId)
                 : Known(operation.TopicId) && Known(operation.ParentId) && (operation.BlockId.Length == 0 || operation.Kind == "add-block" || home.ContainsKey(operation.BlockId));
-            if (!inside) { patch.Operations.Remove(operation); outOfScope++; }
-            else if (operation.Kind == "create-topic") created.Add(operation.TopicId);
+            if (!inside) { patch.Operations.Remove(operation); outOfScope++; continue; }
+            if (operation.Kind is "create-topic" or "move-topic" &&
+                (Under(operation.ParentId, operation.TopicId) || Depth(operation.ParentId) + 1 + (operation.Kind == "move-topic" ? Below(operation.TopicId) : 0) > NoteStructure.MaxDepth))
+            { patch.Operations.Remove(operation); tooDeep++; continue; }
+            if (operation.Kind is "create-topic" or "move-topic") tree[operation.TopicId] = operation.ParentId;
+            if (operation.Kind == "create-topic") created.Add(operation.TopicId);
         }
-        return new(outOfScope, withoutDestination, inPlace);
+        return new(outOfScope, withoutDestination, inPlace, tooDeep);
     }
 
     public static readonly string[] NewTopicKeys = ["new1", "new2", "new3", "new4", "new5", "new6", "new7", "new8"];

@@ -32,8 +32,16 @@ public static class NoteStructure
     public static IEnumerable<NoteSection> Overfull(IReadOnlyCollection<NoteSection> topics) =>
         topics.Where(x => x.Blocks.Count > MaxBlocksPerTopic && Depth(x, topics) < MaxDepth);
 
-    public static bool HasCrowdedLevel(IReadOnlyCollection<NoteSection> topics) =>
-        topics.GroupBy(x => x.ParentId).Any(x => x.Count() > MaxTopicsPerLevel);
+    // Levels with too many topics that grouping can fix: a level already at MaxDepth cannot take a new parent above
+    // its topics (the v15 live run asked again and again about seven third-level subtopics). null is the top level.
+    public static List<string?> CrowdedParents(IReadOnlyCollection<NoteSection> topics) =>
+        topics.GroupBy(x => x.ParentId).Where(x => x.Count() > MaxTopicsPerLevel && Depth(x.First(), topics) < MaxDepth).Select(x => x.Key).ToList();
+
+    public static bool HasCrowdedLevel(IReadOnlyCollection<NoteSection> topics) => CrowdedParents(topics).Count > 0;
+
+    // How many levels lie below a topic: 0 for a topic without subtopics.
+    public static int LevelsBelow(NoteSection topic, IReadOnlyCollection<NoteSection> topics) =>
+        topics.Where(x => x.ParentId == topic.Id).Select(x => 1 + LevelsBelow(x, topics)).DefaultIfEmpty(0).Max();
 
     // firstSpokenMs: when the topic's earliest source was spoken; nowMs: when the newest speech was spoken.
     public static bool IsClosed(NoteSection topic, long? firstSpokenMs, long nowMs) =>

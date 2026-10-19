@@ -12,8 +12,8 @@ static class NoteOrganizationChecks
 {
     public static async Task Run()
     {
-        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
-        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
+        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
+        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), only groupable levels regrouped and too-deep moves dropped, inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
     }
     static NoteAgent Agent(MemoryStore store, OrganizationModel model, TestClock clock) => new(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
     static async Task Configure(MemoryStore store, string id, ProcessingOverrides overrides)
@@ -177,6 +177,43 @@ static class NoteOrganizationChecks
             kinds.SequenceEqual(["rename-topic", "reorder-topic"]),
             "The outline regroup schema let a topic move leave out its parent, or offered operations an outline cannot apply");
     }
+    // The v15 live run (2026-10-19-p3-organize-v15) kept asking to regroup seven subtopics already at the third level,
+    // which no new parent can hold; the model regrouped the top level instead, and two replies failed outright
+    // because one move would have nested a topic four levels deep. A crowded level counts only when it can be
+    // grouped, the input names the crowded level and how many levels lie below each topic, and a move that would
+    // nest deeper than three levels is dropped while the rest of the regroup applies.
+    static async Task RegroupDepth()
+    {
+        var clock = new TestClock(); var store = new MemoryStore {Clock = clock};
+        Seed(store, clock, "deep", [("top", null, 1), ("chain", "top", 1), .. Enumerable.Range(0, 7).Select(i => ("leaf" + i, (string?)"chain", 1)), ("other", null, 1)]);
+        await Configure(store, "deep", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        var model = new OrganizationModel();
+        await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "deep");
+        Expect.That(model.Organizations == 0, "Seven subtopics at the third level, which no new parent can hold, were sent for regrouping");
+
+        Seed(store, clock, "wide", [.. Enumerable.Range(0, 7).Select(i => ("t" + i, (string?)null, 1)), ("t0-sub", "t0", 1), ("t0-leaf", "t0-sub", 1)]);
+        await Configure(store, "wide", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        model = new OrganizationModel { ReplyFor = input =>
+        {
+            var rows = input.GetProperty("topicOutline").EnumerateArray().ToDictionary(x => x[1].GetString()!, x => x[0].GetString()!);
+            return JsonSerializer.Serialize(new NotePatch { Outline = [new() { Key = "new1", Title = "Grouped", Parent = "" }],
+                TopicMoves = [new() { Topic = rows["Topic t0"], To = "new1" }, new() { Topic = rows["Topic t1"], To = "new1" }, new() { Topic = rows["Topic t2"], To = "new1" }] });
+        } };
+        await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "wide");
+        var input = JsonDocument.Parse(model.LastOrganizationInput).RootElement;
+        var columns = input.GetProperty("topicColumns").EnumerateArray().Select(x => x.GetString()).ToList();
+        var below = columns.IndexOf("levelsBelow");
+        var t0Row = input.GetProperty("topicOutline").EnumerateArray().FirstOrDefault(x => x[1].GetString() == "Topic t0");
+        Expect.That(input.TryGetProperty("crowdedLevels", out var crowded) && crowded.EnumerateArray().Select(x => x.GetString()).SequenceEqual([""]) &&
+            below >= 0 && t0Row.ValueKind == JsonValueKind.Array && t0Row[below].GetInt32() == 2,
+            "The outline regroup input did not name the crowded level or the levels below each topic");
+        var call = store.Activity.Values.Single(x => x.SessionId == "wide" && x.Task == "Section organization");
+        var topics = store.Notes["wide"].Sections;
+        var grouped = topics.SingleOrDefault(x => x.Title == "Grouped");
+        Expect.That(call.Status == "completed" && (call.Summary ?? "").Contains("1 moves that would nest deeper than three levels dropped") &&
+            grouped is not null && topics.Where(x => x.ParentId == grouped.Id).Select(x => x.Id).Order().SequenceEqual(["t1", "t2"]) && topics.Single(x => x.Id == "t0").ParentId is null,
+            "A move that would nest a topic four levels deep failed the whole regroup: " + call.Status + " " + call.Summary);
+    }
     static async Task DirtyAgeAndDisable()
     {
         var clock = new TestClock(); var store = new MemoryStore {Clock = clock}; var model = new OrganizationModel();
@@ -241,12 +278,14 @@ static class NoteOrganizationChecks
         public readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously), Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string LastOrganizationInput = "";
         public string? Reply;
+        public Func<JsonElement, string>? ReplyFor;
         public override async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null)
         {
             if (name != "LectureSectionOrganizer") return await writer.Generate(name, instructions, prompt, ct, model, onUpdate, onUsage);
             Organizations++; LastOrganizationInput = prompt; Started.TrySetResult(); if (BlockOrganization) await Release.Task.WaitAsync(ct);
             if (Reply is not null) return Reply;
             using var doc = JsonDocument.Parse(prompt); var root = doc.RootElement; NotePatch patch;
+            if (ReplyFor is not null) return ReplyFor(root);
             if (root.GetProperty("trigger").GetString() == "document-outline")
                 patch = new() {TopicMoves = [new() {Topic = root.GetProperty("topicOutline")[1][0].GetString()!, To = root.GetProperty("topicOutline")[0][0].GetString()!}]};
             else

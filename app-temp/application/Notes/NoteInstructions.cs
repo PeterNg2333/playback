@@ -7,7 +7,7 @@ namespace Playback.Application.Notes;
 public static class NoteInstructions
 {
     public const string Version = "tree-notes-v14";
-    public const string OrganizeVersion = "tree-organize-v15";
+    public const string OrganizeVersion = "tree-organize-v16";
 
     public const string Sections = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
@@ -101,6 +101,9 @@ public static class NoteInstructions
         blocks: split a larger topic into two to five subtopics by subject (outline entries whose parent is that
         topic, then a moves entry for each block, "to" the new key). A level should hold at most six topics: group
         related siblings under a new parent topic (an outline entry, then a topicMoves entry for each sibling, "to" its key).
+        In an outline regroup, crowdedLevels names the parents whose topics are too many ("" is the top level): group
+        those topics, not other levels. Depth is at most three: a topic can go under a parent only when the parent's
+        depth + 1 + its levelsBelow is at most 3; a move that breaks this is dropped.
         outline: key new1 to new8, a short title that names the subject (a noun phrase like a heading, never a
         sentence, "Part 2", "Continued" or a copy of the parent), and parent: "" for top level, a topic ID from
         the selected scope, or another new key. Use up to three levels and up to 80 moves, topicMoves and operations together.
