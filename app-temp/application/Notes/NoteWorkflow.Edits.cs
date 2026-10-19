@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Playback.Domain;
 using Playback.Domain.Notes;
 
@@ -9,7 +8,8 @@ namespace Playback.Application.Notes;
 // waits as a suggestion while the rest of the reply still applies. Earlier text is never replaced otherwise.
 public sealed partial class NoteWorkflow
 {
-    sealed record EditOutcome(int Appended, int AutoEdited, int Suggested, int RepeatDeferrals, int Redirected, List<RejectedOperation> Dropped);
+    // ClosedKept: blocks aimed at a closed topic that stayed there because the reply declared no subtopic for them.
+    sealed record EditOutcome(int Appended, int AutoEdited, int Suggested, int RepeatDeferrals, int Redirected, int ClosedKept, List<RejectedOperation> Dropped);
 
     async Task<EditOutcome> TriageEdits(NoteSession session, NotePatch patch, List<string> allowed, List<NoteTranscript> pending)
     {
@@ -18,7 +18,7 @@ public sealed partial class NoteWorkflow
         foreach (var item in repeated) patch.Deferred.Remove(item);
         var dropped = new List<RejectedOperation>();
         var appended = AppendToExistingTopics(session, patch, dropped);
-        var redirected = RedirectFromClosedTopics(session, patch, pending);
+        var (redirected, closedKept) = RedirectFromClosedTopics(session, patch, pending);
         foreach (var legacy in patch.Operations.Where(x => x.Kind == "update-block").ToList())
         {
             patch.Operations.Remove(legacy);
@@ -54,7 +54,7 @@ public sealed partial class NoteWorkflow
             await rewrites.SaveRewrite(NoteRewrite.Preview(session.CurrentNote, topic.Id, [change], allowed, clock.GetUtcNow().UtcDateTime));
             suggested++;
         }
-        return new(appended, autoEdited, suggested, repeated.Count, redirected, dropped);
+        return new(appended, autoEdited, suggested, repeated.Count, redirected, closedKept, dropped);
     }
 
     const int MaxRegroupGapMinutes = 5;
@@ -79,29 +79,63 @@ public sealed partial class NoteWorkflow
         return distant.Count;
     }
 
+    // What an organizer reply named that cannot apply, by cause, so a run shows whether the model reached outside its
+    // scope or only left out where something goes. In the saved Qwen runs every dropped move named an in-scope block
+    // or topic: the destination was missing, "" or where it already was, never another topic.
+    sealed record OrganizerDrops(int OutOfScope, int WithoutDestination, int InPlace, int TooDeep)
+    {
+        public override string ToString() => (OutOfScope == 0 ? "" : $"; {OutOfScope} operations outside the selected scope dropped") +
+            (WithoutDestination == 0 ? "" : $"; {WithoutDestination} moves without a destination dropped") +
+            (InPlace == 0 ? "" : $"; {InPlace} moves that leave a block or topic where it is ignored") +
+            (TooDeep == 0 ? "" : $"; {TooDeep} moves that would nest deeper than three levels dropped");
+    }
+
     // Organization works on the selected topic and its subtopics. An operation reaching outside them is dropped
-    // rather than failing the whole regrouping, together with the moves into a new topic that was dropped.
-    static int DropOutOfScope(NotePatch patch, List<NoteSection> context)
+    // rather than failing the whole regrouping, together with the moves into a new topic that was dropped. A move
+    // with no destination, or one that leaves its block or topic where it is, changes nothing and is dropped as well.
+    // So is a new topic or topic move that would put a topic below the third level (or under itself): in the v15
+    // live run one such move failed a whole regroup. The outline of all topics (all) follows each kept change.
+    static OrganizerDrops DropOutOfScope(NotePatch patch, List<NoteSection> context, IReadOnlyCollection<NoteSection> all)
     {
         var scope = context.Select(x => x.Id).ToHashSet();
-        var blocks = context.SelectMany(x => x.Blocks).Select(x => x.Id).ToHashSet();
+        var home = context.SelectMany(topic => topic.Blocks.Select(block => (Block: block.Id, Topic: topic.Id))).DistinctBy(x => x.Block).ToDictionary(x => x.Block, x => x.Topic);
+        var parents = context.ToDictionary(x => x.Id, x => x.ParentId);
+        var tree = all.ToDictionary(x => x.Id, x => x.ParentId);
+        int Depth(string? id)
+        {
+            var depth = 0;
+            for (; id is not null && depth <= NoteStructure.MaxDepth; depth++) id = tree.GetValueOrDefault(id);
+            return depth;
+        }
+        int Below(string id, int guard = 0) => guard > NoteStructure.MaxDepth ? guard : tree.Where(x => x.Value == id).Select(x => 1 + Below(x.Key, guard + 1)).DefaultIfEmpty(0).Max();
+        bool Under(string? parent, string topic) { for (var depth = 0; parent is not null && depth <= NoteStructure.MaxDepth; depth++, parent = tree.GetValueOrDefault(parent)) if (parent == topic) return true; return false; }
         var created = new HashSet<string>();
-        var dropped = 0;
+        int outOfScope = 0, withoutDestination = 0, inPlace = 0, tooDeep = 0;
         foreach (var operation in patch.Operations.ToList())
         {
             bool Known(string? id) => id is null || scope.Contains(id) || created.Contains(id);
+            if (operation.Kind == "move-block" && string.IsNullOrWhiteSpace(operation.TopicId) || operation.Kind == "move-topic" && operation.ParentId == operation.TopicId)
+            { patch.Operations.Remove(operation); withoutDestination++; continue; }
+            if (operation.Kind == "move-block" && home.GetValueOrDefault(operation.BlockId) == operation.TopicId ||
+                operation.Kind == "move-topic" && parents.TryGetValue(operation.TopicId, out var parent) && parent == operation.ParentId)
+            { patch.Operations.Remove(operation); inPlace++; continue; }
             var inside = operation.Kind == "create-topic" ? Known(operation.ParentId)
-                : Known(operation.TopicId) && Known(operation.ParentId) && (operation.BlockId.Length == 0 || operation.Kind == "add-block" || blocks.Contains(operation.BlockId));
-            if (!inside) { patch.Operations.Remove(operation); dropped++; }
-            else if (operation.Kind == "create-topic") created.Add(operation.TopicId);
+                : Known(operation.TopicId) && Known(operation.ParentId) && (operation.BlockId.Length == 0 || operation.Kind == "add-block" || home.ContainsKey(operation.BlockId));
+            if (!inside) { patch.Operations.Remove(operation); outOfScope++; continue; }
+            if (operation.Kind is "create-topic" or "move-topic" &&
+                (Under(operation.ParentId, operation.TopicId) || Depth(operation.ParentId) + 1 + (operation.Kind == "move-topic" ? Below(operation.TopicId) : 0) > NoteStructure.MaxDepth))
+            { patch.Operations.Remove(operation); tooDeep++; continue; }
+            if (operation.Kind is "create-topic" or "move-topic") tree[operation.TopicId] = operation.ParentId;
+            if (operation.Kind == "create-topic") created.Add(operation.TopicId);
         }
-        return dropped;
+        return new(outOfScope, withoutDestination, inPlace, tooDeep);
     }
 
     public static readonly string[] NewTopicKeys = ["new1", "new2", "new3", "new4", "new5", "new6", "new7", "new8"];
 
     // The placement plan becomes tree operations: each declared topic a create-topic (parents first, so a new
-    // subtopic can sit under a new topic), each block an add-block in the topic it names. Runs before decoding.
+    // subtopic can sit under a new topic), each block an add-block in the topic it names, and each of the
+    // organizer's moves a move-block or move-topic into the topic it names. Runs before decoding.
     static void ExpandPlacements(NotePatch patch)
     {
         string Alias(string key) => "new:" + key;
@@ -119,16 +153,20 @@ public sealed partial class NoteWorkflow
             ParentId = item.Parent.Length == 0 ? null : IsNew(item.Parent) ? Alias(item.Parent) : item.Parent }).ToList();
         operations.AddRange(patch.Blocks.Select((block, i) => new NoteTreeOperation { Kind = "add-block", BlockId = "new:block" + (i + 1),
             TopicId = IsNew(block.Topic) ? Alias(block.Topic) : block.Topic, Role = block.Role, Body = block.Body, SourceIds = block.SourceIds.ToList(), Order = i }));
+        operations.AddRange(patch.Moves.Select(move => new NoteTreeOperation { Kind = "move-block", BlockId = move.Block, TopicId = IsNew(move.To) ? Alias(move.To) : move.To }));
+        operations.AddRange(patch.TopicMoves.Select(move => new NoteTreeOperation { Kind = "move-topic", TopicId = move.Topic, ParentId = IsNew(move.To) ? Alias(move.To) : move.To }));
         // A rename without a title changes nothing; models send one for a topic their outline just named.
         patch.Operations.RemoveAll(x => x.Kind == "rename-topic" && string.IsNullOrWhiteSpace(x.Title));
-        // A move, rename or reorder may name a new key as its target.
+        // A move, rename or reorder may name a new key as its target; a move-topic to parent "" goes to the top
+        // level, as "" means in outline.
         foreach (var operation in patch.Operations)
         {
             if (IsNew(operation.TopicId)) operation.TopicId = Alias(operation.TopicId);
             if (operation.ParentId is { } parent && IsNew(parent)) operation.ParentId = Alias(parent);
+            if (operation.Kind == "move-topic" && operation.ParentId?.Length == 0) operation.ParentId = null;
         }
         patch.Operations.InsertRange(0, operations);
-        patch.Outline.Clear(); patch.Blocks.Clear();
+        patch.Outline.Clear(); patch.Blocks.Clear(); patch.Moves.Clear(); patch.TopicMoves.Clear();
     }
 
     // New text from the model (bodies, titles, replacements) in the note's script. find stays as written: it has to
@@ -204,38 +242,26 @@ public sealed partial class NoteWorkflow
         }
     }
 
-    // A closed topic (full or long-running) takes no new blocks. A block the reply still aims at it goes into a new
-    // topic made here: a subtopic under the closed topic, or a sibling when that is already three levels deep. Its
-    // title is the block's first phrase; the organizer can regroup it later. Nothing is refused, so no call is lost.
-    static int RedirectFromClosedTopics(NoteSession session, NotePatch patch, List<NoteTranscript> pending)
+    // A closed topic (six blocks or more, or long-running) takes no new blocks, and the schema does not offer it, so
+    // the writer continues its subject in a subtopic it declares with a heading title. A block a reply still aims at a
+    // closed topic goes into the subtopic the same reply declared for its continuation: under the closed topic, or
+    // beside it when that is already three levels deep. Without one the block stays where the reply put it; a topic
+    // over six blocks gets an organizer review, which may split it with titles of its own. The application never makes up a
+    // title (it used to take the block's first sentence), and nothing is refused, so no call is lost.
+    static (int Redirected, int Kept) RedirectFromClosedTopics(NoteSession session, NotePatch patch, List<NoteTranscript> pending)
     {
         var closed = NoteInput.ClosedTopics(session, pending);
-        var created = new Dictionary<string, string>();
-        var redirected = 0;
+        int redirected = 0, kept = 0;
         foreach (var op in patch.Operations.Where(x => x.Kind == "add-block" && closed.Contains(x.TopicId)).ToList())
         {
-            if (!created.TryGetValue(op.TopicId, out var alias))
-            {
-                var topic = session.Sections.Single(x => x.Id == op.TopicId);
-                alias = "split:" + ContentHash.Of(topic.Id + op.BlockId)[..12].ToLowerInvariant();
-                var parent = NoteStructure.Depth(topic, session.Sections) < NoteStructure.MaxDepth ? topic.Id : topic.ParentId;
-                patch.Operations.Insert(patch.Operations.IndexOf(op), new() { Kind = "create-topic", TopicId = alias, ParentId = parent, Title = TitleFrom(op.Body, topic.Title) });
-                created[op.TopicId] = alias;
-            }
-            op.TopicId = alias;
+            var topic = session.Sections.Single(x => x.Id == op.TopicId);
+            var parent = NoteStructure.Depth(topic, session.Sections) < NoteStructure.MaxDepth ? topic.Id : topic.ParentId;
+            var declared = patch.Operations.FirstOrDefault(x => x.Kind == "create-topic" && x.ParentId == parent);
+            if (declared is null) { kept++; continue; }
+            op.TopicId = declared.TopicId;
             redirected++;
         }
-        return redirected;
-    }
-
-    const int MaxAutoTitleLength = 24;
-
-    // The first phrase of a block, without citations or Markdown, as a short topic title.
-    static string TitleFrom(string body, string fallback)
-    {
-        var text = Regex.Replace(CitationSyntax.Rewrite(body, _ => ""), @"\[\s*\]|[#*_`>|]", "").Trim();
-        var phrase = Regex.Split(text, @"[。．.!?！？:：;；\n]").Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0) ?? "";
-        return phrase.Length == 0 ? fallback : phrase.Length > MaxAutoTitleLength ? phrase[..MaxAutoTitleLength] + "…" : phrase;
+        return (redirected, kept);
     }
 
     // A deletion may run on its own only when every source it cites stays cited somewhere else.

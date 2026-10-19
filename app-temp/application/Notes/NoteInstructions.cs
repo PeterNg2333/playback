@@ -6,8 +6,8 @@ namespace Playback.Application.Notes;
 // record which instructions produced them.
 public static class NoteInstructions
 {
-    public const string Version = "tree-notes-v13";
-    public const string OrganizeVersion = "tree-organize-v13";
+    public const string Version = "tree-notes-v15";
+    public const string OrganizeVersion = "tree-organize-v18";
 
     public const string Sections = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
@@ -26,8 +26,9 @@ public static class NoteInstructions
         earlier subject after a long gap starts a new top-level topic. Use subtopics like document headings, up to three levels: a new aspect, example or demonstration
         of the current subject is a subtopic; a different subject is a new top-level topic.
         blocks: every new block names its topic, an open existing topic ID or a new key, plus role, body and
-        sourceIds. One topic covers one subject; a closed topic (full, or running for many minutes) is not
-        offered, so new speech about it goes into a new subtopic under it. Topics keep lecture order.
+        sourceIds. One topic covers one subject; a closed topic (six blocks or more, or running for many minutes) is not
+        offered. To continue its subject, declare a subtopic under it in outline (beside it when it is already
+        at depth 3) whose title names the new aspect, and place the new blocks in that key. Topics keep lecture order.
         Do not declare a topic whose title already exists under the same parent; place blocks in that topic.
         Roles are definition, example, derivation, correction and detail.
         operations only change what exists, the way a code editor applies edits; never copy text that stays.
@@ -89,22 +90,48 @@ public static class NoteInstructions
         """;
     public const string Organize = """
         Reorganize the selected scope like an author restructuring a document's headings: declare new topics in
-        outline, move existing blocks and topics into them, reorder siblings and rename. Every move names its
-        destination: move-block sets topicId, move-topic sets parentId, to an existing ID or a new key. Copy IDs from topicOutline
-        and editableSections. Return empty sections and blocks.
-        Make the notes a hierarchy, like nested folders, not a flat list. A topic should hold at most six
-        blocks: split a larger topic into two to five subtopics by subject (outline entries whose parent is that
-        topic, then move-block with topicId set to the new key). A level should hold at most six topics: group
-        related siblings under a new parent topic (an outline entry, then move-topic with parentId set to its key).
+        outline, place existing blocks and topics under them, reorder siblings and rename. Copy IDs from
+        topicOutline and editableSections. Return empty sections and blocks.
+        moves: one entry per block that changes topic, {"block": its ID, "to": the topic it goes to}.
+        topicMoves: one entry per topic that changes parent, {"topic": its ID, "to": its new parent}.
+        "to" is a new key from outline or a selected topic, never where the block or topic is now. Anything you do
+        not list stays where it is. Blocks and topics move only through moves and topicMoves; operations are
+        rename-topic, reorder-topic and reorder-block.
+        Make the notes a hierarchy, like nested folders, not a flat list. Six is a cue to look again, not a limit:
+        decide what reads best, and leaving a structure as it is is a valid answer (return empty moves, topicMoves
+        and operations). review lists what in the selected scope is over six.
+        A topic over six blocks (review.largeTopics) that covers several subjects: split it into two to five
+        subtopics by subject (outline entries whose parent is that topic, then a moves entry for each block, "to"
+        the new key). One subject may stay as one topic. A third-level topic cannot take subtopics: move some of its
+        blocks into a new sibling (an outline entry whose parent is its parent) or an existing sibling, or leave it.
+        A level over six topics that can take a parent (an outline regroup; crowdedLevels names the parents, "" is
+        the top level): group related siblings under a new parent topic (an outline entry, then a topicMoves entry
+        for each sibling, "to" its key). Group those topics, not other levels.
+        Over six subtopics at the third level (review.crowdedSubtopics): no new parent fits there. Merge subtopics
+        that cover the same subject by moving every block of one into the other (the emptied subtopic is removed;
+        each block keeps its text and citations), rename or reorder them, or leave them when each covers its own subject.
+        Depth is at most three: a topic can go under a parent only when the parent's depth + 1 + its levelsBelow is
+        at most 3; a move that breaks this is dropped.
         outline: key new1 to new8, a short title that names the subject (a noun phrase like a heading, never a
         sentence, "Part 2", "Continued" or a copy of the parent), and parent: "" for top level, a topic ID from
-        the selected scope, or another new key. Use up to three levels and up to 80 operations. Rename (rename-topic)
-        a topic whose title is a sentence or does not name its subject; topics opened automatically have such titles.
+        the selected scope, or another new key. Use up to three levels and up to 80 moves, topicMoves and operations together.
+        Rename (rename-topic, with its title) a topic whose title is a sentence or does not name its subject.
         Only touch the selected topics, their subtopics and their blocks; other topics are context.
-        Keep every body and citation byte-for-byte. This structural action does not rewrite, summarize or merge prose.
+        Keep every body and citation byte-for-byte. This structural action does not rewrite, summarize or merge prose;
+        merging topics only moves whole blocks.
         Preserve every coverage point, definition, mathematical condition, derivation, example, argument and source.
         Do not shorten by losing meaning, invent facts, or touch another section. User facts must survive.
-        This task uses the same JSON contract as the section note task, without blocks.
+        This task uses the same JSON contract as the section note task, without blocks and with moves and
+        topicMoves. Example of a split:
+        {"outline":[{"key":"new1","title":"符號搜尋指令","parent":"section_abc"},{"key":"new2","title":"位址計算","parent":"section_abc"}],
+        "moves":[{"block":"point_1","to":"new1"},{"block":"point_2","to":"new1"},{"block":"point_3","to":"new2"}],"topicMoves":[],
+        "operations":[{"kind":"rename-topic","topicId":"section_abc","blockId":"","title":"WinDbg 實作"}],"deferred":[]}
+        Example of grouping a crowded level:
+        {"outline":[{"key":"new1","title":"課程安排","parent":""}],"moves":[],
+        "topicMoves":[{"topic":"S000","to":"new1"},{"topic":"S002","to":"new1"}],"operations":[],"deferred":[]}
+        Example of merging two third-level subtopics on the same subject:
+        {"outline":[],"moves":[{"block":"point_7","to":"section_x"},{"block":"point_8","to":"section_x"}],"topicMoves":[],
+        "operations":[],"deferred":[]}
         """;
     public const string Instruction = """
         This call carries out an explicit instruction from the person who owns these notes, given below.

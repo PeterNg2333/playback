@@ -228,11 +228,14 @@ public static class NoteSections
 }
 // A note reply. Like an author planning a document, the writer first places new content: Outline declares the
 // new topics (key, title, parent) and every Block names the topic it goes in, an open existing topic or a new key.
-// Operations edit, move, reorder or rename. Property order is the order the model writes them.
+// The organizer places existing blocks in Moves and topics in TopicMoves. Operations edit, move, reorder or rename. Property order is the
+// order the model writes them.
 public sealed class NotePatch
 {
     public List<OutlinePlacement> Outline { get; set; } = [];
     public List<PlacedBlock> Blocks { get; set; } = [];
+    public List<BlockMove> Moves { get; set; } = [];
+    public List<TopicMove> TopicMoves { get; set; } = [];
     public List<NoteTreeOperation> Operations { get; set; } = [];
     public List<SourceDisposition> Deferred { get; set; } = [];
     public List<SectionPatch> Sections { get; set; } = [];

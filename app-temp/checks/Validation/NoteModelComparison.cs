@@ -204,7 +204,8 @@ static class NoteModelComparison
             case "openrouter":
                 // An "@effort" suffix sets the reasoning effort; the default is low.
                 var effort = model.Contains('@') ? model[(model.IndexOf('@') + 1)..] : "low";
-                var openRouter = new OpenRouterTextModel(model.Split('@')[0], effort);
+                var openRouter = RateLimitGuard.Enabled ? new OpenRouterTextModel(new RateLimitGuard(), model.Split('@')[0], effort)
+                    : new OpenRouterTextModel(model.Split('@')[0], effort);
                 if (!openRouter.IsConfigured) throw new InvalidOperationException("OpenRouter key unavailable in the process environment");
                 return (new OpenRouterNoteWriter(openRouter), openRouter);
             default:
