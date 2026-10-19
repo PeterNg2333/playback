@@ -1,6 +1,6 @@
 # P3 結果：筆記結構（organizer 範圍、subtopic 標題）
 
-Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `v14` → `v15`；organizer `tree-organize-v13` → `v14`（Run 1、2）→ `v15`（Run 3）→ `v16` → `v17`（Run 4、5，兩次都被 HTTP 429 打斷）。
+Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `v14` → `v15`；organizer `tree-organize-v13` → `v14`（Run 1、2）→ `v15`（Run 3）→ `v16` → `v17`（Run 4–6，被 HTTP 429 打斷）→ `v18`（Run 7）。
 
 ## 摘要
 
@@ -11,12 +11,13 @@ Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer
   2. 只有 outline 嘅重組（同一層太多主題）以前遇到 `rename-topic` 就成次失敗；而家可以改名。
   3. Outline 重組嘅 input 講明邊一層擠迫、每個主題下面有幾多層。
   4. 會令主題超過三層嘅 move 會被丟棄，唔再令成次重組失敗。
-- **六係 review 門檻，唔係上限**（使用者決定）：超過六個就行一次 organizer review，佢可以重組、合併、改名、重排，或者唔郁。第三層超過六個 subtopic 會做 block-level review，可以合併（只搬成段 block，內文同引用唔變）。Review 過而保持原狀嘅擠迫層，直至有主題加入或離開先會再問。見[第三層](#第三層超過六個-subtopic使用者決定六係-review-門檻唔係上限)。
-- 離線 checks 全綠（27 組）。五次 live 驗收合共 US$0.1119：
+- **六係 review 門檻，唔係上限**（使用者決定）：超過六個就行一次 organizer review，佢可以重組、合併、改名、重排，或者唔郁。第三層超過六個 subtopic 會做 block-level review，可以合併（只搬成段 block，內文同引用唔變）。第三層主題超過六段會由 parent 開始 review，可以將部分 block 搬去新或現有嘅 sibling（v18；以前永遠唔會被 review）。Review 過而保持原狀嘅擠迫層，直至有主題加入或離開先會再問。見[第三層](#第三層超過六個-subtopic使用者決定六係-review-門檻唔係上限)。
+- 離線 checks 全綠（28 組，加咗 429 保護 check）。七次 live 驗收合共 US$0.1637：
   - **拆大主題（v14）**：7 個 move 全部套用，0 丟棄。
-  - **擠迫層重組**：v14 嘅 7 次都冇效，因為 Qwen 冇填 `parentId`。用 `topicMoves` 之後（v15），第一次重組 9 個 topicMoves 同 9 個改名全部套用、0 丟棄，頂層由 11 個減到 3 個。之後 3 次 call 因為擠迫層喺第三層而浪費咗，其中 2 次因為深度成次失敗；已經喺 v16／v17 修好。
-  - **v17（Run 4、5）**：OpenRouter HTTP 429 令一半以上 writer call 同全部 4 次 organizer call 失敗，深度修正同第三層 review **未 live 驗證**。
-  - 五次都係 0 句子標題，冇已滿主題被轉走。
+  - **擠迫層重組**：v14 嘅 7 次都冇效，因為 Qwen 冇填 `parentId`。用 `topicMoves` 之後，v15、v17、v18 合共 3 次重組都全部套用、0 丟棄（9、7、7 個 topicMoves）。v15 有 2 次因深度成次失敗，v16 起已經修好，Run 6、7 冇再出現深度錯誤。
+  - **429**：v17 嘅 Run 4–6 被 OpenRouter／Alibaba 共用額度嘅 HTTP 429（`limit_burst_rate`）打斷。Run 7 冇 429。
+  - **第三層 review**：7 次 run 只有 v15 出現過需要佢嘅結構，所以合併／唔郁只有離線證據。原因分析見[點解第三層 review 咁少觸發](#點解第三層-review-咁少觸發用已有-run-數據冇新-call)。
+  - 七次都係 0 句子標題，冇已滿主題被轉走。
 
 ## A. Organizer 被丟棄嘅操作
 
@@ -209,20 +210,67 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 - Activity 入面 4 次 organizer call 嘅 promptVersion 係 `tree-organize-v17`。失敗之後 state 按原本嘅重試規則（同一 input 最多 3 次，之後有新改動再試）。
 - 唯一嘅結論：v17 嘅 writer 同 organizer 喺 429 下面都冇其他錯誤；行為本身未驗到。
 
-合計 live 費用：Run 1、2 US$0.0562（第一次授權）；Run 3 US$0.0265（第二次授權）；Run 4、5 US$0.0292（第三次授權，上限 US$0.07，兩次已用完）。Run folder 喺 worktree 嘅 `app-temp/data/validation/runs/`（git ignore），合併 worktree 前如果要保留，要抄去 main checkout。
+### Run 6、7（第四次授權：最多兩次，上限 US$0.07，429 慳錢規則）
 
-### 下一次 live 驗收計劃（未授權，未做）
+新加嘅 429 保護：`checks/Validation/RateLimitGuard.cs`（opt-in：`PLAYBACK_NOTE_MODELS_STOP_ON_429=yes`、`PLAYBACK_RATE_LIMIT_LOG=<file>`）：
 
-- 先決條件：OpenRouter 冇 429。開始前確認冇其他 phase 用緊同一條 key 跑 live，或者錯開時間。
-- 目的：驗證 `tree-organize-v17`：重組唔再因深度成次失敗；`moves`／`topicMoves` 繼續 0 丟棄；擠迫層被 review 過之後唔再重複問；如果有第三層超過六個 subtopic，睇 organizer 揀合併、改定唔郁，同埋 block／引用係咪齊全。
-- 指令：同上，`--folder app-temp/data/validation/runs/<日期>-p3-organize-v17c`，Qwen3.8 Flash batch+organize，Week 3 頭 20 分鐘。Week 3 頭 20 分鐘唔一定會出現第三層超過六個（Run 3 有，Run 1、2、4、5 冇）；如果要保證覆蓋，可以考慮用完整 Week 3 transcript（P2 嘅長課堂 replay），但費用高好多。
-- 請求數：約 28–29 次 writer call、0–8 次 organizer call；冇上傳音訊。
-- 預計費用：每次約 US$0.03；建議最多兩次，上限 US$0.07。
-- 量度：每次 organizer call 嘅觸發原因、套用同丟棄數（按原因）、有冇深度錯誤、第三層 review 結果（合併／改／唔郁）、句子標題、來源覆蓋、費用。
+- 逐個 429 記低：status、`Retry-After`、`X-RateLimit-*`、response 頭 4 KB（會拎走 account `user_id`；key 只喺 request，唔會記）。
+- 一次 run 嘅頭 10 個 writer call 有 3 個或以上 429，就唔再發 request（organizer call 唔計）。
+- 離線 check：`RateLimitGuardChecks`。
+
+| | Run 6 `2026-10-19-p3-organize-v17c`（organize v17） | Run 7 `2026-10-19-p3-organize-v18`（organize v18） |
+| --- | --- | --- |
+| 開始（UTC） | 13:11 | 13:48（Run 6 停咗之後 32 分鐘） |
+| Writer calls：成功／失敗／總數 | 21 / 15 / 36（3 個 429、1 個空回覆、11 個被保護擋住） | 29 / 0 / 29 |
+| 來源引用 | 45/58（尾段冇寫） | 58/58 |
+| Median call | 8.6 s | 11.8 s |
+| 費用 | $0.0226 | $0.0292 |
+| Organizer calls | 1：`crowded-level`（頂層 7 個） | 1：`crowded-level`（頂層 7 個） |
+| 套用／丟棄（按原因） | 7 個 topicMoves 全部套用；範圍外 0、冇目的地 0、原位 0、超過三層 0 | 7 個 topicMoves 全部套用；全部原因都係 0 |
+| 結果 | 頂層 7 → 3 個 parent | 頂層 7 → 4（3 個新 parent 加 1 個之後講嘅主題） |
+| 深度錯誤 | 冇 | 冇 |
+| 第三層 review | 冇觸發（第二層主題下面最多 1 個 subtopic） | 冇觸發（最多 3 個） |
+| 第三層主題超過六段 | 冇（最多 6 段） | 冇（最多 6 段） |
+| 句子標題 | 0（11 個主題） | 0（17 個主題；用關鍵字標記咗「…補充說明」、「…講師行程」，人手睇過都係名詞短語） |
+
+- **Run 6 嘅 429**：provider `Alibaba`，`provider_error_code: limit_burst_rate`，`limit_source: upstream_provider_shared_pool`，message「qwen/qwen3.8-flash is temporarily rate-limited upstream. Please retry shortly, or add your own key…」，`is_byok: false`。冇 `Retry-After`、冇 `X-RateLimit-*` header。即係 OpenRouter 喺 Alibaba 共用嘅 Qwen 額度爆咗，唔係我哋條 key 嘅限額。避開方法：用自己嘅 Alibaba key（BYOK），或者 provider routing 加後備 provider（P4 範圍）。
+- **Run 6 被錯誤停止**：頭 10 個 writer call 只有 2 個 429，未到停止條件。但保護嘅計數器數到 10 就唔再加，第 26 個 call 嘅 429 被當成第 3 個，於是擋住其後 11 個 call。已修好（逐個 call 編號，只計頭 10 個），離線 check 覆蓋「後段 429 唔會停」。Run 6 嘅 organizer call 喺停之前已經完成，結果有效；來源覆蓋 45/58 係因為被錯誤擋住。
+- **Run 7**：冇 429。擠迫層重組全部套用、0 丟棄、冇深度錯誤；冇出現要第三層 review 嘅結構，所以合併／唔郁未有 live 證據，只有離線 check。
+
+合計 live 費用：Run 1、2 US$0.0562；Run 3 US$0.0265；Run 4、5 US$0.0292；Run 6、7 US$0.0518（第四次授權，上限 US$0.07）。全部 US$0.1637。Run folder 喺 worktree 嘅 `app-temp/data/validation/runs/`（git ignore），合併 worktree 前如果要保留，要抄去 main checkout。
+
+### 點解第三層 review 咁少觸發（用已有 run 數據，冇新 call）
+
+每次 run 最後筆記嘅結構（深度按最後筆記計；organizer 將頂層歸入新 parent 時，原本嘅層數會加一）：
+
+| Run | 成功 writer call | 主題（第 1／2／3 層） | 每個第二層主題下面嘅 subtopic 數 | 最多 | 第三層主題嘅段數 | Writer 新主題放喺邊（頂層／第一層下／第二層下） |
+| --- | --- | --- | --- | --- | --- | --- |
+| v14 | 28 | 5 / 8 / 6 | 4, 2, 0×6 | 4 | 7, 3, 3, 2, 1, 1 | 5 / 6 / 6（另 2 個放喺新 key 下） |
+| v14b | 29 | 11 / 3 / 1 | 1, 0, 0 | 1 | 1 | 10 / 3 / 1 |
+| v15 | 28 | 3 / 14 / 10 | **7**, 1, 1, 1, 0×10 | **7** | 4, 4, 2, 2, 2, 2, 1, 1, 1, 1 | 10 / 5 / 10 |
+| v17（429） | 13 | 5 / 2 / 3 | 2, 1 | 2 | 5, 2, 1 | 5 / 2 / 3 |
+| v17b（429） | 19 | 7 / 4 / 3 | 2, 1, 0, 0 | 2 | 6, 1, 1 | 7 / 4 / 3 |
+| v17c（429） | 21 | 3 / 7 / 1 | 1, 0×6 | 1 | 6 | 7 / 0 / 1 |
+| v18 | 29 | 4 / 9 / 4 | 3, 1, 0×7 | 3 | 6, 5, 2, 2 | 9 / 2 / 4 |
+
+答案：
+
+1. **主要係內容本身，加上模型每次唔同；唔係 writer prompt 叫佢少開 subtopic。**
+   - 頭 20 分鐘有 58 段講話，大約寫成 40–55 段筆記。要出現第三層超過六個，就要同一個第二層主題連續講七個以上唔同方面，而且全部喺「最近五分鐘」之內（writer 只可以喺最近講過、第三層以上嘅主題下面開 subtopic）。
+   - 頭 20 分鐘只有最後約 6–8 分鐘嘅 kernel debugging 示範係一個長嘅連續技術主題，前面係 AI 學習方法、課程安排、system call 補充等短主題。
+   - v15 嗰 7 個全部係 writer 喺 7 次連續 call（大約第 14–20 分鐘）自己喺「Notepad 創建檔案的呼叫鏈」下面宣告，每次一個，唔係 organizer 搬出嚟。
+   - 同一個 writer prompt（v14），v14b 將 14 個新主題入面 10 個開喺頂層，v15 將 25 個入面 10 個開喺第二層下面。所以模型每次唔同，影響比 prompt 大。
+   - 429 嘅三次 run 只有 13–21 個成功 call，段數少，冇得比較。
+2. **Writer prompt 冇叫佢少開 subtopic。** 佢寫明「新嘅方面、例子或示範係 subtopic，唔同主題先開新頂層主題」，主題滿六段或者講咗八分鐘就要開 subtopic，係鼓勵開 subtopic。
+3. **冇證據顯示 writer 應該開多啲 subtopic 但冇開；反而有過度細分嘅跡象。**
+   - 第三層主題大多只有 1–2 段（v15：10 個入面 4 個得 1 段）。v15 嗰 7 個有明顯重疊（「調試器符號下載與啟動」、「載入核心符號」、「符號下載與本地存放位置」），正正係第三層 review 想處理嘅合併情況。
+   - 去到 6–7 段嘅主題：v14 有一個第三層主題 7 段（以前永遠唔會被 review，已經喺 v18 修好），v17b、v17c、v18 有第三層 6 段，v14b、v17 有頂層 6 段。6 段係「滿」但未「超過」，唔算拆少咗。逐段睇係同一個示範嘅連續步驟，冇見到應該分開但冇分嘅情況。
+4. **想 live 驗證第三層 review**：頭 20 分鐘可能兩三次 run 先出一次。要穩定觸發，要用更長嘅課（例如完整 Week 3 transcript，由 P2 嘅長課堂 replay 量度，費用高好多），或者繼續靠離線 check。
 
 ## 未完成同限制
 
-- `tree-organize-v16`／`v17`（擠迫層分「可加 parent」同「第三層 review」、`crowdedLevels`／`levelsBelow`／`review`、丟棄過深 move、review 過嘅擠迫層唔再問）只有離線 check。Run 4、5 因為 429 驗唔到。`topicMoves` 同 outline 重組改名已經喺 Run 3 live 驗證。
+- 第三層 review（合併、唔郁、合併後 block 齊全）同第三層主題超過六段嘅 review 只有離線 check；Run 6、7 都冇出現需要佢哋嘅結構。擠迫層 `topicMoves`、outline 重組改名、冇深度錯誤已經喺 Run 3、6、7 live 驗證。
+- `RateLimitGuardChecks` 係修好計數之後先寫，所以未見過佢 red；舊計數會令佢嘅「後段 429」部分失敗（按程式推理，冇實際跑過）。
 - 第三層 review 只可以合併、改名、重排或者唔郁；合併只係搬成段 block，唔會將兩段文字合成一段。
 - `ReviewedLevels` 係新加嘅 `note_organization` 欄位。舊文件冇呢個欄位就用空 list（Mongo automap），唔使 migration；未喺 LocalMongo check 驗證。
 - Fixture 入面嘅 `PlacedReply`、`PlacedRegroupReply` 係按保存回覆寫返出嚟嘅新形狀，唔係 provider 真正嘅回覆；`moves` 部分已經喺 Run 2 由 Qwen 真正用過。
@@ -238,9 +286,12 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 | `app-temp/infrastructure/Providers/ModelOutputContract.cs`（P4 擁有） | `Regrouping` 加 `moves`、`topicMoves`（enum、required；冇 block／主題時 `maxItems: 0`），organizer operation 種類改為 rename／reorder（outline 冇 `reorder-block`），`required` 加兩個欄位；`StructuralKinds` 拎走 `move-topic`、`move-block`；`Placement` 拎走 `moves`、`topicMoves`（writer 同 owner instruction 冇呢兩個欄位） | A 嘅修法本身就係 schema，呢個檔案係唯一砌 schema 嘅地方。改動只喺 `ResponseFormat` 傳 blockIds 嗰一行、`Regrouping`、`Placement` 尾同 `StructuralKinds`，同 P4 嘅 streaming／fallback 應該唔重疊 |
 | `app-temp/domain/Notes/NoteSections.cs` | `NotePatch` 加 `Moves`、`TopicMoves` 兩行同註解 | 回覆嘅 CLR 型別喺呢度；`BlockMove`／`TopicMove` class 放咗喺 `NoteTree.cs`（屬 P3） |
 | `app-temp/application/Notes/NoteWorkflow.cs` | `DropOutOfScope` 回傳分類計數，並傳入全部主題（計深度）；summary 文字（`Dropped`、`EditSummary` 嘅已滿主題兩句）；outline 重組准許 `rename-topic` | 按原因計丟棄、過深 move 嘅判斷、B 嘅新 summary，同埋 Run 2 嘅 rename 失敗都喺呢度 |
+| `app-temp/checks/Validation/NoteModelComparison.cs`（P2 擁有） | `Writer()` 入面設咗 `PLAYBACK_NOTE_MODELS_STOP_ON_429=yes` 時，用 `RateLimitGuard` 做 OpenRouter 嘅 HTTP handler（一個 if，預設行為唔變） | 使用者要求嘅 429 慳錢規則同 429 資料只可以喺 HTTP 層攞；guard 本身係新檔案 `Validation/RateLimitGuard.cs` |
+| `app-temp/checks/Program.cs` | 離線清單加 `RateLimitGuardChecks.Run()` 一行 | 新 check 要喺離線 checks 跑 |
 
 ## 要使用者決定嘅嘢
 
-- 喺 OpenRouter 冇 429 嘅時候，授權一次 `tree-organize-v17` live 驗收（見上面計劃，約 US$0.03–0.07）；同埋係咪要用完整 Week 3 transcript 先保證觸發第三層 review。
+- 第三層 review 要唔要 live 驗證：頭 20 分鐘唔穩定（7 次 run 只有 1 次出現），要穩定就要用完整 Week 3 transcript（費用高好多），或者接受離線 check。
+- Qwen 429 嘅來源係 OpenRouter 喺 Alibaba 嘅共用額度（`limit_burst_rate`、`upstream_provider_shared_pool`）。正式使用要考慮 BYOK（自己嘅 Alibaba key）或者 provider routing 後備（P4 範圍）。
 - B 嘅後備：回覆冇宣告 subtopic 時，我揀咗「留喺原主題，等 organizer 拆」，唔再自動開 subtopic。另一個做法係拒收嗰段（source 留 pending，下一批再寫），但可能多一次 writer call。建議維持現狀。
 - Run folder 要唔要由 worktree 抄去 main checkout 保留。
