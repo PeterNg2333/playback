@@ -1,11 +1,11 @@
 # P3 結果：筆記結構（organizer 範圍、subtopic 標題）
 
-Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `v14` → `v15`；organizer `tree-organize-v13` → `v14`（Run 1、2）→ `v15`（Run 3）→ `v16` → `v17`（Run 4–6，被 HTTP 429 打斷）→ `v18`（Run 7）。
+Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `v14` → `v15`；organizer `tree-organize-v13` → `v14`（Run 1、2）→ `v15`（Run 3）→ `v16` → `v17`（Run 4–6，被 HTTP 429 打斷）→ `v18`（Run 7）→ `v19`（「滿」主題 review，離線）。
 
 ## 摘要
 
 - **A（organizer 丟棄操作）**：保存咗嘅 run 入面，被丟棄嘅操作**冇一個係改範圍外主題**。每個被丟棄嘅搬動都係搬範圍內嘅 block 或主題，只係冇講搬去邊：`move-block` 嘅 `topicId` 冇填、填 `""`，或者填返 block 而家所在嘅主題。修法：organizer 改用「放置」，`moves: [{block, to}]` 同 `topicMoves: [{topic, to}]`，同 writer 嘅 `blocks[].topic` 一樣，`to` 只解作目的地，而且 required。Schema 只容許 `to` 揀範圍內主題或者新 key，所以冇得漏、冇得揀範圍外。仍然套用唔到嘅操作按原因分開計。
-- **B（自動 subtopic 標題）**：句子標題只會喺 writer 嘅回覆指向已滿主題時出現，application 用 block 第一句做標題。修法：application 唔再自己起標題。Block 放入同一個回覆喺 outline 宣告嘅 subtopic（writer 起嘅名詞短語標題）；冇宣告就留喺原主題，超過六段時由 organizer 拆。冇加 model call。
+- **B（自動 subtopic 標題）**：句子標題只會喺 writer 嘅回覆指向已滿主題時出現，application 用 block 第一句做標題。修法：application 唔再自己起標題。Block 放入同一個回覆喺 outline 宣告嘅 subtopic（writer 起嘅名詞短語標題）；冇宣告就照收喺原主題（使用者 2026-10-20 揀咗呢個做法），個主題超過「滿」就由 organizer review，拆唔拆由 organizer 決定。冇加 model call。
 - **另外修咗**：
   1. 新增或者搬入嘅 block 以前用回覆入面嘅位置做 `Order`，會排喺之前嘅 block 中間；而家排喺主題最後。
   2. 只有 outline 嘅重組（同一層太多主題）以前遇到 `rename-topic` 就成次失敗；而家可以改名。
@@ -100,6 +100,33 @@ Activity summary 分開寫 `blocks for closed topics placed in the subtopic the 
 ```
 CheckFailed: A block aimed at a full topic did not go into the subtopic the same reply declared: Scheduling | 輪轉排程使用時間片
 ```
+
+### 使用者決定 B 嘅後備（2026-10-20）：(a) 照收，由 organizer review；「滿」唔係上限
+
+使用者揀 (a)，並且加咗條件：照收段落，由 organizer 決定拆唔拆；滿唔代表唔可以再多。理解同做法：
+
+- Writer 冇宣告 subtopic、但將段落放入已滿主題時，段落照收（之前已經係咁，`NoteEditChecks.ClosedTopics` 第二步）。
+- 個主題超過「滿」就由 organizer review 一次，organizer 可以拆，亦可以唔拆。唔拆唔算失敗；主題繼續超過門檻。
+- 改之前有兩個唔一致嘅地方：
+  1. Organizer 揀唔拆之後，個主題只要有任何改動（改名、改字）就會再被 review，即係會重複觸發。而家同第三層 review 一樣，記入 `NoteOrganizationState.ReviewedStructures`（之前叫 `ReviewedLevels`）。按主題嘅 block 組合計 identity，有 block 加入或者離開先再問。
+  2. 「按時間滿」（八分鐘）嘅主題收咗段落但仍然少過七段，以前唔會觸發 review。而家 `NoteStructure.Overfull` 都計 block 嘅講話時間跨度：八分鐘或以上就算超過「滿」（`tree-organize-v19`；`review.largeTopics` 嘅說明同 prompt 都加咗）。
+- Writer prompt 冇改：佢只係講「滿」嘅主題唔會提供俾佢放段落，要延續就宣告 subtopic。呢個係放置規則，冇講一定要拆。
+
+Check（`NoteOrganizationChecks.FullTopicReview`，配合 `NoteEditChecks.ClosedTopics` 嘅照收）：
+
+1. **照收**：`ClosedTopics` 第二步，冇宣告 subtopic 嘅段落留喺已滿主題（7 段），冇新主題。
+2. **Organizer 拆**：7 段主題 → review，2 段搬入新 subtopic，原主題剩 5 段。
+3. **Organizer 揀唔拆、唔會重複觸發**：review completed、冇改動。之後個主題改名，冇再 review；再加一段，就再 review 一次。
+4. **按時間滿**：3 段但跨 9 分鐘 → review。
+
+改之前（red）：
+
+```
+CheckFailed: A full topic the organizer left unsplit was reviewed again although its blocks did not change
+CheckFailed: A topic full by time that took another block was not reviewed
+```
+
+（第二個係將 `Due` 嘅講話時間拎走之後見到嘅。）
 
 ## Block 次序
 
@@ -269,13 +296,15 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 
 ## 未完成同限制
 
-- 第三層 review（合併、唔郁、合併後 block 齊全）同第三層主題超過六段嘅 review 只有離線 check；Run 6、7 都冇出現需要佢哋嘅結構。擠迫層 `topicMoves`、outline 重組改名、冇深度錯誤已經喺 Run 3、6、7 live 驗證。
+- 第三層 review（合併、唔郁、合併後 block 齊全）、第三層主題超過六段嘅 review，同埋「滿」主題 review（拆、唔拆唔重複、按時間滿）只有離線 check。**使用者 2026-10-20 決定接受離線 check 作為第三層 review 嘅驗收，唔跑完整 Week 3。** 擠迫層 `topicMoves`、outline 重組改名、冇深度錯誤已經喺 Run 3、6、7 live 驗證。
+- 「按時間滿」用 block 引用嘅講話時間跨度計。如果一個主題引用咗好早之前嘅 source（例如補寫舊講話），都可能被當成超過「滿」而 review 一次；review 過唔拆就記低，唔會重複。
+- `NoteOrganizationStatus`（Storage 同 MemoryStore 嘅狀態顯示，屬範圍外）計 due 時冇講話時間，所以「按時間滿」唔會喺狀態顯示出嚟；實際觸發用嘅 `OrganizeIfDue` 有計。
 - `RateLimitGuardChecks` 係修好計數之後先寫，所以未見過佢 red；舊計數會令佢嘅「後段 429」部分失敗（按程式推理，冇實際跑過）。
 - 第三層 review 只可以合併、改名、重排或者唔郁；合併只係搬成段 block，唔會將兩段文字合成一段。
-- `ReviewedLevels` 係新加嘅 `note_organization` 欄位。舊文件冇呢個欄位就用空 list（Mongo automap），唔使 migration；未喺 LocalMongo check 驗證。
+- `ReviewedStructures` 係新加嘅 `note_organization` 欄位。舊文件冇呢個欄位就用空 list（Mongo automap），唔使 migration；未喺 LocalMongo check 驗證。
 - Fixture 入面嘅 `PlacedReply`、`PlacedRegroupReply` 係按保存回覆寫返出嚟嘅新形狀，唔係 provider 真正嘅回覆；`moves` 部分已經喺 Run 2 由 Qwen 真正用過。
 - Organizer 仍然可以將 block 或主題「搬」去原位（schema 冇辦法逐個排除）。呢種 move 唔會改到嘢，會分開計，prompt 亦講明唔好咁做。
-- B 嘅後備（冇宣告就留喺原主題）會令已滿主題暫時超過六段，要等 organizer 拆；organizer 停用時會一直咁。
+- B 嘅後備（冇宣告就照收喺原主題）會令主題超過「滿」；organizer 可以拆，亦可以唔拆。Organizer 停用時一定唔會拆。
 - Organizer 唔再可以將主題搬去頂層（`to` 冇 `""`）。拆主題同重組都唔需要；writer 嘅 `move-topic` 用 `parentId: ""` 仍然解作頂層。
 - 保存嘅 run（`app-temp/data/validation/runs/`）冇 commit；fixture 只抄咗需要嘅 ID、標題同回覆結構。Organizer input 冇保存喺 activity（`promptText` 只有指示），所以 fixture 主題係由 `note.json` 同回覆砌返出嚟，block 內文縮短咗。
 
@@ -289,9 +318,12 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 | `app-temp/checks/Validation/NoteModelComparison.cs`（P2 擁有） | `Writer()` 入面設咗 `PLAYBACK_NOTE_MODELS_STOP_ON_429=yes` 時，用 `RateLimitGuard` 做 OpenRouter 嘅 HTTP handler（一個 if，預設行為唔變） | 使用者要求嘅 429 慳錢規則同 429 資料只可以喺 HTTP 層攞；guard 本身係新檔案 `Validation/RateLimitGuard.cs` |
 | `app-temp/checks/Program.cs` | 離線清單加 `RateLimitGuardChecks.Run()` 一行 | 新 check 要喺離線 checks 跑 |
 
+## 使用者已決定
+
+- 第三層 review：接受離線 check 作為驗收，唔跑完整 Week 3（2026-10-20）。
+- B 嘅後備：(a) 照收，由 organizer review，拆唔拆由 organizer 決定；「滿」唔係上限（2026-10-20）。
+
 ## 要使用者決定嘅嘢
 
-- 第三層 review 要唔要 live 驗證：頭 20 分鐘唔穩定（7 次 run 只有 1 次出現），要穩定就要用完整 Week 3 transcript（費用高好多），或者接受離線 check。
 - Qwen 429 嘅來源係 OpenRouter 喺 Alibaba 嘅共用額度（`limit_burst_rate`、`upstream_provider_shared_pool`）。正式使用要考慮 BYOK（自己嘅 Alibaba key）或者 provider routing 後備（P4 範圍）。
-- B 嘅後備：回覆冇宣告 subtopic 時，我揀咗「留喺原主題，等 organizer 拆」，唔再自動開 subtopic。另一個做法係拒收嗰段（source 留 pending，下一批再寫），但可能多一次 writer call。建議維持現狀。
 - Run folder 要唔要由 worktree 抄去 main checkout 保留。

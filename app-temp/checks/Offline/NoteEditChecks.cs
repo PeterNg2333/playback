@@ -272,8 +272,9 @@ static class NoteEditChecks
     // closed and the schema does not offer it, so the writer declares a subtopic with a heading title. A reply that
     // still names the closed topic (every v11 Gemini reply that met a full topic did) used to get a subtopic titled by
     // the block's first sentence ("輪轉排程使用時間片"), shown until the organizer renamed it. Now the block goes into
-    // the subtopic the same reply declared under the closed topic; without one it stays where the reply put it, and
-    // the organizer splits the topic like any topic over six blocks. The application never makes up a title.
+    // the subtopic the same reply declared under the closed topic; without one it is kept where the reply put it,
+    // and the topic, now past full, gets an organizer review that may split it or leave it
+    // (NoteOrganizationChecks.FullTopicReview). The application never makes up a title.
     static async Task ClosedTopics()
     {
         const string id = "closed";

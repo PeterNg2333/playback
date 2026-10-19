@@ -23,7 +23,7 @@
 | --- | --- | --- | --- |
 | P1 | 未開始 | — | 實機測試要喺使用者睇住嘅 session 做 |
 | P2 | 未開始 | — | 收費 live，要喺使用者睇住嘅 session 做；廣東話樣本未答 |
-| P3 | 進行中 | `d0de321`（merge `a077efc`） | B fallback：寫入已滿主題但冇宣告 subtopic 嘅 block 照收；organizer review 決定拆唔拆，唔拆都得，唔會重複觸發。第三層 review 接受離線 check，唔跑完整 Week 3 |
+| P3 | 完成，等 Wave 收尾 | `d4c0804` | 已做：B fallback 照收已滿主題嘅 block，organizer review 決定拆唔拆，唔拆都得，block 冇變就唔再問；按時間（八分鐘）滿嘅主題都會 review。第三層 review 接受離線 check，唔跑完整 Week 3。剩低：Storage／`MemoryStore` 嘅整理狀態顯示未計時間滿（範圍外，交 M 或者之後 phase） |
 | P4 | 進行中 | `89b84da`（merge `5791f5d`） | Qwen 限流時用 OpenRouter `models` fallback 轉 GLM／DeepSeek，Gemini 留做最後一層；做 P4 結果文件嘅 live 驗收計劃（已批）；「上周／周末」唔強制轉，靠 prompt 嘅繁體／香港用語提示 |
 | P5 | 暫停 | — | 使用者之後再叫開 |
 | P6 | 暫停 | — | 使用者之後再叫開 |

@@ -12,7 +12,7 @@ static class NoteOrganizationChecks
 {
     public static async Task Run()
     {
-        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await CrowdedSubtopicsReview(); await LargeThirdLevelTopic(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
+        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await CrowdedSubtopicsReview(); await LargeThirdLevelTopic(); await FullTopicReview(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
         Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), only groupable levels regrouped and too-deep moves dropped, over six third-level subtopics reviewed (merge keeping every block and citation, or left as they are), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
     }
     static NoteAgent Agent(MemoryStore store, OrganizationModel model, TestClock clock) => new(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
@@ -292,6 +292,58 @@ static class NoteOrganizationChecks
         Expect.That(model.Organizations == 1 && store.Organizations["third"].DueReason == "large-topic" && sibling?.ParentId == "chain" &&
             sibling.Blocks.Select(x => x.Id).SequenceEqual(["big-b4", "big-b5", "big-b6"]) && topics.Single(x => x.Id == "big").Blocks.Count == 4,
             "A third-level topic over six blocks was not reviewed, or its blocks did not move into a new sibling");
+    }
+    // "Full" (six blocks, or eight minutes of lecture) is a review threshold, not a limit (the owner's decision on
+    // B). A block a reply still puts in a full topic is kept (NoteEditChecks.ClosedTopics); the topic is then over the
+    // threshold and gets one organizer review. The organizer may split it, or leave it: leaving it is not a failure,
+    // and the topic is not asked again until its blocks change. A topic full by time (its blocks span eight minutes
+    // or more) is reviewed too, though it has fewer than seven blocks.
+    static async Task FullTopicReview()
+    {
+        const string leaveReply = "{\"outline\":[],\"moves\":[],\"topicMoves\":[],\"operations\":[],\"deferred\":[]}";
+        // Split.
+        var clock = new TestClock(); var store = new MemoryStore {Clock = clock};
+        Seed(store, clock, "split", ("full", null, 7));
+        await Configure(store, "split", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        var model = new OrganizationModel { ReplyFor = _ => JsonSerializer.Serialize(new NotePatch { Outline = [new() { Key = "new1", Title = "Later part", Parent = "full" }],
+            Moves = [new() { Block = "full-b5", To = "new1" }, new() { Block = "full-b6", To = "new1" }] }) };
+        await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "split");
+        Expect.That(model.Organizations == 1 && store.Notes["split"].Sections.Single(x => x.Id == "full").Blocks.Count == 5 &&
+            store.Notes["split"].Sections.Single(x => x.Title == "Later part").Blocks.Count == 2, "A topic over six blocks was not reviewed and split");
+
+        // Leave: completed, nothing changes; a later change that keeps its blocks does not ask again, a new block does.
+        clock = new TestClock(); store = new MemoryStore {Clock = clock};
+        Seed(store, clock, "leave", ("full", null, 7));
+        await Configure(store, "leave", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        model = new OrganizationModel { Reply = leaveReply };
+        await using (var agent = Agent(store, model, clock))
+        {
+            await Tick(agent, clock, 2, "leave");
+            Expect.That(model.Organizations == 1 && store.Notes["leave"].Sections.Single().Blocks.Count == 7 && store.Organizations["leave"].Status == "completed",
+                "Leaving a full topic as it is was not a completed review");
+            void Change(Action<Note> edit)
+            {
+                var note = store.Notes["leave"]; edit(note);
+                note.MeaningfulRevision++; note.RecentChanges.Add(new() { Revision = note.MeaningfulRevision, At = clock.GetUtcNow().UtcDateTime, TopicIds = ["full"] });
+            }
+            Change(note => note.Sections.Single().Title = "Renamed full topic");
+            await Tick(agent, clock, 30, "leave");
+            Expect.That(model.Organizations == 1, "A full topic the organizer left unsplit was reviewed again although its blocks did not change");
+            store.Speech("leave", "late", "A later fact."); store.Transcripts["leave"].Last().NoteStatus = "completed";
+            Change(note => note.Sections.Single().Blocks.Add(new() { Id = "full-b7", Order = 7, Role = "detail", Body = "A later fact. [late]", CitationIds = ["late"],
+                Anchors = [new() { Id = "full-p7", Length = "A later fact. [late]".Length, SourceIds = ["late"] }] }));
+            await Tick(agent, clock, 30, "leave");
+            Expect.That(model.Organizations == 2, "A full topic that gained a block after its review was not reviewed again");
+        }
+
+        // Full by time: three blocks spanning nine minutes.
+        clock = new TestClock(); store = new MemoryStore {Clock = clock};
+        Seed(store, clock, "time", ("long", null, 3));
+        store.Transcripts["time"].Single(x => x.Id == "long-s2").StartMs = 9 * 60_000;
+        await Configure(store, "time", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        model = new OrganizationModel { Reply = leaveReply };
+        await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "time");
+        Expect.That(model.Organizations == 1 && store.Organizations["time"].DueReason == "large-topic", "A topic full by time that took another block was not reviewed");
     }
     static async Task DirtyAgeAndDisable()
     {
