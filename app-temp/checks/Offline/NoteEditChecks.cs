@@ -151,7 +151,7 @@ static class NoteEditChecks
         await ClosedTopics();
         await Placement();
         await TraditionalScript();
-        Console.WriteLine("Note edit checks passed: required placement (outline and blocks, nested new topics, no closed topic offered), Simplified-only characters converted in Traditional notes (shared characters kept), closed topics (full or long-running) move new speech into a new subtopic, owner instructions and block comments applied directly, locked blocks untouched, dismissed suggestions hidden, lecture-first cached input with stable aliases, compact Jev input, one deferral per source, topics in lecture order, append without copying, real reply shapes (plain aliases, topic content, [ref:] citations), per-change rejection, placeholder/duplicate/empty topics, rule-applied and suggested edits, last-citation and large deletions for review, protected blocks, suggestions valid until their block changes");
+        Console.WriteLine("Note edit checks passed: required placement (outline and blocks, nested new topics, no closed topic offered), Simplified-only characters converted in Traditional notes (shared characters kept), closed topics (full or long-running) continue in the subtopic the reply declared, never one titled by a sentence, owner instructions and block comments applied directly, locked blocks untouched, dismissed suggestions hidden, lecture-first cached input with stable aliases, compact Jev input, one deferral per source, topics in lecture order, append without copying, real reply shapes (plain aliases, topic content, [ref:] citations), per-change rejection, placeholder/duplicate/empty topics, rule-applied and suggested edits, last-citation and large deletions for review, protected blocks, suggestions valid until their block changes");
     }
 
     static ActivityRecord LastRevision(MemoryStore store) =>
@@ -269,8 +269,11 @@ static class NoteEditChecks
     }
 
     // A topic that is full (six blocks) or has run eight minutes of lecture takes no new blocks: the input marks it
-    // closed, a block still aimed at it goes into a new subtopic titled by its first phrase (nothing is refused),
-    // and a subtopic the model makes itself under the closed topic is fine.
+    // closed and the schema does not offer it, so the writer declares a subtopic with a heading title. A reply that
+    // still names the closed topic (every v11 Gemini reply that met a full topic did) used to get a subtopic titled by
+    // the block's first sentence ("輪轉排程使用時間片"), shown until the organizer renamed it. Now the block goes into
+    // the subtopic the same reply declared under the closed topic; without one it stays where the reply put it, and
+    // the organizer splits the topic like any topic over six blocks. The application never makes up a title.
     static async Task ClosedTopics()
     {
         const string id = "closed";
@@ -284,28 +287,39 @@ static class NoteEditChecks
             .. facts.Select((fact, i) => new NoteTreeOperation { Kind = "add-block", TopicId = "sched", BlockId = "b" + i, Role = "detail", Body = $"排程要點 {i}。", SourceIds = [Alias(input, fact)] })]);
         await workflow.Generate(id, default);
         var topic = store.Notes[id].Sections.Single();
-        const string more = "Round robin uses a time slice.", next = "Priority scheduling picks the highest priority.";
+        const string more = "Round robin uses a time slice.", again = "A preempted process returns to the queue.", next = "Priority scheduling picks the highest priority.";
         store.Speech(id, "more", more);
-        writer.Next = input => Ops(new NoteTreeOperation { Kind = "add-block", TopicId = topic.Id, BlockId = "rr", Role = "detail", Body = "輪轉排程使用時間片。", SourceIds = [Alias(input, more)] });
+        writer.Next = input => new NotePatch
+        {
+            Outline = [new() { Key = "new1", Title = "輪轉排程", Parent = topic.Id }],
+            Blocks = [new() { Topic = topic.Id, Role = "detail", Body = "輪轉排程使用時間片。", SourceIds = [Alias(input, more)] }]
+        };
         await workflow.Generate(id, default);
         var closedInOutline = Json(writer.Inputs[^1]).GetProperty("topicOutline").EnumerateArray().Single(x => x.GetProperty("id").GetString() == topic.Id).GetProperty("closed").GetBoolean();
-        var split = store.Notes[id].Sections.SingleOrDefault(x => x.ParentId == topic.Id);
-        Expect.That(closedInOutline && store.Notes[id].Sections.Single(x => x.Id == topic.Id).Blocks.Count == 6 && split?.Title == "輪轉排程使用時間片" &&
-            split.Blocks.Count == 1 && store.Transcripts[id].Single(x => x.Id == "more").NoteStatus == "completed" &&
-            LastRevision(store).Summary!.Contains("1 blocks moved from closed topics"), "A full topic took a new block, or the block was not moved into a new subtopic");
+        var declared = store.Notes[id].Sections.SingleOrDefault(x => x.ParentId == topic.Id);
+        Expect.That(closedInOutline && store.Notes[id].Sections.Single(x => x.Id == topic.Id).Blocks.Count == 6 && declared?.Title == "輪轉排程" &&
+            declared.Blocks.Count == 1 && store.Transcripts[id].Single(x => x.Id == "more").NoteStatus == "completed" &&
+            LastRevision(store).Summary!.Contains("1 blocks for closed topics placed in the subtopic the reply declared"),
+            "A block aimed at a full topic did not go into the subtopic the same reply declared: " + string.Join(" | ", store.Notes[id].Sections.Select(x => x.Title)));
+
+        store.Speech(id, "again", again);
+        writer.Next = input => new NotePatch { Blocks = [new() { Topic = topic.Id, Role = "detail", Body = "被搶占的行程回到佇列。", SourceIds = [Alias(input, again)] }] };
+        await workflow.Generate(id, default);
+        Expect.That(store.Notes[id].Sections.Count == 2 && store.Notes[id].Sections.Single(x => x.Id == topic.Id).Blocks.Count == 7 &&
+            store.Transcripts[id].Single(x => x.Id == "again").NoteStatus == "completed" &&
+            LastRevision(store).Summary!.Contains("1 blocks for closed topics kept there without a declared subtopic"),
+            "A block aimed at a full topic without a declared subtopic got a topic the application titled: " + string.Join(" | ", store.Notes[id].Sections.Select(x => x.Title)));
+
         store.Speech(id, "next", next);
         writer.Next = input => Ops(
             new() { Kind = "create-topic", TopicId = "priority", Title = "Priority scheduling", ParentId = topic.Id },
             new() { Kind = "add-block", TopicId = "priority", BlockId = "prio", Role = "detail", Body = "優先排程選最高優先者。", SourceIds = [Alias(input, next)] });
         await workflow.Generate(id, default);
         var sections = store.Notes[id].Sections;
-        Expect.That(sections.Single(x => x.Id == topic.Id).Blocks.Count == 6 && sections.Any(x => x.ParentId == topic.Id && x.Title == "Priority scheduling") &&
+        Expect.That(sections.Single(x => x.Id == topic.Id).Blocks.Count == 7 && sections.Any(x => x.ParentId == topic.Id && x.Title == "Priority scheduling") &&
             store.Transcripts[id].All(x => x.NoteStatus == "completed"), "A subtopic the model made under a closed topic was refused");
 
         var session = (await notes.Session(id))!;
-        var renamed = NoteTree.Apply(store.Notes[id].Sections, [new() { Kind = "rename-topic", TopicId = split!.Id, Title = "Round robin" }],
-            session.AllowedSources, "rename", structuralOnly: true);
-        Expect.That(renamed.Single(x => x.Id == split.Id).Title == "Round robin", "The organizer could not rename an automatically titled topic");
         var old = new NoteSection { Id = "old", Title = "Old", SchemaVersion = 2, Blocks = [new() { Id = "ob", Body = "x", Anchors = [new() { Id = "oa", Length = 1, SourceIds = ["f0"] }] }] };
         session.Sections.Add(old);
         var late = new NoteTranscript { Id = "late", StartMs = NoteStructure.MaxTopicMinutes * 60_000L + 1, SourceText = "later speech" };
@@ -337,6 +351,19 @@ static class NoteEditChecks
         Expect.That(paging.ParentId is null && fault.ParentId == paging.Id && paging.Blocks.Count == 1 && fault.Blocks.Count == 1,
             "Declared topics or their parent were not created, or blocks went elsewhere");
 
+        // Each reply's blocks read after what the topic already holds. Reply positions restart at 0, so a later
+        // block used to sort between earlier ones (the saved Qwen notes showed orders 1,0,0,1,0,0,1 in one topic).
+        const string f2 = "A fault first looks for a free frame.", f3 = "Without one, a page is swapped out.", f4 = "A modified page is written back first.";
+        store.Speech(id, "f2", f2); store.Speech(id, "f3", f3);
+        writer.Next = input => new NotePatch { Blocks = [new() { Topic = fault.Id, Role = "detail", Body = "缺頁先找空頁框。", SourceIds = [Alias(input, f2)] },
+            new() { Topic = fault.Id, Role = "detail", Body = "沒有空頁框就換出一頁。", SourceIds = [Alias(input, f3)] }] };
+        await workflow.Generate(id, default);
+        store.Speech(id, "f4", f4);
+        writer.Next = input => new NotePatch { Blocks = [new() { Topic = fault.Id, Role = "detail", Body = "被改過的頁要先寫回。", SourceIds = [Alias(input, f4)] }] };
+        await workflow.Generate(id, default);
+        var reading = store.Notes[id].Sections.Single(x => x.Id == fault.Id).Blocks.OrderBy(x => x.Order).Select(x => x.Body[..3]).ToList();
+        Expect.That(reading.SequenceEqual(["缺頁時", "缺頁先", "沒有空", "被改過"]), "Blocks of a later reply were shown between earlier blocks: " + string.Join(" | ", reading));
+
         for (var i = 0; i < 5; i++) { store.Speech(id, "p" + i, "Paging detail " + i); }
         writer.Next = input => new NotePatch { Blocks = Enumerable.Range(0, 5).Select(i => new PlacedBlock { Topic = paging.Id, Role = "detail",
             Body = $"分頁細節 {i}。", SourceIds = [Alias(input, "Paging detail " + i)] }).ToList() };
@@ -349,6 +376,7 @@ static class NoteEditChecks
         var topics = schema.GetProperty("blocks").GetProperty("items").GetProperty("properties").GetProperty("topic").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
         var kinds = schema.GetProperty("operations").GetProperty("items").GetProperty("properties").GetProperty("kind").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
         Expect.That(!topics.Contains(paging.Id) && topics.Contains(fault.Id) && topics.Contains("new1") && !kinds.Contains("add-block") && !kinds.Contains("create-topic") &&
+            !schema.TryGetProperty("moves", out _) &&
             schema.GetProperty("outline").GetProperty("items").GetProperty("properties").GetProperty("parent").GetProperty("enum").EnumerateArray().Any(x => x.GetString() == paging.Id),
             "The writer schema offered a closed topic, or allowed placement outside outline and blocks");
         var operation = schema.GetProperty("operations").GetProperty("items");

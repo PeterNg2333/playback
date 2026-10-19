@@ -40,6 +40,10 @@ public sealed class NoteTreeOperation
     public string Reason { get; set; } = "";
 }
 public sealed record RejectedOperation(NoteTreeOperation Operation, string Reason);
+// How the organizer places an existing block, the way the writer places a new one: Block is the block's ID and To
+// the topic it goes to, a topic in the selected scope or a new key from Outline. A field that only means
+// "destination" replaces move-block's topicId, which Qwen left out or read as the block's current topic.
+public sealed class BlockMove { public string Block { get; set; } = ""; public string To { get; set; } = ""; }
 public static class NoteTree
 {
     public static NoteSection Canonical(NoteSection section, NoteSection? previous = null)
@@ -218,14 +222,16 @@ public static class NoteTree
                 if (op.SourceIds.Except(cited).Any()) throw new InvalidOperationException("New block lacks observable citations");
                 var id = "point_" + ContentHash.Of(inputHash + op.BlockId)[..20];
                 if (Topics.Any(x => x.Blocks.Any(b => b.Id == id))) throw new InvalidOperationException("Duplicate new block alias");
-                topic.Blocks.Add(new() { Id = id, Body = op.Body, Order = op.Order, Role = op.Role, SupersedesBlockId = op.SupersedesBlockId,
+                topic.Blocks.Add(new() { Id = id, Body = op.Body, Order = AfterLast(topic), Role = op.Role, SupersedesBlockId = op.SupersedesBlockId,
                     CitationIds = CitationSyntax.Bodies(op.Body).Distinct().ToList(), Anchors = [new() { Id = id, Length = op.Body.Length, SourceIds = op.SourceIds.Distinct().ToList() }] });
                 topic.Version++; return;
             }
             var (sourceTopic, block) = ProtectedCheck(op);
             if (op.Kind is "move-block" or "reorder-block")
             {
-                sourceTopic.Blocks.Remove(block); topic.Blocks.Add(block); block.Order = op.Order; sourceTopic.Version++; if (sourceTopic != topic) topic.Version++;
+                // A block moved into another topic goes after that topic's blocks; a reorder places it as asked.
+                var order = sourceTopic != topic ? AfterLast(topic) : op.Order;
+                sourceTopic.Blocks.Remove(block); topic.Blocks.Add(block); block.Order = order; sourceTopic.Version++; if (sourceTopic != topic) topic.Version++;
             }
             else if (op.Kind == "update-block")
             {
@@ -233,6 +239,10 @@ public static class NoteTree
             }
             else throw new InvalidOperationException("Unknown tree operation");
         }
+
+        // Blocks are shown by Order. A new or moved block follows the topic's last block, so each reply's
+        // additions read after what was written before (reply positions restart at 0 and used to interleave).
+        static int AfterLast(NoteSection topic) => topic.Blocks.Count == 0 ? 0 : topic.Blocks.Max(x => x.Order) + 1;
 
         // A topic whose title already exists under the same parent receives the content instead of a duplicate.
         void CreateTopic(NoteTreeOperation op)

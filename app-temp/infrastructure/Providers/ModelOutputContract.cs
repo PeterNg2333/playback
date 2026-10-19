@@ -70,7 +70,7 @@ public static class ModelOutputContract
         var operationSources = operation["properties"]!["sourceIds"]!;
         if (sourceIds.Length == 0) operationSources["maxItems"] = 0;
         else operationSources["items"]!["enum"] = Strings(sourceIds);
-        if (organizing) Regrouping(schema, root);
+        if (organizing) Regrouping(schema, root, blockIds.ToArray());
         else Placement(schema, root, sourceIds);
         return ChatResponseFormat.ForJsonSchema(JsonSerializer.SerializeToElement(schema), "LectureSectionPatch");
     }
@@ -96,29 +96,38 @@ public static class ModelOutputContract
         if (sourceIds.Length == 0) block["properties"]!["sourceIds"]!["maxItems"] = 0;
         else block["properties"]!["sourceIds"]!["items"]!["enum"] = Strings(sourceIds);
         block["required"] = new JsonArray("topic", "role", "body", "sourceIds");
+        schema["properties"]!.AsObject().Remove("moves");
         schema["required"] = new JsonArray("outline", "blocks", "deferred");
     }
 
     // Organization declares its new topics the same way, as outline keys under a topic in the selected scope, then
-    // moves existing blocks and topics into them; it never writes blocks. Topic IDs come from editableSections, or
-    // from the outline rows of an outline-only request.
-    static void Regrouping(JsonNode schema, JsonElement root)
+    // places existing blocks in moves, each naming the topic it goes to, and moves topics with move-topic; it never
+    // writes blocks. Every destination is a selected topic or a new key, so none can be missing or outside the scope
+    // (tree-organize-v14; Qwen left move-block's topicId out or named the block's current topic). Topic IDs come
+    // from editableSections, or from the outline rows of an outline-only request, which has no blocks to move.
+    static void Regrouping(JsonNode schema, JsonElement root, string[] blockIds)
     {
-        var scope = Scope(root);
+        var scope = Scope(root).ToArray();
         var keys = Playback.Application.Notes.NoteWorkflow.NewTopicKeys;
         var item = schema["properties"]!["outline"]!["items"]!;
         item["properties"]!["key"]!["enum"] = Strings(keys);
         item["properties"]!["parent"]!["enum"] = Strings(scope.Prepend("").Concat(keys));
         item["required"] = new JsonArray("key", "title", "parent");
         schema["properties"]!.AsObject().Remove("blocks");
-        schema["required"] = new JsonArray("outline", "operations", "deferred");
+        var moves = schema["properties"]!["moves"]!;
+        if (blockIds.Length == 0) moves["maxItems"] = 0;
+        else moves["items"]!["properties"]!["block"]!["enum"] = Strings(blockIds);
+        moves["items"]!["properties"]!["to"]!["enum"] = Strings(scope.Concat(keys));
+        moves["items"]!["required"] = new JsonArray("block", "to");
+        schema["properties"]!["operations"]!["items"]!["properties"]!["parentId"]!["enum"] = Strings(scope.Prepend("").Concat(keys));
+        schema["required"] = new JsonArray("outline", "moves", "operations", "deferred");
     }
 
     static IEnumerable<string> Scope(JsonElement root) => root.GetProperty("editableSections").EnumerateArray().Select(x => x.GetProperty("id").GetString()!)
         .Concat(root.TryGetProperty("topicOutline", out var outline) ? outline.EnumerateArray()
             .Where(x => x.ValueKind == JsonValueKind.Array).Select(x => x[0].GetString()!) : []).Distinct();
 
-    static readonly string[] StructuralKinds = ["rename-topic", "move-topic", "reorder-topic", "move-block", "reorder-block"];
+    static readonly string[] StructuralKinds = ["rename-topic", "move-topic", "reorder-topic", "reorder-block"];
     static readonly string[] EditingKinds = ["rename-topic", "move-topic", "reorder-topic", "move-block", "reorder-block", "replace-text", "delete-block"];
     static readonly string[] BlockRoles = ["definition", "example", "derivation", "correction", "detail"];
     static JsonArray Strings(IEnumerable<string> values) => new(values.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());

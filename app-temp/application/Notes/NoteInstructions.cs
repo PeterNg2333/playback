@@ -6,8 +6,8 @@ namespace Playback.Application.Notes;
 // record which instructions produced them.
 public static class NoteInstructions
 {
-    public const string Version = "tree-notes-v13";
-    public const string OrganizeVersion = "tree-organize-v13";
+    public const string Version = "tree-notes-v14";
+    public const string OrganizeVersion = "tree-organize-v14";
 
     public const string Sections = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
@@ -27,7 +27,8 @@ public static class NoteInstructions
         of the current subject is a subtopic; a different subject is a new top-level topic.
         blocks: every new block names its topic, an open existing topic ID or a new key, plus role, body and
         sourceIds. One topic covers one subject; a closed topic (full, or running for many minutes) is not
-        offered, so new speech about it goes into a new subtopic under it. Topics keep lecture order.
+        offered. To continue its subject, declare a subtopic under it in outline (beside it when it is already
+        at depth 3) whose title names the new aspect, and place the new blocks in that key. Topics keep lecture order.
         Do not declare a topic whose title already exists under the same parent; place blocks in that topic.
         Roles are definition, example, derivation, correction and detail.
         operations only change what exists, the way a code editor applies edits; never copy text that stays.
@@ -89,22 +90,28 @@ public static class NoteInstructions
         """;
     public const string Organize = """
         Reorganize the selected scope like an author restructuring a document's headings: declare new topics in
-        outline, move existing blocks and topics into them, reorder siblings and rename. Every move names its
-        destination: move-block sets topicId, move-topic sets parentId, to an existing ID or a new key. Copy IDs from topicOutline
-        and editableSections. Return empty sections and blocks.
+        outline, place existing blocks in them, move topics under them, reorder siblings and rename. Copy IDs from
+        topicOutline and editableSections. Return empty sections and blocks.
+        moves: one entry per block that changes topic, {"block": its ID, "to": the topic it goes to}, a new key
+        from outline or a selected topic, never the topic it is in now. A block you do not list stays where it is.
+        Blocks move only through moves; operations are rename-topic, move-topic (parentId: the new parent, a new
+        key or a selected topic, "" for the top level), reorder-topic and reorder-block.
         Make the notes a hierarchy, like nested folders, not a flat list. A topic should hold at most six
         blocks: split a larger topic into two to five subtopics by subject (outline entries whose parent is that
-        topic, then move-block with topicId set to the new key). A level should hold at most six topics: group
+        topic, then a moves entry for each block, "to" the new key). A level should hold at most six topics: group
         related siblings under a new parent topic (an outline entry, then move-topic with parentId set to its key).
         outline: key new1 to new8, a short title that names the subject (a noun phrase like a heading, never a
         sentence, "Part 2", "Continued" or a copy of the parent), and parent: "" for top level, a topic ID from
-        the selected scope, or another new key. Use up to three levels and up to 80 operations. Rename (rename-topic)
-        a topic whose title is a sentence or does not name its subject; topics opened automatically have such titles.
+        the selected scope, or another new key. Use up to three levels and up to 80 moves and operations together.
+        Rename (rename-topic, with its title) a topic whose title is a sentence or does not name its subject.
         Only touch the selected topics, their subtopics and their blocks; other topics are context.
         Keep every body and citation byte-for-byte. This structural action does not rewrite, summarize or merge prose.
         Preserve every coverage point, definition, mathematical condition, derivation, example, argument and source.
         Do not shorten by losing meaning, invent facts, or touch another section. User facts must survive.
-        This task uses the same JSON contract as the section note task, without blocks.
+        This task uses the same JSON contract as the section note task, without blocks and with moves. Example:
+        {"outline":[{"key":"new1","title":"符號搜尋指令","parent":"section_abc"},{"key":"new2","title":"位址計算","parent":"section_abc"}],
+        "moves":[{"block":"point_1","to":"new1"},{"block":"point_2","to":"new1"},{"block":"point_3","to":"new2"}],
+        "operations":[{"kind":"rename-topic","topicId":"section_abc","blockId":"","title":"WinDbg 實作"}],"deferred":[]}
         """;
     public const string Instruction = """
         This call carries out an explicit instruction from the person who owns these notes, given below.

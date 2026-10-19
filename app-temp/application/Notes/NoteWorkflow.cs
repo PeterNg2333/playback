@@ -150,7 +150,7 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
             SplitTopicContent(patch);
             InScript(patch, session.NoteLanguage);
             var distantMoves = 0;
-            var outOfScope = 0;
+            OrganizerDrops? outOfScope = null;
             DecodePatch(patch, input, context, session, allowed);
             if (organize) { outOfScope = DropOutOfScope(patch, context); distantMoves = DropDistantMoves(patch, session); }
             // Organization stays structural and all-or-nothing; writing applies each change on its own.
@@ -305,7 +305,8 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
     static string EditSummary(EditOutcome? edits) => edits is null ? "" :
         $"; {edits.Appended} appended to existing topics, {edits.AutoEdited} edits applied automatically, {edits.Suggested} suggestions for review" +
         (edits.RepeatDeferrals == 0 ? "" : $", {edits.RepeatDeferrals} repeated deferrals ignored") +
-        (edits.Redirected == 0 ? "" : $", {edits.Redirected} blocks moved from closed topics into new subtopics") +
+        (edits.Redirected == 0 ? "" : $", {edits.Redirected} blocks for closed topics placed in the subtopic the reply declared") +
+        (edits.ClosedKept == 0 ? "" : $", {edits.ClosedKept} blocks for closed topics kept there without a declared subtopic") +
         (edits.Dropped.Count == 0 ? "" : $", {edits.Dropped.Count} changes not applied ({string.Join("; ", edits.Dropped.Select(x => x.Reason).Distinct().Take(3))})");
 
     async Task MarkSources(SectionUpdate update, List<NoteTranscript> pending)
@@ -332,8 +333,8 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         return string.Join("\n\n", sections);
     }
 
-    static string Dropped(int distant, int outOfScope) =>
-        (distant == 0 ? "" : $"; {distant} moves under distant topics dropped") + (outOfScope == 0 ? "" : $"; {outOfScope} operations outside the selected scope dropped");
+    static string Dropped(int distant, OrganizerDrops? organizer) =>
+        (distant == 0 ? "" : $"; {distant} moves under distant topics dropped") + organizer;
 
     // Work cancelled by its caller's deadline has already recorded its outcome; disposal only waits for it.
     public async ValueTask DisposeAsync()

@@ -12,8 +12,8 @@ static class NoteOrganizationChecks
 {
     public static async Task Run()
     {
-        await TriggersAndRestart(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
-        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
+        await TriggersAndRestart(); await SavedRunMoves(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
+        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block moves name their destination (saved Qwen split replayed), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
     }
     static NoteAgent Agent(MemoryStore store, OrganizationModel model, TestClock clock) => new(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
     static async Task Configure(MemoryStore store, string id, ProcessingOverrides overrides)
@@ -80,6 +80,61 @@ static class NoteOrganizationChecks
             Expect.That(model.Organizations == 3 && store.Organizations["large"].OrganizedMeaningfulRevision == saved.MeaningfulRevision, "Restart repeated committed organization before recovering its acknowledgement");
         }
     }
+    // The saved Qwen split (SavedOrganizerReplies) named an in-scope block in every move but no destination, so all
+    // seven moves were dropped "outside the selected scope" and the split did nothing. Moves are now placements with a
+    // required destination that the schema limits to the selected topics and the reply's new keys: the same decisions
+    // apply in full, and a reply without destinations is reported as such, not as reaching outside the scope.
+    static async Task SavedRunMoves()
+    {
+        const string id = "saved-organizer";
+        async Task<(MemoryStore Store, OrganizationModel Model)> Organize(string reply)
+        {
+            var clock = new TestClock(); var store = new MemoryStore {Clock = clock}; store.Add(id);
+            NoteSection Topic(string topicId, string title, string? parent, (string Id, string Body)[] blocks) => new() { Id = topicId, Title = title, ParentId = parent, SchemaVersion = 2,
+                Blocks = blocks.Select((block, i) =>
+                {
+                    var source = block.Id + "-source"; var body = block.Body + " [" + source + "]";
+                    store.Speech(id, source, block.Body); store.Transcripts[id].Last().NoteStatus = "completed";
+                    return new NoteBlock { Id = block.Id, Order = i, Role = "detail", Body = body, CitationIds = [source],
+                        Anchors = [new() { Id = block.Id + "-anchor", Length = body.Length, SourceIds = [source] }] };
+                }).ToList() };
+            List<NoteSection> sections = [Topic(SavedOrganizerReplies.ParentId, SavedOrganizerReplies.ParentTitle, null, [("parent-block", "系統呼叫由使用者模式進入核心模式。")]),
+                Topic(SavedOrganizerReplies.TopicId, SavedOrganizerReplies.TopicTitle, SavedOrganizerReplies.ParentId, SavedOrganizerReplies.Blocks)];
+            store.Notes[id] = new() { SessionId = id, Version = 1, SchemaVersion = 2, Sections = sections, Markdown = NoteTree.Render(sections, true), MeaningfulRevision = 1,
+                RecentChanges = [new() { Revision = 1, At = clock.GetUtcNow().UtcDateTime, TopicIds = [SavedOrganizerReplies.TopicId] }] };
+            await Configure(store, id, new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+            var model = new OrganizationModel { Reply = reply };
+            await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, id);
+            Expect.That(model.Organizations == 1 && store.Organizations[id].DueReason == "large-topic", "The saved topic of seven blocks was not organized as a large topic");
+            return (store, model);
+        }
+        static string Summary(MemoryStore store) => store.Activity.Values.Single(x => x.Task == "Section organization").Summary ?? "";
+
+        var (saved, _) = await Organize(SavedOrganizerReplies.SavedReply);
+        Expect.That(Summary(saved).Contains("7 moves without a destination dropped") && !Summary(saved).Contains("outside the selected scope"),
+            "The saved reply's moves were blamed on the scope instead of their missing destination: " + Summary(saved));
+
+        var (placed, model) = await Organize(SavedOrganizerReplies.PlacedReply);
+        var topics = placed.Notes[id].Sections;
+        // In reading order: moved blocks keep the order the reply listed them in.
+        List<string> Blocks(string title) => topics.SingleOrDefault(x => x.Title == title && x.ParentId == SavedOrganizerReplies.TopicId)?.Blocks.OrderBy(x => x.Order).Select(x => x.Id).ToList() ?? [];
+        Expect.That(Blocks("調試器操作與符號解析").SequenceEqual(["point_c7fdf71b9556791173b0", "point_5821ed05a6946b1e8311"]) &&
+            Blocks("用戶內核數據地址計算").SequenceEqual(["point_6a295a4e41d08f6fe774", "point_97dd9b7e49411908801c", "point_157cb24450328a5be7d8"]) &&
+            topics.Single(x => x.Id == SavedOrganizerReplies.TopicId).Blocks.Count == 2 && !Summary(placed).Contains("dropped"),
+            "The organizer's placements did not move each block into the subtopic it named: " + Summary(placed));
+
+        // The schema offers each move a destination only among the selected topic and the new keys, never "" or the
+        // parent outside the scope; a block moves only this way, not through a move-block operation.
+        var schema = ((Microsoft.Extensions.AI.ChatResponseFormatJson)ModelOutputContract.ResponseFormat("LectureSectionOrganizer", model.LastOrganizationInput)!).Schema!.Value.GetProperty("properties");
+        static List<string> Enum(JsonElement property) => property.TryGetProperty("enum", out var values) ? values.EnumerateArray().Select(x => x.GetString()!).ToList() : [];
+        var move = schema.TryGetProperty("moves", out var moves) ? moves.GetProperty("items") : default;
+        Expect.That(move.ValueKind == JsonValueKind.Object &&
+            Enum(move.GetProperty("properties").GetProperty("to")).SequenceEqual([SavedOrganizerReplies.TopicId, .. NoteWorkflow.NewTopicKeys]) &&
+            Enum(move.GetProperty("properties").GetProperty("block")).Order().SequenceEqual(SavedOrganizerReplies.Blocks.Select(x => x.Id).Order()) &&
+            move.GetProperty("required").EnumerateArray().Select(x => x.GetString()).SequenceEqual(["block", "to"]) &&
+            !Enum(schema.GetProperty("operations").GetProperty("items").GetProperty("properties").GetProperty("kind")).Contains("move-block"),
+            "The organizer schema let a move leave out its destination or name one outside the selected scope");
+    }
     static async Task DirtyAgeAndDisable()
     {
         var clock = new TestClock(); var store = new MemoryStore {Clock = clock}; var model = new OrganizationModel();
@@ -143,10 +198,12 @@ static class NoteOrganizationChecks
         public int Organizations; public bool BlockOrganization, Shorten;
         public readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously), Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string LastOrganizationInput = "";
+        public string? Reply;
         public override async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null)
         {
             if (name != "LectureSectionOrganizer") return await writer.Generate(name, instructions, prompt, ct, model, onUpdate, onUsage);
             Organizations++; LastOrganizationInput = prompt; Started.TrySetResult(); if (BlockOrganization) await Release.Task.WaitAsync(ct);
+            if (Reply is not null) return Reply;
             using var doc = JsonDocument.Parse(prompt); var root = doc.RootElement; NotePatch patch;
             if (root.GetProperty("trigger").GetString() == "document-outline")
                 patch = new() {Operations = [new() {Kind = "move-topic", TopicId = root.GetProperty("topicOutline")[1][0].GetString()!, ParentId = root.GetProperty("topicOutline")[0][0].GetString()}]};
@@ -157,8 +214,8 @@ static class NoteOrganizationChecks
                 // The reply shape the schema asks for: a new topic declared in outline, a move naming its key, and
                 // one rename outside the selected scope and one without a title, both dropped instead of failing the regrouping.
                 else patch = new() {Outline = [new() {Key = "new1", Title = "Definitions and examples", Parent = topic.GetProperty("id").GetString()!}],
-                    Operations = [new() {Kind = "move-block", TopicId = "new1", BlockId = topic.GetProperty("blocks")[0].GetProperty("id").GetString()!},
-                        new() {Kind = "rename-topic", TopicId = "elsewhere", Title = "Not in scope"}, new() {Kind = "rename-topic", TopicId = "new1"}]};
+                    Moves = [new() {Block = topic.GetProperty("blocks")[0].GetProperty("id").GetString()!, To = "new1"}],
+                    Operations = [new() {Kind = "rename-topic", TopicId = "elsewhere", Title = "Not in scope"}, new() {Kind = "rename-topic", TopicId = "new1"}]};
             }
             return JsonSerializer.Serialize(patch);
         }
