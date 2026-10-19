@@ -29,9 +29,14 @@ public static class NoteStructure
         return false;
     }
 
-    // Topics over the block threshold that could take subtopics.
+    // Topics over the block threshold, at any depth. Above MaxDepth one may get subtopics; at MaxDepth it is reviewed
+    // with its parent, so some of its blocks may move into a new or existing sibling.
     public static IEnumerable<NoteSection> Overfull(IReadOnlyCollection<NoteSection> topics) =>
-        topics.Where(x => x.Blocks.Count > ReviewBlocks && Depth(x, topics) < MaxDepth);
+        topics.Where(x => x.Blocks.Count > ReviewBlocks);
+
+    // The topic a review of this topic starts from: itself, or its parent when it sits at MaxDepth.
+    public static string ReviewRoot(NoteSection topic, IReadOnlyCollection<NoteSection> topics) =>
+        Depth(topic, topics) >= MaxDepth && topic.ParentId is { } parent ? parent : topic.Id;
 
     // A level over the topic threshold (ParentId null is the top level). Above MaxDepth it can be grouped under new
     // parents from the outline; at MaxDepth no parent fits, so its topics are reviewed with their blocks (merge,

@@ -12,7 +12,7 @@ static class NoteOrganizationChecks
 {
     public static async Task Run()
     {
-        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await CrowdedSubtopicsReview(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
+        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await CrowdedSubtopicsReview(); await LargeThirdLevelTopic(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
         Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), only groupable levels regrouped and too-deep moves dropped, over six third-level subtopics reviewed (merge keeping every block and citation, or left as they are), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
     }
     static NoteAgent Agent(MemoryStore store, OrganizationModel model, TestClock clock) => new(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
@@ -269,6 +269,29 @@ static class NoteOrganizationChecks
             await Tick(agent, clock, 30, "leave");
             Expect.That(model.Organizations == 1, "Seven third-level subtopics the organizer left as they were were reviewed again without a new subtopic");
         }
+    }
+    // A third-level topic over six blocks (the v14 live run left one with seven, never reviewed) cannot take
+    // subtopics, so it is reviewed with its parent: some of its blocks may move into a new sibling, or it stays.
+    static async Task LargeThirdLevelTopic()
+    {
+        var clock = new TestClock(); var store = new MemoryStore {Clock = clock};
+        Seed(store, clock, "third", [("top", null, 1), ("chain", "top", 1), ("big", "chain", 7), ("small", "chain", 1)]);
+        await Configure(store, "third", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        var model = new OrganizationModel { ReplyFor = input =>
+        {
+            var review = input.TryGetProperty("review", out var value) ? value : default;
+            Expect.That(review.ValueKind == JsonValueKind.Object && review.GetProperty("largeTopics").EnumerateArray().Any(x => x.GetProperty("topic").GetString() == "big") &&
+                input.GetProperty("editableSections").EnumerateArray().Any(x => x.GetProperty("id").GetString() == "chain"),
+                "A large third-level topic was reviewed without its parent, so it could not get a sibling");
+            return JsonSerializer.Serialize(new NotePatch { Outline = [new() { Key = "new1", Title = "Second part", Parent = "chain" }],
+                Moves = [new() { Block = "big-b4", To = "new1" }, new() { Block = "big-b5", To = "new1" }, new() { Block = "big-b6", To = "new1" }] });
+        } };
+        await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "third");
+        var topics = store.Notes["third"].Sections;
+        var sibling = topics.SingleOrDefault(x => x.Title == "Second part");
+        Expect.That(model.Organizations == 1 && store.Organizations["third"].DueReason == "large-topic" && sibling?.ParentId == "chain" &&
+            sibling.Blocks.Select(x => x.Id).SequenceEqual(["big-b4", "big-b5", "big-b6"]) && topics.Single(x => x.Id == "big").Blocks.Count == 4,
+            "A third-level topic over six blocks was not reviewed, or its blocks did not move into a new sibling");
     }
     static async Task DirtyAgeAndDisable()
     {

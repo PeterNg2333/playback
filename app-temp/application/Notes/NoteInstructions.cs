@@ -7,7 +7,7 @@ namespace Playback.Application.Notes;
 public static class NoteInstructions
 {
     public const string Version = "tree-notes-v15";
-    public const string OrganizeVersion = "tree-organize-v17";
+    public const string OrganizeVersion = "tree-organize-v18";
 
     public const string Sections = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
@@ -102,7 +102,8 @@ public static class NoteInstructions
         and operations). review lists what in the selected scope is over six.
         A topic over six blocks (review.largeTopics) that covers several subjects: split it into two to five
         subtopics by subject (outline entries whose parent is that topic, then a moves entry for each block, "to"
-        the new key). One subject may stay as one topic.
+        the new key). One subject may stay as one topic. A third-level topic cannot take subtopics: move some of its
+        blocks into a new sibling (an outline entry whose parent is its parent) or an existing sibling, or leave it.
         A level over six topics that can take a parent (an outline regroup; crowdedLevels names the parents, "" is
         the top level): group related siblings under a new parent topic (an outline entry, then a topicMoves entry
         for each sibling, "to" its key). Group those topics, not other levels.

@@ -125,6 +125,7 @@ static async Task RunOffline(bool notesOnly)
         await TermChecks.Run();
         await GeminiChecks.Run();
         await OpenRouterTextChecks.Run();
+        await RateLimitGuardChecks.Run();
     }
     NoteDocumentChecks.Run();
     await NoteTreeChecks.Run();

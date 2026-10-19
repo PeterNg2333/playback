@@ -34,10 +34,12 @@ public sealed partial class NoteWorkflow
             var outlineOnly = effective.Values.OrganizationScope == "document-outline" || due.Reason == "crowded-level";
             var candidates = NoteOrganization.EligibleTopics(session.Sections).ToList();
             var affected = candidates.Where(x => due.AffectedTopics.Contains(x.Id)).ToList();
-            var (parents, limit) = due.Reason == "crowded-subtopics" ? (1, MaxReviewedSubtopics + 1) : (3, 8);
-            var scope = outlineOnly ? candidates : affected.Take(parents)
-                .SelectMany(topic => candidates.Where(x => x.Id == topic.Id || NoteStructure.IsWithin(x, topic.Id, session.Sections))
-                    .OrderBy(x => x.Id != topic.Id)).Distinct().Take(limit).ToList();
+            // A third-level topic is reviewed from its parent, the only place a sibling can be added.
+            var roots = affected.Select(x => candidates.FirstOrDefault(c => c.Id == NoteStructure.ReviewRoot(x, session.Sections)) ?? x).Distinct().ToList();
+            var (parents, limit) = due.Reason == "crowded-subtopics" || roots.Any(x => !affected.Contains(x)) ? (1, MaxReviewedSubtopics + 1) : (3, 8);
+            var scope = outlineOnly ? candidates : roots.Take(parents)
+                .SelectMany(root => candidates.Where(x => x.Id == root.Id || NoteStructure.IsWithin(x, root.Id, session.Sections))
+                    .OrderBy(x => x.Id == root.Id ? 0 : affected.Contains(x) ? 1 : 2)).Distinct().Take(limit).ToList();
             var hash = ContentHash.Of("organization:" + effective.Revision + ":" + session.NoteVersion + ":" + string.Join("|", scope.Select(x => x.Id)));
             if (state.InputHash == hash && (state.Status == "review-required" || state.Attempts >= 3 || state.RetryAt > now)) return;
             if (state.InputHash != hash) state.Attempts = 0;
