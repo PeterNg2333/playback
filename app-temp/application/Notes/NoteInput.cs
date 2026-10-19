@@ -122,13 +122,30 @@ public static class NoteInput
         }
     }
 
-    // The input as given, for a task that must see one whole section.
+    // The input as given, for a task that must see one whole section. An organizer review also gets "review": what in
+    // its scope is over the threshold of six (NoteStructure), added after everything else so the lecture prefix stays.
     public static NotePrompt Build(NoteSession session, List<NoteTranscript> pending, List<NoteSection> context,
         List<NoteMaterial> materials, string trigger)
     {
         var (prompt, lectureChars) = Serialize(session, pending, context, materials, trigger);
+        if (trigger == "organize")
+        {
+            var input = System.Text.Json.Nodes.JsonNode.Parse(prompt.Text)!.AsObject();
+            input["review"] = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Review(session, context), InputJson));
+            prompt = prompt with { Text = input.ToJsonString(InputJson) };
+        }
         return prompt.Text.Length - lectureChars <= MaxInputChars ? prompt : throw TooLarge();
     }
+
+    // largeTopics: topics over six blocks that may be split into subtopics. crowdedSubtopics: parents with over six
+    // subtopics at the third level, where no new parent fits; they may be merged, renamed, reordered or left.
+    static object Review(NoteSession session, List<NoteSection> context) => new
+    {
+        threshold = NoteStructure.ReviewBlocks,
+        largeTopics = NoteStructure.Overfull(session.Sections).Where(x => context.Any(c => c.Id == x.Id)).Select(x => new { topic = x.Id, blocks = x.Blocks.Count }),
+        crowdedSubtopics = NoteStructure.CrowdedLevels(session.Sections).Where(x => x.AtMaxDepth && context.Any(c => c.Id == x.ParentId))
+            .Select(x => new { parent = x.ParentId, subtopics = x.TopicIds.Count })
+    };
 
     // Jev decides whether the pending passage is complete; it needs the speech just before it and the passage,
     // not the whole lecture. The "trigger" field is left out of the decision's saved identity.
@@ -259,7 +276,7 @@ public static class NoteInput
             omittedEarlierSources = windowStart,
             trigger,
             baseVersion = session.NoteVersion,
-            // closed: full or long-running; new speech goes into a new topic or a subtopic, never into it.
+            // closed: six blocks or more, or long-running; new speech goes into a new topic or a subtopic, never into it.
             // recent: spoken in the last few minutes, so it can take a new subtopic.
             topicOutline = context.Concat(session.Sections.Where(x => !context.Any(c => c.Id == x.Id))).Take(64).Select(x => new { x.Id, x.ParentId, x.Order, title = x.Title[..Math.Min(120, x.Title.Length)], x.UserEdited,
                 blockCount = x.Blocks.Count, closed = closed.Contains(x.Id), recent = recent.Contains(x.Id), depth = NoteStructure.Depth(x, session.Sections),

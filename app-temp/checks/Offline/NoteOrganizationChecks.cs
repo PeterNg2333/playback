@@ -12,8 +12,8 @@ static class NoteOrganizationChecks
 {
     public static async Task Run()
     {
-        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
-        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), only groupable levels regrouped and too-deep moves dropped, inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
+        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await CrowdedSubtopicsReview(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
+        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), only groupable levels regrouped and too-deep moves dropped, over six third-level subtopics reviewed (merge keeping every block and citation, or left as they are), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
     }
     static NoteAgent Agent(MemoryStore store, OrganizationModel model, TestClock clock) => new(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
     static async Task Configure(MemoryStore store, string id, ProcessingOverrides overrides)
@@ -187,9 +187,10 @@ static class NoteOrganizationChecks
         var clock = new TestClock(); var store = new MemoryStore {Clock = clock};
         Seed(store, clock, "deep", [("top", null, 1), ("chain", "top", 1), .. Enumerable.Range(0, 7).Select(i => ("leaf" + i, (string?)"chain", 1)), ("other", null, 1)]);
         await Configure(store, "deep", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
-        var model = new OrganizationModel();
+        var model = new OrganizationModel { Reply = "{\"outline\":[],\"moves\":[],\"topicMoves\":[],\"operations\":[],\"deferred\":[]}" };
         await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "deep");
-        Expect.That(model.Organizations == 0, "Seven subtopics at the third level, which no new parent can hold, were sent for regrouping");
+        Expect.That(model.Organizations == 1 && store.Organizations["deep"].DueReason == "crowded-subtopics" && !model.LastOrganizationInput.Contains("document-outline"),
+            "Seven subtopics at the third level, which no new parent can hold, were regrouped from the outline instead of reviewed with their blocks");
 
         Seed(store, clock, "wide", [.. Enumerable.Range(0, 7).Select(i => ("t" + i, (string?)null, 1)), ("t0-sub", "t0", 1), ("t0-leaf", "t0-sub", 1)]);
         await Configure(store, "wide", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
@@ -213,6 +214,61 @@ static class NoteOrganizationChecks
         Expect.That(call.Status == "completed" && (call.Summary ?? "").Contains("1 moves that would nest deeper than three levels dropped") &&
             grouped is not null && topics.Where(x => x.ParentId == grouped.Id).Select(x => x.Id).Order().SequenceEqual(["t1", "t2"]) && topics.Single(x => x.Id == "t0").ParentId is null,
             "A move that would nest a topic four levels deep failed the whole regroup: " + call.Status + " " + call.Summary);
+    }
+    // Six subtopics is a review threshold, not a limit. More than six at the third level, where no new parent fits,
+    // gets one organizer review of the parent with its subtopics and their blocks: the organizer may merge subtopics
+    // (moving every block of one into another; the emptied one is removed), rename or reorder them, or leave them.
+    // Leaving them is a valid answer, and the same level is not asked again until a subtopic joins or leaves it.
+    // A merge keeps every block, body and citation.
+    static async Task CrowdedSubtopicsReview()
+    {
+        static void SeedChain(MemoryStore store, TestClock clock, string id) =>
+            Seed(store, clock, id, [("top", null, 1), ("chain", "top", 1), .. Enumerable.Range(0, 7).Select(i => ("leaf" + i, (string?)"chain", 2))]);
+        // Every block with its text and citations as a reader sees them (saving stores citations as cite_* markers).
+        static List<(string Topic, string Block, string Body, string Sources)> Blocks(Note note) => note.Sections
+            .SelectMany(topic => topic.Blocks.Select(block => (topic.Id, block.Id, NoteSections.Expand(block.Body, note.Citations), string.Join(",", block.Anchors.SelectMany(x => x.SourceIds)))))
+            .OrderBy(x => x.Item2).ToList();
+
+        // Merge: leaf1's two blocks join leaf0, and leaf2 is renamed.
+        var clock = new TestClock(); var store = new MemoryStore {Clock = clock}; SeedChain(store, clock, "merge");
+        await Configure(store, "merge", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        var before = Blocks(store.Notes["merge"]);
+        var model = new OrganizationModel { ReplyFor = input =>
+        {
+            var review = input.TryGetProperty("review", out var value) ? value : default;
+            Expect.That(review.ValueKind == JsonValueKind.Object && review.GetProperty("crowdedSubtopics").EnumerateArray().Any(x => x.GetProperty("parent").GetString() == "chain"),
+                "The review input did not say which subtopics are over the threshold");
+            return JsonSerializer.Serialize(new NotePatch { Moves = [new() { Block = "leaf1-b0", To = "leaf0" }, new() { Block = "leaf1-b1", To = "leaf0" }],
+                Operations = [new() { Kind = "rename-topic", TopicId = "leaf2", Title = "Merged review" }] });
+        } };
+        await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "merge");
+        var merged = store.Notes["merge"];
+        var after = Blocks(merged);
+        Expect.That(model.Organizations == 1 && store.Organizations["merge"].DueReason == "crowded-subtopics" &&
+            merged.Sections.Count(x => x.ParentId == "chain") == 6 && merged.Sections.All(x => x.Id != "leaf1") &&
+            merged.Sections.Single(x => x.Id == "leaf0").Blocks.Select(x => x.Id).SequenceEqual(["leaf0-b0", "leaf0-b1", "leaf1-b0", "leaf1-b1"]) &&
+            merged.Sections.Single(x => x.Id == "leaf2").Title == "Merged review",
+            "A merge of two third-level subtopics was not applied: " + string.Join(" | ", merged.Sections.Select(x => x.Id + ":" + x.Blocks.Count)));
+        Expect.That(after.Count == 16 && after.Select(x => (x.Block, x.Body, x.Sources)).SequenceEqual(before.Select(x => (x.Block, x.Body, x.Sources))) &&
+            after.All(x => x.Body.Contains("[" + x.Sources + "]")),
+            "A merge lost or changed a block body or citation");
+
+        // Leave: the organizer keeps all seven; nothing changes, and the same level is not asked again after an unrelated change.
+        clock = new TestClock(); store = new MemoryStore {Clock = clock}; SeedChain(store, clock, "leave");
+        await Configure(store, "leave", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
+        before = Blocks(store.Notes["leave"]);
+        model = new OrganizationModel { Reply = "{\"outline\":[],\"moves\":[],\"topicMoves\":[],\"operations\":[],\"deferred\":[]}" };
+        await using (var agent = Agent(store, model, clock))
+        {
+            await Tick(agent, clock, 2, "leave");
+            var left = store.Activity.Values.Single(x => x.SessionId == "leave" && x.Task == "Section organization");
+            Expect.That(model.Organizations == 1 && left.Status == "completed" && Blocks(store.Notes["leave"]).SequenceEqual(before) &&
+                store.Organizations["leave"].Status == "completed", "Leaving seven third-level subtopics as they are was not a completed review");
+            var note = store.Notes["leave"];
+            note.MeaningfulRevision++; note.RecentChanges.Add(new() { Revision = note.MeaningfulRevision, At = clock.GetUtcNow().UtcDateTime, TopicIds = ["leaf3"] });
+            await Tick(agent, clock, 30, "leave");
+            Expect.That(model.Organizations == 1, "Seven third-level subtopics the organizer left as they were were reviewed again without a new subtopic");
+        }
     }
     static async Task DirtyAgeAndDisable()
     {

@@ -25,6 +25,9 @@ public sealed class NoteOrganizationState
     public List<string> PendingTopics { get; set; } = [];
     public int PendingDirtyRevisions { get; set; }
     public DateTime? PendingDirtySince { get; set; }
+    // Crowded levels (NoteStructure.CrowdedLevel.Identity) an organizer review has seen and left over the threshold;
+    // they are not asked again until a topic joins or leaves them. The most recent few are kept.
+    public List<string> ReviewedLevels { get; set; } = [];
 }
 public sealed record OrganizationDue(int DirtyRevisions, DateTime? DirtySince, DateTime? CooldownUntil, string? Reason, List<string> AffectedTopics);
 public static class NoteOrganization
@@ -39,13 +42,22 @@ public static class NoteOrganization
         var changes = note.RecentChanges.Where(x => x.Revision > state.OrganizedMeaningfulRevision).ToList();
         DateTime? since = dirty > 0 ? changes.Select(x => (DateTime?)x.At).Append(state.PendingTopics.Count > 0 ? state.PendingDirtySince : null).Where(x => x is not null).Min() ?? note.CreatedAt : null;
         var cooldown = state.LastOrganizedAt?.AddSeconds(policy.OrganizationCooldownSeconds);
-        // Organization follows structure, not time: a changed topic that grew too large gets subtopics, and a
-        // level with too many topics gets grouped (the whole outline). An unchanged structure is never re-asked.
+        // Organization follows structure, not time. Over a threshold of six the organizer reviews once: a changed
+        // topic over six blocks (it may split it), a level over six topics that can take a parent (grouped from the
+        // whole outline), or over six subtopics at the third level (reviewed with their blocks: merge, rename,
+        // reorder or leave). An unchanged structure, or a crowded level a review already left, is not asked again.
         var changed = state.PendingTopics.Concat(changes.SelectMany(x => x.TopicIds)).ToHashSet();
         var eligible = EligibleTopics(note.Sections).ToList();
         var overfull = NoteStructure.Overfull(note.Sections).Where(x => changed.Contains(x.Id) && eligible.Contains(x)).Select(x => x.Id).ToList();
+        var crowded = NoteStructure.CrowdedLevels(note.Sections).Where(x => !state.ReviewedLevels.Contains(x.Identity)).ToList();
+        var subtopics = crowded.Where(x => x.AtMaxDepth && x.ParentId is { } parent && eligible.Any(t => t.Id == parent)).Select(x => x.ParentId!).ToList();
         var reason = !policy.OrganizationEnabled || dirty == 0 || cooldown > now ? null :
-            overfull.Count > 0 ? "large-topic" : NoteStructure.HasCrowdedLevel(note.Sections) ? "crowded-level" : null;
-        return new(dirty, since, cooldown, reason, overfull.Count > 0 ? overfull : changed.ToList());
+            overfull.Count > 0 ? "large-topic" : crowded.Any(x => !x.AtMaxDepth) ? "crowded-level" : subtopics.Count > 0 ? "crowded-subtopics" : null;
+        return new(dirty, since, cooldown, reason, reason switch { "large-topic" => overfull, "crowded-subtopics" => subtopics, _ => changed.ToList() });
     }
+
+    // After a review: the crowded levels it covered that are still over the threshold, so they are not asked again.
+    public static List<string> StillCrowdedAfterReview(IReadOnlyCollection<NoteSection> topics, string reason, IReadOnlyCollection<string> affected) =>
+        NoteStructure.CrowdedLevels(topics).Where(x => reason == "crowded-level" ? !x.AtMaxDepth : reason == "crowded-subtopics" && x.ParentId is { } parent && affected.Contains(parent))
+            .Select(x => x.Identity).ToList();
 }

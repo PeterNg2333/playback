@@ -242,11 +242,11 @@ public sealed partial class NoteWorkflow
         }
     }
 
-    // A closed topic (full or long-running) takes no new blocks, and the schema does not offer it, so the writer
-    // continues its subject in a subtopic it declares with a heading title. A block a reply still aims at a closed
-    // topic goes into the subtopic the same reply declared for its continuation: under the closed topic, or beside
-    // it when that is already three levels deep. Without one the block stays where the reply put it; the topic is
-    // then over six blocks and the organizer splits it with titles of its own. The application never makes up a
+    // A closed topic (six blocks or more, or long-running) takes no new blocks, and the schema does not offer it, so
+    // the writer continues its subject in a subtopic it declares with a heading title. A block a reply still aims at a
+    // closed topic goes into the subtopic the same reply declared for its continuation: under the closed topic, or
+    // beside it when that is already three levels deep. Without one the block stays where the reply put it; a topic
+    // over six blocks gets an organizer review, which may split it with titles of its own. The application never makes up a
     // title (it used to take the block's first sentence), and nothing is refused, so no call is lost.
     static (int Redirected, int Kept) RedirectFromClosedTopics(NoteSession session, NotePatch patch, List<NoteTranscript> pending)
     {
