@@ -1,6 +1,6 @@
 # P3 結果：筆記結構（organizer 範圍、subtopic 標題）
 
-Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `tree-notes-v14`；organizer `tree-organize-v13` → `v14`（第一、二次 live）→ `v15`（第三次 live）→ `v16`（再修，未 live）。
+Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer `tree-notes-v13` → `v14` → `v15`；organizer `tree-organize-v13` → `v14`（Run 1、2）→ `v15`（Run 3）→ `v16` → `v17`（Run 4、5，兩次都被 HTTP 429 打斷）。
 
 ## 摘要
 
@@ -9,13 +9,14 @@ Branch：`phase/p3-note-structure`（由 `main` 3cecbe0 開）。Prompt：writer
 - **另外修咗**：
   1. 新增或者搬入嘅 block 以前用回覆入面嘅位置做 `Order`，會排喺之前嘅 block 中間；而家排喺主題最後。
   2. 只有 outline 嘅重組（同一層太多主題）以前遇到 `rename-topic` 就成次失敗；而家可以改名。
-  3. 已經喺第三層、加唔到 parent 嘅擠迫層唔再觸發重組。
-  4. Outline 重組嘅 input 講明邊一層擠迫、每個主題下面有幾多層。
-  5. 會令主題超過三層嘅 move 會被丟棄，唔再令成次重組失敗。
-- 離線 checks 全綠（27 組）。三次 live 驗收合共 US$0.0827：
+  3. Outline 重組嘅 input 講明邊一層擠迫、每個主題下面有幾多層。
+  4. 會令主題超過三層嘅 move 會被丟棄，唔再令成次重組失敗。
+- **六係 review 門檻，唔係上限**（使用者決定）：超過六個就行一次 organizer review，佢可以重組、合併、改名、重排，或者唔郁。第三層超過六個 subtopic 會做 block-level review，可以合併（只搬成段 block，內文同引用唔變）。Review 過而保持原狀嘅擠迫層，直至有主題加入或離開先會再問。見[第三層](#第三層超過六個-subtopic使用者決定六係-review-門檻唔係上限)。
+- 離線 checks 全綠（27 組）。五次 live 驗收合共 US$0.1119：
   - **拆大主題（v14）**：7 個 move 全部套用，0 丟棄。
-  - **擠迫層重組**：v14 嘅 7 次都冇效，因為 Qwen 冇填 `parentId`。用 `topicMoves` 之後（v15），第一次重組 9 個 topicMoves 同 9 個改名全部套用、0 丟棄，頂層由 11 個減到 3 個。之後 3 次 call 因為擠迫層喺第三層而浪費咗，其中 2 次因為深度成次失敗；已經喺 `tree-organize-v16` 修好，**未 live 驗證**。
-  - 三次都係 0 句子標題，冇已滿主題被轉走。
+  - **擠迫層重組**：v14 嘅 7 次都冇效，因為 Qwen 冇填 `parentId`。用 `topicMoves` 之後（v15），第一次重組 9 個 topicMoves 同 9 個改名全部套用、0 丟棄，頂層由 11 個減到 3 個。之後 3 次 call 因為擠迫層喺第三層而浪費咗，其中 2 次因為深度成次失敗；已經喺 v16／v17 修好。
+  - **v17（Run 4、5）**：OpenRouter HTTP 429 令一半以上 writer call 同全部 4 次 organizer call 失敗，深度修正同第三層 review **未 live 驗證**。
+  - 五次都係 0 句子標題，冇已滿主題被轉走。
 
 ## A. Organizer 被丟棄嘅操作
 
@@ -105,6 +106,34 @@ CheckFailed: A block aimed at a full topic did not go into the subtopic the same
 
 Check：`NoteEditChecks.Placement` 加咗兩個回覆，加 block 去同一個主題，要求閱讀次序同講嘅次序一樣。改之前（red）：`Blocks of a later reply were shown between earlier blocks: 缺頁先 | 被改過 | 缺頁時 | 沒有空`。
 
+## 第三層超過六個 subtopic（使用者決定：六係 review 門檻，唔係上限）
+
+使用者答覆：六只係觸發檢查嘅數字。超過嘅時候行一次 organizer，等佢決定合併、改（改名／重排）定唔郁；唔郁都完全可以，唔算失敗；合併唔可以失去任何 block 內容或引用；其他用六做門檻嘅地方說法要一致。
+
+做法（`tree-organize-v17`、`tree-notes-v15`）：
+
+- `NoteStructure.ReviewBlocks`／`ReviewTopics`（原本叫 `MaxBlocksPerTopic`／`MaxTopicsPerLevel`）係 review 門檻。只有 `MaxDepth`（三層）係真正上限。寫筆記時，主題有六段或者講咗八分鐘就「closed」，writer 會開 subtopic；呢個係放置規則，唔係 organizer 嘅上限。
+- 三種 review：
+  - 主題超過六段：`large-topic`，可以拆。
+  - 第三層以上一層超過六個主題：`crowded-level`，由 outline 分組。
+  - **第三層超過六個 subtopic**：`crowded-subtopics`（新）。Organizer 收到 parent 同所有 subtopic 嘅 block，可以合併（將一個 subtopic 嘅所有 block 用 `moves` 搬入另一個；空咗嘅 subtopic 會被刪；內文同引用唔郁）、改名、重排，或者唔郁。
+- Organizer input 加 `review`：列出範圍入面超過門檻嘅嘢（`largeTopics`、`crowdedSubtopics`），附 `threshold: 6`。Prompt 講明六係「再睇一次」嘅提示，唔郁係有效答案。
+- 一層擠迫嘅主題被 review 過之後仍然超過六個，就記入 `NoteOrganizationState.ReviewedLevels`（按 parent 同成員主題計 identity）。之後唔會再問，直至有主題加入或者離開嗰層；成員主題加 block 唔會令佢再被問。所有擠迫層（包括頂層）都係咁，避免 v14 嗰種同一層重組 7 次。
+- 用六做門檻嘅其他地方都改咗說法：writer prompt（「closed：六段或以上，或者講咗好耐」）、organizer prompt、`NoteStructure`／`NoteOrganization`／`NoteInput`／`NoteWorkflow.Edits.cs` 註解、STRUCTURE.md 三行。
+
+Check：`NoteOrganizationChecks.CrowdedSubtopicsReview`（同埋 `RegroupDepth` 第一部分改為期望 block-level review）：
+
+1. **合併**：`chain` 下面 7 個第三層 subtopic（每個兩段）→ review 觸發，原因 `crowded-subtopics`。Input 嘅 `review.crowdedSubtopics` 有 `chain`。回覆將 `leaf1` 兩段搬入 `leaf0`，再改 `leaf2` 嘅名 → 剩 6 個 subtopic，`leaf1` 被刪，`leaf0` 有 4 段（次序：原本兩段，再加搬入嗰兩段），改名生效。
+2. **合併後 block 同引用齊全**：16 段嘅 block ID、展開後內文、anchor source 同改之前完全一樣，而且每段內文都仍然有自己嘅引用。
+3. **唔郁**：organizer 回覆空嘅 moves／operations → call completed、筆記冇變。之後另一個 subtopic 有改動，同一層唔會再被問。
+
+改之前（red）：
+
+```
+RED: Seven subtopics at the third level, which no new parent can hold, were regrouped from the outline instead of reviewed with their blocks
+RED: A merge of two third-level subtopics was not applied: top:1 | chain:1 | leaf0:2 | leaf1:2 | leaf2:2 | leaf3:2 | leaf4:2 | leaf5:2 | leaf6:2
+```
+
 ## 證據（離線）
 
 ```powershell
@@ -161,20 +190,41 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 - 三次 live 都冇句子標題、冇已滿主題被轉走：writer 跟 schema，自己宣告 subtopic。Run 3 標題例子：「位址計算與版本差異」、「調試器符號下載與啟動」、「學生提問：核心地址與使用者資料」。
 - 報告入面嘅簡體字（2、2、6 個）係 runner 量度未經 OpenCC 嘅模型原始輸出，屬 P2／P4。
 
-合計 live 費用：Run 1、2 US$0.0562（第一次授權）；Run 3 US$0.0265（第二次授權，上限 US$0.07；organizer 有觸發，所以冇跑第二次）。Run folder 喺 worktree 嘅 `app-temp/data/validation/runs/`（git ignore），合併 worktree 前如果要保留，要抄去 main checkout。
+### Run 4、5：`tree-notes-v15` / `tree-organize-v17`（第三次授權：最多兩次，上限 US$0.07）
+
+兩次都被 OpenRouter 嘅 **HTTP 429（rate limit）** 打斷，驗唔到要驗嘅行為。第二次喺第一次之後等咗 20 分鐘先開始，都係一樣。整段時間都有 429，可能同時有其他 phase（例如 P2 長課堂 replay）用緊同一條 OpenRouter key。
+
+| | Run 4 `2026-10-19-p3-organize-v17` | Run 5 `2026-10-19-p3-organize-v17b` |
+| --- | --- | --- |
+| Writer calls：成功／429 失敗／總數 | 13 / 34 / 47 | 19 / 21 / 40 |
+| 來源引用 | 53/58 | 58/58 |
+| Median call | 11.9 s | 11.8 s |
+| 費用 | $0.0138 | $0.0154 |
+| Organizer calls（觸發原因） | 0 | 4 次，全部針對同一個頂層主題（「AI 輔助學習流程」，6 段；頂層有 7 個主題，應該係 `crowded-level`）；4 次都係 429 |
+| moves／topicMoves 套用、丟棄 | — | 冇回覆，冇得量度 |
+| 深度錯誤 | 冇（冇 organizer 回覆） | 冇（冇 organizer 回覆） |
+| 第三層 review（合併／改／唔郁） | 冇觸發（冇第三層超過六個） | 冇觸發 |
+| 句子標題 | 0（10 個主題） | 0（14 個主題） |
+
+- Activity 入面 4 次 organizer call 嘅 promptVersion 係 `tree-organize-v17`。失敗之後 state 按原本嘅重試規則（同一 input 最多 3 次，之後有新改動再試）。
+- 唯一嘅結論：v17 嘅 writer 同 organizer 喺 429 下面都冇其他錯誤；行為本身未驗到。
+
+合計 live 費用：Run 1、2 US$0.0562（第一次授權）；Run 3 US$0.0265（第二次授權）；Run 4、5 US$0.0292（第三次授權，上限 US$0.07，兩次已用完）。Run folder 喺 worktree 嘅 `app-temp/data/validation/runs/`（git ignore），合併 worktree 前如果要保留，要抄去 main checkout。
 
 ### 下一次 live 驗收計劃（未授權，未做）
 
-- 目的：驗證 `tree-organize-v16`：第三層擠迫唔再觸發，重組唔再因深度成次失敗；`moves`／`topicMoves` 繼續 0 丟棄。
-- 指令：同上，`--folder app-temp/data/validation/runs/<日期>-p3-organize-v16`，Qwen3.8 Flash batch+organize，Week 3 頭 20 分鐘；如果 P2 嘅 runner 已經合併，用佢嘅 OpenCC 選項量度最終筆記。
+- 先決條件：OpenRouter 冇 429。開始前確認冇其他 phase 用緊同一條 key 跑 live，或者錯開時間。
+- 目的：驗證 `tree-organize-v17`：重組唔再因深度成次失敗；`moves`／`topicMoves` 繼續 0 丟棄；擠迫層被 review 過之後唔再重複問；如果有第三層超過六個 subtopic，睇 organizer 揀合併、改定唔郁，同埋 block／引用係咪齊全。
+- 指令：同上，`--folder app-temp/data/validation/runs/<日期>-p3-organize-v17c`，Qwen3.8 Flash batch+organize，Week 3 頭 20 分鐘。Week 3 頭 20 分鐘唔一定會出現第三層超過六個（Run 3 有，Run 1、2、4、5 冇）；如果要保證覆蓋，可以考慮用完整 Week 3 transcript（P2 嘅長課堂 replay），但費用高好多。
 - 請求數：約 28–29 次 writer call、0–8 次 organizer call；冇上傳音訊。
-- 預計費用：每次約 US$0.03（三次 run：$0.0276、$0.0286、$0.0265）；建議最多兩次（organizer 唔一定觸發），上限 US$0.07。
-- 量度：organizer 次數同失敗數（目標：失敗 0、冇效果嘅重組 0）；各原因丟棄數（範圍外 0、冇目的地 0、原位 ≤ 2、超過三層 ≤ 2）；重組後頂層同其他擠迫層主題數（≤ 6）；句子標題數（0）；已滿主題轉走（宣告／留低）。
+- 預計費用：每次約 US$0.03；建議最多兩次，上限 US$0.07。
+- 量度：每次 organizer call 嘅觸發原因、套用同丟棄數（按原因）、有冇深度錯誤、第三層 review 結果（合併／改／唔郁）、句子標題、來源覆蓋、費用。
 
 ## 未完成同限制
 
-- `tree-organize-v16`（擠迫層限可加 parent 嘅層、`crowdedLevels`／`levelsBelow`、丟棄過深 move）只有離線 check，未 live。`topicMoves` 同 outline 重組改名已經喺 Run 3 live 驗證。
-- 第三層超過六個 subtopic 時冇補救：organizer 唔拆、唔合併。要處理就要令 writer 少啲喺第二層主題下面開 subtopic，或者俾 organizer 合併主題（會改內文，要另外決定）。
+- `tree-organize-v16`／`v17`（擠迫層分「可加 parent」同「第三層 review」、`crowdedLevels`／`levelsBelow`／`review`、丟棄過深 move、review 過嘅擠迫層唔再問）只有離線 check。Run 4、5 因為 429 驗唔到。`topicMoves` 同 outline 重組改名已經喺 Run 3 live 驗證。
+- 第三層 review 只可以合併、改名、重排或者唔郁；合併只係搬成段 block，唔會將兩段文字合成一段。
+- `ReviewedLevels` 係新加嘅 `note_organization` 欄位。舊文件冇呢個欄位就用空 list（Mongo automap），唔使 migration；未喺 LocalMongo check 驗證。
 - Fixture 入面嘅 `PlacedReply`、`PlacedRegroupReply` 係按保存回覆寫返出嚟嘅新形狀，唔係 provider 真正嘅回覆；`moves` 部分已經喺 Run 2 由 Qwen 真正用過。
 - Organizer 仍然可以將 block 或主題「搬」去原位（schema 冇辦法逐個排除）。呢種 move 唔會改到嘢，會分開計，prompt 亦講明唔好咁做。
 - B 嘅後備（冇宣告就留喺原主題）會令已滿主題暫時超過六段，要等 organizer 拆；organizer 停用時會一直咁。
@@ -191,7 +241,6 @@ node --env-file-if-exists=<main checkout>/.env app-temp/checks/Validation/run-no
 
 ## 要使用者決定嘅嘢
 
-- 授權一次 `tree-organize-v16` live 驗收（見上面計劃，約 US$0.03–0.07）。
-- 第三層超過六個 subtopic 要唔要處理（writer 方向定 organizer 合併），見「未完成同限制」。
+- 喺 OpenRouter 冇 429 嘅時候，授權一次 `tree-organize-v17` live 驗收（見上面計劃，約 US$0.03–0.07）；同埋係咪要用完整 Week 3 transcript 先保證觸發第三層 review。
 - B 嘅後備：回覆冇宣告 subtopic 時，我揀咗「留喺原主題，等 organizer 拆」，唔再自動開 subtopic。另一個做法係拒收嗰段（source 留 pending，下一批再寫），但可能多一次 writer call。建議維持現狀。
 - Run folder 要唔要由 worktree 抄去 main checkout 保留。
