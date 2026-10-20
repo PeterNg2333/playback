@@ -69,7 +69,8 @@ public sealed class Transcription(
         try {
             await store.SaveTranscript(chunk, result.Text, model, display == result.Text ? null : display,
                 model.SupportsLanguageHint ? Playback.Domain.Audio.AsrLanguage.ProviderHint(settings.AsrLanguage) : null, result.Language);
-            await activity.End(call, "completed", string.IsNullOrWhiteSpace(result.Text) ? "No words returned; original audio retained" : "Confirmed original ASR saved", model.Model);
+            var summary = string.IsNullOrWhiteSpace(result.Text) ? "No words returned; original audio retained" : "Confirmed original ASR saved";
+            await activity.End(call, "completed", summary + (result.FallbackSummary is null ? "" : "; " + result.FallbackSummary), model.Model);
         } catch (Exception ex) { await activity.Fail(call, ex); throw; }
         logger.LogInformation(
             "ASR {Provider}/{Model} completed for {ChunkId} in {ElapsedMs} ms; provider inference {InferenceSeconds} s, " +

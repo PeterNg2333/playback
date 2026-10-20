@@ -24,6 +24,7 @@ public sealed class NoteTranscript
     public bool Uncertain { get; set; }
     public string NoteStatus { get; set; } = "pending";
     public DateTime? ConfirmedAt { get; set; }
+    public bool Retranscribed { get; set; }
 }
 
 public sealed class NoteMaterial

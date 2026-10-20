@@ -47,7 +47,7 @@ public sealed partial class NoteWorkflow
             if (state.InputHash != hash) state.Attempts = 0;
             state.InputHash = hash; state.PolicyRevision = effective.Revision; state.PolicySnapshot = effective.Values;
             state.DueReason = due.Reason; state.BasedOnVersion = session.NoteVersion;
-            state.PendingTopics = outlineOnly ? [] : affected.Skip(3).Select(x => x.Id).ToList();
+            state.PendingTopics = outlineOnly ? [] : affected.Where(x => scope.All(s => s.Id != x.Id)).Select(x => x.Id).ToList();
             state.PendingDirtyRevisions = due.DirtyRevisions; state.PendingDirtySince = due.DirtySince;
             if (scope.Count == 0)
             {

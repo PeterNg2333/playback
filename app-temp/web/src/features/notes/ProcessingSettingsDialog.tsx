@@ -53,6 +53,8 @@ const fields = [
   { key: "boundarySettleSeconds", label: "ASR settle grace", min: 0, max: 5, step: 0.1, unit: "s", description: "Maximum grace for pending audio at the pause boundary." },
   { key: "maxCombinedSeconds", label: "Maximum quiet segment", min: 10, max: 300, step: 1, unit: "s", description: "Bounds derived quiet audio files; original chunks remain available." },
   { key: "organizationCooldownSeconds", label: "Organization cooldown", min: 15, max: 300, step: 1, unit: "s", description: "Minimum time between organization jobs." },
+  { key: "organizationMaxDirtyAgeSeconds", label: "Organize changed notes after", min: 30, max: 600, step: 1, unit: "s", description: "Review changed notes when this wait or the batch threshold is reached." },
+  { key: "organizationChangedRevisions", label: "Changed batches before organization", min: 1, max: 10, step: 1, unit: "batches", description: "Review earlier when this many note batches have been saved." },
 ] satisfies {
   key: keyof ProcessingPolicy;
   label: string;

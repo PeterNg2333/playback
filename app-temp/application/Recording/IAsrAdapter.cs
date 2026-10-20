@@ -1,6 +1,6 @@
 namespace Playback.Api.Audio.Asr;
 
-public sealed record AsrRequest(string Path, string SessionId, string SourceId, long Sequence, string Hash, string Language = "auto", string? Model = null);
+public sealed record AsrRequest(string Path, string SessionId, string SourceId, long Sequence, string Hash, string Language = "auto", string? Model = null, bool Preview = false, string Pass = "first");
 public sealed record AsrModel(string Provider, string Model, string Transport, bool SupportsLanguageHint = false);
 public sealed record AsrResult(
     string Text,
@@ -9,7 +9,8 @@ public sealed record AsrResult(
     string? Language,
     double? RealTimeFactor,
     AsrModel? Model = null,
-    string? UsageJson = null);
+    string? UsageJson = null,
+    string? FallbackSummary = null);
 
 // Saved chunks are the recovery boundary, regardless of the provider's transport.
 public interface IAsrAdapter

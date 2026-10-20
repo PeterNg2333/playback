@@ -12,8 +12,8 @@ static class NoteOrganizationChecks
 {
     public static async Task Run()
     {
-        await TriggersAndRestart(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await CrowdedSubtopicsReview(); await LargeThirdLevelTopic(); await FullTopicReview(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
-        Console.WriteLine("Organization checks passed: structure triggers (large topic, crowded level) not time, unchanged structure not re-asked, restart acknowledgement, block and topic moves name their destination (saved Qwen split and regroup replayed), only groupable levels regrouped and too-deep moves dropped, over six third-level subtopics reviewed (merge keeping every block and citation, or left as they are), inherited disable, outline without lecture prose, generation priority, strict rewrite previews/retention, semantic opt-in, stale rejection and retry reuse");
+        await TriggersAndRestart(); await TimedAndBatchReview(); await SavedRunMoves(); await SavedRunRegroup(); await RegroupDepth(); await CrowdedSubtopicsReview(); await LargeThirdLevelTopic(); await FullTopicReview(); await DirtyAgeAndDisable(); await OutlineAndPriority(); await Rewrites();
+        Console.WriteLine("Organization checks passed: 30-second/changed-batch and structural triggers, unchanged notes not re-asked, restart acknowledgement, block/topic moves, depth limits, retention, disable, generation priority and strict rewrite previews");
     }
     static NoteAgent Agent(MemoryStore store, OrganizationModel model, TestClock clock) => new(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
     static async Task Configure(MemoryStore store, string id, ProcessingOverrides overrides)
@@ -39,7 +39,7 @@ static class NoteOrganizationChecks
         store.Notes[id] = new() { SessionId = id, Version = 1, SchemaVersion = 2, Sections = sections, Markdown = NoteTree.Render(sections, true), MeaningfulRevision = 1,
             RecentChanges = [new() { Revision = 1, At = clock.GetUtcNow().UtcDateTime, TopicIds = sections.Select(x => x.Id).ToList() }] };
     }
-    // Organization follows structure, not time: small notes are left alone however long they wait; a topic over
+    // Before the age/batch deadline, small notes wait; a topic over
     // six blocks gets subtopics; an unchanged structure is not asked again; a level over six topics is regrouped
     // from the outline; a restart recovers a committed organization without repeating it.
     static async Task TriggersAndRestart()
@@ -53,7 +53,7 @@ static class NoteOrganizationChecks
         await Configure(store, "crowded", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
         await using (var agent = Agent(store, model, clock))
         {
-            await Tick(agent, clock, 600, "small"); Expect.That(model.Organizations == 0, "Organization ran on elapsed time alone");
+            await Tick(agent, clock, 28, "small"); Expect.That(model.Organizations == 0, "Organization ran before its age or batch threshold");
             await Tick(agent, clock, 2, "large");
             Expect.That(model.Organizations == 1 && store.Organizations["large"].DueReason == "large-topic" &&
                 store.Notes["large"].Sections.Any(x => x.ParentId == "big" && x.Title == "Definitions and examples" && x.Blocks.Count == 1) &&
@@ -266,8 +266,10 @@ static class NoteOrganizationChecks
                 store.Organizations["leave"].Status == "completed", "Leaving seven third-level subtopics as they are was not a completed review");
             var note = store.Notes["leave"];
             note.MeaningfulRevision++; note.RecentChanges.Add(new() { Revision = note.MeaningfulRevision, At = clock.GetUtcNow().UtcDateTime, TopicIds = ["leaf3"] });
-            await Tick(agent, clock, 30, "leave");
+            await Tick(agent, clock, 20, "leave");
             Expect.That(model.Organizations == 1, "Seven third-level subtopics the organizer left as they were were reviewed again without a new subtopic");
+            await Tick(agent, clock, 10, "leave");
+            Expect.That(model.Organizations == 2 && store.Organizations["leave"].DueReason == "dirty-age", "Changed prose did not receive its timed review after the structural review");
         }
     }
     // A third-level topic over six blocks (the v14 live run left one with seven, never reviewed) cannot take
@@ -328,12 +330,12 @@ static class NoteOrganizationChecks
             }
             Change(note => note.Sections.Single().Title = "Renamed full topic");
             await Tick(agent, clock, 30, "leave");
-            Expect.That(model.Organizations == 1, "A full topic the organizer left unsplit was reviewed again although its blocks did not change");
+            Expect.That(model.Organizations == 2 && store.Organizations["leave"].DueReason == "dirty-age", "A changed title did not receive its timed review");
             store.Speech("leave", "late", "A later fact."); store.Transcripts["leave"].Last().NoteStatus = "completed";
             Change(note => note.Sections.Single().Blocks.Add(new() { Id = "full-b7", Order = 7, Role = "detail", Body = "A later fact. [late]", CitationIds = ["late"],
                 Anchors = [new() { Id = "full-p7", Length = "A later fact. [late]".Length, SourceIds = ["late"] }] }));
             await Tick(agent, clock, 30, "leave");
-            Expect.That(model.Organizations == 2, "A full topic that gained a block after its review was not reviewed again");
+            Expect.That(model.Organizations == 3 && store.Organizations["leave"].DueReason == "large-topic", "A full topic that gained a block after its review was not reviewed again");
         }
 
         // Full by time: three blocks spanning nine minutes.
@@ -360,6 +362,25 @@ static class NoteOrganizationChecks
         {
             try {invalid.Validate(); throw new CheckFailed("Invalid organization policy accepted");} catch (ProcessingPolicyValidationException) { }
         }
+    }
+    static async Task TimedAndBatchReview()
+    {
+        var clock = new TestClock(); var store = new MemoryStore {Clock = clock};
+        var model = new OrganizationModel {Reply = "{\"outline\":[],\"moves\":[],\"topicMoves\":[],\"operations\":[],\"deferred\":[]}"};
+        Seed(store, clock, "age", ("a", null, 2));
+        Seed(store, clock, "batches", ("b", null, 2));
+        store.Notes["batches"].MeaningfulRevision = 3;
+        await Configure(store, "age", new(CheckIntervalSeconds: 2));
+        await Configure(store, "batches", new(CheckIntervalSeconds: 2));
+        await using var agent = Agent(store, model, clock);
+        await Tick(agent, clock, 2, "batches");
+        Expect.That(model.Organizations == 1 && store.Organizations["batches"].DueReason == "changed-batches", "Three changed batches did not admit early organization");
+        await Tick(agent, clock, 26, "age");
+        Expect.That(model.Organizations == 1, "Small changed notes organized before 30 seconds");
+        await Tick(agent, clock, 2, "age");
+        Expect.That(model.Organizations == 2 && store.Organizations["age"].DueReason == "dirty-age", "Small changed notes did not organize at 30 seconds");
+        await Tick(agent, clock, 120, "age");
+        Expect.That(model.Organizations == 2, "A no-op review repeated paid work on unchanged notes");
     }
     static async Task OutlineAndPriority()
     {
@@ -389,6 +410,7 @@ static class NoteOrganizationChecks
     {
         var clock = new TestClock(); var store = new MemoryStore {Clock = clock}; store.Add("rewrite"); store.Speech("rewrite", "source", "Only under one shared bottleneck, n=10 yields $R/10$.\n\nExample: keep the uncertainty; the ASR is unclear.\n\n```c\nint n = 10;\n```\n\n假設只有一個瓶頸。");
         var model = new OrganizationModel {Shorten = true}; await using var agent = Agent(store, model, clock);
+        await Configure(store, "rewrite", new(OrganizationEnabled: false));
         await agent.Generate("rewrite", default); var before = JsonSerializer.Serialize(store.Notes["rewrite"]);
         // A small note is not organized automatically; the owner asks for this organization explicitly.
         var rewriteTopic = store.Notes["rewrite"].Sections.Single();

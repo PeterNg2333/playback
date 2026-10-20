@@ -79,7 +79,7 @@ export function SessionSettings({ session }: { session: Session | null }) {
               <select
                 className={selectStyle}
                 id="asr-model"
-                value={session?.asrModel ?? ""}
+                value={session?.asrModel && health.asrModels.includes(session.asrModel) ? session.asrModel : ""}
                 disabled={!session || !!busy || !!streamActive}
                 onChange={(event) =>
                   setLanguages(
@@ -96,6 +96,9 @@ export function SessionSettings({ session }: { session: Session | null }) {
                   </option>
                 ))}
               </select>
+              <small className={noteStyle}>
+                Automatic fallback: ElevenLabs Scribe v2, then Gemini Transcribe if the selected model fails or times out.
+              </small>
             </>
           )}
           <label className={labelStyle} htmlFor="asr-language">

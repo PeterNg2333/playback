@@ -20,6 +20,7 @@ public partial class PlaybackStore
                 EndMs = chunk.EndMs,
                 RecordedAt = chunk.RecordedAt,
                 Original = original,
+                ReviewStatus = string.IsNullOrWhiteSpace(original) ? "" : "pending",
                 ConfirmedAt = DateTime.UtcNow,
                 DisplayOriginal = displayOriginal,
                 AsrLanguageHint = languageHint,
@@ -114,9 +115,9 @@ public partial class PlaybackStore
             .Set(x => x.TranslationError, error)
             .Set(x => x.TranslationRetryAt, retryAt);
         if (error is null) update = update.Set(x => x.Translation, value).Set(x => x.TranslationLanguage, language);
-        var saved = await Collection<Transcript>("transcripts").FindOneAndUpdateAsync(x => x.Id == transcript.Id, update,
+        var saved = await Collection<Transcript>("transcripts").FindOneAndUpdateAsync(x => x.Id == transcript.Id && x.Original == transcript.Original, update,
             new FindOneAndUpdateOptions<Transcript> { ReturnDocument = ReturnDocument.After })
-            ?? throw new InvalidOperationException("Transcript not found");
+            ?? throw new InvalidOperationException("Transcript changed during translation; stale result was not applied");
         Touch(transcript.SessionId, "translation", [transcript.Id]);
         return saved;
     }

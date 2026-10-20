@@ -61,7 +61,7 @@ static class AsrChecks
                 using var body = JsonDocument.Parse(await message.Content!.ReadAsStringAsync(ct));
                 var root = body.RootElement;
                 languages.Add(root.TryGetProperty("language", out var language) ? language.GetString() : null);
-                Expect.That(root.GetProperty("model").GetString() == (languages.Count == 8 ? "openai/whisper-large-v3-turbo" : "qwen/qwen3-asr-1.7b") &&
+                Expect.That(root.GetProperty("model").GetString() == (languages.Count == 8 ? "elevenlabs/scribe-v2" : "qwen/qwen3-asr-1.7b") &&
                     root.GetProperty("response_format").GetString() == "json" &&
                     root.GetProperty("input_audio").GetProperty("format").GetString() == "wav",
                     "OpenRouter ASR request contract mismatch");
@@ -86,8 +86,8 @@ static class AsrChecks
                 identities[0] != identities[3] && identities[3] != identities[4],
                 "Auto must omit the language hint; explicit dialects must be sent and change retry identity");
             await adapter.Transcribe(request with { Language = "yue-en" }, CancellationToken.None);
-            var selected = await adapter.Transcribe(request with { Model = "openai/whisper-large-v3-turbo" }, CancellationToken.None);
-            Expect.That(languages[6] is null && selected.Model?.Model == "openai/whisper-large-v3-turbo" && identities[7] != identities[0],
+            var selected = await adapter.Transcribe(request with { Model = "elevenlabs/scribe-v2" }, CancellationToken.None);
+            Expect.That(languages[6] is null && selected.Model?.Model == "elevenlabs/scribe-v2" && identities[7] != identities[0],
                 "Mixed language must omit a single-language hint and selected model must reach the provider and saved metadata");
             Expect.That(OpenRouterAsrClient.ParseResponse(Encoding.UTF8.GetBytes("{\"text\":\"\"}")).Text == "",
                 "Empty ASR output must not become invented speech");
@@ -131,6 +131,7 @@ static class AsrChecks
             catch (InvalidOperationException ex) { Expect.That(ex.Message.Contains("offline"), "Offline mode must reject provider calls"); }
             Expect.That(identities.Count == calls, "Offline checks must not upload audio");
             Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", null);
+            await OpenRouterAsrFallbackChecks.Run(path);
             Environment.SetEnvironmentVariable("OPENROUTER_API_KEY", "your_openrouter_api_key_here");
             try
             {

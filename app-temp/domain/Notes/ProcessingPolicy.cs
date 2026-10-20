@@ -32,8 +32,8 @@ public sealed record ProcessingPolicy(
     double MaxCombinedSeconds = 60,
     bool OrganizationEnabled = true,
     int OrganizationChangedRevisions = 3,
-    double OrganizationMaxDirtyAgeSeconds = 120,
-    double OrganizationCooldownSeconds = 60,
+    double OrganizationMaxDirtyAgeSeconds = 30,
+    double OrganizationCooldownSeconds = 30,
     string OrganizationScope = "affected-topics",
     string NotePresentation = "numbered-hierarchy")
 {

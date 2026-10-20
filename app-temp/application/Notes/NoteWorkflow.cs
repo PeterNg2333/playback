@@ -113,6 +113,15 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
 
     SemaphoreSlim SessionLock(string id) => sessionLocks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
 
+    // A transcript correction cannot race a note call that is still marking the old wording completed.
+    public async Task<bool> UpdateEvidence(string id, Func<Task<bool>> save, CancellationToken ct)
+    {
+        var sessionLock = SessionLock(id);
+        await sessionLock.WaitAsync(ct);
+        try { return await save(); }
+        finally { sessionLock.Release(); }
+    }
+
     // One model run: build the bounded input, stream the reply, apply it as a section patch and save
     // the new version. Sources the reply neither wrote nor deferred stay pending.
     async Task<object> Revise(NoteSession session, List<NoteTranscript> pending, List<NoteSection> context, CancellationToken ct,
@@ -193,7 +202,10 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
                 var points = operated.SelectMany(x => x.Points).ToList();
                 var coverage = pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Select(source =>
                 {
-                    var written = points.Where(x => x.SourceIds.Contains(source)).Select(x => x.Id).ToList();
+                    var corrected = pending.Any(x => x.Id == source && x.Retranscribed);
+                    var written = points.Where(x => x.SourceIds.Contains(source) && (!corrected ||
+                        session.Sections.SelectMany(s => s.Points).All(old => old.Id != x.Id || old.Text != x.Text)))
+                        .Select(x => x.Id).ToList();
                     var deferred = patch.Deferred.FirstOrDefault(x => x.SourceId == source);
                     return new SourceDisposition { SourceId = source, PointIds = written, Status = written.Count > 0 ? "covered" : deferred is not null ? "deferred" : "pending",
                         Reason = written.Count > 0 ? "Source-backed canonical block saved" : deferred?.Reason ?? "No block or deferral; source remains pending" };

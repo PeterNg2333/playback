@@ -1,5 +1,9 @@
 # ASR adapters 與 Qwen3 研究（2026-09-28）
 
+2026-10-20 更新：OpenRouter 選單只使用四款非 OpenAI STT 模型：Qwen 1.7B、Qwen 0.6B、ElevenLabs Scribe v2、Gemini 3.5 Transcribe。正式請求先用所選模型，遇到可恢復錯誤或 20 秒逾時後轉 ElevenLabs Scribe v2、Gemini 3.5 Transcribe（去重，最多三款）；灰字每款最多五秒，整體仍受 15 秒限制。401／402／403 等帳戶錯誤直接回報。Activity 及保存逐字稿記錄實際回答模型。舊 session／環境設定中的 `openai/*` 會在送出前轉用 Qwen 1.7B，不需改寫資料庫或讀取 `.env`。模型清單已對照 [官方 STT 目錄](https://openrouter.ai/api/v1/models?output_modalities=transcription)，沒有執行本輪付費可用性測試。
+
+新的 confirmed chunks 在同 session／source／capture stream 累積四段或等待 30 秒後，逐段重辨識一次，每批最多八段。改字保存第一遍文字、保留 ID／hash／時間及原音訊，重新排入翻譯並觸發 notes；相同結果不重跑 LLM。每段保存 review completion，失敗最多三次並保留第一稿；既有歷史逐字稿不會自動重傳。這個第二遍不合併較長語音、亦未驗證會改善準確度，會增加費用；`PLAYBACK_ASR_REVIEW=no` 可停用。完整規則與驗證界線見 [README](../README.zh-HK.md)。下方 2026-09-28 模型比較是歷史結果。
+
 ## 官方接口與選擇
 
 - [OpenRouter Qwen3 ASR 1.7B](https://openrouter.ai/qwen/qwen3-asr-1.7b)：model ID 是 `qwen/qwen3-asr-1.7b`。
@@ -11,7 +15,7 @@
 
 ## 廣東話與英文、即時灰字
 
-Transcript settings 可按 session 選擇 `qwen/qwen3-asr-1.7b`、`openai/whisper-large-v3` 或 `openai/whisper-large-v3-turbo`，或沿用環境的預設模型。選擇保存於 `AsrModel`，之後的請求及 retry 使用此模型，逐字稿保存實際呼叫的模型 ID。SenseVoice 沒有 OpenRouter 模型選單。
+Transcript settings 可按 session 選擇 `AsrModelOptions.OpenRouter` 所列的四款非 OpenAI 模型，或沿用環境的預設模型。選擇保存於 `AsrModel`，之後的請求及 retry 優先使用此模型，再按上述規則 fallback；逐字稿保存實際呼叫的模型 ID。SenseVoice 沒有 OpenRouter 模型選單。
 
 [OpenRouter 官方列出這兩個 Whisper 模型](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/)；[Whisper V3 有廣東話專用 token](https://github.com/openai/whisper/discussions/1762)。[Turbo 是 V3 的速度優化版本](https://github.com/openai/whisper)。可先試 Turbo 的延遲，再與 V3 比較廣東話及中英夾雜準確度；沒有宣稱任何一款在你的錄音一定勝過 Qwen。
 

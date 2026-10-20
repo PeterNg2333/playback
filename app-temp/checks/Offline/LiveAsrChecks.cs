@@ -17,7 +17,7 @@ static class LiveAsrChecks
 
     public static async Task Run()
     {
-        var settings = new SessionRecord { AsrLanguage = "yue-en", AsrModel = "openai/whisper-large-v3-turbo" };
+        var settings = new SessionRecord { AsrLanguage = "yue-en", AsrModel = "elevenlabs/scribe-v2" };
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
         var traces = new PreviewStore();
@@ -55,7 +55,7 @@ static class LiveAsrChecks
             live.Feed([0.3f, 0.6f], 48_000);
             live.Feed([0.9f], 48_000);
             await Wait(() => streamed.Sent.Count == 1);
-            Expect.That(streamed.Request is { Language: "yue-en", SourceId: "system", Model: "openai/whisper-large-v3-turbo" },
+            Expect.That(streamed.Request is { Language: "yue-en", SourceId: "system", Model: "elevenlabs/scribe-v2" },
                 "Streaming must receive session language and model settings");
             Expect.That(streamed.Sent[0].Sequence == 0 && BitConverter.ToInt16(streamed.Sent[0].Bytes) == (short)Math.Round(0.6f * 32767),
                 "PCM resampling must retain phase and audio across device callbacks");

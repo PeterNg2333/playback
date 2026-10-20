@@ -42,9 +42,11 @@ try {
     return route.continue();
   });
   const page = await context.newPage(); await page.goto(origin + "/output/tree/index.html");
-  await page.getByRole("heading", {name: "1 TCP", exact: true}).waitFor();
-  assert.equal(await page.getByRole("heading", {name: "1.1 Sharing", exact: true}).count(), 1);
-  assert.equal(await page.getByRole("heading", {name: "1.1.1 Worked example", exact: true}).count(), 1);
+  await page.getByRole("heading", {name: "1) TCP", exact: true}).waitFor();
+  assert.equal(await page.getByRole("heading", {name: "a) Sharing", exact: true}).count(), 1);
+  assert.equal(await page.getByRole("heading", {name: "i) Worked example", exact: true}).count(), 1);
+  const hierarchy = await page.locator("[data-topic-depth]").evaluateAll(rows => rows.map(row => ({left: row.getBoundingClientRect().left, depth: row.dataset.topicDepth})));
+  assert.ok(hierarchy[0].left < hierarchy[1].left && hierarchy[1].left < hierarchy[2].left, "Topic hierarchy must be visibly indented");
   await page.locator(".math-formula math").first().waitFor();
   await page.getByRole("button", {name: "Edit definition"}).first().click();
   await page.getByRole("textbox", {name: "Note text"}).fill("A retained user draft [source-a]");

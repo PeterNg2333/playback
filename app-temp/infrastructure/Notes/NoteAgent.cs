@@ -37,6 +37,7 @@ public sealed class NoteAgent : BackgroundService, IAsyncDisposable
         workflow.Tick(ids, ct);
     }
     public Task Drain() => workflow.Drain();
+    public Task<bool> UpdateEvidence(string id, Func<Task<bool>> save, CancellationToken ct) => workflow.UpdateEvidence(id, save, ct);
     public static void ValidateReferences(string markdown, IEnumerable<TermInsight> allowed) => NoteReferences.ValidateReferences(markdown, allowed.Select(x => x.Id));
     public static void ValidateSourceReferences(string markdown, IEnumerable<string> allowed) => NoteReferences.ValidateSourceReferences(markdown, allowed);
     public static string ReadableDraft(string json) => NoteWorkflow.ReadableDraft(json);

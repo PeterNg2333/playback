@@ -1,5 +1,14 @@
 # Playback 本機 prototype
 
+2026-10-20 ASR／筆記後續修正（需重建並重啟 API 才生效）：
+- OpenRouter ASR 選單只使用非 OpenAI 模型：Qwen 1.7B、Qwen 0.6B、ElevenLabs Scribe v2、Gemini 3.5 Transcribe。已對照 [OpenRouter STT 文件](https://openrouter.ai/docs/guides/overview/multimodal/stt) 與公開模型目錄；目錄列出不代表本帳戶已成功呼叫。
+- 每次先用所選模型，遇到模型錯誤、408／429／5xx 或逾時，依序轉 ElevenLabs Scribe v2、Gemini 3.5 Transcribe（去重，最多三個模型）。每個正式辨識模型最多 20 秒，灰字預覽每個最多 5 秒並沿用整體 15 秒上限；401／402／403、過大請求及本機禁止連線不換模型。Activity 保留實際成功模型及 fallback 原因；全部失敗時保留每個模型的安全錯誤摘要。舊 session 或環境若選了 `openai/*`，實際請求會轉用 Qwen 1.7B，不上傳至 OpenAI 模型。
+- 新確認的語音在 30 秒或同 session／source／capture stream 累積四個 chunk 後，再逐 chunk 辨識一次，每批最多八個。每個 chunk 的 ID、hash、音訊及時間不變；第二次改字時保存 `FirstPassOriginal`，逐字稿來源詳情可檢視。這是逐 chunk 的第二次辨識，未合成較長的語音；不保證第二次一定較準。相同結果不重跑 LLM；改字則重開 pending note／translation，並執行一輪 notes。辨識失敗保留第一稿，最多三次 review 嘗試；完成紀錄防止重啟後反覆上傳。舊逐字稿沒有 pending review 標記，不會整批重傳。`PLAYBACK_ASR_REVIEW=no` 可關閉第二遍；第二遍會增加 ASR 費用。
+- 自動整理恢復使用 timing／batch 設定：預設筆記改動後 30 秒或三批 meaningful revisions，另保留六段／八分鐘／過多主題的結構 review。預設 cooldown 30 秒；既有 workspace／session overrides 繼續有效，可在 Processing settings 調整。沒有新改動時不重複呼叫。
+- Writer `tree-notes-v17`／organizer `tree-organize-v20` 加入 Security Overview → cybersecurity／CIA／2FA 的完整內容與 JSON 範例，要求按概念整理、用子項寫定義／例子，避免逐段敘述「講師說了甚麼」。畫面以 `1) → a) → i) → (1)`、縮排及 block 內清單呈現。第二遍 ASR 的來源以 `retranscribed` 提示模型修正現有 block，保留引用及受保護內容；未實際修改的舊引用不會當成已完成修正。
+
+本輪驗證以 in-memory HTTP、application ports 及離線 browser fixture 為準；沒有新增付費呼叫、上傳音訊、改寫現有資料庫或重啟運行中的 API。未取得本次 Qwen 失敗的 provider response，因此不能判定是限流、端點或帳戶問題。舊筆記不會只因 prompt 升版自動改寫，可用 Revise with AI。
+
 2026-10-20 Wave 1：backend build／全部 offline checks、Web build／browser checks 通過；三分鐘真實錄音首 note 約 132 秒，未達 40 秒；placement schema 修正為 `tree-notes-v16`。長測有部分證據，Gemini 約 US$1.95 停止，不增加測試預算。完整 live acceptance 未全綠；詳見 [收尾與限制](../docs/phases/wave1-closeout.zh-HK.md)。下一步優先 cloud deployment／accounts。
 
 Code layout: [STRUCTURE.md](STRUCTURE.md).

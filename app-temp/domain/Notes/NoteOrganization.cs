@@ -44,11 +44,8 @@ public static class NoteOrganization
         var changes = note.RecentChanges.Where(x => x.Revision > state.OrganizedMeaningfulRevision).ToList();
         DateTime? since = dirty > 0 ? changes.Select(x => (DateTime?)x.At).Append(state.PendingTopics.Count > 0 ? state.PendingDirtySince : null).Where(x => x is not null).Min() ?? note.CreatedAt : null;
         var cooldown = state.LastOrganizedAt?.AddSeconds(policy.OrganizationCooldownSeconds);
-        // Organization follows structure, not time. Past a threshold (six blocks or eight minutes for a topic, six
-        // topics for a level) the organizer reviews once, and leaving things as they are is a valid outcome: a changed
-        // full topic (it may split it), a level over six topics that can take a parent (grouped from the whole
-        // outline), or over six subtopics at the third level (reviewed with their blocks: merge, rename, reorder or
-        // leave). An unchanged structure, or one a review already left (ReviewedStructures), is not asked again.
+        // Review changed notes by age or batch count as well as structural pressure. A completed review
+        // acknowledges the meaningful revision, including a no-op, so idle notes never repeat paid work.
         var changed = state.PendingTopics.Concat(changes.SelectMany(x => x.TopicIds)).ToHashSet();
         var eligible = EligibleTopics(note.Sections).ToList();
         var overfull = NoteStructure.Overfull(note.Sections, spoken)
@@ -56,7 +53,9 @@ public static class NoteOrganization
         var crowded = NoteStructure.CrowdedLevels(note.Sections).Where(x => !state.ReviewedStructures.Contains(x.Identity)).ToList();
         var subtopics = crowded.Where(x => x.AtMaxDepth && x.ParentId is { } parent && eligible.Any(t => t.Id == parent)).Select(x => x.ParentId!).ToList();
         var reason = !policy.OrganizationEnabled || dirty == 0 || cooldown > now ? null :
-            overfull.Count > 0 ? "large-topic" : crowded.Any(x => !x.AtMaxDepth) ? "crowded-level" : subtopics.Count > 0 ? "crowded-subtopics" : null;
+            overfull.Count > 0 ? "large-topic" : crowded.Any(x => !x.AtMaxDepth) ? "crowded-level" : subtopics.Count > 0 ? "crowded-subtopics" :
+            dirty >= policy.OrganizationChangedRevisions ? "changed-batches" :
+            since is { } first && now >= first.AddSeconds(policy.OrganizationMaxDirtyAgeSeconds) ? "dirty-age" : null;
         return new(dirty, since, cooldown, reason, reason switch { "large-topic" => overfull, "crowded-subtopics" => subtopics, _ => changed.ToList() });
     }
 

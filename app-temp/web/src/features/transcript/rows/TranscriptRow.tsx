@@ -120,6 +120,12 @@ export function TranscriptRow({
                 Provider original: {transcript.original}
               </p>
             )}
+          {transcript.firstPassOriginal != null && (
+            <p className="my-0.75">First-pass recognition: {transcript.firstPassOriginal}</p>
+          )}
+          {transcript.reviewStatus === "pending" && <small>Second recognition pass pending</small>}
+          {transcript.reviewStatus === "completed" && <small>Second recognition pass completed</small>}
+          {transcript.reviewStatus === "failed" && <small>Second recognition pass failed · first-pass text retained</small>}
           {transcript.uncertain && (
             <span className="mt-2 inline-block rounded-[5px] bg-pink-soft px-1.75 py-0.75 text-[10px] font-bold text-[#ac4c79]">
               Unclear · review audio

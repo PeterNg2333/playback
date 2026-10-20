@@ -20,6 +20,12 @@ public sealed class Transcript
     public DateTime? RecordedAt { get; set; }
     public string Original { get; set; } = "";
     public string? DisplayOriginal { get; set; }
+    public string? FirstPassOriginal { get; set; }
+    public string ReviewStatus { get; set; } = "";
+    public int ReviewAttempts { get; set; }
+    public DateTime? ReviewRetryAt { get; set; }
+    public string? ReviewError { get; set; }
+    public DateTime? ReviewedAt { get; set; }
     [System.Text.Json.Serialization.JsonIgnore]
     public string SourceText => DisplayOriginal ?? Original;
     public string? AsrLanguageHint { get; set; }

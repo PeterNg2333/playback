@@ -17,6 +17,9 @@ export const TranscriptSchema = z.object({
   recordedAt: z.string().nullish(),
   original: z.string(),
   displayOriginal: z.string().nullish(),
+  firstPassOriginal: z.string().nullish(),
+  reviewStatus: z.string().optional(),
+  reviewError: z.string().nullish(),
   asrProvider: z.string().nullish(),
   asrModel: z.string().nullish(),
   asrLanguageHint: z.string().nullish(),
@@ -161,8 +164,8 @@ const ProcessingPolicyFields = z.object({
     .finite()
     .min(30)
     .max(600)
-    .default(120),
-  organizationCooldownSeconds: z.number().finite().min(15).max(300).default(60),
+    .default(30),
+  organizationCooldownSeconds: z.number().finite().min(15).max(300).default(30),
   organizationScope: z
     .enum(["affected-topics", "document-outline"])
     .default("affected-topics"),

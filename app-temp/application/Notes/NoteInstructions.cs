@@ -6,8 +6,8 @@ namespace Playback.Application.Notes;
 // record which instructions produced them.
 public static class NoteInstructions
 {
-    public const string Version = "tree-notes-v16";
-    public const string OrganizeVersion = "tree-organize-v19";
+    public const string Version = "tree-notes-v17";
+    public const string OrganizeVersion = "tree-organize-v20";
 
     public const string Sections = """
         Digest confirmed lecture speech into understandable, source-backed Markdown sections.
@@ -54,6 +54,48 @@ public static class NoteInstructions
         Prefer useful hierarchy, comparison tables and Mermaid relationship/process diagrams with quoted
         labels when the sources support them. Give enough explanation for readers to understand without
         repeatedly reopening ASR. There is no fixed bullet/word count for a topic. Avoid decorative diagrams.
+        Write study notes, with short concept labels and nested supporting points. Do not narrate the recording
+        ("the speaker begins", "the instructor outlines", "the session continues") or make one paragraph per
+        audio chunk. Combine consecutive fragments into concepts; separate a definition from its conditions,
+        implications and examples. Logistics may be a topic when substantive, but greetings and repetition
+        do not need their own story. A source containing only filler may be acknowledged briefly without
+        inventing academic content. Use one meaningful block per concept, not per input chunk.
+        A topic's title is its heading; do not repeat it or hand-number it in body. Use Markdown lists inside
+        a block for closely related details. The renderer supplies topic and block numbering and indentation.
+        Illustrative lecture input (style only, never copy facts or IDs absent from the actual input):
+        T1: Cybersecurity protects cyberspace from cyberattack; NIST is action oriented.
+        T2: CIA is asset oriented: confidentiality permits access only to authorized entities, such as a login.
+        T3: Integrity prevents unauthorized or accidental modification, including content and time correctness;
+        a replay attack is the example. Availability means available when needed; DDoS threatens it.
+        T4: The scope is information and network protection. Two-factor authentication needs at least two
+        independent dimensions: something you know, e.g. password or PIN, and something you have, e.g. card or token.
+        Desired conceptual hierarchy:
+        1) Security Overview
+           a) The need for cybersecurity
+              i) NIST: protect cyberspace from cyberattack (action oriented)
+              ii) CIA (asset oriented)
+                  (1) Confidentiality: authorized access; example: login
+                  (2) Integrity: content and time correctness; example: replay attack
+                  (3) Availability: accessible when needed; threat: DDoS
+           b) Scope: information and network protection
+           c) Extra Topics
+              i) Two-factor authentication: at least two independent dimensions
+                  (1) Knowledge: password, PIN
+                  (2) Possession: card, token
+        Encode the subject hierarchy in outline and parent, with supporting lists in body, for example:
+        {"outline":[{"key":"new1","title":"Security Overview","parent":""},
+        {"key":"new2","title":"The need for cybersecurity","parent":"new1"},
+        {"key":"new3","title":"Scope","parent":"new1"},
+        {"key":"new4","title":"Extra Topics","parent":"new1"}],
+        "blocks":[{"topic":"new2","role":"definition","body":"**NIST (action oriented):** protect cyberspace from cyberattack.","sourceIds":["T1"]},
+        {"topic":"new2","role":"definition","body":"**CIA (asset oriented)**\n\n1. **Confidentiality:** access only for authorized entities; example: login.\n2. **Integrity:** prevent unauthorized or accidental modification of content and time correctness; example: replay attack.\n3. **Availability:** accessible when needed; DDoS threatens it.","sourceIds":["T2","T3"]},
+        {"topic":"new3","role":"detail","body":"Information and network protection.","sourceIds":["T4"]},
+        {"topic":"new4","role":"definition","body":"**Two-factor authentication:** at least two independent dimensions.\n\n1. **Knowledge:** password or PIN.\n2. **Possession:** card or token.","sourceIds":["T4"]}],
+        "operations":[],"sections":[],"deferred":[]}
+        Another style example: under "Lecture Introduction and Logistics", prefer a short labelled point
+        "**Deferred topic:** long-term profits will be discussed in lecture 20(?)" to "The session begins with
+        informal greetings and acknowledgments. The speaker notes...". Keep uncertainty only where the
+        actual input is unclear. These examples teach structure, not facts to add to this lecture.
         Correct oral repetition and punctuation; retain uncertainty. A term mentioned without a definition
         is not a licence to invent a lecture definition. AI/web supplements are separate, never lecture facts.
         Speech recognition mishears names, commands, abbreviations and numbers. You may reconstruct the likely
@@ -74,19 +116,18 @@ public static class NoteInstructions
         Never invent cite_T001 or [ref:...] markers. Copy a ref marker only if it already exists in context.
         Do not cite every source in a time window as evidence for one claim.
         Return a single JSON object matching the supplied response schema, with sections as an empty list.
-        Copy existing topic and block IDs exactly from topicOutline and editableSections. Example:
-        {"outline":[{"key":"new1","title":"TCP 三次握手","parent":""},{"key":"new2","title":"SYN 洪水攻擊","parent":"new1"}],
-        "blocks":[{"topic":"new1","role":"definition","body":"The actual source-backed Markdown paragraph.","sourceIds":["T1"]},
-        {"topic":"new2","role":"example","body":"Another source-backed block.","sourceIds":["T2"]},
-        {"topic":"section_abc","role":"detail","body":"Continues an open existing topic.","sourceIds":["T3"]}],
-        "operations":[{"kind":"replace-text","blockId":"block_abc","find":"exact earlier words","replace":"corrected words",
-        "topicId":"","reason":"T3 corrects the earlier ASR wording"}],
-        "sections":[],"deferred":[{"sourceId":"T4","reason":"the last sentence stops mid-way"}]}.
+        Copy existing topic and block IDs exactly from topicOutline and editableSections. The worked example
+        above illustrates a new hierarchy. Continue an existing subject by naming its existing topic ID;
+        corrections use operations with the existing blockId and exact find/replace text.
         Admission already waited until the pending passage was complete, so write every pending source now
         as a cited block, never silently completed. Defer only a last source that stops mid-sentence, and never
         to wait for a better topic. A source with deferredBefore cannot be deferred again: write what it
         supports, with "(?)" on unclear parts. For a gap-repair batch, write the substantive definitions, examples,
         conditions and arguments in that earlier input; the latest topic is not the whole lecture.
+        A pending source with retranscribed=true has been recognized again from its saved audio. Its source
+        ID and time range are unchanged. Compare the corrected wording with blocks already citing it and use
+        replace-text to correct those blocks before adding genuinely missing concepts. Never duplicate a
+        previously written point merely because its source returned to pending. Keep protected blocks untouched.
         More than one input chunk may support a complete thought. Source IDs establish traceability, not
         proof of semantic quality; do not claim material is covered unless the point is actually written.
         Never return a complete replacement document. Never reproduce internal context labels or versions.
@@ -104,6 +145,12 @@ public static class NoteInstructions
         Make the notes a hierarchy, like nested folders, not a flat list. Six is a cue to look again, not a limit:
         decide what reads best, and leaving a structure as it is is a valid answer (return empty moves, topicMoves
         and operations). review lists what in the selected scope is over six.
+        A review can also be triggered after 30 seconds of changed notes or several saved batches, before any
+        topic is crowded. Group by subject and concept, never by audio chunk, batch number or elapsed time.
+        For example: Security Overview > The need for cybersecurity > NIST and CIA, with confidentiality,
+        integrity and availability as supporting points; Scope and Extra Topics are siblings of The need for
+        cybersecurity. Use the actual lecture subjects, never copy this example's facts. Keep a coherent
+        small hierarchy when it already reads well; no extra levels are required merely to fill a template.
         A topic past full (review.largeTopics: over six blocks, or blocks spanning eight minutes or more) that covers
         several subjects: split it into two to five subtopics by subject (outline entries whose parent is that topic,
         then a moves entry for each block, "to" the new key). One subject may stay as one topic, past full. A third-level topic cannot take subtopics: move some of its

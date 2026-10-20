@@ -41,6 +41,7 @@ public static class ServiceRegistration
         services.AddSingleton<AsrProcessor>();
         services.AddSingleton<AsrQueue>();
         services.AddHostedService(s => s.GetRequiredService<AsrQueue>());
+        services.AddHostedService<TranscriptReviewWorker>();
         services.AddSingleton<WindowsAudioCaptureService>();
         services.AddSingleton<Playback.Application.Recording.IRecordingControl>(s => s.GetRequiredService<WindowsAudioCaptureService>());
         services.AddSingleton<Playback.Application.Recording.IRecordingAccess>(s => s.GetRequiredService<PlaybackStore>());

@@ -18,6 +18,20 @@ export function noteOutline(sections: NonNullable<Session["currentNote"]>["secti
 
 export function topicMarkdown(section: NonNullable<Session["currentNote"]>["sections"] extends (infer T)[] | undefined ? T : never, number: string, depth: number, numbered: boolean) {
   if (section.schemaVersion < 2) return section.markdown;
-  return "#".repeat(depth + 1) + " " + (numbered ? number + " " : "") + section.title + "\n\n" +
+  return "#".repeat(depth + 1) + " " + (numbered ? topicMarker(number, depth) + " " : "") + section.title + "\n\n" +
     [...(section.blocks ?? [])].sort((a, b) => a.order - b.order).map(x => x.body).join("\n\n");
+}
+
+export function topicMarker(number: string, depth: number) {
+  const index = Number(number.split(".").at(-1));
+  if (depth === 1) return `${index})`;
+  if (depth === 2) {
+    let label = "", value = index;
+    while (value > 0) { value--; label = String.fromCharCode(97 + value % 26) + label; value = Math.floor(value / 26); }
+    return label + ")";
+  }
+  let value = index, label = "";
+  for (const [amount, digit] of [[100, "c"], [90, "xc"], [50, "l"], [40, "xl"], [10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]] as const)
+    while (value >= amount) { label += digit; value -= amount; }
+  return label + ")";
 }

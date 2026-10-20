@@ -128,9 +128,10 @@ public sealed class LiveAsrSession : IAsyncDisposable
                 await activity.Start(call);
             }
             var providerWatch = System.Diagnostics.Stopwatch.StartNew();
-            var result = await adapter.Transcribe(new(path, sessionId, sourceId, from, hash, language.AsrLanguage, language.AsrModel), deadline.Token);
+            var result = await adapter.Transcribe(new(path, sessionId, sourceId, from, hash, language.AsrLanguage, language.AsrModel, Preview: true), deadline.Token);
             if (call is not null) { call.ProviderLatencyMs = providerWatch.ElapsedMilliseconds; call.UsageJson = result.UsageJson;
-                await activity!.End(call, "completed", "Ephemeral preview received; language/version guards decide whether it can be displayed", result.Model?.Model); }
+                await activity!.End(call, "completed", "Ephemeral preview received; language/version guards decide whether it can be displayed" +
+                    (result.FallbackSummary is null ? "" : "; " + result.FallbackSummary), result.Model?.Model); }
             var text = LanguageSettings.CantoneseDisplay(result.Text, language.AsrLanguage, result.Language);
             var current = await settings();
             lock (gate)

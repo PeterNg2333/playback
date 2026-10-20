@@ -173,8 +173,8 @@ try {
         audioChunkMilliseconds: 8000,
         asrModels: [
           "qwen/qwen3-asr-1.7b",
-          "openai/whisper-large-v3",
-          "openai/whisper-large-v3-turbo",
+          "google/gemini-3.5-transcribe",
+          "elevenlabs/scribe-v2",
         ],
         asr: {
           provider: "openrouter",
@@ -544,11 +544,11 @@ try {
   });
   await page
     .getByRole("combobox", { name: "Transcription model" })
-    .selectOption("openai/whisper-large-v3-turbo");
+    .selectOption("elevenlabs/scribe-v2");
   assert.deepEqual(languagesRequest, {
     asrLanguage: "yue",
     noteLanguage: "en",
-    asrModel: "openai/whisper-large-v3-turbo",
+    asrModel: "elevenlabs/scribe-v2",
   });
   await asrLanguage.selectOption("yue-en");
   await page.reload();
@@ -558,7 +558,7 @@ try {
     await page
       .getByRole("combobox", { name: "Transcription model" })
       .inputValue(),
-    "openai/whisper-large-v3-turbo",
+    "elevenlabs/scribe-v2",
   );
   assert.equal(await noteLanguage.inputValue(), "en");
   const translationLanguage = page.getByRole("combobox", {

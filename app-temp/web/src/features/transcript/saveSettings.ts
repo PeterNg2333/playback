@@ -17,7 +17,7 @@ export function saveLanguages(
     await api.put(`/sessions/${session.id}/languages`, {
       asrLanguage,
       noteLanguage,
-      asrModel,
+      asrModel: asrModel?.trim().toLowerCase().startsWith("openai/") ? null : asrModel,
     });
     await refreshWorkspace(session.id);
   });

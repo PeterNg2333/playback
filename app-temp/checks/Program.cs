@@ -146,6 +146,8 @@ static async Task RunOffline(bool notesOnly)
     await NoteHistoryJournalChecks.Run();
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();
+    await TranscriptReviewChecks.Run();
+    await NoteCorrectionChecks.Run();
     await NoteGenerationChecks.Run();
     await NoteEditChecks.Run();
     NoteScriptChecks.Run();

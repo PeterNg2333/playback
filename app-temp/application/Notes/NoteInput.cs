@@ -94,7 +94,8 @@ public static class NoteInput
             .Select((x, i) => new
             {
                 Section = x,
-                Score = words.Count(w => x.Markdown.Contains(w, StringComparison.OrdinalIgnoreCase)) * 10 + (i >= sections.Count - 2 ? 1 : 0)
+                Score = (x.Points.Any(p => p.SourceIds.Any(id => input.Any(t => t.Retranscribed && t.Id == id))) ? 10000 : 0) +
+                    words.Count(w => x.Markdown.Contains(w, StringComparison.OrdinalIgnoreCase)) * 10 + (i >= sections.Count - 2 ? 1 : 0)
             })
             .OrderByDescending(x => x.Score)
             .Take(MaxContextSections)
@@ -288,7 +289,7 @@ public static class NoteInput
             remainingOutlineTopics = Math.Max(0, session.Sections.Count - 64),
             // Write these now, in this order. deferredBefore: already deferred once, so it cannot be deferred again.
             pending = pending.Select(x => new { id = reverse[x.Id], x.SourceId, x.StartMs, x.EndMs, x.RecordedAt, text = x.SourceText, x.Uncertain,
-                deferredBefore = x.NoteStatus == "deferred" }),
+                deferredBefore = x.NoteStatus == "deferred", retranscribed = x.Retranscribed }),
             remainingPending = session.Transcripts.Count(x => x.NoteStatus != "completed" && !string.IsNullOrWhiteSpace(x.SourceText)) - pending.Count,
             materials = materials.Select(x => new { id = reverse[x.Id], x.Name, text = x.Text }),
             sectionMaterials = MaterialSources.Passages(session.Materials).Where(x => contextSourceIds.Contains(x.Id))
