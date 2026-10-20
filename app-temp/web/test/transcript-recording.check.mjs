@@ -202,6 +202,7 @@ try {
     } else if (path === "/api/sessions") data = [{ id, title: "Test" }];
     else if (path === "/api/groups") data = [];
     else if (path === `/api/sessions/${id}`) data = session;
+    else if (path === `/api/sessions/${id}/notes/rewrites`) data = [];
     else if (path === `/api/sessions/${id}/notes/edits`)
       data = [
         {
@@ -329,8 +330,8 @@ try {
   );
   assert.equal(
     await page.getByTestId("audio-row").count(),
-    2,
-    "Queued and failed audio should remain separate from collapsed quiet audio",
+    3,
+    "Queued, empty ASR and failed audio must remain separate from detected silence",
   );
   assert.equal(await page.getByTestId("silence-row").count(), 1);
   assert.equal(
@@ -424,11 +425,11 @@ try {
     await page
       .getByTestId("silence-row")
       .locator("summary")
-      .filter({ hasText: "No audio" })
+      .filter({ hasText: "Quiet audio" })
       .count(),
     1,
   );
-  assert.equal(await page.getByText("No words returned by ASR").count(), 0);
+  await page.getByText("ASR returned no words · audio retained", { exact: true }).waitFor();
   await page.getByTestId("silence-row").locator("summary").click();
   await page
     .getByTestId("silence-row")

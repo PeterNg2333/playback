@@ -150,8 +150,9 @@ static class NoteEditChecks
         await OwnerActions();
         await ClosedTopics();
         await Placement();
+        await UndeclaredTopic();
         await TraditionalScript();
-        Console.WriteLine("Note edit checks passed: required placement (outline and blocks, nested new topics, no closed topic offered), Simplified-only characters converted in Traditional notes (shared characters kept), closed topics (full or long-running) continue in the subtopic the reply declared, never one titled by a sentence, owner instructions and block comments applied directly, locked blocks untouched, dismissed suggestions hidden, lecture-first cached input with stable aliases, compact Jev input, one deferral per source, topics in lecture order, append without copying, real reply shapes (plain aliases, topic content, [ref:] citations), per-change rejection, placeholder/duplicate/empty topics, rule-applied and suggested edits, last-citation and large deletions for review, protected blocks, suggestions valid until their block changes");
+        Console.WriteLine("Note edit checks passed: required placement (declared new topics, nested topics, full topics remain valid targets), Simplified-only characters converted in Traditional notes (shared characters kept), closed topics continue in a declared subtopic or retain related blocks for review, never one titled by a sentence, owner instructions and block comments applied directly, locked blocks untouched, dismissed suggestions hidden, lecture-first cached input with stable aliases, compact Jev input, one deferral per source, topics in lecture order, append without copying, real reply shapes (plain aliases, topic content, [ref:] citations), per-change rejection, placeholder/duplicate/empty topics, rule-applied and suggested edits, last-citation and large deletions for review, protected blocks, suggestions valid until their block changes");
     }
 
     static ActivityRecord LastRevision(MemoryStore store) =>
@@ -330,7 +331,7 @@ static class NoteEditChecks
     }
 
     // Placement is a required decision: outline declares new topics with their parents (a new topic may sit under
-    // another new one), every block names its topic, and the schema offers no closed topic and no add-block operation.
+    // another new one), every block names its topic, and full topics remain available for organizer review.
     static async Task Placement()
     {
         const string id = "placement";
@@ -376,10 +377,10 @@ static class NoteEditChecks
             .Schema!.Value.GetProperty("properties");
         var topics = schema.GetProperty("blocks").GetProperty("items").GetProperty("properties").GetProperty("topic").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
         var kinds = schema.GetProperty("operations").GetProperty("items").GetProperty("properties").GetProperty("kind").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
-        Expect.That(!topics.Contains(paging.Id) && topics.Contains(fault.Id) && topics.Contains("new1") && !kinds.Contains("add-block") && !kinds.Contains("create-topic") &&
+        Expect.That(topics.Contains(paging.Id) && topics.Contains(fault.Id) && topics.Contains("new1") && !kinds.Contains("add-block") && !kinds.Contains("create-topic") &&
             !schema.TryGetProperty("moves", out _) &&
             schema.GetProperty("outline").GetProperty("items").GetProperty("properties").GetProperty("parent").GetProperty("enum").EnumerateArray().Any(x => x.GetString() == paging.Id),
-            "The writer schema offered a closed topic, or allowed placement outside outline and blocks");
+            "The writer schema treated the full-topic review threshold as a placement ban, or bypassed outline and blocks");
         var operation = schema.GetProperty("operations").GetProperty("items");
         Expect.That(operation.GetProperty("required").EnumerateArray().Select(x => x.GetString()).SequenceEqual(["kind", "topicId", "blockId"]) &&
             operation.GetProperty("properties").GetProperty("topicId").GetProperty("enum").EnumerateArray().Any(x => x.GetString() == "new1"),
@@ -393,6 +394,26 @@ static class NoteEditChecks
             .GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
         Expect.That(!later.Contains(paging.Id) && !later.Contains(fault.Id) && later.Contains(""),
             "A topic spoken long before the new speech was offered as a parent");
+    }
+
+    // The real three-minute recording returned outline:[] with blocks.topic:new1 after renaming an existing topic.
+    // Refusing that block must keep its sources pending; declaring the missing topic then recovers them.
+    static async Task UndeclaredTopic()
+    {
+        const string id = "undeclared-recording-topic", fact = "This year I tried using AI to help prepare the course.";
+        var store = new MemoryStore(); store.Add(id); store.Speech(id, "opening", fact);
+        var writer = new ScriptedWriter(); var notes = new NoteStoreAdapter(store);
+        await using var workflow = new NoteWorkflow(notes, notes, writer, new FixtureNoteGate(),
+            new NoteActivityAdapter(new AiActivity(store), NullLogger<NoteAgent>.Instance), new TestClock(), notes, notes, notes, notes);
+        writer.Next = input => new() { Blocks = [new() { Topic = "new1", Role = "detail", Body = "講者今年嘗試用 AI 協助課程準備。", SourceIds = [Alias(input, fact)] }] };
+        await workflow.Generate(id, default);
+        Expect.That(store.Transcripts[id].Single().NoteStatus == "pending" && store.Notes[id].Sections.Count == 0 && LastRevision(store).Summary!.Contains("Unknown topic"),
+            "An undeclared topic invented a heading or silently marked unwritten speech completed");
+        writer.Next = input => new() { Outline = [new() { Key = "new1", Title = "課程準備", Parent = "" }],
+            Blocks = [new() { Topic = "new1", Role = "detail", Body = "講者今年嘗試用 AI 協助課程準備。", SourceIds = [Alias(input, fact)] }] };
+        await workflow.Generate(id, default);
+        Expect.That(store.Transcripts[id].Single().NoteStatus == "completed" && store.Notes[id].Sections.Single().Title == "課程準備",
+            "A later correctly declared topic did not recover the pending source");
     }
 
     // Traditional notes: Simplified-only characters the model lets in become Traditional (Hong Kong); characters that

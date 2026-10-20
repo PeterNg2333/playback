@@ -25,7 +25,11 @@ public partial class PlaybackStore
         var latest = await NoteRepository.Latest(id);
         if (latest is null) return null;
         var state = await NoteOrganization(id) ?? new() {Id = id};
-        var due = Playback.Domain.Notes.NoteOrganization.Due(latest, state, (await SessionProcessingSettings(id)).Effective, DateTime.UtcNow);
+        var sourceIds = latest.Sections.SelectMany(x => x.Blocks).SelectMany(x => x.Anchors).SelectMany(x => x.SourceIds).Distinct().ToList();
+        var timings = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id && sourceIds.Contains(x.Id))
+            .Project(x => new { x.Id, x.StartMs }).ToListAsync();
+        var spoken = timings.ToDictionary(x => x.Id, x => x.StartMs);
+        var due = Playback.Domain.Notes.NoteOrganization.Due(latest, state, (await SessionProcessingSettings(id)).Effective, DateTime.UtcNow, spoken);
         return new(state.Status, due.DirtyRevisions, due.DirtySince, due.CooldownUntil, state.LastOrganizedAt, due.Reason ?? "");
     }
 }

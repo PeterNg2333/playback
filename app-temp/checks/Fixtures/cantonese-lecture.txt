@@ -1,0 +1,32 @@
+呢份係合成嘅廣東話同英文夾雜課堂，用嚟測試筆記，唔係真實錄音逐字稿。今日講 operating system 點樣管理 memory。
+00:30
+Virtual memory 唔等於實體 RAM。每個 process 見到自己嘅 address space，作業系統先幫佢對應實際位置。
+01:00
+Page table 記低 virtual page 同 physical frame 嘅對應。如果冇對應，CPU 會觸發 page fault，唔代表一定係程式有 bug。
+01:30
+講者示范：開兩個 process，佢哋可以用同一個 virtual address，但對應唔同 physical frame，所以唔好將兩個 address 當成一樣。
+02:00
+TLB 係一個快取，減少查 page table 嘅次數。TLB miss 同 page fault 係兩樣嘢，miss 可以只係要重新查表。
+02:30
+假設 memory access 係一百 nanoseconds，TLB lookup 係十 nanoseconds；呢啲係教學假設，唔係所有機都係咁快。
+03:00
+如果 TLB hit rate 係九成，hit 要一百一十 nanoseconds，miss 要二百一十；平均係一百二十 nanoseconds。
+03:30
+有同學問 cache 可唔可以完全代替 RAM。唔可以，容量同成本唔同。唔好將 TLB 同資料 cache 混埋一齊。
+04:00
+而家講 page replacement。FIFO 係最早入嘅 page 最早出去；LRU 就睇邊個最近最少用。
+04:30
+FIFO 可能有 Belady anomaly，即係加多 frame 反而多咗 page fault。LRU 冇呢個特性，但追蹤使用次序有成本。
+05:00
+Clock algorithm 用 reference bit 近似 LRU。講到一個縮寫，錄音聽唔清楚係 NRU (?)，要保留問號，唔好肯定咁補成其他名。
+05:30
+Dirty page 要先寫返 disk，clean page 可以直接換走。Disk I/O 通常慢好多，所以 page fault 嘅成本唔只係查表。
+06:00
+Working set 係最近一段時間實際用緊嘅 pages。每個 process 都分唔夠 frame，就可能成日換頁，叫 thrashing。
+06:30
+增加 multiprogramming 唔一定令 throughput 上升。如果大家都 thrash，CPU 反而等 disk，效能會跌。
+07:00
+做功課記住寫清楚假設：frame 數目、replacement policy，同埋 reference string。唔好淨係交最後一個 page fault 數。
+07:30
+今日總結：分清 virtual address 同 physical frame、TLB miss 同 page fault。下次會做 synchronization，同今次 memory management 係唔同主題。
+08:00

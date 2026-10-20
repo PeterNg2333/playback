@@ -97,6 +97,15 @@ try
         case ["--note-models-live", var folder]:
             await NoteModelComparison.Run(folder, live: true);
             break;
+        case ["--wave1-recording", var folder]:
+            await Wave1RecordingCheck.Run(folder);
+            break;
+        case ["--wave1-review", var folder]:
+            await Wave1RecordingCheck.Review(folder);
+            break;
+        case ["--wave1-note-replay", var folder]:
+            await RecordingNoteReplay.Run(folder);
+            break;
 
         default:
             Console.Error.WriteLine("Unknown check. Run without arguments for the offline checks; Program.cs lists the other groups.");
@@ -133,6 +142,7 @@ static async Task RunOffline(bool notesOnly)
     NoteDocumentChecks.Run();
     await NoteTreeChecks.Run();
     await NoteOrganizationChecks.Run();
+    await NoteReplayChecks.Run();
     await NoteHistoryJournalChecks.Run();
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();

@@ -42,7 +42,8 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
     {
         if (!Notes.TryGetValue(id, out var note)) return null;
         var state = await NoteOrganization(id) ?? new() {Id = id};
-        var due = Playback.Domain.Notes.NoteOrganization.Due(note, state, (await SessionProcessingSettings(id)).Effective, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
+        var spoken = Transcripts[id].ToDictionary(x => x.Id, x => x.StartMs);
+        var due = Playback.Domain.Notes.NoteOrganization.Due(note, state, (await SessionProcessingSettings(id)).Effective, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime, spoken);
         return new(state.Status, due.DirtyRevisions, due.DirtySince, due.CooldownUntil, state.LastOrganizedAt, due.Reason ?? "");
     }
     public override Task<Playback.Domain.Audio.SpeechBoundary?> LatestSpeechBoundary(string id) => Task.FromResult(Boundaries.GetValueOrDefault(id));

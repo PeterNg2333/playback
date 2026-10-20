@@ -6,6 +6,7 @@ using Playback.Api.Activity;
 using Playback.Api.Db;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
+using System.Globalization;
 
 // Which model should write lecture notes. The Week 3 transcript's first 20 minutes (the span the sample audio
 // covers) reach the production NoteWorkflow two minutes at a time, as live notes would see them, once per
@@ -15,7 +16,6 @@ using Playback.Api.Providers;
 static class NoteModelComparison
 {
     const string SessionId = "week3-note-models";
-    const long LectureSpanMs = 20 * 60_000;
     const long StepMs = 2 * 60_000;
     const int MaxConsecutiveFailures = 3;
     public static readonly string[] LiveCandidates =
@@ -27,6 +27,16 @@ static class NoteModelComparison
 
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
+    public static long Span(string minutes, string text)
+    {
+        var end = Week3Transcript.Passages(text, long.MaxValue).Select(x => x.End).DefaultIfEmpty().Max();
+        if (end == 0) throw new InvalidOperationException("Replay has no timestamped passages");
+        if (minutes == "full") return end;
+        if (!int.TryParse(minutes, out var value) || value is < 1 or > 180)
+            throw new InvalidOperationException("Replay minutes must be 1–180 or full");
+        return Math.Min(end, value * 60_000L);
+    }
+
     public static async Task Run(string folder, bool live)
     {
         if (live && Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_LIVE") != "yes")
@@ -34,18 +44,28 @@ static class NoteModelComparison
         Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", live ? "no" : "yes");
         Environment.SetEnvironmentVariable("PLAYBACK_AUTO_NOTES", "no");
         Directory.CreateDirectory(folder);
-        var text = await File.ReadAllTextAsync(Path.GetFullPath(Week3Transcript.RelativePath));
-        var sources = Week3Transcript.Sources(SessionId, text, LectureSpanMs);
+        var source = Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_SOURCE") ?? "week3";
+        var inputFile = source switch { "week3" => Week3Transcript.RelativePath,
+            "cantonese-fixture" => "app-temp/checks/Fixtures/cantonese-lecture.txt",
+            _ => throw new InvalidOperationException("Replay source must be week3 or cantonese-fixture") };
+        var text = await File.ReadAllTextAsync(Path.GetFullPath(inputFile));
+        var span = Span(Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_MINUTES") ?? "20", text);
+        var script = Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_SCRIPT") ?? "raw";
+        if (script is not ("raw" or "zh-Hant")) throw new InvalidOperationException("Replay script must be raw or zh-Hant");
+        var sources = Week3Transcript.Sources(SessionId, text, span);
         // PLAYBACK_NOTE_MODELS narrows or extends a live run, e.g. "vertex:gemini-3.1-flash-lite,openrouter:deepseek/deepseek-v4.1-flash@none".
         var candidates = Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS") is { Length: > 0 } chosen ? chosen.Split(',', StringSplitOptions.TrimEntries)
             : live ? LiveCandidates : ["fixture:literal-text"];
         if (!live && candidates.Any(x => !x.StartsWith("fixture:", StringComparison.Ordinal)))
             throw new InvalidOperationException("Offline runs use the fixture writer only");
         var results = new List<CandidateResult>();
+        var budgetText = Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_MAX_USD");
+        var budget = budgetText is null ? double.PositiveInfinity : double.Parse(budgetText, CultureInfo.InvariantCulture);
+        if (budget <= 0 || double.IsNaN(budget)) throw new InvalidOperationException("Replay budget must be positive");
         foreach (var candidate in candidates)
         {
-            results.Add(await RunCandidate(folder, candidate, sources));
-            await Save(folder, live, text, sources, results);
+            results.Add(await RunCandidate(folder, candidate, sources, span, script, budget - results.Sum(x => x.NewRequestsAccountedUsd)));
+            await Save(folder, live, text, sources, results, inputFile, source, span, script);
         }
         foreach (var result in results)
             Console.WriteLine($"{result.Candidate}: {result.Completed}/{result.Calls} calls, {result.Referenced}/{result.Sources} sources cited, " +
@@ -60,7 +80,7 @@ static class NoteModelComparison
     //   jev        live scheduling: every 10 s the real Jev gate decides whether the passage is complete; 30 s deadline
     //   batch      live scheduling as by default: no Jev; the 30 s deadline, a speech boundary or Stop writes
     //   fixed-30s  live scheduling where the gate always waits, so only the 30 s deadline writes
-    static async Task<CandidateResult> RunCandidate(string folder, string candidate, List<Transcript> sources)
+    static async Task<CandidateResult> RunCandidate(string folder, string candidate, List<Transcript> sources, long span, string script, double budget)
     {
         var pacing = candidate.Contains('|') ? candidate[(candidate.IndexOf('|') + 1)..] : "steps";
         // "+organize" keeps automatic organization on, as in production.
@@ -68,13 +88,36 @@ static class NoteModelComparison
         pacing = organize ? pacing[..^"+organize".Length] : pacing;
         if (pacing is not ("steps" or "jev" or "batch" or "fixed-30s")) throw new InvalidOperationException("Unknown pacing");
         var (inner, owned) = Writer(candidate.Split('|')[0]);
-        var writer = new ReplyRecorder(inner);
+        var writer = new ReplyRecorder(inner, budget, paid: !candidate.StartsWith("fixture:", StringComparison.Ordinal));
         using var disposeModel = owned;
         var store = new MemoryStore();
         store.Add(SessionId);
         store.Languages[SessionId] = "zh-Hant";
         var activity = new AiActivity(store);
         var clock = new TestClock();
+        var resumedFrom = Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_RESUME");
+        if (resumedFrom is not null)
+        {
+            var root = Path.GetFullPath("app-temp/data/validation/runs") + Path.DirectorySeparatorChar;
+            var directory = Path.GetFullPath(resumedFrom);
+            if (!directory.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Resume evidence must be inside validation runs");
+            var priorSlug = string.Concat(candidate.Select(c => char.IsLetterOrDigit(c) || c is '.' or '-' ? c : '_'));
+            using var prior = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(directory, "live-results.json")));
+            var metadata = prior.RootElement;
+            if (metadata.GetProperty("notePromptVersion").GetString() != NoteInstructions.Version ||
+                !metadata.GetProperty("results").EnumerateArray().Any(x => x.GetProperty("candidate").GetString() == candidate) ||
+                metadata.GetProperty("input").GetProperty("script").GetString() != script)
+                throw new InvalidOperationException("Resume model, prompt or script differs from saved evidence");
+            var priorOutput = Path.Combine(directory, priorSlug);
+            var oldSources = JsonSerializer.Deserialize<List<Transcript>>(await File.ReadAllTextAsync(Path.Combine(priorOutput, "sources.json")), Json)!;
+            if (!oldSources.Select(x => x.Id).SequenceEqual(sources.Select(x => x.Id))) throw new InvalidOperationException("Resume sources differ from saved evidence");
+            var note = JsonSerializer.Deserialize<Note>(await File.ReadAllTextAsync(Path.Combine(priorOutput, "note.json")), Json)!;
+            store.Notes[SessionId] = note; store.Versions[SessionId] = [note];
+            var cited = note.Sections.SelectMany(x => x.Points).SelectMany(x => x.SourceIds).ToHashSet();
+            foreach (var source in sources) { source.NoteStatus = cited.Contains(source.Id) ? "completed" : "pending"; store.Transcripts[SessionId].Add(source); }
+            foreach (var item in JsonSerializer.Deserialize<List<ActivityRecord>>(await File.ReadAllTextAsync(Path.Combine(priorOutput, "all-activity.json")), Json)!) store.Activity[item.Id] = item;
+            clock.Advance(span / 1000.0);
+        }
         var notes = new NoteStoreAdapter(store);
         using var jevTransport = new JevTransport();
         Playback.Application.Notes.INoteGate gate = pacing == "jev" ? new JevNoteGate(jevTransport) : new FixtureNoteGate { Allow = pacing != "fixed-30s" };
@@ -86,12 +129,21 @@ static class NoteModelComparison
                 new ProcessingOverrides(JevEnabled: pacing is "jev" or "fixed-30s", OrganizationEnabled: organize), settings.InheritedRevision));
         }
         await using var workflow = new NoteWorkflow(notes, notes, writer, gate,
-            new NoteActivityAdapter(activity, NullLogger<NoteAgent>.Instance), clock, notes, notes, notes, notes);
-        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(25));
+            new NoteActivityAdapter(activity, NullLogger<NoteAgent>.Instance), clock, notes, notes, notes, notes,
+            script: script == "zh-Hant" ? new OpenccNoteScript() : null);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(120));
         var steps = new List<object>();
-        if (pacing != "steps") await LiveSchedule(store, workflow, clock, sources, candidate, steps, deadline.Token);
+        if (resumedFrom is not null)
+        {
+            // A continuation writes only uncited sources into the saved document. This is manual recovery,
+            // not a claim that the interrupted virtual schedule or its gate checkpoint was restored.
+            await workflow.Generate(SessionId, deadline.Token);
+            steps.Add(new { resumedFrom, mode = "manual recovery of uncited sources", throughMs = span });
+            pacing = "recovery";
+        }
+        else if (pacing != "steps") await LiveSchedule(store, workflow, clock, sources, candidate, steps, span, deadline.Token);
         var failures = 0;
-        for (var through = StepMs; pacing == "steps" && through <= LectureSpanMs && failures < MaxConsecutiveFailures; through += StepMs)
+        for (var through = Math.Min(StepMs, span); pacing == "steps" && through <= span && failures < MaxConsecutiveFailures; through = through == span ? span + 1 : Math.Min(through + StepMs, span))
         {
             var arrived = sources.Where(x => x.EndMs <= through && store.Transcripts[SessionId].All(t => t.Id != x.Id)).ToList();
             store.Transcripts[SessionId].AddRange(arrived.Select(x => new Transcript
@@ -136,6 +188,14 @@ static class NoteModelComparison
         await File.WriteAllTextAsync(Path.Combine(output, "all-activity.json"), JsonSerializer.Serialize(store.Activity.Values.OrderBy(x => x.StartedAt), Json));
         await File.WriteAllTextAsync(Path.Combine(output, "suggestions.json"), JsonSerializer.Serialize(store.RewriteProposals.Values, Json));
         await File.WriteAllTextAsync(Path.Combine(output, "replies.json"), JsonSerializer.Serialize(writer.Replies, Json));
+        await File.WriteAllTextAsync(Path.Combine(output, "sources.json"), JsonSerializer.Serialize(sources, Json));
+        await File.WriteAllTextAsync(Path.Combine(output, "calls.json"), JsonSerializer.Serialize(store.Activity.Values
+            .Where(x => x.Task is "Note revision" or "Section organization").OrderBy(x => x.StartedAt).Select(x => {
+                var u = Usage(x.UsageJson);
+                return new { x.Id, x.Task, x.Status, x.ProviderLatencyMs, inputTokens = u.Input, cachedTokens = u.Cached,
+                    cacheHitRatio = u.Input == 0 ? 0 : (double)u.Cached / u.Input, outputTokens = u.Output, cost = u.ReportedCost,
+                    x.UsageJson, x.Summary };
+            }), Json));
         return new CandidateResult(candidate, writer.Provider, writer.Model,
             Calls: records.Count, Completed: records.Count(x => x.Status == "completed"), ReviewRequired: records.Count(x => x.Status == "review-required"),
             Failed: records.Count(x => x.Status == "failed"),
@@ -144,6 +204,7 @@ static class NoteModelComparison
             InputTokens: usage.Sum(x => x.Input), CachedInputTokens: usage.Sum(x => x.Cached), OutputTokens: usage.Sum(x => x.Output),
             CostUsd: usage.Sum(x => x.ReportedCost ?? ((x.Input - x.Cached) * VertexInputUsd + x.Cached * VertexInputUsd * CachedShare + x.Output * VertexOutputUsd) / 1_000_000),
             CostSource: writer.Provider == "openrouter" ? "OpenRouter reported usage.cost" : "Vertex list price x reported tokens, cached input at 10% (estimate)",
+            NewRequestsAccountedUsd: writer.AccountedUsd,
             Pacing: organize ? pacing + "+organize" : pacing, OrganizerCalls: store.Activity.Values.Count(x => x.Task == "Section organization"), JevCalls: store.Activity.Values.Count(x => x.Task == "Jev note gate"),
             JevAllows: store.Activity.Values.Count(x => x.Task == "Jev note gate" && (x.Summary ?? "").StartsWith("allow")),
             LocalAdmissions: store.Activity.Values.Where(x => x.Task == "Note admission").GroupBy(x => (x.Summary ?? "").Split(':')[0]).ToDictionary(x => x.Key, x => x.Count()),
@@ -161,11 +222,12 @@ static class NoteModelComparison
     // Speech arrives when it was spoken and the production scheduler decides when to write, ticking every
     // 10 s like NoteAgent. Recording stops at the end of the span (Stop flushes what is left).
     static async Task LiveSchedule(MemoryStore store, NoteWorkflow workflow, TestClock clock, List<Transcript> sources, string candidate,
-        List<object> steps, CancellationToken ct)
+        List<object> steps, long span, CancellationToken ct)
     {
         const long tickMs = 10_000, drainMs = 90_000;
         var stopped = false;
-        for (var now = tickMs; now <= LectureSpanMs + drainMs; now += tickMs)
+        var consecutiveFailures = 0;
+        for (var now = tickMs; now <= span + drainMs; now += tickMs)
         {
             var arrived = sources.Where(x => x.EndMs <= now && store.Transcripts[SessionId].All(t => t.Id != x.Id)).ToList();
             store.Transcripts[SessionId].AddRange(arrived.Select(x => new Transcript
@@ -173,7 +235,7 @@ static class NoteModelComparison
                 Id = x.Id, SessionId = x.SessionId, SourceId = x.SourceId, StartMs = x.StartMs, EndMs = x.EndMs,
                 RecordedAt = x.RecordedAt, Original = x.Original, NoteStatus = "pending", ConfirmedAt = clock.GetUtcNow().UtcDateTime
             }));
-            if (now > LectureSpanMs && !stopped && store.Gates.TryGetValue(SessionId, out var gate))
+            if (now >= span && !stopped && store.Gates.TryGetValue(SessionId, out var gate))
             {
                 gate.FlushRequested = true; gate.FlushVersion++; stopped = true;
             }
@@ -181,8 +243,14 @@ static class NoteModelComparison
             clock.Advance(tickMs / 1000.0);
             workflow.Tick([SessionId], ct);
             await workflow.Drain();
-            var tasks = store.Activity.Values.OrderBy(x => x.StartedAt).Skip(before).Select(x => $"{x.Task}: {x.Status}").ToList();
+            var added = store.Activity.Values.OrderBy(x => x.StartedAt).Skip(before).ToList();
+            foreach (var call in added.Where(x => x.Task == "Note revision"))
+                consecutiveFailures = call.Status == "failed" ? consecutiveFailures + 1 : 0;
+            var tasks = added.Select(x => $"{x.Task}: {x.Status}").ToList();
             if (tasks.Count > 0) steps.Add(new { atMs = now, arrived = arrived.Count, tasks });
+            if (consecutiveFailures >= MaxConsecutiveFailures) { Console.WriteLine("Stopped after three consecutive writer failures"); break; }
+            if (store.Activity.Values.Any(x => x.Status == "failed" && (x.Summary ?? "").Contains("Replay budget")))
+            { Console.WriteLine("Stopped at the replay budget boundary; no further provider call"); break; }
             if (now % 60_000 == 0) Console.WriteLine($"{candidate} at {now / 60_000} min: {store.Activity.Values.Count(x => x.Task == "Note revision")} writer calls, " +
                 $"{store.Activity.Values.Count(x => x.Task == "Jev note gate")} Jev calls");
         }
@@ -194,7 +262,7 @@ static class NoteModelComparison
         switch (provider)
         {
             case "fixture":
-                return (new GeminiNoteWriter(new FixtureNoteModel()), null);
+                return (new GeminiNoteWriter(new FixtureNoteModel { PlacementReply = true }), null);
             case "vertex":
                 // GeminiLanguageModel reads its allowlisted model from the environment on every call.
                 Environment.SetEnvironmentVariable("PLAYBACK_GEMINI_MODEL", model);
@@ -234,7 +302,8 @@ static class NoteModelComparison
 
     static bool IsHan(char c) => c is >= '一' and <= '鿿';
 
-    static async Task Save(string folder, bool live, string text, List<Transcript> sources, List<CandidateResult> results)
+    static async Task Save(string folder, bool live, string text, List<Transcript> sources, List<CandidateResult> results,
+        string inputFile, string source, long span, string script)
     {
         await File.WriteAllTextAsync(Path.Combine(folder, live ? "live-results.json" : "offline-results.json"), JsonSerializer.Serialize(new
         {
@@ -242,18 +311,22 @@ static class NoteModelComparison
             build = typeof(NoteWorkflow).Assembly.ManifestModule.ModuleVersionId,
             evidence = live ? "Real provider calls through production NoteWorkflow with an in-memory store; no Jev gate, MongoDB, audio upload or ASR"
                 : "Offline literal fixture writer; proves the harness, not natural note quality",
-            input = new { file = Week3Transcript.RelativePath, sha256 = ContentHash.Of(text), throughMs = LectureSpanMs, stepMs = StepMs,
-                sources = sources.Count, outputLanguage = "zh-Hant", lectureLanguage = "English" },
+            input = new { file = inputFile, sha256 = ContentHash.Of(text), throughMs = span, stepMs = StepMs,
+                sources = sources.Count, outputLanguage = "zh-Hant", lectureLanguage = source == "week3" ? "English" : "synthetic Cantonese/English", script,
+                resumedFrom = Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_RESUME") },
+            acceptancePassed = results.All(x => x.Failed == 0 && x.ReviewRequired == 0 && x.Sources == sources.Count && x.Unreferenced == 0),
             notePromptVersion = NoteInstructions.Version,
             results
         }, Json));
         var lines = new List<string>
         {
             $"# Note model comparison ({(live ? "live" : "offline fixture")})", "",
-            $"Week 3 transcript, first {LectureSpanMs / 60_000} minutes, {sources.Count} sources, {StepMs / 60_000}-minute steps, Traditional Chinese notes, prompt {NoteInstructions.Version}.", "",
+            $"{source}, {span / 60_000.0:0.##} minutes, {sources.Count} sources, script {script}, prompt {NoteInstructions.Version}. Raw replies are in replies.json; saved output is in notes.md/note.json.", "",
             "| Candidate | Writer calls completed / review / failed / total | Jev calls (allow) | Local admissions | Cited sources (only by placeholders) | Automatic edits / suggestions | Median / max latency | Tokens in (cached) / out | Cost (USD) | Topics (empty) / points (placeholders) | Simplified chars |",
             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
         };
+        if (Environment.GetEnvironmentVariable("PLAYBACK_NOTE_MODELS_RESUME") is { } resume)
+            lines.Insert(4, $"Recovered uncited sources from {resume} with a manual generation; this did not restore the interrupted scheduler checkpoint.");
         lines.AddRange(results.Select(r =>
             $"| {r.Candidate.Replace("|", " @ ")} | {r.Completed} / {r.ReviewRequired} / {r.Failed} / {r.Calls} | {r.JevCalls} ({r.JevAllows}) | {string.Join(", ", r.LocalAdmissions.Select(x => x.Key + " " + x.Value))} | {r.Referenced}/{r.Sources} ({r.SourcesOnlyInPlaceholders}) | {r.AutoEdits} / {r.Suggestions} | {r.MedianLatencyMs} / {r.MaxLatencyMs} ms | {r.InputTokens} ({r.CachedInputTokens}) / {r.OutputTokens} | {r.CostUsd:0.0000} | {r.Topics} ({r.EmptyTopics}) / {r.Points} ({r.PlaceholderPoints}) | {r.SimplifiedCharacters} |"));
         lines.Add("");
@@ -262,22 +335,44 @@ static class NoteModelComparison
     }
 
     // Keeps each raw reply (the last streamed text) so refused operations can be inspected after a run.
-    sealed class ReplyRecorder(Playback.Application.Notes.INoteWriter inner) : Playback.Application.Notes.INoteWriter
+    sealed class ReplyRecorder(Playback.Application.Notes.INoteWriter inner, double budget, bool paid) : Playback.Application.Notes.INoteWriter
     {
         public readonly List<string> Replies = [];
+        double spent;
+        public double AccountedUsd => spent;
         public bool IsConfigured => inner.IsConfigured;
         public string Provider => inner.Provider;
         public string Model => inner.Model;
         public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct, Action<string>? onUpdate = null, Action<string>? onUsage = null)
         {
             var last = "";
-            try { return await inner.Generate(name, instructions, input, ct, text => { last = text; onUpdate?.Invoke(text); }, onUsage); }
-            finally { Replies.Add(last); }
+            // Conservative token bound: one token per UTF-8 byte, including the generated schema and envelope.
+            // Rates per million bound the GLM endpoints checked 2026-10-20 (0.225/0.75), Qwen (0.15/0.47,
+            // cache write 0.20) and the configured Vertex price. Recheck prices before future paid runs.
+            // Reasoning uses the OpenRouter cap's extra half. Failed requests reserve their full bound.
+            var (inputRate, outputRate) = inner.Provider == "vertex" ? (VertexInputUsd, VertexOutputUsd)
+                : inner.Model.StartsWith("qwen/", StringComparison.Ordinal) ? (0.20, 0.47) : (0.225, 0.75);
+            var schema = ModelOutputContract.ResponseFormat(name, input) is Microsoft.Extensions.AI.ChatResponseFormatJson { Schema: { } value }
+                ? value.GetRawText() : "";
+            var maximum = (System.Text.Encoding.UTF8.GetByteCount(instructions + input + schema) + 2048) * inputRate / 1_000_000
+                + ModelOutputContract.OutputLimit(name) * (inner.Provider == "openrouter" && !inner.Model.StartsWith("qwen/", StringComparison.Ordinal) ? 1.5 : 1) * outputRate / 1_000_000;
+            if (paid && spent + maximum > budget) throw new InvalidOperationException("Replay budget cannot cover another bounded request");
+            double? charged = null;
+            try { return await inner.Generate(name, instructions, input, ct, text => { last = text; onUpdate?.Invoke(text); }, usage => {
+                onUsage?.Invoke(usage);
+                var u = Usage(usage);
+                if (u.ReportedCost is { } cost) charged = cost;
+                else if (inner.Provider == "vertex" && u.Input + u.Output > 0)
+                    charged = ((u.Input - u.Cached) * VertexInputUsd + u.Cached * VertexInputUsd * CachedShare + u.Output * VertexOutputUsd) / 1_000_000;
+                Console.WriteLine($"Usage: {u.Input} in ({u.Cached} cached), {u.Output} out, reported USD {u.ReportedCost?.ToString("0.000000", CultureInfo.InvariantCulture) ?? "not supplied"}");
+            }); }
+            finally { Replies.Add(last); spent += !paid ? 0 : charged ?? maximum;
+                Console.WriteLine($"Replay accounted cost USD {spent.ToString("0.000000", CultureInfo.InvariantCulture)} (failed calls without usage reserve their bound)"); }
         }
     }
 
     sealed record CandidateResult(string Candidate, string Provider, string Model, int Calls, int Completed, int ReviewRequired, int Failed, List<string> Errors,
-        int AutoEdits, int Suggestions, long? MedianLatencyMs, long? MaxLatencyMs, long InputTokens, long CachedInputTokens, long OutputTokens, double CostUsd, string CostSource,
+        int AutoEdits, int Suggestions, long? MedianLatencyMs, long? MaxLatencyMs, long InputTokens, long CachedInputTokens, long OutputTokens, double CostUsd, string CostSource, double NewRequestsAccountedUsd,
         string Pacing, int OrganizerCalls, int JevCalls, int JevAllows, Dictionary<string, int> LocalAdmissions,
         List<string> ServingProviders, int Sources, int Referenced, int Unreferenced, Dictionary<string, int> Statuses,
         int Topics, int EmptyTopics, int Points, int PlaceholderPoints, int SourcesOnlyInPlaceholders, int NoteCharacters, int HanCharacters, int SimplifiedCharacters);

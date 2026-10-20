@@ -1,6 +1,6 @@
 # 下一個 session：AI 筆記工作清單（2026-10-18）
 
-Branch：`feature/note-edit-operations`。開始前先讀 `AGENTS.md`、`app-temp/STRUCTURE.md`、[模型比較](note-model-comparison-2026-10-18.md) 同 `app-temp/README.zh-HK.md`，再睇 `git status`。
+目前 checkout：`main`，以 `9b92be0` 為本輪基底（原 local commits 保存在 backup branch）。2026-10-20 Wave 1 工作依使用者要求一併提交至本機 main；先看 [收尾與未達標項目](phases/wave1-closeout.zh-HK.md)。下一個 session 優先討論 cloud deployment／account issue，不自動開始 meeting profiles／FAQ。新增 paid tests 暫停，勿提高預算。
 
 常用指令：
 - Offline 檢查（唔上網）：`dotnet run --project app-temp/checks`；只跑筆記：加 `-- --notes`
@@ -10,7 +10,7 @@ Branch：`feature/note-edit-operations`。開始前先讀 `AGENTS.md`、`app-tem
 ## 已完成
 
 - [x] 筆記以 code editor 式操作修改：細改自動套用，大改成為建議；可鎖定 block、留 comment、對全份／主題／block 下指令（commit `2566f4c`）
-- [x] Jev note gate 預設關閉，改為 30 秒一批；主題滿 6 段或講咗 8 分鐘就唔再加內容；organizer 按結構觸發（一個主題超過 6 段、同一層超過 6 個主題）
+- [x] Jev note gate 預設關閉，改為 30 秒一批；六段／八分鐘係 review 門檻；相關內容可留喺已滿主題，再由 organizer 決定拆唔拆
 - [x] 位置決定 harness（`tree-notes-v13`）：模型先喺 `outline` 宣告新主題（標題、上層），再將每段放入開放主題；只可以放喺過去 5 分鐘講過嘅主題下面；每個操作必須填 `topicId`、`blockId`
 - [x] Organizer 用同一套 outline，只搬動／排序／改名；範圍外操作同冇標題嘅改名會被丟棄，唔會令成次失敗
 - [x] 筆記模型預設 Qwen3.8 Flash（OpenRouter，Alibaba provider，有自動 cache），可用 `PLAYBACK_NOTE_MODEL` 改；冇 OpenRouter key 就用 Gemini
@@ -20,18 +20,18 @@ Branch：`feature/note-edit-operations`。開始前先讀 `AGENTS.md`、`app-tem
 ## 待做
 
 ### A. 實測
-- [ ] 用 `npm run dev` 實機錄一段：錄音 → ASR → Qwen 筆記 → organizer。確認 Activity 顯示 openrouter／qwen、筆記大約 40 秒內出現。
-- [ ] 長課堂 replay（Week 3 完整 `transcript.txt`）：lecture window（200k 字）向前滑動時 cache prefix 會變，量度成本、延遲同 cache 命中率。
-- [ ] 廣東話課堂 replay：分組、「(?)」標記、繁體字。
-- [ ] Web build 同 browser checks（今輪冇改 web，但 Activity 嘅 provider 顯示來源改咗）。
+- [ ] 實機三分鐘已做，Activity 顯示真實 Qwen／Alibaba；首 note 132 秒，未達約 40 秒。[P1 結果](phases/p1-results.zh-HK.md)
+- [ ] 長測已取得部分證據；Gemini 109 分鐘停止，完整雙模型未完成。Week 3 只有 110,763 chars，未超過 200k，不能聲稱驗過滑動 window。[P2 結果](phases/p2-results.zh-HK.md)
+- [x] 合成廣東話文字：兩模型八分鐘，8/8 引用；語義擴寫問題另列，唔係廣東話 ASR 驗收。
+- [x] Web build、全部指定 offline browser checks，同實際 saved API desktop／mobile／引用跳轉通過。
 
 ### B. 筆記質素
-- [ ] Organizer 常想改範圍外主題（一次有 7–8 個操作被丟棄）：考慮同一層太多主題時俾佢成個 outline，或者範圍包埋上層。
-- [ ] 自動開嘅 subtopic（主題已滿時）標題仍似句子，要等 organizer 改名。
-- [ ] 全部由共用字組成嘅簡體詞（例如「示范」）未轉；可考慮按 OpenCC 詞組轉換，但要保留香港用法（例如「了解」）。
-- [ ] Qwen 每次約 10 秒：OpenRouter 改用 streaming，令 live draft 即時顯示。
-- [ ] OpenRouter 失敗時冇自動改用 Gemini；決定要唔要 fallback。
-- [ ] 比較 runner 冇經 OpenCC（量度模型原始輸出）；如要量度最終筆記，喺 runner 傳 `script`。
+- [x] P3 organizer 明確 scope／目標，拒絕範圍外同過深 moves；不保證模型每次成功重組。
+- [x] 唔再用句子自動生成 subtopic 標題；冇宣告時保留原主題供 review。
+- [x] OpenCC 詞組（示范→示範）已處理並保留香港用法 checks。
+- [x] P4 streaming 已實作，Activity 支援 live draft。
+- [x] Qwen → GLM → Qwen → Gemini transient fallback 已實作，P4b 決定及限制有紀錄。
+- [x] Runner 可選 raw／OpenCC，保存兩種證據，有 offline paired check 同付費 guard。
 
 ### C. 會議模式
 - [ ] 以另一個 prompt profile 重用位置決定 harness（議程、決定、行動項目），結構規則同 organizer 保持一樣。

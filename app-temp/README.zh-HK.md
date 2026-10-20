@@ -1,5 +1,7 @@
 # Playback 本機 prototype
 
+2026-10-20 Wave 1：backend build／全部 offline checks、Web build／browser checks 通過；三分鐘真實錄音首 note 約 132 秒，未達 40 秒；placement schema 修正為 `tree-notes-v16`。長測有部分證據，Gemini 約 US$1.95 停止，不增加測試預算。完整 live acceptance 未全綠；詳見 [收尾與限制](../docs/phases/wave1-closeout.zh-HK.md)。下一步優先 cloud deployment／accounts。
+
 Code layout: [STRUCTURE.md](STRUCTURE.md).
 
 2026-10-08 refactor update: Phases 0–5 and the main Phase 6 migration (`4bfcf84`) are committed. The preserved translation migration still needs explicit commit approval after automatic approval review rejected staging it. All 25 offline groups passed in the working tree and staged source, plus the three-hour virtual lecture (2,700 cited sources/45 fixture generations), repository transcript lookup, Edge/React fixtures and API publish. Original database/recordings and the active host were not modified. Phase 7 has an opt-in runner for isolated Mongo, authenticated browser/API restart and a retained paid/live sample; these integrated runs remain unexecuted pending opt-in. See [Phase 6](../docs/ddd-notes-audio-phase06-results.md) and [Phase 7](../docs/ddd-notes-audio-phase07-results.md). Older dated entries below describe earlier behavior/evidence.
@@ -42,8 +44,8 @@ ASR 現經 adapter 呼叫：有非範例的 `OPENROUTER_API_KEY` 時預設 OpenR
 Jev note gate 預設關閉：新語音出現後 30 秒、講話停頓或 Stop 時寫入一批。Live 重播中 Jev 在 40 次判斷只允許 1 次，沒有慳到呼叫。
 
 結構規則：
-- 一個主題滿 6 段，或者講了 8 分鐘，就關閉；新內容自動放入新子主題。
-- 一個主題超過 6 段，或者一層超過 6 個主題時，organizer 會拆分或歸組成最多三層。
+- 一個主題滿 6 段，或者講了 8 分鐘，就標記供 review；相關內容可留喺原主題，新方面由 writer 宣告子主題，application 唔自動起標題。
+- 一個主題超過 6 段／講了八分鐘，或者一層超過 6 個主題時，organizer review，可以拆分、歸組或者保持原樣；最多三層。
 - 目前最好結果：20 分鐘 12 個主題、三層、58／58 段有引用，約 US$0.11。
 
 所有來源均寫入筆記。Vertex Flash-Lite 沒有 implicit cache 折扣。主題分段仍不穩定。詳見[比較報告](../docs/note-model-comparison-2026-10-18.md)；重跑用 `pnpm.cmd test:note-models-live`（已有結果時預設重用，不再付費）。

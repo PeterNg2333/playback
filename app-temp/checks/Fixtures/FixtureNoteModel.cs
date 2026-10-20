@@ -12,6 +12,7 @@ sealed class FixtureNoteModel : GeminiLanguageModel
     public override bool IsConfigured => true;
     public int Calls;
     public bool FailNext, DeferAll, DeferLast, OmitInlineCitations;
+    public bool PlacementReply;
     public string? InlineCitation;
     public Func<string, Task>? BeforeFinish;
     public readonly ConcurrentBag<int> InputLengths = new();
@@ -77,6 +78,11 @@ sealed class FixtureNoteModel : GeminiLanguageModel
                 deferred = Array.Empty<object>()
             }, JsonOptions);
         }
+        if (PlacementReply)
+            result = name == "LectureSectionOrganizer" ? "{\"outline\":[],\"blocks\":[],\"operations\":[],\"deferred\":[]}" :
+                JsonSerializer.Serialize(new { outline = new[] { new { key = "new1", title = "Fixture topic", parent = "" } },
+                    blocks = points.Select(x => new { topic = "new1", role = "detail", body = x.text, sourceIds = x.sourceIds }),
+                    operations = Array.Empty<object>(), deferred = Array.Empty<object>() }, JsonOptions);
         onUsage?.Invoke("{\"input_tokens\":20,\"output_tokens\":12}");
         onUpdate?.Invoke(result);
         var id = pending.GetArrayLength() > 0 ? pending[0].GetProperty("sourceId").GetString()! : "";

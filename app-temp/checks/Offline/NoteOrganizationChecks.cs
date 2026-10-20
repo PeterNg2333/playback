@@ -342,8 +342,12 @@ static class NoteOrganizationChecks
         store.Transcripts["time"].Single(x => x.Id == "long-s2").StartMs = 9 * 60_000;
         await Configure(store, "time", new(CheckIntervalSeconds: 2, OrganizationCooldownSeconds: 15));
         model = new OrganizationModel { Reply = leaveReply };
+        Expect.That((await store.NoteOrganizationStatus("time"))?.DueReason == "large-topic",
+            "The status display omitted a topic due for review by lecture time");
         await using (var agent = Agent(store, model, clock)) await Tick(agent, clock, 2, "time");
         Expect.That(model.Organizations == 1 && store.Organizations["time"].DueReason == "large-topic", "A topic full by time that took another block was not reviewed");
+        Expect.That((await store.NoteOrganizationStatus("time"))?.DueReason == "",
+            "The status display kept asking for a time-full topic already reviewed");
     }
     static async Task DirtyAgeAndDisable()
     {

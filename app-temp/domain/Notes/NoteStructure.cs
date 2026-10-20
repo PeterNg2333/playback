@@ -3,8 +3,8 @@ namespace Playback.Domain.Notes;
 // Notes should read like nested folders, not one long flat list. Six is where structure is looked at again, not a
 // limit: a topic with more than ReviewBlocks blocks, or a level with more than ReviewTopics topics, gets one
 // organizer review, which may split, group, merge, rename or reorder, or leave it as it is. While writing, a topic
-// that has ReviewBlocks blocks or has run for MaxTopicMinutes of lecture is closed: new speech starts a new topic or
-// a subtopic instead of growing it. Depth is a real limit: at most MaxDepth levels (topic, subtopic, sub-subtopic).
+// that has ReviewBlocks blocks or has run for MaxTopicMinutes of lecture is marked closed: new aspects should start
+// a topic or subtopic, while related speech can remain there for review. Depth is a real limit: MaxDepth levels.
 public static class NoteStructure
 {
     public const int ReviewBlocks = 6;
@@ -30,8 +30,8 @@ public static class NoteStructure
     }
 
     // Topics past "full", at any depth: more than ReviewBlocks blocks, or blocks spanning MaxTopicMinutes of lecture
-    // or more (spoken: when each source was spoken; without it only blocks count). The writer cannot add to a full
-    // topic, so such a topic took a block a reply still aimed at it, or a move. It gets one organizer review, which
+    // or more (spoken: when each source was spoken; without it only blocks count). A related block may remain in a
+    // full topic when the reply declares no subtopic. It gets one organizer review, which
     // may split it or leave it. Above MaxDepth it may get subtopics; at MaxDepth it is reviewed with its parent.
     public static IEnumerable<NoteSection> Overfull(IReadOnlyCollection<NoteSection> topics, IReadOnlyDictionary<string, long>? spoken = null) =>
         topics.Where(x => x.Blocks.Count > ReviewBlocks || spoken is not null && SpanMs(x, spoken) >= MaxTopicMinutes * 60_000L);

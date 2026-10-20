@@ -6,7 +6,7 @@ namespace Playback.Application.Notes;
 // record which instructions produced them.
 public static class NoteInstructions
 {
-    public const string Version = "tree-notes-v15";
+    public const string Version = "tree-notes-v16";
     public const string OrganizeVersion = "tree-organize-v19";
 
     public const string Sections = """
@@ -25,10 +25,14 @@ public static class NoteInstructions
         new key. Only recent topics (spoken in the last few minutes) are offered as parents: speech about an
         earlier subject after a long gap starts a new top-level topic. Use subtopics like document headings, up to three levels: a new aspect, example or demonstration
         of the current subject is a subtopic; a different subject is a new top-level topic.
-        blocks: every new block names its topic, an open existing topic ID or a new key, plus role, body and
-        sourceIds. One topic covers one subject; a closed topic (six blocks or more, or running for many minutes) is not
-        offered. To continue its subject, declare a subtopic under it in outline (beside it when it is already
-        at depth 3) whose title names the new aspect, and place the new blocks in that key. Topics keep lecture order.
+        Every new1–new8 key used by a block must have its own entry in outline in this same reply. If outline
+        is empty, every block must name an existing topic ID. Renaming an existing topic never creates
+        a new key: keep its existing ID.
+        blocks: every new block names an unprotected existing topic ID or a declared new key, plus role, body and
+        sourceIds. One topic covers one subject. closed means the topic has reached a review threshold (six blocks
+        or many minutes), not that it forbids related content. For a new aspect, declare a subtopic under it in
+        outline (a sibling at depth 3), with a title naming that aspect. Closely related content may use the
+        existing topic ID even when closed; the organizer decides whether to split it. Topics keep lecture order.
         Do not declare a topic whose title already exists under the same parent; place blocks in that topic.
         Roles are definition, example, derivation, correction and detail.
         operations only change what exists, the way a code editor applies edits; never copy text that stays.

@@ -21,12 +21,13 @@
 
 | Phase | 狀態 | 已入 main | 下一步 |
 | --- | --- | --- | --- |
-| P1 | 未開始 | — | 實機測試要喺使用者睇住嘅 session 做 |
-| P2 | 未開始 | — | 收費 live，要喺使用者睇住嘅 session 做；廣東話樣本未答 |
-| P3 | 完成，已入 main | `d4c0804` | 已做：B fallback 照收已滿主題嘅 block，organizer review 決定拆唔拆，唔拆都得，block 冇變就唔再問；按時間（八分鐘）滿嘅主題都會 review。第三層 review 接受離線 check，唔跑完整 Week 3。剩低：Storage／`MemoryStore` 嘅整理狀態顯示未計時間滿（範圍外，交 M） |
+| P1 | 已測；live 未完全達標 | 本輪提交 | [結果](phases/p1-results.zh-HK.md)：Web／browser 綠；首 note 132 秒；placement schema 已修，in-memory live diagnostic 成功，原 Mongo 兩段仍 pending |
+| P2 | 已有部分長測／廣東話證據；完整雙模型未完成 | 本輪提交 | [結果](phases/p2-results.zh-HK.md)：Gemini 109 分鐘約 US$1.95 後停；Qwen 約133分鐘取消、未保存 note；全部 paid runs 停止，不加預算 |
+| P3 | 完成，已入 main；M status 修正待提交 | `d4c0804` | Storage／MemoryStore 已加入 source 時間投影，time-full status check 通過。六係 review 門檻，writer schema 同步容許相關內容留喺 full topic |
 | P4 | 完成，已入 main；有跟進 P4b | `f17f77e` | 已做：streaming、Qwen → GLM → Qwen → Gemini fallback（逐個 model 一個 request）、Activity 記錄實際 model／provider、「上周／周末」唔強制轉。剩低四個決定，見下面「P4b」 |
-| P5 | 暫停 | — | 使用者叫先開，prompt 喺 Wave 1 一節 |
-| P6 | 暫停 | — | 使用者叫先開，prompt 喺 Wave 1 一節 |
+| P4b | 決定落實，live 有限制 | 本輪提交 | [結果](phases/p4b-results.zh-HK.md)：US$0.07850672；手動 recovery 後 58/58，唔係連續完整 run；organizer 未證品質 |
+| P5 | 文件完成 | 本輪提交 | [分階段遷移計劃](storage-migration-plan.zh-HK.md)，冇改 DB／部署 |
+| P6 | 研究完成 | 本輪提交 | [結果](phases/p6-results.zh-HK.md)：diarization／document extraction，冇安裝／整合 |
 
 已入 main 嘅行為：
 - OpenRouter 筆記 streaming，草稿約早 5 秒出現。
@@ -42,7 +43,7 @@
 - Live run 資料（git 唔追蹤）：`app-temp/data/validation/runs/2026-10-19-p3-organize-*`、`2026-10-20-p4-qwen-stream`。
 - `.claude/worktrees/` 仲有 6 個 worktree：4 個係開 subagent 失敗留低嘅空 worktree，另外 2 個係 P3、P4 已合併嘅 worktree。清理要使用者批准。
 
-Wave 2 等 P1、P2、P4b、P5、P6 完成同合併先開始。
+Wave 1 收尾見 [目前結果同未達標項目](phases/wave1-closeout.zh-HK.md)。使用者指定之後優先 cloud deployment／accounts；P7 prompt profile、FAQ 等 Wave 2 功能唔自動開始。P1 latency／完整 live E2E 同 P2 完整雙模型比較未驗收，不能把收尾文件當成全部 acceptance 綠。
 
 ### 明日繼續：統籌 session
 
@@ -50,7 +51,7 @@ Wave 2 等 P1、P2、P4b、P5、P6 完成同合併先開始。
 你係統籌，唔親自寫 code。讀 C:\Users\a1831\Documents\GitHub\playback\docs\parallel-phases.zh-HK.md 嘅「進度」一節同「共同規則」。
 
 今日要做（照次序，每項開始前問我要唔要做）：
-1. 清 worktree：跑 git worktree list，列出 .claude/worktrees 入面每個 worktree 嘅 branch、有冇未提交改動、branch 係咪已經合併入 main、有冇 git 唔追蹤嘅 run folder 未抄去 main checkout。等我批准先清。
+1. 清 worktree：跑 git worktree list，列出 .claude/worktrees 入面每個 worktree 嘅 branch、有冇本輪提交改動、branch 係咪已經合併入 main、有冇 git 唔追蹤嘅 run folder 未抄去 main checkout。等我批准先清。
 2. P4b：用本檔案「P4b」嘅 prompt（我會先填好決定）開一個 subagent（Agent tool，isolation: "worktree"，背景執行）。
 3. P5、P6：用 Wave 1 一節嘅原文 prompt 各開一個 subagent。上次 auto mode 擋咗呢兩個 Agent call；如果再被擋，唔好繞過，同我講。
 4. P1、P2 要我睇住做，唔好交俾背景 subagent。我叫先開，到時喺呢個 session 直接做。
@@ -124,7 +125,7 @@ Wave 2 等 P1、P2、P4b、P5、P6 完成同合併先開始。
 
 ## 共同規則（每個 phase 都要跟）
 
-1. 開工前讀 `AGENTS.md`、`app-temp/STRUCTURE.md`、`docs/next-session-checklist.zh-HK.md`、`app-temp/README.zh-HK.md`，同埋你 phase 擁有嘅檔案同對應 checks。睇 `git status`，保留未提交嘅工作。
+1. 開工前讀 `AGENTS.md`、`app-temp/STRUCTURE.md`、`docs/next-session-checklist.zh-HK.md`、`app-temp/README.zh-HK.md`，同埋你 phase 擁有嘅檔案同對應 checks。睇 `git status`，保留本輪提交嘅工作。
 2. 你喺自己嘅 worktree 同 branch（`phase/<id>-<名>`，由 `main` 開）工作。其他 phase 同時改緊其他檔案：**只改你 phase「擁有」一欄列出嘅檔案同你新增嘅檔案**。真係要改範圍外檔案，就將改動縮到最細，並喺結果文件「範圍外改動」一節逐個列出原因，等合併嗰個人處理衝突。
 3. 唔好改 `docs/next-session-checklist.zh-HK.md`、`AGENTS.md` 同本檔案；合併步驟（M）會統一更新。你嘅結果寫喺 `docs/phases/<id>-results.zh-HK.md`：做咗咩、證據（指令同輸出）、未完成、限制、範圍外改動。
 4. 改 prompt 文字就升 prompt 版本號（例如 `tree-notes-v13` → `v14`），令保存結果分得清新舊版本。

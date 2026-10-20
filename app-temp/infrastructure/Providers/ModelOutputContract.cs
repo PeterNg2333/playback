@@ -76,13 +76,13 @@ public static class ModelOutputContract
     }
 
     // Placement is a required decision, like choosing a heading while writing a document: every block names an
-    // open existing topic or a new key, and a new topic names its parent. Closed topics are not offered, and a
-    // parent must leave room for one more level.
+    // existing topic or a new key, and a new topic names its parent. Full is a review threshold, not a ban on
+    // related content. Protected topics stay unavailable; a parent must leave room for one more level.
     static void Placement(JsonNode schema, JsonElement root, string[] sourceIds)
     {
         var topics = root.TryGetProperty("topicOutline", out var outline) ? outline.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object).ToList() : [];
-        var open = topics.Where(x => !(x.TryGetProperty("closed", out var closed) && closed.ValueKind == JsonValueKind.True) &&
-            !(x.TryGetProperty("userEdited", out var locked) && locked.ValueKind == JsonValueKind.True)).Select(x => x.GetProperty("id").GetString()!);
+        var available = topics.Where(x => !(x.TryGetProperty("userEdited", out var locked) && locked.ValueKind == JsonValueKind.True))
+            .Select(x => x.GetProperty("id").GetString()!);
         var parents = topics.Where(x => (!x.TryGetProperty("depth", out var depth) || depth.GetInt32() < 3) &&
             !(x.TryGetProperty("recent", out var recent) && recent.ValueKind == JsonValueKind.False)).Select(x => x.GetProperty("id").GetString()!);
         var keys = Playback.Application.Notes.NoteWorkflow.NewTopicKeys;
@@ -91,7 +91,7 @@ public static class ModelOutputContract
         item["properties"]!["parent"]!["enum"] = Strings(parents.Prepend("").Concat(keys));
         item["required"] = new JsonArray("key", "title", "parent");
         var block = schema["properties"]!["blocks"]!["items"]!;
-        block["properties"]!["topic"]!["enum"] = Strings(open.Concat(keys));
+        block["properties"]!["topic"]!["enum"] = Strings(available.Concat(keys));
         block["properties"]!["role"]!["enum"] = Strings(BlockRoles);
         if (sourceIds.Length == 0) block["properties"]!["sourceIds"]!["maxItems"] = 0;
         else block["properties"]!["sourceIds"]!["items"]!["enum"] = Strings(sourceIds);
