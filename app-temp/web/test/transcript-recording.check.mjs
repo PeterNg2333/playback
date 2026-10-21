@@ -127,7 +127,9 @@ let retryRequest;
 let explanationRequests = 0;
 const noteActions = [];
 const audioRequests = [];
-const browser = await launchBrowser(["--autoplay-policy=no-user-gesture-required"]);
+const browser = await launchBrowser([
+  "--autoplay-policy=no-user-gesture-required",
+]);
 
 try {
   const page = await browser.newPage({ timezoneId: "UTC" });
@@ -421,7 +423,9 @@ try {
       .count(),
     1,
   );
-  await page.getByText("ASR returned no words · audio retained", { exact: true }).waitFor();
+  await page
+    .getByText("ASR returned no words · audio retained", { exact: true })
+    .waitFor();
   await page.getByTestId("silence-row").locator("summary").click();
   await page
     .getByTestId("silence-row")
@@ -783,13 +787,19 @@ try {
     status: "pending-asr",
   });
   capture = { ...capture, lastFinalizedAtMs: 61100 };
+  // The timeline only mounts rows near the visible area; follow the newest audio as a reader would.
+  await page.locator("#saved-live").waitFor();
+  await page.locator("#saved-live").scrollIntoViewIfNeeded();
   await page
     .getByTestId("live-row")
     .getByText("我哋 study FFT and frequency", { exact: true })
     .waitFor();
   session.chunks.find((chunk) => chunk.id === "saved-live").status =
     "asr-error";
-  await page.waitForTimeout(4300);
+  await page
+    .locator("#saved-live")
+    .getByText("ASR failed · retrying")
+    .waitFor();
   await page
     .getByTestId("live-row")
     .getByText("我哋 study FFT and frequency", { exact: true })
