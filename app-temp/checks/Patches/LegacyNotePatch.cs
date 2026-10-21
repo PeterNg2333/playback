@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
@@ -10,19 +11,21 @@ using Playback.Infrastructure;
 using Playback.Infrastructure.Storage;
 
 // Data patch for notes saved before commit 8dd747f simplified the note model. The model now reads only
-// Sections → Blocks with each block's SourceIds, so two older shapes lost what they showed:
+// Sections → Blocks with each block's SourceIds, so three older shapes lost what they showed:
 // - placement era: a block's sources were in Blocks[].Anchors[].SourceIds; they become the block's SourceIds.
 // - pre-tree: a topic had only Markdown and Points; its Markdown without the leading heading becomes one block.
-// Both history versions (notes) and each head's current copy (note_heads.Current) are patched. Nothing is removed:
-// the old fields stay in the document, and Note.Markdown is not changed. Running it again changes nothing.
+// - Markdown only: the earliest versions had no topics; Note.Markdown is split at its headings into topics.
+// Placement-era alias markers such as [cite_T009] are also removed from blocks that cite their sources otherwise.
+// Both history versions (notes) and each head's current copy (note_heads.Current) are patched. The old fields stay in
+// the document, and Note.Markdown is not changed. Running it again changes nothing.
 //
 // Default is a dry run. With --apply, the original of every changed document is written to app-temp/data/backups/ before
 // the document is replaced, and --legacy-note-patch-rollback <file> puts those originals back.
 static class LegacyNotePatch
 {
-    public sealed record Change(int AnchoredBlocks, int TopicsConverted, int EmptyTopics)
+    public sealed record Change(int AnchoredBlocks, int TopicsConverted, int EmptyTopics, int MarkdownTopics = 0, int PlaceholdersRemoved = 0)
     {
-        public bool Any => AnchoredBlocks > 0 || TopicsConverted > 0;
+        public bool Any => AnchoredBlocks > 0 || TopicsConverted > 0 || MarkdownTopics > 0 || PlaceholdersRemoved > 0;
     }
 
     // Changes one stored note in place. allowed is the session's source IDs, as NoteSections.Compact expects.
@@ -31,7 +34,8 @@ static class LegacyNotePatch
         var sessionId = note.GetValue("SessionId", "").AsString;
         var citations = Array(note, "Citations").Select(x => BsonSerializer.Deserialize<NoteCitation>(x.AsBsonDocument)).ToList();
         var known = citations.Count;
-        int anchored = 0, converted = 0, empty = 0;
+        int anchored = 0, converted = 0, empty = 0, fromMarkdown = 0, removed = 0;
+        if (MarkdownTopics(sessionId, note, allowed, citations) is { } topics) { note["Sections"] = topics; fromMarkdown = topics.Count; }
         foreach (var topic in Array(note, "Sections").Select(x => x.AsBsonDocument))
         {
             var blocks = Array(topic, "Blocks");
@@ -41,12 +45,98 @@ static class LegacyNotePatch
         }
         foreach (var segment in Array(note, "Segments").Select(x => x.AsBsonDocument))
             anchored += Array(segment, "Blocks").Count(x => AnchorsToSources(x.AsBsonDocument));
+        var keys = citations.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var block in Array(note, "Sections").Concat(Array(note, "Segments")).SelectMany(x => Array(x.AsBsonDocument, "Blocks")))
+            removed += RemovePlaceholders(block.AsBsonDocument, keys);
         if (citations.Count > known)
         {
             if (note.GetValue("Citations", BsonNull.Value) is not BsonArray stored) note["Citations"] = stored = [];
             foreach (var citation in citations.Skip(known)) stored.Add(citation.ToBsonDocument());
         }
-        return new(anchored, converted, empty);
+        return new(anchored, converted, empty, fromMarkdown, removed);
+    }
+
+    // A version saved before topics existed has only Note.Markdown. It is split at its headings (## and # are top-level,
+    // ### and #### one and two levels down) into topics with one automatic block each; the transcript IDs it cites inline
+    // become the block's sources and compact citation keys. A leading "# Title" names the text before the next heading,
+    // or is left out when nothing comes before it. IDs come from the session, position and title, so a rerun is the same.
+    static BsonArray? MarkdownTopics(string sessionId, BsonDocument note, IReadOnlySet<string> allowed, List<NoteCitation> citations)
+    {
+        if (Array(note, "Sections").Count > 0 || note.GetValue("Markdown", BsonNull.Value) is not BsonString { Value: var markdown } || markdown.Trim().Length == 0)
+            return null;
+        var parts = new List<(int Depth, string Title, string Body)>();
+        string? lead = null, title = null;
+        var depth = 1;
+        var body = new StringBuilder();
+        var fenced = false;
+        void Flush()
+        {
+            var text = body.ToString().Trim();
+            if (title is not null || text.Length > 0) parts.Add((depth, title ?? lead ?? "Notes", text));
+            body.Clear();
+        }
+        foreach (var line in markdown.Replace("\r\n", "\n").Split('\n'))
+        {
+            if (Regex.IsMatch(line, @"^\s*(```|~~~)")) fenced = !fenced;
+            var heading = fenced ? Match.Empty : Regex.Match(line, @"^(#{1,4})\s+(?:\d+(?:\.\d+)*\.?\s+)?(.+?)\s*$");
+            if (!heading.Success) { body.Append(line).Append('\n'); continue; }
+            if (heading.Groups[1].Length == 1 && lead is null && title is null && parts.Count == 0 && body.ToString().Trim().Length == 0)
+            {
+                lead = heading.Groups[2].Value;
+                continue;
+            }
+            Flush();
+            depth = Math.Max(1, heading.Groups[1].Length - 1);
+            title = heading.Groups[2].Value;
+        }
+        Flush();
+
+        var topics = new List<NoteSection>();
+        var parents = new Dictionary<int, string>();
+        var previous = 0;
+        foreach (var (index, (wanted, name, text)) in parts.Index())
+        {
+            var level = Math.Min(wanted, previous + 1);
+            var parent = level > 1 ? parents[level - 1] : null;
+            var topic = new NoteSection
+            {
+                Id = "section_" + ContentHash.Of(sessionId + ":markdown:" + index + ":" + name)[..20],
+                Title = name.Length > 200 ? name[..200] : name,
+                ParentId = parent,
+                Order = topics.Count(x => x.ParentId == parent)
+            };
+            if (text.Length > 0)
+            {
+                var compact = NoteSections.Compact(sessionId, text, allowed, citations);
+                topic.Blocks.Add(new NoteBlock { Id = "block_" + ContentHash.Of(topic.Id + ":" + text)[..20], Role = "note", Body = compact,
+                    CitationIds = CitationSyntax.Bodies(compact).Distinct().ToList(), SourceIds = NoteSections.Sources(text, allowed) });
+            }
+            topics.Add(topic);
+            parents[level] = topic.Id;
+            previous = level;
+        }
+        NoteTree.Validate(topics);
+        return new BsonArray(topics.Select(x => x.ToBsonDocument()));
+    }
+
+    // The placement-era writer numbered its inputs T001, T002, … and decoded [T009] to the transcript row; when the model
+    // wrote [cite_T009] (or invented [cite_new1]) the marker stayed in the text. The row each alias stood for was also
+    // added to the point's sources and cited next to it, so the marker is removed from any block that has sources.
+    static readonly Regex Placeholder = new(@"[ \t]*\[(cite_(?:T\d+|new\d*))\]");
+    static int RemovePlaceholders(BsonDocument block, IReadOnlySet<string> citations)
+    {
+        if (block.GetValue("Body", BsonNull.Value) is not BsonString { Value: var body } || Strings(block, "SourceIds").Count == 0) return 0;
+        var removed = 0;
+        var cleaned = Placeholder.Replace(body, m =>
+        {
+            if (citations.Contains(m.Groups[1].Value)) return m.Value;
+            removed++;
+            return "";
+        });
+        if (removed == 0 || cleaned.Trim().Length == 0) return 0;
+        block["Body"] = cleaned;
+        block["CitationIds"] = new BsonArray(CitationSyntax.Bodies(cleaned).Distinct());
+        return removed;
     }
 
     // The union of the block's anchor sources, after any sources it already lists.
@@ -148,7 +238,7 @@ static class LegacyNotePatch
 
         survey.Print();
         Console.WriteLine($"{(apply ? "Changed" : "To change")}: {notesChanged} notes documents, {headsChanged} note_heads documents, {sessions.Count} sessions. " +
-            "Removed fields: none; Note.Markdown unchanged." + (skipped > 0 ? $" {skipped} documents saved again during the run were left; run again." : ""));
+            "Old fields kept; Note.Markdown unchanged; only alias placeholders are taken out of block text." + (skipped > 0 ? $" {skipped} documents saved again during the run were left; run again." : ""));
         if (backup is { Count: > 0 }) Console.WriteLine($"Originals of {backup.Count} documents saved to {backup.Path}");
         return (notesChanged, headsChanged, backup is { Count: > 0 } ? backup.Path : null);
     }
@@ -256,7 +346,7 @@ static class LegacyNotePatch
             Inc($"{collection}: documents");
             Inc($"{collection}: SchemaVersion {note.GetValue("SchemaVersion", "none")}");
             var topics = Array(note, "Sections").Select(x => x.AsBsonDocument).ToList();
-            if (topics.Count == 0 && note.GetValue("Markdown", BsonNull.Value) is BsonString { Value: var markdown } && markdown.Trim().Length > 0) Inc($"{collection}: Markdown only, no topics (not patched)");
+            if (topics.Count == 0 && note.GetValue("Markdown", BsonNull.Value) is BsonString { Value: var markdown } && markdown.Trim().Length > 0) Inc($"{collection}: Markdown only, no topics");
             if (topics.Any(x => Array(x, "Blocks").Count == 0 && x.Contains("Markdown"))) Inc($"{collection}: with pre-tree topics");
             if (topics.Concat(Array(note, "Segments").Select(x => x.AsBsonDocument)).SelectMany(x => Array(x, "Blocks"))
                 .Any(x => Array(x.AsBsonDocument, "Anchors").Count > 0)) Inc($"{collection}: with anchored blocks");
@@ -268,6 +358,8 @@ static class LegacyNotePatch
             Inc($"{collection}: blocks given anchor sources", change.AnchoredBlocks);
             Inc($"{collection}: pre-tree topics given a block", change.TopicsConverted);
             Inc($"{collection}: pre-tree topics with only a heading (left without blocks)", change.EmptyTopics);
+            Inc($"{collection}: topics made from Markdown-only versions", change.MarkdownTopics);
+            Inc($"{collection}: placeholder citations removed", change.PlaceholdersRemoved);
         }
 
         public void Print()

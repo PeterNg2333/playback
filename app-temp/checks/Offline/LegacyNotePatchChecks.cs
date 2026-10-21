@@ -51,7 +51,75 @@ static class LegacyNotePatchChecks
         var restored = (await store.Session(id))!.CurrentNote!;
         Expect.That(restored.Version == 3 && restored.Sections.SelectMany(x => x.Blocks).Single().SourceIds.SequenceEqual(["t1", "t2", "t3"]) &&
             restored.Markdown.Contains("The kernel schedules threads. [" + key + "]"), "The patched pre-tree version did not restore with its sources");
-        Console.WriteLine("Legacy note patch checks passed: anchor sources on topic and segment blocks, pre-tree topics as one block with compacted citations, old fields kept, idempotent, restore after patch (offline)");
+        await MarkdownOnly();
+        Placeholders();
+        Console.WriteLine("Legacy note patch checks passed: anchor sources on topic and segment blocks, pre-tree topics as one block with compacted citations, " +
+            "Markdown-only versions split at headings, alias placeholders removed only beside other sources, old fields kept, idempotent, restore after patch (offline)");
+    }
+
+    // The earliest versions: only Note.Markdown, citing transcript IDs inline.
+    static async Task MarkdownOnly()
+    {
+        const string id = "markdown";
+        var allowed = new HashSet<string> { "t1", "t2", "t3" };
+        var outline = new BsonDocument { { "_id", "note_md1" }, { "SessionId", id }, { "Version", 1 }, { "InputHash", "md1" }, { "Author", "agent" },
+            { "Markdown", "# Lecture title\n\n## 1 Scheduling\n\nThreads run. [t1, t2]\n\n### Queues\n\nReady work. [t3; gone]\n\n#### Deep\n\nDeeper. [t3]\n\n" +
+                "## Empty heading\n\n## Jump\n\n#### Skipped\n\nSkipped a level. [t2]\n\n```\n## not a heading\n```\n\n# Later top\n\nMore. [t1]" } };
+        var flat = new BsonDocument { { "_id", "note_md2" }, { "SessionId", id }, { "Version", 2 }, { "InputHash", "md2" }, { "Author", "agent" }, { "Sections", new BsonArray() },
+            { "Markdown", "# 語音記錄\n\n- 0:00 開場 [t1]\n- 0:30 提問 [t2]" } };
+        var markdown = outline["Markdown"].AsString;
+
+        Expect.That(LegacyNotePatch.Patch(outline, allowed) == new LegacyNotePatch.Change(0, 0, 0, 7), "Markdown-only version did not become seven topics");
+        Expect.That(LegacyNotePatch.Patch(flat, allowed) == new LegacyNotePatch.Change(0, 0, 0, 1), "A version without topic headings did not become one topic");
+        var topics = BsonSerializer.Deserialize<Note>(outline).Sections;
+        NoteTree.Validate(topics);
+        var rows = NoteTree.Outline(topics).Select(x => $"{x.Number} {x.Topic.Title}").ToList();
+        Expect.That(rows.SequenceEqual(["1 Scheduling", "1.1 Queues", "1.1.1 Deep", "2 Empty heading", "3 Jump", "3.1 Skipped", "4 Later top"]),
+            "Markdown headings gave the wrong topic tree: " + string.Join(" | ", rows));
+        Topic("Scheduling", out var scheduling);
+        var key = BsonSerializer.Deserialize<Note>(outline).Citations.Single(x => x.SourceIds.SequenceEqual(["t1", "t2"])).Id;
+        Expect.That(scheduling.Body == $"Threads run. [{key}]" && scheduling.SourceIds.SequenceEqual(["t1", "t2"]) && scheduling is { Role: "note", UserEdited: false },
+            "Markdown-only topic body, sources or lock differ");
+        Topic("Queues", out var queues);
+        Expect.That(queues.Body == "Ready work. [t3; gone]" && queues.SourceIds.SequenceEqual(["t3"]), "A citation with an unknown ID was compacted or lost its known source");
+        Topic("Skipped", out var skipped);
+        Expect.That(skipped.Body.StartsWith("Skipped a level.") && skipped.Body.Contains("## not a heading"), "A heading inside a code fence split a topic");
+        Expect.That(topics.Single(x => x.Title == "Empty heading").Blocks.Count == 0 && outline["Markdown"].AsString == markdown, "Empty heading got a block or Note.Markdown changed");
+        var single = BsonSerializer.Deserialize<Note>(flat).Sections.Single();
+        Expect.That(single.Title == "語音記錄" && single.Blocks.Single().SourceIds.SequenceEqual(["t1", "t2"]), "The leading title did not name the only topic");
+
+        var (outlineOnce, flatOnce) = (outline.DeepClone(), flat.DeepClone());
+        Expect.That(!LegacyNotePatch.Patch(outline, allowed).Any && !LegacyNotePatch.Patch(flat, allowed).Any && outline.Equals(outlineOnce) && flat.Equals(flatOnce),
+            "A second run changed a converted Markdown-only version");
+
+        var store = new MemoryStore(); store.Add(id);
+        foreach (var source in allowed) store.Speech(id, source, "Speech " + source);
+        store.Versions[id] = [BsonSerializer.Deserialize<Note>(outline), BsonSerializer.Deserialize<Note>(flat)];
+        store.Notes[id] = BsonSerializer.Deserialize<Note>(flat);
+        await store.RestoreNote(id, 1, 2);
+        var restored = (await store.Session(id))!.CurrentNote!;
+        Expect.That(restored.Version == 3 && restored.Sections.Count == 7 && restored.Sections.Single(x => x.Title == "Deep").Blocks.Single().SourceIds.SequenceEqual(["t3"]),
+            "A converted Markdown-only version did not restore with its topics and sources");
+
+        void Topic(string title, out NoteBlock block) => block = topics.Single(x => x.Title == title).Blocks.Single();
+    }
+
+    // [cite_T009] was a placement-era alias the model left in the text; its source is cited beside it.
+    static void Placeholders()
+    {
+        var real = "cite_" + new string('a', 20);
+        var note = new BsonDocument { { "_id", "note_alias" }, { "SessionId", "alias" }, { "Version", 1 }, { "Markdown", "kept" },
+            { "Citations", new BsonArray { new BsonDocument { { "_id", real }, { "SourceIds", new BsonArray { "t1", "t2" } } } } },
+            { "Sections", new BsonArray { new BsonDocument { { "_id", "section_alias" }, { "Title", "Alias" }, { "Order", 0 }, { "Blocks", new BsonArray {
+                new BsonDocument { { "_id", "block_cited" }, { "Order", 0 }, { "Body", $"Fields multiply. [cite_T009] [cite_T010] [{real}]\n\nRaces. [cite_new1] [{real}]" },
+                    { "CitationIds", new BsonArray { "cite_T009", "cite_T010", real, "cite_new1" } }, { "SourceIds", new BsonArray { "t1", "t2" } } },
+                new BsonDocument { { "_id", "block_bare" }, { "Order", 1 }, { "Body", "Only an alias. [cite_T011]" },
+                    { "CitationIds", new BsonArray { "cite_T011" } }, { "SourceIds", new BsonArray() } } } } } } } };
+        Expect.That(LegacyNotePatch.Patch(note, new HashSet<string> { "t1", "t2" }) == new LegacyNotePatch.Change(0, 0, 0, 0, 3), "Alias placeholders were not removed exactly three times");
+        var blocks = BsonSerializer.Deserialize<Note>(note).Sections.Single().Blocks;
+        Expect.That(blocks[0].Body == $"Fields multiply. [{real}]\n\nRaces. [{real}]" && blocks[0].CitationIds.SequenceEqual([real]), "Placeholders left text behind or citation IDs were not updated");
+        Expect.That(blocks[1].Body == "Only an alias. [cite_T011]", "A placeholder was removed from a block with no other source");
+        Expect.That(!LegacyNotePatch.Patch(note, new HashSet<string> { "t1", "t2" }).Any, "A second run removed more placeholders");
     }
 
     // Saved before topic notes: each topic is Markdown with points. t holds three transcript IDs.

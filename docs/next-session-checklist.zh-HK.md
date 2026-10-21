@@ -53,7 +53,7 @@
 - [x] Live 驗收（2026-10-22）：Week 3 全堂經 `NoteWorkflow`＋`playback_e2e`＋真 writer，US$0.164（錄音＋Stop US$0.108、改一行 US$0.0015、Rebuild US$0.055），161／165 分鐘有引用，Stop → outline 52 秒、全部完成 187 秒；改一行只重寫一個窗口、其餘 8 個大題一字不改；Rebuild 保留鎖定 block；網頁 chip 正常。可重用 check：`pnpm.cmd test:three-speed-live`（預設 offline）。[結果](three-speed-notes-live-2026-10-22.zh-HK.md)
 - [ ] Live 驗收發現：Qwen3.8 有時段性 429（今次約三成 call 由 GLM 寫，GLM 筆記質素未評）；大題超過約 30 個 block 時 polish 會超過 100 秒，Gemini fallback 又過唔到 guard，嗰段冇潤飾（拆細 polish 或者 polish 用較長 deadline）；「(?)」239 個（POC 63），多數喺 Windbg 指令同數字；Rebuild 逐個窗口寫要 15 分鐘，可以並行。
 - [x] 舊筆記資料：data patch `--legacy-note-patch`（`app-temp/checks/Patches/`），`Anchors` → block `SourceIds`，pre-tree 主題 → 一個 block；history 同 `note_heads.Current` 都改，舊欄位保留。2026-10-22 已套用喺本機 `playback_prototype`：781 個 notes＋9 個 heads（9 個 session），再跑一次 0 改動；API 睇 Lecture 5、Week 4、Week 3 全部 block 有來源。備份喺 `app-temp/data/backups/`（mongodump＋JSONL 原文）。
-- [ ] 舊筆記仲有冇處理嘅：201 個 history 版本同 3 個 head（Test 1／3／4）只有 `Note.Markdown`、冇 Sections，patch 冇郁，畫面仍然空、唔可以還原；要就用 Rebuild notes。舊模型寫落文字嘅假引用（例如 Lecture 5 嘅 `[cite_T009]`、`[cite_new1]`）冇對應來源，patch 前已經存在。
+- [x] 第二輪（同日）：201 個只有 `Note.Markdown` 嘅 history 版本同 3 個 head（Test 1／3／4）按標題拆成 794＋12 個主題，來源由文中嘅逐字稿 ID 嚟；Lecture 5 嘅假引用（舊 writer 嘅 `T001…` alias 被寫成 `[cite_T009]`，或者 `[cite_new1]`）喺 87 個版本＋head 拎走 5,759＋106 個。104 個 alias 用 `ai_activity` 嘅 SourceIds 逐個核對過，佢哋嘅來源全部已經喺同一段嘅真引用入面。改咗 288 個 notes＋4 個 heads，再跑 0 改動；API 睇 Test 1／3／4、Lecture 5、Week 3 v1／v60／v145 全部 block 有來源。
 - [ ] Concept graph：node key 用 glossary 嘅 canonical term（POC 入面概念改個寫法就當咗消失）；唔用嚟決定更新範圍。
 - [ ] 課程 context：group＝course，glossary 由 slides 或上堂筆記建立、可以手改；辨識修正表要顯示同可以改（POC 有錯對應：`needle dock → NtCreateFile`）。
 - [ ] 不確定數字：polish 唔可以將字幕數字當確定（POC：「4069 個項目」應係 4096，冇標「(?)」）。

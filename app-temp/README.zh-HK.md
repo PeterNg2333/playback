@@ -19,7 +19,7 @@ React/Vite 網頁 ── 同一個 API
 - **逐字稿**：每段封存後自動送 ASR，最多兩個並行；失敗會重試，之後可以手動重試。錄音期間約每 2 秒有灰字預覽，正式稿到咗就取代。原文同顯示文字（例如繁體轉換）分開保存。
 - **Session rerun**：停錄音之後可以將已保存音訊合成 20–90 秒窗口再辨識；新結果成為一個 segment，取代舊列但保留第一遍文字。**Lineage** 將筆記引用同術語映射到新 segment。
 - **筆記（三速）**：錄音期間每完成一分鐘寫一段 live jot，每完成五分鐘寫一個 segment（筆記、概念、ASR 更正）；按 Stop 之後先整理成大綱，再逐個主題潤飾。逐字稿改咗（第二遍 ASR 或 rerun）嘅五分鐘窗口會重寫，只有引用佢嘅主題會重新潤飾，其他主題唔郁。可以鎖定 block、對全份／主題／block 下指令、Rebuild、睇歷史同還原；人手改過或者鎖咗嘅 block 唔會俾 AI 換走。繁體筆記用 OpenCC 轉走簡體字。設計同費用見 [POC 結果](../docs/poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md)。
-  - 舊版筆記（placement 年代 block 來源喺 `Anchors`；pre-tree 主題只有 Markdown）App 唔會自動轉換，要跑一次 data patch：`dotnet run --project app-temp/checks -- --legacy-note-patch`（預設 dry run，只報告；加 `--apply` 先將會改嘅 document 原文備份去 `app-temp/data/backups/` 再寫入；`--legacy-note-patch-rollback <備份檔>` 還原）。Patch 之後 block 有來源，pre-tree 版本可以還原（本機 `playback_prototype` 已於 2026-10-22 套用）。只有 `Note.Markdown`、冇主題嘅好舊版本唔會轉換；想由逐字稿重寫就喺筆記選單揀 Rebuild notes。
+  - 舊版筆記（placement 年代 block 來源喺 `Anchors`；pre-tree 主題只有 Markdown；最早嘅版本只有成份 `Note.Markdown`）App 唔會自動轉換，要跑一次 data patch：`dotnet run --project app-temp/checks -- --legacy-note-patch`（預設 dry run，只報告；加 `--apply` 先將會改嘅 document 原文備份去 `app-temp/data/backups/` 再寫入；`--legacy-note-patch-rollback <備份檔>` 還原）。Patch 之後 block 有來源，只有 Markdown 嘅版本按標題拆成主題，舊模型留低嘅假引用（`[cite_T009]` 呢類，旁邊已經有真引用）會拎走；舊版本都可以還原（本機 `playback_prototype` 已於 2026-10-22 套用）。想由逐字稿重寫就喺筆記選單揀 Rebuild notes。
 - **術語、翻譯、Ask**：Jev 揀值得解釋嘅術語，Gemini＋Google Search 寫解釋；翻譯每批十段；Ask 只可以引用本 session 嘅來源，可以另外開網絡搜尋。開咗 concept graph 嘅話 Ask 先由圖揀段落。
 - **Activity**：筆記標題旁邊嘅 ↶ 顯示每次 AI 呼叫嘅模型、狀態、時間同錯誤。
 
