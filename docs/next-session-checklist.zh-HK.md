@@ -51,7 +51,8 @@
 - [ ] Outline 要強制分子題（Qwen3.8 出咗 12 個平排大題）；citation parser 識 `[T112-T115]` 範圍（已做，`NoteAliases`）。
 - [x] 逐字稿改動（Session rerun、第二遍 ASR）：窗口 hash 變咗先重寫嗰個 segment，只重新 polish 引用佢嘅 topic；Rebuild 只做明確嘅用戶動作。
 - [ ] Live 驗收：用 Week 3 喺真 API＋MongoDB＋Qwen3.8 跑一次三速筆記（取代已刪嘅 placement 年代 `week3-e2e`），記低費用、引用覆蓋同 Stop 後 outline。
-- [ ] 舊筆記資料：placement 年代嘅版本唔再自動轉換（block 來源喺舊 `Anchors` 欄位，pre-tree 版本冇 block）；另一個 session 寫 data patch，或者逐個 session 用 Rebuild notes。
+- [x] 舊筆記資料：data patch `--legacy-note-patch`（`app-temp/checks/Patches/`），`Anchors` → block `SourceIds`，pre-tree 主題 → 一個 block；history 同 `note_heads.Current` 都改，舊欄位保留。2026-10-22 已套用喺本機 `playback_prototype`：781 個 notes＋9 個 heads（9 個 session），再跑一次 0 改動；API 睇 Lecture 5、Week 4、Week 3 全部 block 有來源。備份喺 `app-temp/data/backups/`（mongodump＋JSONL 原文）。
+- [ ] 舊筆記仲有冇處理嘅：201 個 history 版本同 3 個 head（Test 1／3／4）只有 `Note.Markdown`、冇 Sections，patch 冇郁，畫面仍然空、唔可以還原；要就用 Rebuild notes。舊模型寫落文字嘅假引用（例如 Lecture 5 嘅 `[cite_T009]`、`[cite_new1]`）冇對應來源，patch 前已經存在。
 - [ ] Concept graph：node key 用 glossary 嘅 canonical term（POC 入面概念改個寫法就當咗消失）；唔用嚟決定更新範圍。
 - [ ] 課程 context：group＝course，glossary 由 slides 或上堂筆記建立、可以手改；辨識修正表要顯示同可以改（POC 有錯對應：`needle dock → NtCreateFile`）。
 - [ ] 不確定數字：polish 唔可以將字幕數字當確定（POC：「4069 個項目」應係 4096，冇標「(?)」）。

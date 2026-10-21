@@ -35,6 +35,18 @@ try
         case ["--session-sync-store-check"]:
             await SessionSyncStoreChecks.Run();
             break;
+        case ["--legacy-note-patch-store-check"]:
+            await LegacyNotePatchStoreChecks.Run();
+            break;
+
+        // Data patch for notes saved before commit 8dd747f, on localhost PLAYBACK_MONGO_DATABASE (default playback_prototype).
+        // A dry run unless --apply; --apply saves the originals under app-temp/data/backups first.
+        case ["--legacy-note-patch", .. var options]:
+            await LegacyNotePatch.Run(options);
+            break;
+        case ["--legacy-note-patch-rollback", var backup]:
+            await LegacyNotePatch.Rollback(backup);
+            break;
 
         // Paid providers. Each refuses to start without its opt-in variable; the Live/run-*.mjs scripts set it.
         case ["--gemini-live"]:
@@ -106,6 +118,7 @@ static async Task RunOffline(bool notesOnly)
         await RateLimitGuardChecks.Run();
     }
     await NoteHistoryJournalChecks.Run();
+    await LegacyNotePatchChecks.Run();
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();
     await TranscriptReviewChecks.Run();
