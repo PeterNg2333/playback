@@ -6,7 +6,6 @@ import {
   MaterialSchema,
   TermCandidateSchema,
   TermInsightSchema,
-  ProcessingSyncSchema,
   CombinedAudioSchema,
   RerunSchema,
 } from "./schemas";
@@ -82,8 +81,6 @@ function merge(session: Session | null, delta: Delta): Session | null {
       draft.rerun = RerunSchema.nullish().parse(
         (change.value as Record<string, unknown>).rerun,
       );
-    } else if (draft && change.kind === "processing") {
-      Object.assign(draft, ProcessingSyncSchema.parse(change.value));
     } else if (draft && change.kind === "combined-audio") {
       draft.combinedAudioSegments = CombinedAudioSchema.array().parse(
         (change.value as Record<string, unknown>).combinedAudioSegments,

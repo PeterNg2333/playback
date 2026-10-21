@@ -98,12 +98,6 @@ export const NoteCitationSchema = z.object({
   id: z.string(),
   sourceIds: z.array(z.string()),
 });
-export const CoverageSchema = z.object({
-  sourceId: z.string(),
-  status: z.string(),
-  reason: z.string(),
-  pointIds: z.array(z.string()),
-});
 export const NoteEditLogSchema = z.object({
   version: z.number(),
   basedOnVersion: z.number().nullish(),
@@ -151,90 +145,6 @@ export const SessionSummarySchema = z.object({
   groupId: z.string().nullish(),
 });
 export const GroupSchema = z.object({ id: z.string(), name: z.string() });
-const ProcessingPolicyFields = z.object({
-  jevEnabled: z.boolean(),
-  probabilityThreshold: z.number().finite().min(0).max(1),
-  confidenceThreshold: z.number().finite().min(0).max(1),
-  checkIntervalSeconds: z.number().finite().min(2).max(30),
-  maxPendingWaitSeconds: z.number().finite().min(10).max(120),
-  silenceBoundarySeconds: z.number().finite().min(0.7).max(10),
-  boundarySettleSeconds: z.number().finite().min(0).max(5),
-  combineQuiet: z.boolean().default(true),
-  maxCombinedSeconds: z.number().finite().min(10).max(300).default(60),
-  organizationEnabled: z.boolean().default(true),
-  organizationChangedRevisions: z.number().int().min(1).max(10).default(3),
-  organizationMaxDirtyAgeSeconds: z
-    .number()
-    .finite()
-    .min(30)
-    .max(600)
-    .default(30),
-  organizationCooldownSeconds: z.number().finite().min(15).max(300).default(30),
-  organizationScope: z
-    .enum(["affected-topics", "document-outline"])
-    .default("affected-topics"),
-  notePresentation: z
-    .enum(["numbered-hierarchy", "headings"])
-    .default("numbered-hierarchy"),
-});
-// Organization now follows note structure (large topics, crowded levels); the revision and dirty-age fields
-// remain in saved settings for compatibility but no longer schedule anything.
-export const ProcessingPolicySchema = ProcessingPolicyFields;
-export const ProcessingSettingsSchema = z.object({
-  schemaVersion: z.literal(1),
-  revision: z.number().int().nonnegative(),
-  inheritedRevision: z.number().int().nonnegative(),
-  effectiveRevision: z.string(),
-  overrides: ProcessingPolicyFields.partial().extend({
-    jevEnabled: z.boolean().nullish(),
-    probabilityThreshold: z.number().nullish(),
-    confidenceThreshold: z.number().nullish(),
-    checkIntervalSeconds: z.number().nullish(),
-    maxPendingWaitSeconds: z.number().nullish(),
-    silenceBoundarySeconds: z.number().nullish(),
-    boundarySettleSeconds: z.number().nullish(),
-    combineQuiet: z.boolean().nullish(),
-    maxCombinedSeconds: z.number().nullish(),
-    organizationEnabled: z.boolean().nullish(),
-    organizationChangedRevisions: z.number().int().nullish(),
-    organizationMaxDirtyAgeSeconds: z.number().nullish(),
-    organizationCooldownSeconds: z.number().nullish(),
-    organizationScope: z
-      .enum(["affected-topics", "document-outline"])
-      .nullish(),
-    notePresentation: z.enum(["numbered-hierarchy", "headings"]).nullish(),
-  }),
-  effective: ProcessingPolicySchema,
-  inherited: ProcessingPolicySchema,
-});
-export const NoteAdmissionSchema = z.object({
-  status: z.string(),
-  admissionReason: z.string(),
-  decision: z.string(),
-  policyRevision: z.string(),
-  firstPendingAt: z.string().nullish(),
-  retryAt: z.string().nullish(),
-  attempts: z.number(),
-  flushRequested: z.boolean(),
-  gateFailure: z.string(),
-});
-export const ProcessingSyncSchema = z.object({
-  processingSettings: ProcessingSettingsSchema,
-  noteAdmission: NoteAdmissionSchema.nullish(),
-  organization: z
-    .object({
-      status: z.string(),
-      dirtyRevisions: z.number(),
-      dirtySince: z.string().nullish(),
-      cooldownUntil: z.string().nullish(),
-      lastOrganizedAt: z.string().nullish(),
-      dueReason: z.string(),
-    })
-    .nullish(),
-});
-export type ProcessingPolicy = z.infer<typeof ProcessingPolicySchema>;
-export type ProcessingSettings = z.infer<typeof ProcessingSettingsSchema>;
-export type ProcessingOverrides = ProcessingSettings["overrides"];
 export const CombinedAudioSchema = z.object({
   id: z.string(),
   sessionId: z.string(),
@@ -280,9 +190,6 @@ export const SessionSchema = SessionSummarySchema.extend({
   // Superseded transcript ID → the rerun segment that replaced it; old citations resolve through it.
   supersessions: z.record(z.string(), z.string()).optional(),
   rerun: RerunSchema.nullish(),
-  processingSettings: ProcessingSettingsSchema.optional(),
-  noteAdmission: NoteAdmissionSchema.nullish(),
-  organization: ProcessingSyncSchema.shape.organization,
   sourceGroups: z
     .array(
       z.object({
@@ -324,7 +231,6 @@ export const SessionSchema = SessionSummarySchema.extend({
       edits: z.array(NoteEditSchema).optional(),
       sections: z.array(NoteSectionSchema).optional(),
       citations: z.array(NoteCitationSchema).optional(),
-      coverage: z.array(CoverageSchema).optional(),
       suppressedSourceIds: z.array(z.string()).optional(),
     })
     .nullish(),
@@ -411,9 +317,9 @@ export const HealthSchema = z.object({
   groundedChatFallback: z.boolean().optional(),
   chatConversations: z.boolean().optional(),
   sectionNotes: z.boolean().optional(),
-  noteCoverage: z.boolean().optional(),
+  threeSpeedNotes: z.boolean().optional(),
+  notePromptVersion: z.string().optional(),
   sessionSync: z.boolean().optional(),
-  jevNoteGate: z.boolean().optional(),
   build: z.string().optional(),
   asrStreaming: z.boolean().optional(),
   asrModels: z.array(z.string()).optional(),
@@ -478,24 +384,6 @@ export const AiFlowSchema = z.object({
     }),
   ),
   executions: ActivitySchema.array(),
-  automaticOrganization: z.boolean(),
-  gate: z
-    .object({
-      status: z.string(),
-      decision: z.string(),
-      inputHash: z.string(),
-      model: z.string(),
-      promptVersion: z.string(),
-      waitCount: z.number(),
-      attempts: z.number(),
-      retryAt: z.string().nullish(),
-      changedAt: z.string(),
-      flushRequested: z.boolean(),
-      generationRequested: z.boolean(),
-      admissionReason: z.string().optional(),
-      policyRevision: z.string().optional(),
-    })
-    .nullish(),
 });
 
 // One page of saved note versions, newest first.
@@ -510,47 +398,6 @@ export const NoteHistoryPageSchema = z.object({
   nextBefore: z.number().nullable(),
 });
 
-// Sections of an old version that could be merged back into the current notes.
-export const NoteRecoverySchema = z.object({
-  basedOnVersion: z.number(),
-  historicalVersion: z.number(),
-  citations: z.array(
-    z.object({ id: z.string(), sourceIds: z.array(z.string()) }),
-  ),
-  candidates: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      markdown: z.string(),
-      missingSourceIds: z.array(z.string()),
-      blocked: z.boolean(),
-      userEdited: z.boolean(),
-    }),
-  ),
-});
-export const NoteRewriteSchema = z.object({
-  id: z.string(),
-  sessionId: z.string(),
-  basedOnVersion: z.number().int(),
-  topicId: z.string(),
-  createdAt: z.string(),
-  status: z.string(),
-  // kind "delete" removes the target block; reason says why the AI or Jev sent it for review.
-  changes: z.array(
-    z.object({
-      targetBlockId: z.string(),
-      retainedBlockIds: z.array(z.string()),
-      body: z.string(),
-      role: z.string(),
-      kind: z.string().default("replace"),
-      reason: z.string().default(""),
-    }),
-  ),
-  originalBodies: z.record(z.string(), z.string()),
-  issues: z.array(z.string()),
-  readyForAcceptance: z.boolean(),
-});
-
 // What an owner's instruction changed: how many operations applied and why the others did not.
 export const InstructionResultSchema = z.object({
   applied: z.number().int(),
@@ -561,30 +408,6 @@ export const InstructionResultSchema = z.object({
 export const SavedNoteSchema = z.object({ markdown: z.string() });
 // The version number the API gave a newly saved note.
 export const SavedNoteVersionSchema = z.object({ version: z.number() });
-
-// How many transcript parts the saved notes cite, and the gaps between cited parts.
-export const NoteCoverageSchema = z.object({
-  version: z.number(),
-  total: z.number(),
-  referenced: z.number(),
-  suppressed: z.number(),
-  unreferenced: z.number(),
-  completedWithoutReference: z.number(),
-  largeGaps: z.number(),
-  largeGapMs: z.number(),
-  gaps: z.array(
-    z.object({
-      sourceId: z.string(),
-      startMs: z.number(),
-      endMs: z.number(),
-      speechMs: z.number(),
-      sourceIds: z.array(z.string()),
-      deferred: z.number(),
-      completedWithoutReference: z.number(),
-      large: z.boolean(),
-    }),
-  ),
-});
 
 export type Transcript = z.infer<typeof TranscriptSchema>;
 export type Material = z.infer<typeof MaterialSchema>;

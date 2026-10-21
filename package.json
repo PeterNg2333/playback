@@ -9,8 +9,6 @@
     "test:gemini-live": "node --env-file-if-exists=.env app-temp/checks/Live/run-gemini-live.mjs",
     "test:asr-live": "node --env-file-if-exists=.env app-temp/checks/Live/run-asr-live.mjs",
     "test:jev-live": "node --env-file-if-exists=.env app-temp/checks/Live/run-jev-live.mjs",
-    "test:week3-provider": "node --env-file-if-exists=.env app-temp/checks/Validation/run-week3-live.mjs",
-    "test:note-models-live": "node --env-file-if-exists=.env app-temp/checks/Validation/run-note-models.mjs --live",
     "test:notes-ui": "npm --prefix app-temp/web run test:notes",
     "test:loading-ui": "npm --prefix app-temp/web run test:loading",
     "validation:week3-cost": "node app-temp/checks/Validation/week3-report.mjs",

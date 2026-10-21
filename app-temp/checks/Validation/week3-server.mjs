@@ -10,7 +10,7 @@ try {
   throw Error(`Port ${port} is already in use`);
 } catch (error) { if (error.message.includes("already in use")) throw error; }
 const env = { ...process.env, ASPNETCORE_ENVIRONMENT: "Development", PLAYBACK_MONGO_URI: "mongodb://127.0.0.1:27017",
-  PLAYBACK_MONGO_DATABASE: "playback_e2e", PLAYBACK_AUTO_NOTES: "no", PLAYBACK_AUTO_TERMS: "no", PLAYBACK_AUTO_ORGANIZE: "no",
+  PLAYBACK_MONGO_DATABASE: "playback_e2e", PLAYBACK_AUTO_NOTES: "no", PLAYBACK_AUTO_TERMS: "no",
   PLAYBACK_OFFLINE_TEST: live ? "no" : "yes", PLAYBACK_PAUSE_EXTERNAL_ASR: live ? "yes" : "no", PLAYBACK_VALIDATION_PORT: live ? "5081" : "" };
 // Playback audio/capture storage is relative to the conventional API output depth.
 // Keep that depth even for the isolated validation binary.

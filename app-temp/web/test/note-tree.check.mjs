@@ -1,4 +1,4 @@
-// Actual React note preview/edit/outline components in a local browser; fixture API only.
+// Actual React note preview and block edit components in a local browser; fixture API only.
 import assert from "node:assert/strict";
 import {mkdir, writeFile} from "node:fs/promises";
 import path from "node:path";
@@ -22,12 +22,11 @@ const session = {id: "tree-fixture", title: "TCP", createdAt: "2026-10-08T01:00:
 await writeFile(path.join(preview, "index.html"), '<div id="root"></div><script type="module" src="./entry.tsx"></script>');
 await writeFile(path.join(preview, "entry.tsx"), `
 import React, {useState} from 'react'; import {createRoot} from 'react-dom/client';
-import {NotePreview} from '../../src/features/notes/NotePreview'; import {OrganizeSection} from '../../src/features/notes/OrganizeSection';
+import {NotePreview} from '../../src/features/notes/NotePreview';
 import '../../src/styles/app.css'; const session = ${JSON.stringify(session)};
-function App() {const [version, setVersion] = useState(4); const [outline, setOutline] = useState(false); return <div className="p-5">
-<button onClick={() => setVersion(5)}>Receive newer version</button><button onClick={() => setOutline(true)}>Outline</button>
-<NotePreview session={{...session, noteVersion: version}} markdown={session.noteMarkdown} reading={false} onReference={() => {}} onOpenSource={() => {}} onPlay={() => {}} />
-{outline && <OrganizeSection session={{...session, noteVersion: version}} draftDirty={false} onClose={() => setOutline(false)} />}</div>;} createRoot(document.getElementById('root')).render(<App />);
+function App() {const [version, setVersion] = useState(4); return <div className="p-5">
+<button onClick={() => setVersion(5)}>Receive newer version</button>
+<NotePreview session={{...session, noteVersion: version}} markdown={session.noteMarkdown} reading={false} onReference={() => {}} onOpenSource={() => {}} onPlay={() => {}} /></div>;} createRoot(document.getElementById('root')).render(<App />);
 `);
 const server = await createServer({root: web, configLoader: "runner", server: {host: "127.0.0.1", port: 0}});
 let browser;
@@ -56,15 +55,8 @@ try {
   assert.equal(saved.basedOnVersion, 4); assert.equal(saved.blockId, "block-tcp");
   assert.equal(await page.getByRole("textbox", {name: "Note text"}).inputValue(), "A retained user draft [source-a]");
   await page.getByRole("button", {name: "Cancel", exact: true}).click();
-  await page.getByRole("button", {name: "Outline", exact: true}).click();
-  await page.locator("#organize-section").selectOption("example");
-  await page.getByLabel("Move topic in the outline").check();
-  await page.getByLabel("Parent topic", {exact: true}).selectOption("tcp");
-  await page.getByRole("button", {name: "Move topic", exact: true}).click();
-  await page.getByRole("alert").waitFor(); assert.equal(saved.operations[0].parentId, "tcp");
-  await page.getByRole("button", {name: "Cancel", exact: true}).click();
   await page.setViewportSize({width: 390, height: 844});
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({path: path.join(artifacts, "tree-mobile.png"), fullPage: true});
-  console.log("Note tree browser checks passed: numbered hierarchy, math and source preview, protected block edit draft/conflict, outline proposal and mobile width (fixture API)");
+  console.log("Note tree browser checks passed: numbered hierarchy, math and source preview, protected block edit draft/conflict and mobile width (fixture API)");
 } finally {await browser?.close(); await server.close();}

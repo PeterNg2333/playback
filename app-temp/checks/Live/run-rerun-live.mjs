@@ -53,7 +53,6 @@ const base = {
   PLAYBACK_PAUSE_EXTERNAL_ASR: "no",
   PLAYBACK_AUTO_NOTES: "no",
   PLAYBACK_AUTO_TERMS: "no",
-  PLAYBACK_AUTO_ORGANIZE: "no",
   PLAYBACK_AUTO_TRANSLATION: "no",
   PLAYBACK_ASR_REVIEW: "no",
   // Other sessions in playback_e2e keep their own audio elsewhere; never resume their pending ASR here.

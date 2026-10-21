@@ -10,8 +10,6 @@ import { runAction, usePlaybackField, usePlaybackStore } from "../../lib/store";
 import type { AudioPlayer } from "../player/useAudioPlayer";
 import { NotePreview } from "./NotePreview";
 import { NoteHistoryDialog } from "./NoteHistoryDialog";
-import { OrganizeSection } from "./OrganizeSection";
-import { NoteCoveragePanel } from "./NoteCoveragePanel";
 import { TermExplanation } from "../terms/TermExplanation";
 import { ActivityPopover } from "../activity/ActivityPopover";
 import { useActivity } from "../activity/useActivity";
@@ -21,16 +19,18 @@ import { Menu, MenuItem } from "../../components/Menu";
 import { Chip } from "../../components/Chip";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
-import { ProcessingSettingsDialog } from "./ProcessingSettingsDialog";
-import { NoteAdmissionStatus } from "./NoteAdmissionStatus";
-import { OrganizationStatus } from "./OrganizationStatus";
-import { RewriteDialog } from "./RewriteDialog";
 import { InstructionDialog } from "./InstructionDialog";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "../../lib/backend/client";
-import { NoteRewriteSchema } from "../../lib/backend/schemas";
 
-// A line under the notes saying why AI notes have not appeared or failed.
+// The activity tasks that write notes (NoteWorkflow): jots, segments, the finish and owner instructions.
+const noteTasks = new Set([
+  "Live jot",
+  "Note segment",
+  "Note outline",
+  "Note polish",
+  "Note instruction",
+]);
+
+// A line under the notes saying why AI notes have not appeared yet.
 const statusStyle = "mx-4.5 mb-2.5 text-[11px] text-[#9a591c]";
 // A tinted strip over the footer when saved notes and the editor's draft diverge.
 const conflictStyle = "shrink-0 bg-accent-soft px-4 py-2 text-[12px]";
@@ -53,12 +53,8 @@ export function NotesPanel({
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
   const [noteDialog, setNoteDialog] = useState<
-  "history" | "organize" | "settings" | "rewrites" | "instruction" | null
+    "history" | "instruction" | null
   >(null);
-  // Same query key as the suggestion dialog, so opening it reuses this list.
-  const suggestions = useQuery({ queryKey: ["noteRewrites", session?.id, session?.noteVersion], enabled: Boolean(session?.currentNote),
-    queryFn: ({ signal }) => api.get(`/sessions/${session!.id}/notes/rewrites`, NoteRewriteSchema.array(), { signal }) });
-  const suggestionCount = suggestions.data?.filter(x => x.status !== "stale").length ?? 0;
   const body = useRef<HTMLDivElement>(null);
   const renderedNotes = useRef<HTMLDivElement>(null);
   const headings = () =>
@@ -103,7 +99,7 @@ export function NotesPanel({
   const activity = useActivity(session?.id, health?.aiActivity);
   const runningNote = activity.items.find(
     (item) =>
-      item.task === "Note revision" &&
+      noteTasks.has(item.task) &&
       item.status === "running" &&
       item.basedOnVersion === session?.noteVersion,
   );
@@ -126,13 +122,6 @@ export function NotesPanel({
     }
     rememberScroll();
   }, [markdown, runningNote?.draft, session?.id, noteMode, topics]);
-  const queued = useMemo(
-    () =>
-      session?.transcripts.some((entry) =>
-        ["pending", "processing", "deferred"].includes(entry.noteStatus ?? ""),
-      ),
-    [session?.transcripts],
-  );
   const draftSources = useMemo(
     () => [
       ...(session?.transcripts ?? []).map((entry) => ({
@@ -159,52 +148,21 @@ export function NotesPanel({
     [session?.transcripts],
   );
   const waitingForSpeech = transcriptChars === 0 && !session?.noteMarkdown;
-  const failedNotes = useMemo(
-    () =>
-      session?.transcripts.filter((entry) => entry.noteStatus === "failed")
-        .length ?? 0,
-    [session?.transcripts],
-  );
 
   const latestNote = activity.items.find(
     (item) =>
-      item.task === "Note revision" &&
-      item.basedOnVersion === session?.noteVersion,
-  );
-  const latestGate = activity.items.find(
-    (item) =>
-      item.task === "Jev note gate" &&
-      item.basedOnVersion === session?.noteVersion,
-  );
-  const preparation = activity.items.find(
-    (item) =>
-      item.task === "Note input preparation" &&
-      item.basedOnVersion === session?.noteVersion,
+      noteTasks.has(item.task) && item.basedOnVersion === session?.noteVersion,
   );
   const draftNote = runningNote ?? latestNote;
   const noteStatus = runningNote
     ? runningNote.draft
-      ? "Editing…"
-      : "Analyzing…"
+      ? "Writing…"
+      : "Reading the transcript…"
     : busy === "generate"
       ? "Generating…"
-      : latestGate?.status === "running"
-        ? "Deciding…"
-        : queued && latestNote?.status === "failed"
-          ? "Notes failed"
-          : queued && latestGate?.status === "failed"
-            ? "Note gate failed"
-            : queued && preparation?.status === "failed"
-              ? "Input needs review"
-              : queued && latestGate?.summary?.startsWith("wait:")
-                ? "Waiting for continuation"
-                : queued && latestNote?.summary?.startsWith("No section change")
-                  ? "Waiting for continuation"
-                  : queued
-                    ? health?.autoNotes === false
-                      ? "Sources awaiting revision"
-                      : "Pending decision…"
-                    : null;
+      : latestNote?.status === "failed"
+        ? "Notes failed; they are retried shortly"
+        : null;
   return (
     <Panel className={className} data-testid="notes-panel">
       <header
@@ -309,15 +267,6 @@ export function NotesPanel({
                 >
                   Revise with AI
                 </MenuItem>
-                <MenuItem
-                  disabled={!session}
-                  onClick={() => {
-                    close();
-                    setNoteDialog("settings");
-                  }}
-                >
-                  Notes settings
-                </MenuItem>
                 <div className="my-1 border-t border-line" />
                 <MenuItem
                   disabled={!session || !health?.sectionNotes}
@@ -326,32 +275,33 @@ export function NotesPanel({
                     setNoteDialog("history");
                   }}
                 >
-                  History & recovery
+                  History
                 </MenuItem>
                 <MenuItem
                   disabled={!session?.currentNote?.sections?.length}
                   onClick={() => {
                     close();
-                    setNoteDialog("organize");
+                    setNoteDialog("instruction");
                   }}
                 >
-                  Organize section…
+                  Revise with instruction…
                 </MenuItem>
-                <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("rewrites");}}>Review suggestions{suggestionCount ? ` (${suggestionCount})` : ""}…</MenuItem>
-                <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("instruction");}}>Revise with instruction…</MenuItem>
-                <MenuItem disabled={!session?.transcripts.length || session?.rerun?.status === "running"} onClick={() => {close(); usePlaybackStore.setState({ rerunDialog: "notes" });}}>Rebuild notes…</MenuItem>
+                <MenuItem
+                  disabled={
+                    !session?.transcripts.length ||
+                    session?.rerun?.status === "running"
+                  }
+                  onClick={() => {
+                    close();
+                    usePlaybackStore.setState({ rerunDialog: "notes" });
+                  }}
+                >
+                  Rebuild notes…
+                </MenuItem>
               </div>
             )}
           </Menu>
         </div>
-
-        <NoteCoveragePanel
-          key={session?.id + ":coverage"}
-          session={session}
-          draftDirty={draft.isDirty}
-          onOpenSource={onOpenSource}
-          latestRevision={latestNote}
-        />
       </header>
       {/* Rendered notes keep a readable line length. */}
       <div
@@ -422,8 +372,8 @@ export function NotesPanel({
                 <>
                   {!reading && (
                     <p className="mb-4">
-                      Saved source links are evidence metadata. Section points
-                      show what was written; deferred inputs remain pending.
+                      Each block links the transcript lines it was written from.
+                      Links are evidence metadata, not a check of the text.
                     </p>
                   )}
                   <LazyDetails
@@ -528,19 +478,11 @@ export function NotesPanel({
           </div>
         )}
       </div>
-      {session?.noteAdmission && <NoteAdmissionStatus session={session} />}
-      {session?.organization && <OrganizationStatus session={session} />}
-      {waitingForSpeech ? (
+      {waitingForSpeech && (
         <p className={statusStyle} role="status">
-          Waiting for more recognized speech before generating AI notes.
+          Waiting for recognized speech. Live points appear each minute; notes
+          are written every five minutes and finished when you stop.
         </p>
-      ) : (
-        failedNotes > 0 && (
-          <p className={statusStyle} role="status">
-            Notes update failed for {failedNotes} transcript entries. Retry with
-            “Revise with AI”.
-          </p>
-        )
       )}
 
       {draft.conflict && (
@@ -588,23 +530,13 @@ export function NotesPanel({
           onClose={() => setNoteDialog(null)}
         />
       )}
-      {noteDialog === "settings" && session && (
-        <ProcessingSettingsDialog
-          key={session.id}
-          sessionId={session.id}
-          onClose={() => setNoteDialog(null)}
-        />
-      )}
-      {noteDialog === "organize" && session && (
-        <OrganizeSection
+      {noteDialog === "instruction" && session && (
+        <InstructionDialog
           key={session.id}
           session={session}
-          draftDirty={draft.isDirty}
           onClose={() => setNoteDialog(null)}
         />
       )}
-      {noteDialog === "instruction" && session && <InstructionDialog key={session.id} session={session} onClose={() => setNoteDialog(null)} />}
-      {noteDialog === "rewrites" && session && <RewriteDialog key={session.id} session={session} draftDirty={draft.isDirty} onClose={() => setNoteDialog(null)} onOpenSource={onOpenSource} onPlay={player.togglePlayback} />}
       {reference && session && (
         <TermExplanation
           key={reference.id}

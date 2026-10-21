@@ -17,8 +17,7 @@ const key = (i) =>
   `${id}-${i % 2 ? "system" : "microphone"}-${i}-${"c".repeat(64)}`;
 let count = 1350,
   live = false,
-  flowFail = false,
-  edits = 0;
+  flowFail = false;
 function lecture(n) {
   const transcripts = Array.from({ length: n }, (_, i) => ({
     id: key(i),
@@ -212,7 +211,7 @@ wav.writeUInt32LE(3200, 40);
 const activity = {
   id: "execution",
   sessionId: id,
-  task: "Jev note gate",
+  task: "Note segment",
   provider: "typesafe",
   model: "fixture-model",
   status: "completed",
@@ -221,8 +220,8 @@ const activity = {
   durationMs: 12,
   sourceIds: [key(0)],
   basedOnVersion: 119,
-  summary: "wait: pending input retained",
-  promptVersion: "note-gate-v1",
+  summary: "segment 1 written",
+  promptVersion: "three-speed-v1",
   promptHash: "fixture-prompt-hash",
   inputHash: "fixture-input-hash",
   inputBytes: 1200,
@@ -230,13 +229,12 @@ const activity = {
   queueDelayMs: 1,
   scheduleDelayMs: 8,
   usageJson: '{"output_tokens":3}',
-  promptText: "Actual fixture note gate instructions",
+  promptText: "Actual fixture note segment instructions",
 };
 const agents = [
   { id: "asr", name: "ASR", dependsOn: [] },
-  { id: "gate", name: "Jev note gate", dependsOn: ["asr"] },
-  { id: "notes", name: "Section notes", dependsOn: ["gate"] },
-  { id: "organizer", name: "Section organization", dependsOn: ["notes"] },
+  { id: "segment", name: "Note segment", dependsOn: ["asr"] },
+  { id: "finish", name: "Note outline", dependsOn: ["segment"] },
 ].map((a) => ({
   ...a,
   provider: "offline fixture",
@@ -320,19 +318,6 @@ await page.route("**/api/**", async (route) => {
       sessions: [{ id, title: "Three-hour lecture fixture" }],
       agents,
       executions: [activity],
-      automaticOrganization: false,
-      gate: {
-        status: "wait",
-        decision: "wait",
-        inputHash: "saved-input",
-        model: "fixture-gate",
-        promptVersion: "note-gate-v1",
-        waitCount: 2,
-        attempts: 0,
-        changedAt: createdAt,
-        flushRequested: false,
-        generationRequested: false,
-      },
     };
   } else if (path.endsWith("/notes/history")) {
     const before = +(url.searchParams.get("before") ?? 121);
@@ -354,26 +339,7 @@ await page.route("**/api/**", async (route) => {
       markdown: "## Historical formula\n\nR/n and R/10 remain readable.",
       citations: [],
     };
-  else if (path.endsWith("/recovery"))
-    json = {
-      basedOnVersion: session.noteVersion,
-      historicalVersion: 1,
-      citations: [],
-      candidates: [
-        {
-          id: "recovered",
-          title: "Earlier example",
-          markdown: "## Earlier example\n\nR/n; n=10 gives R/10.",
-          missingSourceIds: [key(0)],
-          blocked: false,
-          userEdited: false,
-        },
-      ],
-    };
-  else if (path.endsWith("/notes/organize") && request.method() === "POST") {
-    edits++;
-    json = { version: 121 };
-  } else if (path.endsWith("/restore") && request.method() === "POST")
+  else if (path.endsWith("/restore") && request.method() === "POST")
     json = { version: 121 };
   else
     return route.fulfill({
@@ -561,12 +527,12 @@ try {
   await screenshot("note-actions");
   await page.keyboard.press("Escape");
   assert.equal(
-    await page.getByRole("button", { name: "History & recovery" }).isVisible(),
+    await page.getByRole("button", { name: "History", exact: true }).isVisible(),
     false,
   );
   await page.getByLabel("Note actions", { exact: true }).press("Enter");
-  await page.getByRole("button", { name: "History & recovery" }).click();
-  const history = page.getByRole("dialog", { name: "Note history & recovery" });
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  const history = page.getByRole("dialog", { name: "Note history" });
   await history
     .getByRole("button", { name: "v120 · agent", exact: true })
     .waitFor();
@@ -585,12 +551,6 @@ try {
     .locator("pre")
     .getByText(/R\/n and R\/10/)
     .waitFor();
-  await history
-    .getByRole("button", { name: "Preview recovery into current notes" })
-    .click();
-  await history.getByText("Merge v1 into v120").waitFor();
-  await screenshot("recovery-preview");
-  assert.equal(writes.length, writeCount, "Recovery preview wrote to notes");
   await history.getByRole("button", { name: "Close note history" }).click();
   await page.getByLabel("Group options for Study group").click();
   await page.getByRole("button", { name: "View AI flow" }).click();
@@ -598,17 +558,11 @@ try {
   await flow.getByText("Configured pipeline", { exact: true }).waitFor();
   await flow.getByLabel("Rendered flowchart").locator("svg").waitFor();
   await flow
-    .getByText("Saved note gate · wait · wait", { exact: true })
-    .click();
-  await flow
-    .getByText("Input identity: saved-input", { exact: true })
-    .waitFor();
-  await flow
     .getByTestId("flow-execution")
-    .filter({ hasText: "Jev note gate" })
+    .filter({ hasText: "Note segment" })
     .locator(":scope > summary")
     .click();
-  await flow.getByText("Prompt note-gate-v1", { exact: false }).waitFor();
+  await flow.getByText("Prompt three-speed-v1", { exact: false }).waitFor();
   assert(
     await flow.getByRole("button", { name: "Close AI flow" }).isVisible(),
     "Scrolling execution details hid the modal close control",
@@ -641,20 +595,6 @@ try {
   await page
     .getByLabel("Editable Markdown")
     .fill("Unsaved formula R/n and R/10");
-  await page.getByLabel("Note actions", { exact: true }).click();
-  await page
-    .getByRole("button", { name: "Organize section…", exact: true })
-    .click();
-  await page.locator("#organize-section").selectOption("fair-sharing");
-  assert(
-    await page
-      .getByRole("button", { name: "Organize section", exact: true })
-      .isDisabled(),
-  );
-  await page
-    .getByRole("dialog", { name: "Organize a section" })
-    .getByRole("button", { name: "Cancel" })
-    .click();
   await page.getByLabel("Editable Markdown").evaluate((e) => {
     e.focus();
     e.setSelectionRange(8, 8);

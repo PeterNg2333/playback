@@ -202,7 +202,6 @@ try {
     } else if (path === "/api/sessions") data = [{ id, title: "Test" }];
     else if (path === "/api/groups") data = [];
     else if (path === `/api/sessions/${id}`) data = session;
-    else if (path === `/api/sessions/${id}/notes/rewrites`) data = [];
     else if (path === `/api/sessions/${id}/notes/edits`)
       data = [
         {

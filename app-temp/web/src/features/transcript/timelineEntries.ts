@@ -76,7 +76,6 @@ export function transcriptDays(
         const previous = silence?.chunks.at(-1);
         if (
           previous &&
-          session.processingSettings?.effective.combineQuiet !== false &&
           combinedByChild.has(chunk.id) &&
           combinedByChild.get(chunk.id) === combinedByChild.get(previous.id) &&
           chunk.startMs === previous.endMs &&
@@ -86,9 +85,8 @@ export function transcriptDays(
               silence!.at.getTime() -
               (chunk.startMs - silence!.chunks[0].startMs),
           ) <= 50 &&
-          chunk.endMs - silence!.chunks[0].startMs <=
-            (session.processingSettings?.effective.maxCombinedSeconds ?? 60) *
-              1000 &&
+          // The server combines quiet audio into pieces of at most 60 seconds (AudioPolicy).
+          chunk.endMs - silence!.chunks[0].startMs <= 60_000 &&
           silence!.chunks.length < 100 &&
           at.getHours() === silence!.at.getHours() &&
           at.toDateString() === silence!.at.toDateString()

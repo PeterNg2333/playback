@@ -70,18 +70,31 @@ function sessionParts(session: Session, source: string): Part[] {
 }
 
 export function rowParts(session: Session, chunks: PlayableChunk[]): Part[] {
-  const ids = new Set(chunks.map(x => x.id));
+  const ids = new Set(chunks.map((x) => x.id));
   const used = new Set<string>();
   const parts: Part[] = [];
   for (const chunk of [...chunks].sort((a, b) => a.startMs - b.startMs)) {
     if (used.has(chunk.id)) continue;
-    const segment = session.processingSettings?.effective.combineQuiet === false ? undefined : session.combinedAudioSegments?.filter(x => x.children.length > 1 && x.children[0]?.chunkId === chunk.id && x.children.every(child => ids.has(child.chunkId))).sort((a, b) => b.children.length - a.children.length)[0];
-    if (segment) segment.children.forEach(child => used.add(child.chunkId));
+    const segment = session.combinedAudioSegments
+      ?.filter(
+        (x) =>
+          x.children.length > 1 &&
+          x.children[0]?.chunkId === chunk.id &&
+          x.children.every((child) => ids.has(child.chunkId)),
+      )
+      .sort((a, b) => b.children.length - a.children.length)[0];
+    if (segment) segment.children.forEach((child) => used.add(child.chunkId));
     const selected = segment ?? chunk;
     parts.push({
-      url: segment ? `/api/sessions/${session.id}/audio/combined/${segment.id}` : `/api/chunks/${chunk.id}/audio`,
-      startMs: selected.startMs, fromMs: 0, toMs: selected.endMs - selected.startMs,
-      wallOriginMs: selected.recordedAt ? new Date(selected.recordedAt).getTime() : new Date(session.createdAt).getTime() + selected.startMs,
+      url: segment
+        ? `/api/sessions/${session.id}/audio/combined/${segment.id}`
+        : `/api/chunks/${chunk.id}/audio`,
+      startMs: selected.startMs,
+      fromMs: 0,
+      toMs: selected.endMs - selected.startMs,
+      wallOriginMs: selected.recordedAt
+        ? new Date(selected.recordedAt).getTime()
+        : new Date(session.createdAt).getTime() + selected.startMs,
     });
   }
   return parts;

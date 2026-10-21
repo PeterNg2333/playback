@@ -119,42 +119,6 @@ export function AiFlowDialog({
                 session executions.
               </p>
             )}
-            {data.gate && (
-              <details className={card} data-testid="flow-execution">
-                <summary className={summaryStyle}>
-                  Saved note gate · {data.gate.status}
-                  {data.gate.decision ? " · " + data.gate.decision : ""}
-                </summary>
-                <p className={paragraph}>
-                  {data.gate.model || "No provider model recorded"} ·{" "}
-                  {data.gate.promptVersion || "No prompt version recorded"} ·{" "}
-                  {new Date(data.gate.changedAt).toLocaleString()}
-                </p>
-                <p className={paragraph}>
-                  Wait decisions: {data.gate.waitCount} · Failed attempts:{" "}
-                  {data.gate.attempts}
-                  {data.gate.retryAt
-                    ? " · Retry after " +
-                      new Date(data.gate.retryAt).toLocaleString()
-                    : ""}
-                </p>
-                <p className={paragraph}>
-                  {data.gate.flushRequested ? "Stop flush is pending. " : ""}
-                  {data.gate.generationRequested
-                    ? "A generation job was requested."
-                    : "No generation job requested for this input."}
-                </p>
-                {data.gate.admissionReason && (
-                  <p className={paragraph}>
-                    Admission: {data.gate.admissionReason.replaceAll("-", " ")}{" "}
-                    · policy {data.gate.policyRevision}
-                  </p>
-                )}
-                <pre className={code}>
-                  Input identity: {data.gate.inputHash || "not recorded"}
-                </pre>
-              </details>
-            )}
             <h3 className={heading}>Configured pipeline</h3>
             <Markdown value={graph} />
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">

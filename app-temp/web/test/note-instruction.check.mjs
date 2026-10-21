@@ -91,7 +91,7 @@ try {
       return route.fulfill({ json: { version: 5 } });
     }
     return route.fulfill({
-      json: url.pathname.endsWith("/rewrites") ? [] : {},
+      json: {},
     });
   });
   const page = await context.newPage();

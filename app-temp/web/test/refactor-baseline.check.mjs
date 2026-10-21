@@ -32,5 +32,4 @@ assert.equal(rowParts(combinedSession, adjacent)[0].url, "/api/sessions/session/
 assert.equal(rowParts(combinedSession, [adjacent[1]])[0].url, "/api/chunks/part-1/audio");
 assert.equal(rowParts(combinedSession, [adjacent[1]])[0].startMs, 8000);
 assert.equal([...transcriptDays({...combinedSession, chunks: [adjacent[0], {...adjacent[1], streamId: "resume"}]}).values()].flatMap(hours => [...hours.values()].flat()).length, 2);
-assert.equal(rowParts({...combinedSession, processingSettings: {effective: {combineQuiet: false}}}, adjacent).length, 2);
-console.log("Quiet playback checks passed: one manifest URL for a run, original child citation URL/time, pause splitting and disabled combination");
+console.log("Quiet playback checks passed: one manifest URL for a run, original child citation URL/time and pause splitting");
