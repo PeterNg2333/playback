@@ -1,9 +1,9 @@
-using Playback.Api.Db;
 using Playback.Application.Activity;
 using Playback.Application.Ask;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Notes;
+namespace Playback.Infrastructure.Notes;
 
 // Indexes changed sessions into the concept graph after their transcript changes (new speech or a rerun window).
 // A failure is logged and retried on the next change; it never affects transcription, notes or Ask's keyword fallback.

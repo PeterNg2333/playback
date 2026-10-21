@@ -4,7 +4,7 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Playback.Domain.Assistance;
 
-namespace Playback.Api.Providers;
+namespace Playback.Infrastructure.Providers;
 
 public class GeminiLanguageModel : ITextGenerator
 {

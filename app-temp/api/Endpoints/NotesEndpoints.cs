@@ -1,5 +1,3 @@
-using Playback.Api.Notes;
-using Playback.Api.Db;
 namespace Playback.Api.Endpoints;
 
 public static class NotesEndpoints

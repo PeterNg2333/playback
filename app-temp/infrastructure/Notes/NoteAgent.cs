@@ -1,8 +1,8 @@
-﻿using Playback.Api.Db;
-using Playback.Application.Activity;
+﻿using Playback.Application.Activity;
 using Playback.Application.Notes;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Notes;
+namespace Playback.Infrastructure.Notes;
 
 // Hosts note writing in the background: once a second it hands the sessions with unwritten speech (or a pending Stop) to
 // NoteWorkflow, which decides what each one needs. The note use cases themselves are in Application.

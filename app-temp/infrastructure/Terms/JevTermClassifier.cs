@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
-using Playback.Api.Providers;
 using Playback.Domain.Assistance;
+using Playback.Infrastructure.Providers;
 
-namespace Playback.Api.Terms;
+namespace Playback.Infrastructure.Terms;
 
 public sealed class JevTermClassifier : ITermClassifier
 {

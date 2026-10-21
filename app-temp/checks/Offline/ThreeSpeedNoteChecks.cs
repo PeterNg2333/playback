@@ -36,9 +36,9 @@ static class ThreeSpeedNoteChecks
         var model = new FixtureNoteModel();
         for (var s = 0; s < 300; s += 10) Line(store, clock, id, $"{id}-{s}", s, $"Kernel point {s}");
         Line(store, clock, id, $"{id}-301", 301, "Second window starts");
-        return (store, clock, model, new NoteWorkflow(new Playback.Api.Notes.NoteStoreAdapter(store), new Playback.Api.Notes.NoteStoreAdapter(store),
-            new Playback.Api.Notes.GeminiNoteWriter(model), new Playback.Api.Notes.NoteActivityAdapter(new AiActivity(store),
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<Playback.Api.Notes.NoteAgent>.Instance), new Playback.Api.Notes.OpenccNoteScript(), clock));
+        return (store, clock, model, new NoteWorkflow(new NoteStoreAdapter(store), new NoteStoreAdapter(store),
+            new GeminiNoteWriter(model), new NoteActivityAdapter(new AiActivity(store),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<NoteAgent>.Instance), new OpenccNoteScript(), clock));
     }
 
     static async Task Step(NoteWorkflow notes, TestClock clock, string id, double seconds = 3)
@@ -88,7 +88,7 @@ static class ThreeSpeedNoteChecks
         var target = note.Sections[0].Blocks[0].Id;
         var instructed = await notes.Instruct("rec", "Shorter", null, target, note.Version, CancellationToken.None);
         Expect.That(instructed.Applied == 1 && Latest(store, "rec").Sections[0].Blocks[0].Body.StartsWith("Rewritten:"), "An instruction did not rewrite its block");
-        await new NoteCommands(new Playback.Api.Notes.NoteStoreAdapter(store), new Playback.Api.Notes.NoteStoreAdapter(store))
+        await new NoteCommands(new NoteStoreAdapter(store), new NoteStoreAdapter(store))
             .LockBlock("rec", Latest(store, "rec").Version, target, true);
         var locked = await notes.Instruct("rec", "Again", null, target, Latest(store, "rec").Version, CancellationToken.None);
         Expect.That(locked.Applied == 0 && locked.NotApplied.Single().EndsWith("locked"), "An instruction changed a locked block");
@@ -128,7 +128,7 @@ static class ThreeSpeedNoteChecks
         await notes.Generate("lock", CancellationToken.None);
         var note = Latest(store, "lock");
         var block = note.Sections[0].Blocks[0];
-        var commands = new NoteCommands(new Playback.Api.Notes.NoteStoreAdapter(store), new Playback.Api.Notes.NoteStoreAdapter(store));
+        var commands = new NoteCommands(new NoteStoreAdapter(store), new NoteStoreAdapter(store));
         await commands.EditBlock("lock", note.Version, block.Id, "My own wording [lock-0]");
         var result = await notes.Rebuild("lock", CancellationToken.None);
         var rebuilt = Latest(store, "lock");

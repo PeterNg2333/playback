@@ -7,9 +7,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
-using Playback.Api.Db;
 using Playback.Application.Workspace;
 using Playback.Domain.Workspace;
+using Playback.Infrastructure;
 
 namespace Playback.Api.Security;
 

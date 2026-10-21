@@ -1,4 +1,3 @@
-using Playback.Api.Db;
 using Playback.Application.Workspace;
 namespace Playback.Api.Endpoints;
 

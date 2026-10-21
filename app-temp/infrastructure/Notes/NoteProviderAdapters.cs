@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Playback.Application.Notes;
-using Playback.Api.Providers;
 using Playback.Domain.Models;
 using Playback.Application.Activity;
+using Playback.Infrastructure.Providers;
 
-namespace Playback.Api.Notes;
+namespace Playback.Infrastructure.Notes;
 
 public sealed class GeminiNoteWriter(GeminiLanguageModel model) : INoteWriter
 {

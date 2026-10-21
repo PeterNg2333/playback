@@ -1,4 +1,4 @@
-using Playback.Api.Terms;
+using Playback.Infrastructure.Terms;
 
 // Paid: ranks one synthetic term with Jev twice, expecting a ranking, usage and a cache hit.
 // Needs PLAYBACK_JEV_LIVE_TEST=yes (set by run-jev-live.mjs) and JEV_API_KEY in the process environment.

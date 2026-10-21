@@ -1,4 +1,3 @@
-using Playback.Api.Notes;
 using Playback.Domain.Models;
 using PassageReader = Playback.Application.Notes.MaterialSources;
 

@@ -6,14 +6,14 @@ using Playback.Application.Translation;
 using Playback.Application.Workspace;
 using Playback.Domain.Models;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 // The local MongoDB store. Each file in Db/ holds one saved concept: its documents and their reads and writes.
 public partial class PlaybackStore : IActivityRepository, IConversationRepository, ITermRepository, ITranscriptionRepository, IWorkspaceRepository, IRecordingAccess, ITestingRepository, ITranslationRepository
 {
     static PlaybackStore()
     {
-        Playback.Infrastructure.Storage.DocumentMappings.Register();
+        DocumentMappings.Register();
     }
     public event Action<string>? SourceChanged;
     readonly IMongoDatabase? db;

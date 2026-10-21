@@ -1,9 +1,9 @@
 using MongoDB.Driver;
-using Playback.Api.Db;
 using Playback.Application.Recording;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Infrastructure.Audio.Asr;
 
 public sealed class AsrQueue : BackgroundService, IAsyncDisposable, IAsrJobs
 {

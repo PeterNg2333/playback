@@ -1,4 +1,3 @@
-using Playback.Api.Notes;
 using Playback.Application.Ask;
 using Playback.Application.Workspace;
 using Playback.Domain.Evidence;

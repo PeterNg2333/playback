@@ -1,8 +1,9 @@
-using Playback.Api.Db;
-using Playback.Api.Providers;
 using Playback.Application.Activity;
 using Playback.Application.Translation;
+using Playback.Infrastructure;
 using Playback.Infrastructure.Activity;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
 namespace Playback.Api.Translation;
 // The host owns the timer/cancellation; Application owns batching, validation and result persistence.
 public sealed class TranslationAgent : BackgroundService, IAsyncDisposable

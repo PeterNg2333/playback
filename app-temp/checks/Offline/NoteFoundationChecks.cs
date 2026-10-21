@@ -7,7 +7,7 @@ static class NoteFoundationChecks
     {
         var domain = typeof(NoteMutation).Assembly;
         var application = typeof(NoteWorkflow).Assembly;
-        var infrastructure = typeof(Playback.Api.Notes.NoteAgent).Assembly;
+        var infrastructure = typeof(NoteAgent).Assembly;
         Expect.That(domain.GetReferencedAssemblies().All(x => x.Name!.StartsWith("System") || x.Name == "netstandard"),
             "Domain gained a framework, persistence, provider or host dependency");
         Expect.That(application.GetReferencedAssemblies().All(x => x.Name!.StartsWith("System") || x.Name is "netstandard" or "Playback.Domain"),

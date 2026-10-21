@@ -1,4 +1,3 @@
-using Playback.Api.Audio.Recording;
 using Playback.Application.Activity;
 using Playback.Application.Recording;
 using System.Buffers.Binary;
@@ -6,9 +5,10 @@ using System.Security.Cryptography;
 using System.Threading.Channels;
 using NAudio.Wave;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Audio.Recording;
 using System.Text.Json;
 
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Infrastructure.Audio.Asr;
 
 // Ephemeral hypotheses only: saved WAVs and AsrProcessor remain the recovery/finalization boundary.
 public sealed class LiveAsrSession : IAsyncDisposable

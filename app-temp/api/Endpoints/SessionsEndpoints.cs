@@ -1,5 +1,3 @@
-using Playback.Api.Db;
-using Playback.Api.Audio.Recording;
 using Playback.Application.Recording;
 using Playback.Application.Workspace;
 namespace Playback.Api.Endpoints;

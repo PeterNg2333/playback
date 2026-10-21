@@ -3,9 +3,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging.Abstractions;
-using Playback.Api.Notes;
-using Playback.Api.Providers;
 using Playback.Application.Activity;
+using Playback.Infrastructure.Providers;
 
 // Paid, small, on a three-sentence synthetic lecture (no audio). Each mode makes one note revision through the
 // production NoteWorkflow and NoteActivityAdapter (structured output + streaming + activity draft) and prints what the

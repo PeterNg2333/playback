@@ -1,11 +1,11 @@
-using Playback.Api.Providers;
 using Playback.Application.Recording;
 using Playback.Domain;
+using Playback.Infrastructure.Providers;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
-namespace Playback.Api.Audio.Asr.Providers;
+namespace Playback.Infrastructure.Audio.Asr.Providers;
 
 public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
 {

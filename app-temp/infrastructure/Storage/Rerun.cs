@@ -4,7 +4,7 @@ using Playback.Domain.Audio;
 using Playback.Domain.Models;
 using Playback.Infrastructure.Audio;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 public partial class PlaybackStore
 {

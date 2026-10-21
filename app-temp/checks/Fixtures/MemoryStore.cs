@@ -1,11 +1,10 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Playback.Api.Db;
-using Playback.Api.Notes;
 using Playback.Application.Notes;
 using Playback.Domain.Assistance;
 using Playback.Domain.Evidence;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Storage;
 
 // PlaybackStore with the note, activity and sync reads kept in memory, for checks without MongoDB.
 // Every read returns a copy, as a database would.

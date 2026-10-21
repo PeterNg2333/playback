@@ -1,9 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using Playback.Api.Activity;
-using Playback.Api.Db;
-using Playback.Api.Notes;
 using Playback.Application.Audio;
 using Playback.Infrastructure.Audio;
 

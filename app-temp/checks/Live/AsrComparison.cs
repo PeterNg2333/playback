@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using Playback.Api.Audio.Asr.Providers;
-using Playback.Api.Providers;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Audio.Asr.Providers;
+using Playback.Infrastructure.Providers;
 
 // Latency of SenseVoice against OpenRouter on two 30-second chunks of the Week 3 sample. Without --live it only
 // prepares the audio; with --live it uploads both chunks twice to each provider (8 paid requests).

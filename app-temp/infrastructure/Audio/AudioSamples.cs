@@ -1,6 +1,6 @@
 using NAudio.Wave;
 
-namespace Playback.Api.Audio;
+namespace Playback.Infrastructure.Audio;
 
 // Reads float samples out of captured WAV buffers: the peak level for the meter and a mono mix for the VAD.
 public static class AudioSamples

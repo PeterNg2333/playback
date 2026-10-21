@@ -1,4 +1,4 @@
-namespace Playback.Api.Providers;
+namespace Playback.Infrastructure.Providers;
 
 // One OpenRouter credential serves both speech-to-text and text models. It is read from the process
 // environment only; .env.example ships a placeholder that must never count as configured.

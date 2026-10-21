@@ -1,7 +1,7 @@
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
-namespace Playback.Api.Audio.Vad;
+namespace Playback.Infrastructure.Audio.Vad;
 
 // Silero VAD: https://github.com/snakers4/silero-vad (MIT license).
 // One detector belongs to one capture source because the ONNX recurrent state is source-specific.

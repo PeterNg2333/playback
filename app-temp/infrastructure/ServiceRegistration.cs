@@ -1,19 +1,18 @@
-using Playback.Api;
-using Playback.Api.Activity;
-using Playback.Api.Audio;
-using Playback.Api.Audio.Asr;
-using Playback.Api.Audio.Recording;
-using Playback.Api.Db;
 
-using Playback.Api.Notes;
-using Playback.Api.Providers;
-using Playback.Api.Terms;
 using Playback.Application.Activity;
 using Playback.Application.Ask;
 using Playback.Application.Notes;
 using Playback.Application.Recording;
 using Playback.Application.Terms;
 using Playback.Application.Workspace;
+using Playback.Infrastructure.Activity;
+using Playback.Infrastructure.Audio;
+using Playback.Infrastructure.Audio.Asr;
+using Playback.Infrastructure.Audio.Recording;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
+using Playback.Infrastructure.Terms;
+using Playback.Infrastructure.Workspace;
 
 using Microsoft.Extensions.DependencyInjection;
 namespace Playback.Infrastructure;
@@ -34,7 +33,7 @@ public static class ServiceRegistration
         services.AddSingleton<TestingCommands>();
         services.AddSingleton<ITestingRepository>(s => s.GetRequiredService<PlaybackStore>());
         services.AddSingleton<RuntimeQueries>();
-        services.AddSingleton<IRuntimeProjections, Playback.Infrastructure.Workspace.RuntimeProjections>();
+        services.AddSingleton<IRuntimeProjections, RuntimeProjections>();
 
         services.AddSingleton<GeminiLanguageModel>();
         services.AddSingleton<ITextGenerator>(s => s.GetRequiredService<GeminiLanguageModel>());
@@ -75,7 +74,7 @@ public static class ServiceRegistration
         services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));
         services.AddSingleton<ITermClassifier>(s => s.GetRequiredService<JevTermClassifier>());
         services.AddSingleton<TermAssistance>();
-        services.AddSingleton<TermReview>(s => new(s.GetRequiredService<PlaybackStore>(), s.GetRequiredService<JevTermClassifier>(), s.GetRequiredService<GeminiLanguageModel>(), new Playback.Infrastructure.Activity.WorkLog<TermReview>(s.GetRequiredService<ILogger<TermReview>>()), s.GetRequiredService<AiActivity>()));
+        services.AddSingleton<TermReview>(s => new(s.GetRequiredService<PlaybackStore>(), s.GetRequiredService<JevTermClassifier>(), s.GetRequiredService<GeminiLanguageModel>(), new WorkLog<TermReview>(s.GetRequiredService<ILogger<TermReview>>()), s.GetRequiredService<AiActivity>()));
         services.AddSingleton<TermReviewAgent>();
         services.AddHostedService(s => s.GetRequiredService<TermReviewAgent>());
         services.AddSingleton<SyntheticTermComparison>();

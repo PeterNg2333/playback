@@ -2,10 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
-using Playback.Api.Activity;
-using Playback.Api.Audio.Asr;
-using Playback.Api.Db;
-using Playback.Api.Notes;
+using Playback.Api.Endpoints;
 using Playback.Api.Translation;
 using Playback.Application.Ask;
 using Playback.Application.Recording;
@@ -13,15 +10,17 @@ using Playback.Application.Terms;
 using Playback.Application.Workspace;
 using Playback.Domain.Models;
 using Playback.Infrastructure;
+using Playback.Infrastructure.Audio.Asr;
+using Playback.Infrastructure.Storage;
 
 static class MigrationChecks
 {
     public static async Task Run()
     {
         var domain = typeof(Transcript).Assembly; var application = typeof(ChatAgent).Assembly; var infrastructure = typeof(PlaybackStore).Assembly;
-        Expect.That(domain == typeof(Note).Assembly && application == typeof(NoteWorkflow).Assembly && infrastructure != typeof(Playback.Api.Endpoints.HealthEndpoints).Assembly, "Feature implementation still lives in the API host");
+        Expect.That(domain == typeof(Note).Assembly && application == typeof(NoteWorkflow).Assembly && infrastructure != typeof(HealthEndpoints).Assembly, "Feature implementation still lives in the API host");
         Expect.That(domain.GetTypes().All(t => t.GetCustomAttributesData().Concat(t.GetProperties().SelectMany(p => p.GetCustomAttributesData())).All(a => !a.AttributeType.FullName!.StartsWith("MongoDB"))), "Domain documents retain persistence attributes");
-        Playback.Infrastructure.Storage.DocumentMappings.Register();
+        DocumentMappings.Register();
         Expect.That(!new ChunkRecord {Path = "private-path"}.ToBsonDocument().Contains("Path") && !new ActivityRecord {Draft = "live-only"}.ToBsonDocument().Contains("Draft"), "Migration changed ignored BSON fields");
         var session = BsonSerializer.Deserialize<SessionRecord>(new BsonDocument {{"_id", "legacy"}, {"Title", "Original"}, {"unknownHistoricalField", true}});
         Expect.That(session.Id == "legacy" && session.Title == "Original", "Legacy session ignore-extra reader changed");

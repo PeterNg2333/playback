@@ -1,7 +1,7 @@
-using Playback.Api.Db;
-using Playback.Api.Providers;
 using Playback.Application.Activity;
 using Playback.Application.Ask;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
 using System.Text.Json;
 
 // Saved Ask conversations in local MongoDB (playback_e2e): kept per session, replayed after a restart without

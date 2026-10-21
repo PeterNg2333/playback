@@ -1,6 +1,3 @@
-using Playback.Api.Audio.Vad;
-using Playback.Api.Audio.Asr;
-using Playback.Api.Db;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
@@ -8,8 +5,11 @@ using NAudio.Wave;
 using Playback.Domain.Audio;
 using Playback.Application.Activity;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Audio.Asr;
+using Playback.Infrastructure.Audio.Vad;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Audio.Recording;
+namespace Playback.Infrastructure.Audio.Recording;
 
 public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger, IAsrAdapter adapter, AiActivity activity) : IAsyncDisposable, IRecordingControl
 {

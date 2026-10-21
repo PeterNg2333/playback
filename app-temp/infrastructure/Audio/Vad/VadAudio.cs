@@ -1,7 +1,7 @@
-using Playback.Api.Audio.Asr;
+using Playback.Infrastructure.Audio.Asr;
 using NAudio.Wave;
 
-namespace Playback.Api.Audio.Vad;
+namespace Playback.Infrastructure.Audio.Vad;
 
 public sealed record SpeechAudio(byte[] Wav, int FromMs, int ThroughMs, bool HasSpeech);
 

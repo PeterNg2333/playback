@@ -1,16 +1,15 @@
-using Playback.Api.Db;
 using Playback.Application.Notes;
-using Playback.Api.Notes;
-using Playback.Api.Terms;
-using Playback.Api.Providers;
-using Playback.Api.Audio.Asr;
 using Playback.Domain.Models;
 using Playback.Application.Activity;
 using Playback.Application.Ask;
 using Playback.Application.Recording;
 using Playback.Application.Translation;
+using Playback.Infrastructure.Audio.Asr;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
+using Playback.Infrastructure.Terms;
 
-namespace Playback.Api.Activity;
+namespace Playback.Infrastructure.Activity;
 
 public sealed record FlowAgent(string Id, string Name, string Provider, string Model, string Status, string PromptVersion,
     string Prompt, string Trigger, string Lifecycle, string InputRole, string OutputRole, List<string> DependsOn);

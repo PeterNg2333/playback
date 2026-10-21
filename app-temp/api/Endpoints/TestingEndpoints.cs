@@ -1,6 +1,6 @@
-using Playback.Api.Audio.Recording;
-using Playback.Api.Db;
 using Playback.Application.Workspace;
+using Playback.Infrastructure;
+using Playback.Infrastructure.Audio.Recording;
 namespace Playback.Api.Endpoints;
 
 public static class TestingEndpoints

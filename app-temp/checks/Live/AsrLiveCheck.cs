@@ -1,5 +1,5 @@
 using NAudio.Wave;
-using Playback.Api.Audio.Asr.Providers;
+using Playback.Infrastructure.Audio.Asr.Providers;
 
 // Paid: sends a 30-second 48 kHz stereo tone to SenseVoice and expects real duration and inference metrics.
 // Needs PLAYBACK_ASR_LIVE_CHECK=yes (set by run-asr-live.mjs).

@@ -1,8 +1,8 @@
-using Playback.Api.Providers;
 using Playback.Application.Activity;
 using Playback.Application.Ask;
 using Playback.Domain.Assistance;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Providers;
 using System.Text.Json;
 
 // Ask: which sources a question retrieves from a long lecture, how short citation aliases expand,

@@ -3,7 +3,7 @@ using System.Text.Json;
 using Playback.Application.Ask;
 using Playback.Domain.Evidence;
 
-namespace Playback.Api.Providers;
+namespace Playback.Infrastructure.Providers;
 
 // The concept graph sidecar (app-temp/graph): a fixed loopback endpoint, no redirects, bounded time and response size.
 // Off unless PLAYBACK_CONCEPT_GRAPH=yes; refused in offline tests. Session IDs and document IDs are the only identifiers sent.

@@ -89,7 +89,7 @@ Four .NET 10 projects form one deployment. Read API `Program.cs` for HTTP/auth s
 | `infrastructure/` | Mongo storage/BSON mappings, Gemini/Agent Framework, OpenRouter text and ASR, Jev, VAD/WAV/WASAPI/native display, bounded sync and hosted workers | Application/Domain; unchanged provider/audio/storage packages |
 | `api/` | HTTP request mapping, authentication/CSRF/ownership middleware, static hosting and composition; translation host remains here while its preserved WIP awaits commit approval | Application and Infrastructure |
 
-The migrated public CLR names retain some `Playback.Api.*` namespaces for existing callers. They live in the new assemblies; executable dependency/model ownership checks prevent a hidden project reference back to the host. Compatibility adapters contain delegation, with one active rule/use-case implementation.
+Namespaces follow project and folder: `Playback.Domain.*`, `Playback.Application.*`, `Playback.Infrastructure.*`, `Playback.Api.*` (`infrastructure/Audio/Asr/` is `Playback.Infrastructure.Audio.Asr`). A partial class has one namespace, so all its parts live in one folder (`PlaybackStore` in `infrastructure/Storage/`). Code imports namespaces with `using` instead of naming types in full. Stored documents carry no CLR type names: stored types are sealed with no polymorphic members (no `_t`), class maps register by type and the ignore-extra-elements convention covers every `Playback*` namespace, so moving a type leaves saved data unchanged. `NoteFoundationChecks` and `MigrationChecks` check that project references point inward.
 
 | Flow | Path |
 | --- | --- |

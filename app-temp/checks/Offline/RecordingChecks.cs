@@ -1,6 +1,6 @@
 using NAudio.Wave;
-using Playback.Api.Audio;
-using Playback.Api.Audio.Recording;
+using Playback.Infrastructure.Audio;
+using Playback.Infrastructure.Audio.Recording;
 
 // Recording: only the chosen audio sources open, and the level meter reads microphone and system samples.
 static class RecordingChecks

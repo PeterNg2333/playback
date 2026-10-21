@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
 
-namespace Playback.Api.Providers;
+namespace Playback.Infrastructure.Providers;
 
 // Open-weight text models through OpenRouter's OpenAI-compatible chat endpoint, with the same output caps and
 // note schema as Gemini (ModelOutputContract). Routing only uses providers that honour every sent parameter,

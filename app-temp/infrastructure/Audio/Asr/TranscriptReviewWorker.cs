@@ -1,9 +1,8 @@
-using Playback.Api.Db;
-using Playback.Api.Notes;
 using Playback.Application.Activity;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Infrastructure.Audio.Asr;
 
 public sealed class TranscriptReviewWorker(PlaybackStore store, IAsrAdapter asr, AiActivity activity,
     NoteAgent notes, AsrQueue queue, ILogger<TranscriptReviewWorker> logger) : BackgroundService

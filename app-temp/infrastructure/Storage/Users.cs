@@ -2,7 +2,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using Playback.Domain.Models;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 public partial class PlaybackStore
 {

@@ -1,10 +1,9 @@
 using MongoDB.Driver;
-using Playback.Api.Notes;
 using Playback.Infrastructure.Notes;
 using Playback.Application.Notes;
 using Playback.Domain.Models;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 // Compatibility adapter for existing callers; note storage is in Infrastructure and use cases in Application.
 public partial class PlaybackStore

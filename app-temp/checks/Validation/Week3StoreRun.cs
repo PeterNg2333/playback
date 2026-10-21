@@ -1,11 +1,11 @@
 using System.Text.Json;
 using MongoDB.Driver;
-using Playback.Api.Db;
-using Playback.Api.Terms;
-using Playback.Api.Providers;
 using Playback.Domain;
 using Playback.Domain.Models;
 using Playback.Application.Activity;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
+using Playback.Infrastructure.Terms;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // The Week 3 first hour in local MongoDB (playback_e2e): Seed imports the exact transcript text once and keeps

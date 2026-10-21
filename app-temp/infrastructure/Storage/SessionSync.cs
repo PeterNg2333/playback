@@ -8,7 +8,7 @@ using MongoDB.Driver;
 using MongoDB.Bson;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 // The page's change feed for one session: a paged first read, then only the records that changed.
 // The change journal and reader cursors live in memory; an API restart makes readers start over.

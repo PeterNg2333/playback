@@ -1,6 +1,6 @@
 using NAudio.Wave;
-using Playback.Api;
-using Playback.Api.Audio.Vad;
+using Playback.Infrastructure;
+using Playback.Infrastructure.Audio.Vad;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;

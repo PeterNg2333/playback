@@ -1,9 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Playback.Api.Notes;
-using Playback.Api.Providers;
 using Playback.Application.Notes;
+using Playback.Infrastructure.Providers;
 
 // OpenRouter text models: the fixed endpoint and process key, each note task's schema and output cap, routing
 // that requires every parameter and skips 4-bit quantizations, usage kept on rejected replies, and errors that

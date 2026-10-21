@@ -1,4 +1,4 @@
-namespace Playback.Api;
+namespace Playback.Infrastructure;
 
 // Storage paths come from appsettings; process switches read the environment on each call.
 public static class PlaybackEnvironment

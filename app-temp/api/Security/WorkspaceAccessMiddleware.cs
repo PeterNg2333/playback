@@ -1,9 +1,9 @@
 using System.Security.Claims;
-using Playback.Api.Db;
 
 namespace Playback.Api.Security;
 
 using Playback.Application.Workspace;
+using Playback.Infrastructure.Storage;
 
 // Authorize the parent session before any endpoint reads notes, chats, sources or audio.
 // A missing and a foreign resource both return 404, including when the caller knows its ID.

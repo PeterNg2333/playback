@@ -1,9 +1,9 @@
 using System.Text.Json;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using Playback.Api.Db;
 using Playback.Domain;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Storage;
 
 // The legacy note patch against local MongoDB (playback_e2e): a synthetic session with a pre-tree and a placement-era
 // version (history and head) is patched once, a second run writes nothing, the patched version restores with its

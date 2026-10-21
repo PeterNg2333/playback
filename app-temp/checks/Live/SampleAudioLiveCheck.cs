@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Playback.Api.Db;
 
 // Paid, end to end: uploads the Week 3 sample as 40 chunks to a running test API (playback_e2e, background
 // notes and terms off), waits for real ASR, asks one cited question and writes notes.

@@ -1,13 +1,4 @@
-using Playback.Api;
-using Playback.Api.Activity;
-using Playback.Api.Audio;
-using Playback.Api.Audio.Asr;
-using Playback.Api.Audio.Recording;
-using Playback.Api.Db;
 using Playback.Api.Endpoints;
-using Playback.Api.Notes;
-using Playback.Api.Providers;
-using Playback.Api.Terms;
 using Playback.Api.Translation;
 using Playback.Api.Security;
 using Playback.Infrastructure;

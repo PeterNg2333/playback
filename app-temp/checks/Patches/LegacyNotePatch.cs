@@ -3,9 +3,11 @@ using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
-using Playback.Api;
+using Playback.Api.Sources;
 using Playback.Domain;
 using Playback.Domain.Models;
+using Playback.Infrastructure;
+using Playback.Infrastructure.Storage;
 
 // Data patch for notes saved before commit 8dd747f simplified the note model. The model now reads only
 // Sections → Blocks with each block's SourceIds, so two older shapes lost what they showed:
@@ -219,7 +221,7 @@ static class LegacyNotePatch
             .Project(new BsonDocument("_id", 1)).ToListAsync();
         var materials = await db.GetCollection<Material>("materials").Find(x => x.SessionId == sessionId).ToListAsync();
         return transcripts.Select(x => x["_id"].ToString()!).Concat(materials.Select(x => x.Id))
-            .Concat(Playback.Api.Sources.MaterialSources.Passages(materials).Select(x => x.Id)).ToHashSet(StringComparer.Ordinal);
+            .Concat(MaterialSources.Passages(materials).Select(x => x.Id)).ToHashSet(StringComparer.Ordinal);
     }
 
     // Local MongoDB only, and only the two databases the app uses.
@@ -228,7 +230,7 @@ static class LegacyNotePatch
         var uri = PlaybackEnvironment.MongoUri;
         if (!uri.StartsWith("mongodb://127.0.0.1:") && !uri.StartsWith("mongodb://localhost:")) throw new InvalidOperationException("The note patch runs on localhost MongoDB only");
         if (PlaybackEnvironment.Database is not ("playback_prototype" or "playback_e2e")) throw new InvalidOperationException("Unknown database " + PlaybackEnvironment.Database);
-        Playback.Infrastructure.Storage.DocumentMappings.Register();
+        DocumentMappings.Register();
         var settings = MongoClientSettings.FromConnectionString(uri);
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(3);
         var db = new MongoClient(settings).GetDatabase(PlaybackEnvironment.Database);

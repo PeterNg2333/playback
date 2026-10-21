@@ -1,8 +1,8 @@
 using Playback.Application.Notes;
-using Playback.Api.Db;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Notes;
+namespace Playback.Infrastructure.Notes;
 
 // The note ports over PlaybackStore. No note rules here.
 public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INoteEvidence, INoteSettings

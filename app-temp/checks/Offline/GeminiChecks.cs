@@ -5,9 +5,8 @@ using Google.GenAI;
 using Google.GenAI.Types;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using Playback.Api.Notes;
-using Playback.Api.Providers;
 using Playback.Application.Notes;
+using Playback.Infrastructure.Providers;
 
 // Gemini: the real SDK request keeps its token cap and section schema, a truncated reply is rejected with
 // its usage kept, grounded search keeps only safe web sources, and every task keeps its cost limit.

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.AI;
 using System.Runtime.CompilerServices;
 
-namespace Playback.Api.Providers;
+namespace Playback.Infrastructure.Providers;
 
 // Check provider completion before an agent response can become a saved note or answer.
 public sealed class OutputGuardChatClient(IChatClient inner, Action<string>? onUsage = null) : DelegatingChatClient(inner)

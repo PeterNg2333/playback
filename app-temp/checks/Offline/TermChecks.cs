@@ -1,6 +1,6 @@
-using Playback.Api.Terms;
 using Playback.Domain.Assistance;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Terms;
 
 // Key terms: which candidates the sources yield, which Jev rankings get highlighted, how a saved
 // explanation is identified, and that the ranking cache saves paid calls.

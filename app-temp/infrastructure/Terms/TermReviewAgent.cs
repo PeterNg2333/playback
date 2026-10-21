@@ -1,12 +1,13 @@
 using System.Collections.Concurrent;
-using Playback.Api.Db;
-using Playback.Api.Providers;
 using Playback.Application.Activity;
 using Playback.Application.Terms;
 using Playback.Domain.Assistance;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Activity;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Terms;
+namespace Playback.Infrastructure.Terms;
 
 public sealed class TermReviewAgent : BackgroundService, IAsyncDisposable
 {
@@ -28,7 +29,7 @@ public sealed class TermReviewAgent : BackgroundService, IAsyncDisposable
         this.jev = jev;
         this.gemini = gemini;
         this.logger = logger;
-        this.workflow = workflow ?? new(store, jev, gemini, new Playback.Infrastructure.Activity.WorkLog<TermReviewAgent>(logger), activity);
+        this.workflow = workflow ?? new(store, jev, gemini, new WorkLog<TermReviewAgent>(logger), activity);
     }
 
     public static List<TermCandidate> Pending(SessionView session, int limit) => TermReview.Pending(session, limit);

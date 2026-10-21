@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using Playback.Api.Audio.Asr.Providers;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Audio.Asr.Providers;
 
 static class OpenRouterAsrFallbackChecks
 {

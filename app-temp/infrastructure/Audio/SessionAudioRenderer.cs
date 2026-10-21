@@ -1,9 +1,9 @@
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
-using Playback.Api.Db;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Audio;
+namespace Playback.Infrastructure.Audio;
 
 public sealed class SessionAudioRenderer(PlaybackStore store) : IAudioRenderer
 {

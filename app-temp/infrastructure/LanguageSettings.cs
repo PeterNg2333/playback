@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace Playback.Api;
+namespace Playback.Infrastructure;
 
 public static class LanguageSettings
 {

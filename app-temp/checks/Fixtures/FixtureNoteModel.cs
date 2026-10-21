@@ -1,11 +1,10 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using Playback.Api.Db;
-using Playback.Api.Notes;
-using Playback.Api.Providers;
 using Playback.Application.Activity;
 using Playback.Application.Notes;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
 
 // A note model that answers each three-speed task from its input, so note checks can follow every source without a provider:
 // a jot or segment block per transcript line (citing it), one outline topic per segment title, and a polish that keeps the

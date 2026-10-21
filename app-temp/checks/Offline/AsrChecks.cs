@@ -3,10 +3,10 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using NAudio.Wave;
-using Playback.Api.Audio.Asr;
-using Playback.Api.Audio.Asr.Providers;
 using Playback.Application.Recording;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Audio.Asr;
+using Playback.Infrastructure.Audio.Asr.Providers;
 
 // ASR: which provider is chosen, what each adapter sends and reads back (over in-memory HTTP), how
 // captured audio is prepared, which chunks are never uploaded, and which text needs review.

@@ -1,13 +1,12 @@
-using Playback.Api.Audio.Recording;
-using Playback.Api.Providers;
-using Playback.Api.Notes;
-using Playback.Api.Terms;
-using Playback.Api.Db;
-using Playback.Api.Activity;
 using Playback.Application.Workspace;
 using Playback.Application.Ask;
 using Playback.Application.Notes;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Activity;
+using Playback.Infrastructure.Audio.Recording;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Storage;
+using Playback.Infrastructure.Terms;
 namespace Playback.Infrastructure.Workspace;
 public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr, AiFlow flow) : IRuntimeProjections
 {

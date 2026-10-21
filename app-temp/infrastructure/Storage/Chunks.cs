@@ -7,7 +7,7 @@ using Microsoft.Extensions.Primitives;
 using MongoDB.Bson.Serialization.Attributes;
 using Playback.Domain.Models;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 public partial class PlaybackStore
 {

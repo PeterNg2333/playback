@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Playback.Api.Providers;
+namespace Playback.Infrastructure.Providers;
 
 public interface IJevTransport
 {

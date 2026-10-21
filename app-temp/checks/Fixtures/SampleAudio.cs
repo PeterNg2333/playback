@@ -1,5 +1,5 @@
 using NAudio.Wave;
-using Playback.Api.Audio;
+using Playback.Infrastructure.Audio;
 
 // The Week 3 sample audio (first 20 minutes, M4A) decoded into 16 kHz mono WAV chunks: forty of 30 seconds by default.
 // Decoding uses Windows Media Foundation, so it runs on Windows only.

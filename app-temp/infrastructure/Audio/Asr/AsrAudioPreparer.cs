@@ -1,7 +1,7 @@
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Infrastructure.Audio.Asr;
 
 public static class AsrAudioPreparer
 {

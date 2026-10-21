@@ -1,11 +1,10 @@
 using System.Text.RegularExpressions;
 using NAudio.Wave;
-using Playback.Api.Audio;
-using Playback.Api.Audio.Vad;
-using Playback.Api.Notes;
 using Playback.Application.Ask;
 using Playback.Application.Notes;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Audio;
+using Playback.Infrastructure.Audio.Vad;
 
 // Checks against the repository's Week 3 sample (app-temp/data/test-audio/sampleAudio). Read-only: nothing
 // is saved or uploaded. Decoding the M4A needs Windows; the transcript lookup does not.

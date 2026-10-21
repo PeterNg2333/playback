@@ -1,6 +1,6 @@
 using NAudio.Wave;
 
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Infrastructure.Audio.Asr;
 
 public static class AudioSilence
 {

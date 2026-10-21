@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using MongoDB.Driver;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 public partial class PlaybackStore
 {

@@ -1,4 +1,3 @@
-using Playback.Api.Providers;
 using Playback.Application.Terms;
 namespace Playback.Api.Endpoints;
 

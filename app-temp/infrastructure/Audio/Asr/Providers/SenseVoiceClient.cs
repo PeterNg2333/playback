@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Playback.Api.Providers;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Providers;
 
-namespace Playback.Api.Audio.Asr.Providers;
+namespace Playback.Infrastructure.Audio.Asr.Providers;
 
 public sealed partial class SenseVoiceClient : IAsrAdapter, IDisposable
 {

@@ -1,10 +1,10 @@
 using System.Net;
 using System.Text;
-using Playback.Api.Providers;
 using Playback.Application.Activity;
 using Playback.Application.Ask;
 using Playback.Domain.Evidence;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Providers;
 
 static class ConceptGraphChecks
 {

@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
+using Playback.Infrastructure.Storage;
 
 // The legacy note patch on stored BSON (no database): a placement-era version gets its anchor sources as block sources,
 // a pre-tree version gets one block per topic, a second run changes nothing, and the patched pre-tree version restores.
@@ -7,7 +8,7 @@ static class LegacyNotePatchChecks
 {
     public static async Task Run()
     {
-        Playback.Infrastructure.Storage.DocumentMappings.Register();
+        DocumentMappings.Register();
         const string id = "legacy";
         var allowed = new HashSet<string> { "t1", "t2", "t3" };
         var preTree = PreTree(id, "note_pretree", ["t1", "t2", "t3"]);

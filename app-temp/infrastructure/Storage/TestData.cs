@@ -1,7 +1,7 @@
 using MongoDB.Driver;
 using Playback.Domain.Models;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 // Synthetic data the testing endpoints may add or remove; only E2E sessions and groups qualify.
 

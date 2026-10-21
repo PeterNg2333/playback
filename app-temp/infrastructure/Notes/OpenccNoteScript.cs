@@ -2,7 +2,7 @@ using System.Reflection;
 using OpenccNetLib;
 using Playback.Application.Notes;
 
-namespace Playback.Api.Notes;
+namespace Playback.Infrastructure.Notes;
 
 // Simplified text that slips into Traditional notes becomes Traditional (Hong Kong) with OpenCC's phrase-aware s2hk
 // conversion, in two passes over the text as the model wrote it.

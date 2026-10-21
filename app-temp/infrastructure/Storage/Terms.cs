@@ -1,13 +1,13 @@
-using Playback.Api.Terms;
-using Playback.Api.Providers;
 using Playback.Domain;
 using Playback.Domain.Assistance;
 using Playback.Domain.Models;
+using Playback.Infrastructure.Providers;
+using Playback.Infrastructure.Terms;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace Playback.Api.Db;
+namespace Playback.Infrastructure.Storage;
 
 public partial class PlaybackStore
 {

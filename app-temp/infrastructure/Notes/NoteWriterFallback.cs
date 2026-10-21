@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Playback.Application.Notes;
-using Playback.Api.Providers;
+using Playback.Infrastructure.Providers;
 
-namespace Playback.Api.Notes;
+namespace Playback.Infrastructure.Notes;
 
 // The OpenRouter note writer with model fallback, retries and a Gemini fallback (decided 2026-10-19: option 2, and
 // 2026-10-20: Qwen, then GLM, then Gemini). A transient failure (OpenRouterTextModel.IsTransient: timeout or stall,

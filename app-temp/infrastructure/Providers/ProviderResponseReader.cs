@@ -1,4 +1,4 @@
-namespace Playback.Api.Providers;
+namespace Playback.Infrastructure.Providers;
 
 internal static class ProviderResponseReader
 {

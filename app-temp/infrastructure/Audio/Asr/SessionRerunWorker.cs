@@ -1,10 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
-using Playback.Api.Db;
-using Playback.Api.Notes;
 using Playback.Application.Activity;
 using Playback.Application.Recording;
+using Playback.Infrastructure.Storage;
 
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Infrastructure.Audio.Asr;
 
 // Runs user-requested session reruns. Jobs and windows are persisted, so a restart resumes at the next pending window.
 public sealed class SessionRerunWorker(SessionRerun rerun, AsrQueue queue, ILogger<SessionRerunWorker> logger) : BackgroundService

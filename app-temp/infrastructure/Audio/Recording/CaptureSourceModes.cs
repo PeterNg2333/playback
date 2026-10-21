@@ -1,4 +1,4 @@
-namespace Playback.Api.Audio.Recording;
+namespace Playback.Infrastructure.Audio.Recording;
 
 public static class CaptureSourceModes
 {
