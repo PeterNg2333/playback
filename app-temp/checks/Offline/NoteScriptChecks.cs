@@ -4,7 +4,7 @@ using Playback.Api.Notes;
 // characters that also exist in Traditional (示范, 根据, 背后), while correct Hong Kong writing stays as it is.
 // The examples are real model output from the Week 3 runs (app-temp/data/validation/runs/2026-10-18-*, first 20
 // minutes of the lecture), each with its run folder, plus a few written here to pin a rule; every run sentence was
-// checked by the evaluation in docs/phases/p4-results.zh-HK.md, which found no change to correct Traditional text.
+// checked by the evaluation in docs/history/phases/p4-results.zh-HK.md, which found no change to correct Traditional text.
 static class NoteScriptChecks
 {
     // Simplified in, Hong Kong Traditional out.

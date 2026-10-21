@@ -108,4 +108,4 @@ public interface IAsrClient
 
 這個 endpoint 是同步 whole-file inference，不是 streaming contract；live feeling 來自短 chunk pipeline，而不是假設 provider 支援 WebSocket。
 
-打開 [index.html](./index.html) 可直接用 `file://` 查看 request anatomy；頁面不載入任何外部 CSS、font 或 JavaScript。
+打開 [index.html](index.html) 可直接用 `file://` 查看 request anatomy；頁面不載入任何外部 CSS、font 或 JavaScript。

@@ -18,7 +18,7 @@ namespace Playback.Api.Notes;
 // writes only in the Traditional form (PhraseCharacters), so Hong Kong usage such as 了解, 公布, 台下, 上周 or 加注 stays;
 // no other entry starts inside it and runs past its end, which would mean the segmentation is in doubt; and s2hk keeps
 // its length. A Traditional word OpenCC does not list (說明 in 說明了, 如何 in 演示了如何) cannot protect a neighbour this
-// way, which is why the character list is short: see docs/phases/p4-results.zh-HK.md for the Week 3 evidence.
+// way, which is why the character list is short: see docs/history/phases/p4-results.zh-HK.md for the Week 3 evidence.
 public sealed class OpenccNoteScript : INoteScript
 {
     // OpenCC lists these as rare Traditional characters too, but modern Traditional writing uses them only as

@@ -28,7 +28,7 @@ public static class NoteWriters
     // provider (Alibaba, whose shared pool returned 429 limit_burst_rate on 2026-10-19). GLM-5.3-Flash follows: it wrote
     // accurate notes in the 2026-10-18 comparison, has many providers, and needs reasoning (it refuses "none"; "low" is
     // what the comparison ran). DeepSeek V4.1 Flash is left out: its providers returned corrupted operations under the
-    // edit contract, an unreadable reply is not retried, and Gemini is the better last layer (docs/phases/p4-results.zh-HK.md).
+    // edit contract, an unreadable reply is not retried, and Gemini is the better last layer (docs/history/phases/p4-results.zh-HK.md).
     public static readonly Dictionary<string, (string Model, string Reasoning)[]> ModelFallbacks = new()
     {
         ["qwen/qwen3.8-flash"] = [("z-ai/glm-5.3-flash", "low")]

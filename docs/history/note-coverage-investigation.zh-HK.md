@@ -12,7 +12,7 @@
 - v141–v145 仍走舊全篇筆記模式，登記來源達 1,103–1,156 段，正文卻只有 31–46 段引用。較早主題的缺失已存在於舊版本；來源 metadata 及 completed 不能證明正文保留了它們。
 - 原先 Pending 路徑排除 completed；普通 Revise 沒有 pending 時只重整現有 section，因此不會自然重建已丟掉的早段。
 
-只讀快照及逐版統計：[本輪資料](../app-temp/data/validation/runs/2026-09-29-note-coverage/)，包括 `session-before.json`、`history-before.json` 和 `post-guard/offline-results.json`。
+只讀快照及逐版統計：[本輪資料](../../app-temp/data/validation/runs/2026-09-29-note-coverage)，包括 `session-before.json`、`history-before.json` 和 `post-guard/offline-results.json`。
 
 ## 本輪修正
 
@@ -41,7 +41,7 @@ Prompt 更新為 `section-notes-v7`／`section-organize-v7`。仍使用原本 se
 
 新 API build `2ec1c818-ad3f-4ab4-965a-530435f7941a`。Review 網頁 [5177](http://127.0.0.1:5177) 使用 5081／`playback_e2e`；自動 notes／terms／ASR 保持關閉。原 5078／`playback_prototype` 仍為 v6，未重啟；原 Week 3 並未套用 offline fixture 或歷史 restore。日常服務須先停止錄音並重啟 backend，才會提供新 coverage API；新版 UI 對此明示。
 
-測試與畫面：[`store-results.json`](../app-temp/data/validation/runs/2026-09-29-note-coverage/store-results.json)、[`review-health.json`](../app-temp/data/validation/runs/2026-09-29-note-coverage/review-health.json)、[`review-coverage.json`](../app-temp/data/validation/runs/2026-09-29-note-coverage/review-coverage.json)、[browser results](../app-temp/web/output/playwright/note-coverage/results.json)、[桌面](../app-temp/web/output/playwright/note-coverage/coverage-gap-revealed.png)、[窄屏 Notes](../app-temp/web/output/playwright/note-coverage/coverage-narrow.png)。
+測試與畫面：[`store-results.json`](../../app-temp/data/validation/runs/2026-09-29-note-coverage/store-results.json)、[`review-health.json`](../../app-temp/data/validation/runs/2026-09-29-note-coverage/review-health.json)、[`review-coverage.json`](../../app-temp/data/validation/runs/2026-09-29-note-coverage/review-coverage.json)、[browser results](../../app-temp/web/output/playwright/note-coverage/results.json)、[桌面](../../app-temp/web/output/playwright/note-coverage/coverage-gap-revealed.png)、[窄屏 Notes](../../app-temp/web/output/playwright/note-coverage/coverage-narrow.png)。
 
 重現指令（預設離線；已保存結果會重用）：
 

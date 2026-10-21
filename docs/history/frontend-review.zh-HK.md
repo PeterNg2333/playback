@@ -4,7 +4,7 @@
 
 ## 心智地圖
 
-產品概念（依 [business requirements](../../docs/business-requirements.md)）與現時的家：
+產品概念（依 [business requirements](../business-requirements.md)）與現時的家：
 
 | 概念 | 現時的家 | 狀態 |
 |---|---|---|

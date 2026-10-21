@@ -1,6 +1,6 @@
 # 下一個 session：AI 筆記工作清單（2026-10-18）
 
-目前 checkout：`main`，以 `9b92be0` 為本輪基底（原 local commits 保存在 backup branch）。2026-10-20 Wave 1 工作依使用者要求一併提交至本機 main；先看 [收尾與未達標項目](phases/wave1-closeout.zh-HK.md)。下一個 session 優先討論 cloud deployment／account issue，不自動開始 meeting profiles／FAQ。新增 paid tests 暫停，勿提高預算。
+目前 checkout：`main`，以 `9b92be0` 為本輪基底（原 local commits 保存在 backup branch）。2026-10-20 Wave 1 工作依使用者要求一併提交至本機 main；先看 [收尾與未達標項目](history/phases/wave1-closeout.zh-HK.md)。下一個 session 優先討論 cloud deployment／account issue，不自動開始 meeting profiles／FAQ。新增 paid tests 暫停，勿提高預算。
 
 常用指令：
 - Offline 檢查（唔上網）：`dotnet run --project app-temp/checks`；只跑筆記：加 `-- --notes`
@@ -20,8 +20,8 @@
 ## 待做
 
 ### A. 實測
-- [ ] 實機三分鐘已做，Activity 顯示真實 Qwen／Alibaba；首 note 132 秒，未達約 40 秒。[P1 結果](phases/p1-results.zh-HK.md)
-- [ ] 長測已取得部分證據；Gemini 109 分鐘停止，完整雙模型未完成。Week 3 只有 110,763 chars，未超過 200k，不能聲稱驗過滑動 window。[P2 結果](phases/p2-results.zh-HK.md)
+- [ ] 實機三分鐘已做，Activity 顯示真實 Qwen／Alibaba；首 note 132 秒，未達約 40 秒。[P1 結果](history/phases/p1-results.zh-HK.md)
+- [ ] 長測已取得部分證據；Gemini 109 分鐘停止，完整雙模型未完成。Week 3 只有 110,763 chars，未超過 200k，不能聲稱驗過滑動 window。[P2 結果](history/phases/p2-results.zh-HK.md)
 - [x] 合成廣東話文字：兩模型八分鐘，8/8 引用；語義擴寫問題另列，唔係廣東話 ASR 驗收。
 - [x] Web build、全部指定 offline browser checks，同實際 saved API desktop／mobile／引用跳轉通過。
 

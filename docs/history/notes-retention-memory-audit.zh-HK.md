@@ -26,7 +26,7 @@ Session `caf38f3f6ace470fa1f6b7dde15f46ed`（Week 3）在 v112 → v113 發生�
 
 ### 為何一般更新不會自然補回
 
-- [NoteAgent.cs](../app-temp/api/Services/Ai/Agents/NoteAgent.cs) 將既有整份 note 放進 BASE VERSION，再要求模型回傳「complete revised note」。舊 note 確實有送入現行程式的 input；目前没有保存每次完整 provider request，不能逆向證明當次供應商實際讀取了甚麼。
+- [NoteAgent.cs](../../app-temp/api/Services/Ai/Agents/NoteAgent.cs) 將既有整份 note 放進 BASE VERSION，再要求模型回傳「complete revised note」。舊 note 確實有送入現行程式的 input；目前没有保存每次完整 provider request，不能逆向證明當次供應商實際讀取了甚麼。
 - 模型結果整份交給 `SaveGeneratedNote` 保存。現有 validation 檢查引用、語言及 note base version，沒有檢查舊主題／推導／例子是否消失。v113 雖刪掉內容仍通過「Validated and saved」流程。
 - `TranscriptIds` 會和 previous 全部來源取 union，舊 transcripts 的 `noteStatus` 亦維持 completed；正文缺失並不會將它們重新排入 pending。
 - manual revision 在沒有 pending 時只重送最後 40 段，不能完整重建早段。現有「每題 2–4 bullets／約 30 words」與全篇 4096-token 限制可能增加過度壓縮的壓力；這是 code-supported 的風險，**並非已證實的模型內部原因**。
@@ -34,7 +34,7 @@ Session `caf38f3f6ace470fa1f6b7dde15f46ed`（Week 3）在 v112 → v113 發生�
 
 ### 已保留的查核及恢復素材
 
-完整 API history／session／Activity 快照在本機 ignored [資料目錄](../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/notes.json)。另有原始來源標記完整保留的 [v112](../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/v112-original.md)、[v113](../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/v113-original.md)、[v118](../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/v118-original.md) 和 [版本 inventory](../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/inventory.json)。`*-readable.md` 只供排除已知引用後比較正文，恢復以 original／JSON 為準。
+完整 API history／session／Activity 快照在本機 ignored [資料目錄](../../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/notes.json)。另有原始來源標記完整保留的 [v112](../../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/v112-original.md)、[v113](../../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/v113-original.md)、[v118](../../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/v118-original.md) 和 [版本 inventory](../../app-temp/data/validation/runs/2026-09-28-notes-retention-125936/inventory.json)。`*-readable.md` 只供排除已知引用後比較正文，恢復以 original／JSON 為準。
 
 本輪未直接 restore 舊版：單獨 restore v112 會把後段新內容換掉，而且下一次全篇 revision 仍可能再刪早段。交接要求先修內容保留，再以可審閱 preview 合併新舊內容成新版本。
 
@@ -50,9 +50,9 @@ Session `caf38f3f6ace470fa1f6b7dde15f46ed`（Week 3）在 v112 → v113 發生�
 
 靜態路徑已確認：
 
-- [TranscriptContent.tsx](../app-temp/web/src/pages/TranscriptContent.tsx:205) 每次重新建立全堂 timeline，逐日／小時 `entries.map(renderEntry)`；即使 details 收起，其 child DOM 仍存在。沒有 list virtualization。
-- [handlers.ts](../app-temp/web/src/pages/handlers.ts:119) 每 4 秒取完整 session，finalized audio 亦會重取；每次解析新物件後 `setSession`。本快照的 session JSON 約 1,738,393 bytes，含 737 transcripts／745 chunks。session snapshot 的輪詢沒有共享 in-flight 保護，慢回應可與其他刷新重疊。
-- capture 每 250 ms 查狀態；[useActivity.ts](../app-temp/web/src/pages/useActivity.ts:21) 每 700 ms 更新 NotesPanel。整個 PlaybackController 的狀態與 model props 使 capture／session／editor 的變化重跑 transcript 路徑；NotesPanel 的 Activity 更新亦重新執行 Markdown renderer。
+- [TranscriptContent.tsx](../../app-temp/web/src/pages/TranscriptContent.tsx:205) 每次重新建立全堂 timeline，逐日／小時 `entries.map(renderEntry)`；即使 details 收起，其 child DOM 仍存在。沒有 list virtualization。
+- [handlers.ts](../../app-temp/web/src/pages/handlers.ts:119) 每 4 秒取完整 session，finalized audio 亦會重取；每次解析新物件後 `setSession`。本快照的 session JSON 約 1,738,393 bytes，含 737 transcripts／745 chunks。session snapshot 的輪詢沒有共享 in-flight 保護，慢回應可與其他刷新重疊。
+- capture 每 250 ms 查狀態；[useActivity.ts](../../app-temp/web/src/pages/useActivity.ts:21) 每 700 ms 更新 NotesPanel。整個 PlaybackController 的狀態與 model props 使 capture／session／editor 的變化重跑 transcript 路徑；NotesPanel 的 Activity 更新亦重新執行 Markdown renderer。
 - 每列 `TranscriptRow` 重新 filter termInsights，Markdown 每次新建 source Map、plugin options 及 references context。這些是重算／配置路徑，不代表每個 Map 或 listener 都是 leak。
 
 本輪使用已安裝 `playwright-core`，另開 headless Edge、Vite dev build、攔截全部 API 以保存資料回應，封鎖外部網站及所有非 GET。沒有操作使用者 Chrome、錄音或 live note；這個結果不能代替使用者原有 Chrome tab 的 retained-object 分析。
@@ -67,8 +67,8 @@ Session `caf38f3f6ace470fa1f6b7dde15f46ed`（Week 3）在 v112 → v113 發生�
 
 Artifacts：
 
-- [持續更新與長列表的實際 checkpoints](../output/playwright/notes-memory-2026-09-28T13-03-04-813Z/observed-checkpoints.json)，由工具 console 原始輸出整理，明示中止及未完成階段。
-- [穩定 idle／編輯測試完整結果](../output/playwright/notes-memory-2026-09-28T13-11-54-826Z/results.json) 及已目視的 [截圖](../output/playwright/notes-memory-2026-09-28T13-11-54-826Z/stable-idle.png)。
-- [本地測量程式](../output/playwright/notes-memory-audit.mjs)；可用 `node output/playwright/notes-memory-audit.mjs --idle-only` 重播保存的資料。完整 scale 模式沒有資源限制，後續使用前應加測試時間／資源上限，避免再次飽和。
+- [持續更新與長列表的實際 checkpoints](../../output/playwright/notes-memory-2026-09-28T13-03-04-813Z/observed-checkpoints.json)，由工具 console 原始輸出整理，明示中止及未完成階段。
+- [穩定 idle／編輯測試完整結果](../../output/playwright/notes-memory-2026-09-28T13-11-54-826Z/results.json) 及已目視的 [截圖](../../output/playwright/notes-memory-2026-09-28T13-11-54-826Z/stable-idle.png)。
+- [本地測量程式](../../output/playwright/notes-memory-audit.mjs)；可用 `node output/playwright/notes-memory-audit.mjs --idle-only` 重播保存的資料。完整 scale 模式沒有資源限制，後續使用前應加測試時間／資源上限，避免再次飽和。
 
 下一個 session 的修復及驗收，包括真正虛擬化、正確引用跳轉、增量資料／單一 in-flight、穩定物件及索引、避免無關狀態更新重算全堂、定期合併但保留原始 ASR，以及 GC 前後／DOM／CPU 比較，已列入 [implementation prompt](notes-redesign-handoff.zh-HK.md)。本輪沒有修改應用程式或聲稱記憶體問題已修好。

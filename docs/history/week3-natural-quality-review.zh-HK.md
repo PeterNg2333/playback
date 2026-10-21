@@ -4,7 +4,7 @@
 
 **整體未通過。** 傳輸、引用身份、版本保存及舊 point 保留可驗證，不能證明每項概念、數值、命令和推導都正確。原九次筆記生成已用完；六次被 contract／coverage guard 拒絕，三版保存成功。Mongo v3 有5個 sections、13個 points、3,845字元正文，沒有 table／Mermaid。137個文本 imports 中42個 completed、65個 deferred、30個 pending。Deferred 是未完成來源，不應和 completed 相加作「全堂覆蓋」。
 
-原始 [v1](../app-temp/data/validation/runs/2026-09-29-week3/db-note-v1.json)、[v2](../app-temp/data/validation/runs/2026-09-29-week3/db-note-v2.json)、[v3](../app-temp/data/validation/runs/2026-09-29-week3/db-note-v3.json)、[全文及 execution snapshot](../app-temp/data/validation/runs/2026-09-29-week3/application-results.json)、[逐段原文與 import 身份](../app-temp/data/validation/runs/2026-09-29-week3/db-input-provenance.json) 保留。以下 `_text_N` 皆指 session `7c70eb07fb1348e38dbbd5da0c5b22f7` 的實際 source，point／section 身份在 v3 可直讀。
+原始 [v1](../../app-temp/data/validation/runs/2026-09-29-week3/db-note-v1.json)、[v2](../../app-temp/data/validation/runs/2026-09-29-week3/db-note-v2.json)、[v3](../../app-temp/data/validation/runs/2026-09-29-week3/db-note-v3.json)、[全文及 execution snapshot](../../app-temp/data/validation/runs/2026-09-29-week3/application-results.json)、[逐段原文與 import 身份](../../app-temp/data/validation/runs/2026-09-29-week3/db-input-provenance.json) 保留。以下 `_text_N` 皆指 session `7c70eb07fb1348e38dbbd5da0c5b22f7` 的實際 source，point／section 身份在 v3 可直讀。
 
 | 主題／要求 | 對照來源與結果 | 判斷 |
 |---|---|---|
@@ -18,7 +18,7 @@
 | 內容保留 | v1、v2 所有已寫 point 的原文在後版仍可找到；兩個 section 出現 Earlier source-backed points，帶來重複文字 | 原文保留通過；重複／壓縮品質仍待自然 organizer |
 | 私人 Ask Playback | 真實 streaming、citation validation、conversation 保存及 zero-call reload 通過；答案把破碎 `n k l n...` 解釋為「anti OS kernel」 | API/UI 行為通過；自然技術名稱解釋未通過 |
 
-Public-web 問答取得7個來源，將 lecture insufficient 與 web answer 分開。來源按鈕、保存／重讀及375px畫面已用原回應驗證，沒有重付費。答案的 `.reload` lazy loading、`/f` 和 symbol path/cache 主要敘述，已對照 [Microsoft .reload 文件](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-reload--reload-module-) 及 [public symbol server 文件](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/microsoft-public-symbols)。這是公開文件補充，不能回填成講師說過的內容；沒有逐一評分所有返回來源或 authentication 的細節。[原 browser run](../app-temp/data/validation/runs/2026-09-29-week3/browser-web.json) 保存了測試 injection 在 sandbox iframe 報錯的失敗；修正只在 top frame 初始化後，[保存回應重播](../app-temp/data/validation/runs/2026-09-29-week3/browser-web-read.json) 通過。
+Public-web 問答取得7個來源，將 lecture insufficient 與 web answer 分開。來源按鈕、保存／重讀及375px畫面已用原回應驗證，沒有重付費。答案的 `.reload` lazy loading、`/f` 和 symbol path/cache 主要敘述，已對照 [Microsoft .reload 文件](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-reload--reload-module-) 及 [public symbol server 文件](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/microsoft-public-symbols)。這是公開文件補充，不能回填成講師說過的內容；沒有逐一評分所有返回來源或 authentication 的細節。[原 browser run](../../app-temp/data/validation/runs/2026-09-29-week3/browser-web.json) 保存了測試 injection 在 sandbox iframe 報錯的失敗；修正只在 top frame 初始化後，[保存回應重播](../../app-temp/data/validation/runs/2026-09-29-week3/browser-web-read.json) 通過。
 
 CPU 的 Jev explanation probability 為0.64，Microsoft Symbol Server 為0.37，均低於0.75門檻，所以沒有強行高亮或呼叫詳解。這驗證真實不選擇路徑，沒有驗證新的自然長詳解品質。初次 AI term 的直接 detail probe 有付費 usage，但因搜尋沒有可驗證來源而未保存成功。
 

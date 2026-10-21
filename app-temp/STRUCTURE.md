@@ -117,7 +117,7 @@ Processing workers are hosted services. Their constructors do not launch scans. 
 
 Language/style checks use a current policy snapshot plus the existing per-process coordination. Atomic note CAS protects competing note writers; cross-collection settings changes under multiple API hosts still need real acceptance before a horizontal-scaling claim. Windows capture and native Cantonese conversion remain Windows capabilities; a Linux build does not establish their runtime support.
 
-See the [phase plan](../docs/ddd-notes-audio-refactor-plan.md), [Phase 6 results](../docs/ddd-notes-audio-phase06-results.md) and [acceptance evidence](../docs/ddd-notes-audio-phase07-results.md).
+See the [phase plan](../docs/history/ddd-notes-audio-refactor-plan.md), [Phase 6 results](../docs/history/ddd-notes-audio-phase06-results.md) and [acceptance evidence](../docs/history/ddd-notes-audio-phase07-results.md).
 
 ## Checks
 

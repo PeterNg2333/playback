@@ -1,10 +1,10 @@
 # 後端與檢查可讀性與結構 review（2026-10-03）
 
-範圍：`app-temp/api`、`app-temp/checks`，以及原本放在 `api/` 的 `integration-check.mjs`。方法與 [前端 review](frontend-review.zh-HK.md) 相同：`/human-review`——先畫心智地圖，再逐檔檢查 file purpose 與 slop，最後按搬移清單重構。本文件同時是報告與結果：每項 finding 和搬移都標了「狀態」。文中的舊路徑以 commit `f1df1ac` 為準，對照時用 `git show f1df1ac:app-temp/api/<檔案>`。新結構的地圖見 [STRUCTURE.md](../STRUCTURE.md)。
+範圍：`app-temp/api`、`app-temp/checks`，以及原本放在 `api/` 的 `integration-check.mjs`。方法與 [前端 review](frontend-review.zh-HK.md) 相同：`/human-review`——先畫心智地圖，再逐檔檢查 file purpose 與 slop，最後按搬移清單重構。本文件同時是報告與結果：每項 finding 和搬移都標了「狀態」。文中的舊路徑以 commit `f1df1ac` 為準，對照時用 `git show f1df1ac:app-temp/api/<檔案>`。新結構的地圖見 [STRUCTURE.md](../../app-temp/STRUCTURE.md)。
 
 ## 心智地圖
 
-產品概念（依 [business requirements](../../docs/business-requirements.md)）與它們的家：
+產品概念（依 [business requirements](../business-requirements.md)）與它們的家：
 
 | 概念 | 原本的家 | 現在的家 |
 |---|---|---|

@@ -98,4 +98,4 @@ UI 要清楚顯示錄音狀態。Audio、transcript 和 note 都可能含個人�
 - [MDN: Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
 - [MDN: Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
 
-打開 [index.html](./index.html) 可用視覺化方式溫習同一個資料流；它沒有外部資產，可直接用 `file://` 開啟。
+打開 [index.html](index.html) 可用視覺化方式溫習同一個資料流；它沒有外部資產，可直接用 `file://` 開啟。

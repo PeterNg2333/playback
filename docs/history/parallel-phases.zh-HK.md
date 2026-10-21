@@ -1,6 +1,6 @@
 # 平行工作 phase prompts（2026-10-19）
 
-來源：[下一個 session 清單](next-session-checklist.zh-HK.md)。每個 phase 一個 session、一個 git worktree、一條 branch，可以同時做。同一個 wave 入面嘅 phase 擁有唔重疊嘅檔案；下一個 wave 要等上一個 wave 合併入 `main` 先開始。
+來源：[下一個 session 清單](../next-session-checklist.zh-HK.md)。每個 phase 一個 session、一個 git worktree、一條 branch，可以同時做。同一個 wave 入面嘅 phase 擁有唔重疊嘅檔案；下一個 wave 要等上一個 wave 合併入 `main` 先開始。
 
 | Wave | Phase | 做咩 | 收費／上網 |
 | --- | --- | --- | --- |
@@ -26,7 +26,7 @@
 | P3 | 完成，已入 main；M status 修正待提交 | `d4c0804` | Storage／MemoryStore 已加入 source 時間投影，time-full status check 通過。六係 review 門檻，writer schema 同步容許相關內容留喺 full topic |
 | P4 | 完成，已入 main；有跟進 P4b | `f17f77e` | 已做：streaming、Qwen → GLM → Qwen → Gemini fallback（逐個 model 一個 request）、Activity 記錄實際 model／provider、「上周／周末」唔強制轉。剩低四個決定，見下面「P4b」 |
 | P4b | 決定落實，live 有限制 | 本輪提交 | [結果](phases/p4b-results.zh-HK.md)：US$0.07850672；手動 recovery 後 58/58，唔係連續完整 run；organizer 未證品質 |
-| P5 | 文件完成 | 本輪提交 | [分階段遷移計劃](storage-migration-plan.zh-HK.md)，冇改 DB／部署 |
+| P5 | 文件完成 | 本輪提交 | [分階段遷移計劃](../storage-migration-plan.zh-HK.md)，冇改 DB／部署 |
 | P6 | 研究完成 | 本輪提交 | [結果](phases/p6-results.zh-HK.md)：diarization／document extraction，冇安裝／整合 |
 
 已入 main 嘅行為：

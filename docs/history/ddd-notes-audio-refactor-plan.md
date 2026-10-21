@@ -2,7 +2,7 @@
 
 Date: 2026-10-07. Status updated 2026-10-08: Phases 0–5 implemented and committed; Phase 6 main migration committed as `4bfcf84` and verified from staged source, with the preserved translation edit awaiting commit approval. Phase 7 offline acceptance passed; database/browser/live acceptance tooling is prepared and execution remains pending opt-in. See [contracts and fixtures](ddd-notes-audio-contracts.md) and phase results: [0/1](ddd-notes-audio-phase01-results.md), [2](ddd-notes-audio-phase02-results.md), [3](ddd-notes-audio-phase03-results.md), [4](ddd-notes-audio-phase04-results.md), [5](ddd-notes-audio-phase05-results.md), [6](ddd-notes-audio-phase06-results.md), [7](ddd-notes-audio-phase07-results.md).
 
-This plan covers the .NET backend in `app-temp/`, its React settings and note/audio presentation, and the checks needed to migrate them in phases. The product requirements in [business-requirements.md](business-requirements.md) remain the acceptance baseline. Each phase should produce a working, reviewable vertical slice before the next begins.
+This plan covers the .NET backend in `app-temp/`, its React settings and note/audio presentation, and the checks needed to migrate them in phases. The product requirements in [business-requirements.md](../business-requirements.md) remain the acceptance baseline. Each phase should produce a working, reviewable vertical slice before the next begins.
 
 ## 1. Requested outcomes and current causes
 

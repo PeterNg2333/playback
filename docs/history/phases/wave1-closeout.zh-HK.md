@@ -8,7 +8,7 @@
 | P2 replay | 合成廣東話兩模型八分鐘已跑；Gemini 長測109分鐘後停；Qwen 約133分鐘取消，in-memory note 未保存，完整雙模型未完成。P2 最後可見約 US$2.60594，非帳單；全部 paid runs 已停止。[數據與語義抽查](p2-results.zh-HK.md) |
 | P3／M | time-full organization status projection 已補 source timing；review threshold 與 writer schema 已一致，有 regression checks |
 | P4／P4b | 保留 separate requests、default GLM policy、45 秒 silence；P4b unique cost US$0.07850672，手動 recovery 後58/58；未證明連續長跑／GLM organizer 品質。[結果](p4b-results.zh-HK.md) |
-| P5 | [PostgreSQL／R2／Cloud Run 分階段計劃](../storage-migration-plan.zh-HK.md)已寫；未執行遷移 |
+| P5 | [PostgreSQL／R2／Cloud Run 分階段計劃](../../storage-migration-plan.zh-HK.md)已寫；未執行遷移 |
 | P6 | [Diarization／文件抽取研究](p6-results.zh-HK.md)已寫；未安裝整合 |
 
 最後 backend build 0 warnings/errors，完整 offline suite 通過；Mongo note history／CAS／Stop checks 只針對獨立 `127.0.0.1:27019/playback_e2e`。原 development DB／使用者 sessions 未清除。所有 live raw evidence 保留在 ignored `app-temp/data/validation/runs/2026-10-20-wave1-*`，唔會提交音訊或 credentials。

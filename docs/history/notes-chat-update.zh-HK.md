@@ -1,6 +1,6 @@
 # 筆記、引用、流程及長列表的目前行為
 
-本文件描述 2026-09-29 程式。初版結果見 [筆記重構驗收](../../docs/notes-redesign-validation.zh-HK.md)，後續逐 record 同步、完成段落合併、loading、成本紀錄及一小時測試見 [Week 3 驗收](../../docs/week3-one-hour-validation.zh-HK.md)。較早的固定 90 秒、全篇 replacement 及 768-token 詞解釋描述已被取代。
+本文件描述 2026-09-29 程式。初版結果見 [筆記重構驗收](notes-redesign-validation.zh-HK.md)，後續逐 record 同步、完成段落合併、loading、成本紀錄及一小時測試見 [Week 3 驗收](week3-one-hour-validation.zh-HK.md)。較早的固定 90 秒、全篇 replacement 及 768-token 詞解釋描述已被取代。
 
 ## 內容與版本
 

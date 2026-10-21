@@ -25,7 +25,7 @@ namespace Playback.Api.Providers;
 //   finish and bill the whole reply.
 public sealed class OpenRouterTextModel : IDisposable
 {
-    // Models run through the 2026-10-18 note comparison (docs/note-model-comparison-2026-10-18.md); another model
+    // Models run through the 2026-10-18 note comparison (docs/history/note-model-comparison-2026-10-18.md); another model
     // needs its own comparison run first.
     public static readonly string[] Allowed = ["qwen/qwen3.8-flash", "deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash"];
     // Prompt caching only hits when calls reach the same provider, so a cached model is pinned to it

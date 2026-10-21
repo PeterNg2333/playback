@@ -1,6 +1,6 @@
 # P6：講者分離同文件抽取研究
 
-2026-10-20。交付：[diarization](../research/diarization.zh-HK.md)、[document extraction](../research/document-extraction.zh-HK.md)。
+2026-10-20。交付：[diarization](../../research/diarization.zh-HK.md)、[document extraction](../../research/document-extraction.zh-HK.md)。
 
 文件抽取建議 PdfPig 0.1.16 + Open XML SDK 3.5.1，另比較 Tika；分清 PDF page、PPTX slide 同 DOCX paragraph，列明 OCR／表格／公式限制、隔離同資源上限、P8 fixture/browser 驗收。
 

@@ -1,8 +1,8 @@
 # 2026-09-28：錄音到筆記及 Ask Playback 的實際流程
 
-以下是較早的3.5 live及2026-09-28流程記錄。2026-09-29新程式預設3.1 Flash-Lite、每10秒由Jev note gate決策、只更新選定sections、Reading／Sources／詳解／group flow及virtualized transcript；現行行為與未驗證項以 [逐項驗收](../../docs/notes-redesign-validation.zh-HK.md) 及 [notes-chat-update](notes-chat-update.zh-HK.md) 為準。Live runtime未更新，新prompt／gate自然內容沒有新增付費驗證。
+以下是較早的3.5 live及2026-09-28流程記錄。2026-09-29新程式預設3.1 Flash-Lite、每10秒由Jev note gate決策、只更新選定sections、Reading／Sources／詳解／group flow及virtualized transcript；現行行為與未驗證項以 [逐項驗收](notes-redesign-validation.zh-HK.md) 及 [notes-chat-update](notes-chat-update.zh-HK.md) 為準。Live runtime未更新，新prompt／gate自然內容沒有新增付費驗證。
 
-本版使用 .NET 10、Microsoft Agent Framework、Vertex Express `gemini-3.5-flash-lite`、TypeSafe Jev，以及 OpenRouter transcription REST。結果索引在本機 [`../data/validation/index.md`](../data/validation/index.md)。這個目錄被 Git ignore；報告、raw response、音訊和截圖不提交。
+本版使用 .NET 10、Microsoft Agent Framework、Vertex Express `gemini-3.5-flash-lite`、TypeSafe Jev，以及 OpenRouter transcription REST。結果索引在本機 [`../data/validation/index.md`](../../app-temp/data/validation/index.md)。這個目錄被 Git ignore；報告、raw response、音訊和截圖不提交。
 
 ## 例子：「我哋而家講 cache」
 
