@@ -84,6 +84,10 @@ try
         case ["--week3-term-live", var folder]:
             await Week3StoreRun.Term(folder);
             break;
+        // MongoDB playback_e2e; record, edit and rebuild are paid (PLAYBACK_THREE_SPEED_LIVE=yes). three-speed-live.mjs runs them.
+        case ["--three-speed-live", var folder, var phase]:
+            await ThreeSpeedLiveRun.Run(folder, phase);
+            break;
 
         default:
             Console.Error.WriteLine("Unknown check. Run without arguments for the offline checks; Program.cs lists the other groups.");

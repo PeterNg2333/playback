@@ -48,9 +48,10 @@
 - [ ] 人手聽 `app-temp/data/validation/runs/2026-10-21-poc/asr/w1.wav`–`w3.wav`（各 90 秒），確認 create file／query file 同術語計數。
 - [x] App：每分鐘 live jot，取代咗 30 秒 placement writer（`NoteWorkflow`，commit 2ccb53e）。
 - [x] App：每五分鐘 segment 寫 block、概念、辨識修正；Stop 後 outline＋每個大題 polish。沿用 NoteTree、citations、locked blocks、CAS 同 history。舊 placement／organizer、coverage、processing settings 已刪。
-- [ ] Outline 要強制分子題（Qwen3.8 出咗 12 個平排大題）；citation parser 識 `[T112-T115]` 範圍（已做，`NoteAliases`）。
+- [ ] Outline 要強制分子題（Qwen3.8 出咗 12 個平排大題；2026-10-22 live 驗收 9–10 個，仍然冇子題）；citation parser 識 `[T112-T115]` 範圍（已做，`NoteAliases`）。
 - [x] 逐字稿改動（Session rerun、第二遍 ASR）：窗口 hash 變咗先重寫嗰個 segment，只重新 polish 引用佢嘅 topic；Rebuild 只做明確嘅用戶動作。
-- [ ] Live 驗收：用 Week 3 喺真 API＋MongoDB＋Qwen3.8 跑一次三速筆記（取代已刪嘅 placement 年代 `week3-e2e`），記低費用、引用覆蓋同 Stop 後 outline。
+- [x] Live 驗收（2026-10-22）：Week 3 全堂經 `NoteWorkflow`＋`playback_e2e`＋真 writer，US$0.164（錄音＋Stop US$0.108、改一行 US$0.0015、Rebuild US$0.055），161／165 分鐘有引用，Stop → outline 52 秒、全部完成 187 秒；改一行只重寫一個窗口、其餘 8 個大題一字不改；Rebuild 保留鎖定 block；網頁 chip 正常。可重用 check：`pnpm.cmd test:three-speed-live`（預設 offline）。[結果](three-speed-notes-live-2026-10-22.zh-HK.md)
+- [ ] Live 驗收發現：Qwen3.8 有時段性 429（今次約三成 call 由 GLM 寫，GLM 筆記質素未評）；大題超過約 30 個 block 時 polish 會超過 100 秒，Gemini fallback 又過唔到 guard，嗰段冇潤飾（拆細 polish 或者 polish 用較長 deadline）；「(?)」239 個（POC 63），多數喺 Windbg 指令同數字；Rebuild 逐個窗口寫要 15 分鐘，可以並行。
 - [x] 舊筆記資料：data patch `--legacy-note-patch`（`app-temp/checks/Patches/`），`Anchors` → block `SourceIds`，pre-tree 主題 → 一個 block；history 同 `note_heads.Current` 都改，舊欄位保留。2026-10-22 已套用喺本機 `playback_prototype`：781 個 notes＋9 個 heads（9 個 session），再跑一次 0 改動；API 睇 Lecture 5、Week 4、Week 3 全部 block 有來源。備份喺 `app-temp/data/backups/`（mongodump＋JSONL 原文）。
 - [ ] 舊筆記仲有冇處理嘅：201 個 history 版本同 3 個 head（Test 1／3／4）只有 `Note.Markdown`、冇 Sections，patch 冇郁，畫面仍然空、唔可以還原；要就用 Rebuild notes。舊模型寫落文字嘅假引用（例如 Lecture 5 嘅 `[cite_T009]`、`[cite_new1]`）冇對應來源，patch 前已經存在。
 - [ ] Concept graph：node key 用 glossary 嘅 canonical term（POC 入面概念改個寫法就當咗消失）；唔用嚟決定更新範圍。

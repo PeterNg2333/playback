@@ -4,7 +4,7 @@
 
 全部用 repo 嘅 Week 3 sample（`app-temp/data/test-audio/sampleAudio/`）。Docker／MongoDB 冇開，冇用 `app-temp/data/audio` 入面嘅真實錄音。結果唔係產品行為；app 本身冇改。
 
-**決定（2026-10-21，使用者）**：筆記方向用三速筆記＋graph 更新（lineage 決定更新範圍，concept graph 用喺 regenerate／Ask），筆記模型用 Qwen3.8 Flash。實作待做，見 [下一個 session 清單](next-session-checklist.zh-HK.md)。
+**決定（2026-10-21，使用者）**：筆記方向用三速筆記＋graph 更新（lineage 決定更新範圍，concept graph 用喺 regenerate／Ask），筆記模型用 Qwen3.8 Flash。實作待做，見 [下一個 session 清單](next-session-checklist.zh-HK.md)。App 實作之後嘅 live 驗收見 [2026-10-22 結果](three-speed-notes-live-2026-10-22.zh-HK.md)。
 
 ## 做法
 

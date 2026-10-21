@@ -11,6 +11,7 @@
     "test:jev-live": "node --env-file-if-exists=.env app-temp/checks/Live/run-jev-live.mjs",
     "test:notes-ui": "npm --prefix app-temp/web run test:notes",
     "test:loading-ui": "npm --prefix app-temp/web run test:loading",
+    "test:three-speed-live": "node --env-file-if-exists=.env app-temp/checks/Validation/three-speed-live.mjs",
     "validation:week3-cost": "node app-temp/checks/Validation/week3-report.mjs",
     "test:sample-audio-live": "node --env-file-if-exists=.env app-temp/checks/Live/run-sample-audio-live.mjs",
     "test:e2e": "node app-temp/web/test/api-mongo-e2e.check.mjs",
