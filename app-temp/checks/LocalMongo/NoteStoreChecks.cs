@@ -32,9 +32,8 @@ static class NoteStoreChecks
         Expect.That(current.NoteVersion == 126 && current.CurrentNote!.Sections.All(x => x.UserEdited) && current.CurrentNote.Citations.Single().SourceIds.Contains(material),
             "Restore lost citation identity or replaced history");
         try { await store.RestoreNote(sessionId, 2, 125); throw new CheckFailed("Stale restore accepted"); } catch (InvalidOperationException) { }
-        var gate = new NoteGateRecord { SessionId = sessionId, InputHash = "fixture", Status = "wait", Decision = "wait" };
-        await store.SaveNoteGate(gate); await store.RequestNoteFlush(sessionId); await store.SaveNoteGate(gate);
-        Expect.That((await store.NoteGate(sessionId))!.FlushRequested, "Decision save cleared a concurrent Stop flush");
+        await store.RequestNoteFlush(sessionId);
+        Expect.That((await store.NoteGate(sessionId))!.FlushRequested, "Stop did not request a flush");
         await store.AcknowledgeNoteFlush(sessionId, 0); Expect.That((await store.NoteGate(sessionId))!.FlushRequested, "An old flush acknowledgement cleared a newer Stop");
         await store.AcknowledgeNoteFlush(sessionId, 1); Expect.That(!(await store.NoteGate(sessionId))!.FlushRequested, "Matching flush was not acknowledged");
         Console.WriteLine($"MongoDB notes store checks passed: 125 paginated versions, direct v1/restore, persistent citations, stale base guard and concurrent Stop flag. Synthetic session retained in playback_e2e: {sessionId}");

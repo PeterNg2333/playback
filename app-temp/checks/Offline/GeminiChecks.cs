@@ -16,14 +16,10 @@ static class GeminiChecks
     {
         await TruncatedReplies();
         GroundedSearch();
-        var outlineFormat = ModelOutputContract.ResponseFormat("LectureSectionOrganizer", """
-            {"trigger":"document-outline","pending":[],"materials":[],"editableSections":[],"topicOutline":[["S000","TCP",null,0,false]]}
-            """);
-        Expect.That(outlineFormat is not null, "Outline-only input failed the real provider schema builder");
-        Expect.That(ModelOutputContract.OutputLimit("LectureSectionWriter") == 8192 && ModelOutputContract.OutputLimit("PlaybackTranslator") == 4096 &&
-            ModelOutputContract.OutputLimit("PlaybackQuestionAnswerer") == 1024 && NoteScheduler.Interval.TotalSeconds == 10,
-            "Automatic notes and routine answers must retain explicit cost limits");
-        Console.WriteLine("Gemini checks passed (in-memory HTTP): SDK token cap and section schema, truncation rejected with usage kept, safe grounded sources, cost limits");
+        Expect.That(ModelOutputContract.OutputLimit("PlaybackTranslator") == 4096 && ModelOutputContract.OutputLimit("PlaybackQuestionAnswerer") == 1024 &&
+            Playback.Application.Notes.NotePrompts.Segment.MaxOutputTokens == 8192 && NoteScheduler.Interval.TotalSeconds == 2,
+            "Notes and routine answers must retain explicit cost limits");
+        Console.WriteLine("Gemini checks passed (in-memory HTTP): SDK token cap and note task schemas, truncation rejected with usage kept, safe grounded sources, cost limits");
     }
 
     static async Task TruncatedReplies()
@@ -63,12 +59,7 @@ static class GeminiChecks
             ChatOptions = new ChatOptions
             {
                 MaxOutputTokens = 8192,
-                ResponseFormat = ModelOutputContract.ResponseFormat("LectureSectionWriter", """
-                    {"pending":[{"id":"T001"}],"materials":[{"id":"T002"}],
-                    "sectionSources":[{"id":"T003"}],"sectionMaterials":[{"id":"T004"}],
-                    "editableSections":[{"id":"known-section","points":[{"sourceIds":["T003","T004"]}]}],
-                    "citationSources":[{"id":"cite_existing"}]}
-                    """)
+                ResponseFormat = Format(Playback.Application.Notes.NotePrompts.Segment)
             }
         });
         await foreach (var update in sections.RunStreamingAsync("Confirmed lecture input")) { }
@@ -78,10 +69,7 @@ static class GeminiChecks
         {
             Name = "OfflineOrganizerSchemaCheck",
             ChatOptions = new ChatOptions { MaxOutputTokens = 8192,
-                ResponseFormat = ModelOutputContract.ResponseFormat("LectureSectionOrganizer", """
-                    {"pending":[],"materials":[],"sectionSources":[],"sectionMaterials":[],
-                    "editableSections":[{"id":"known-section","points":[]}],"citationSources":[]}
-                    """) }
+                ResponseFormat = Format(Playback.Application.Notes.NotePrompts.Outline) }
         });
         await foreach (var update in organizer.RunStreamingAsync("User-authored uncited text")) { }
         Expect.That(handler.Requests == 5 && usage.Count == 5, "An input-free organizer repeated a request or lost usage");
@@ -108,6 +96,7 @@ static class GeminiChecks
     }
 
     static byte[] Json(string value) => Encoding.UTF8.GetBytes(value);
+    static ChatResponseFormat Format(Playback.Application.Notes.NoteTask task) => GeminiLanguageModel.ResponseFormat(task);
 
     // Checks every request the SDK sends and answers with a complete or a truncated reply.
     sealed class FixtureHandler : HttpMessageHandler
@@ -127,25 +116,11 @@ static class GeminiChecks
             {
                 Expect.That(config.GetProperty("responseMimeType").GetString() == "application/json", "Notes did not request structured JSON");
                 var schema = config.TryGetProperty("responseJsonSchema", out var jsonSchema) ? jsonSchema : config.GetProperty("responseSchema");
-                var section = schema.GetProperty("properties").GetProperty("sections").GetProperty("items").GetProperty("properties");
-                var ids = section.GetProperty("id").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToArray();
-                Expect.That(ids.SequenceEqual(new[] { "new", "known-section" }), "The SDK section schema accepted an invented identity");
-                Expect.That(!section.TryGetProperty("markdown", out _), "The provider contract still asks for a second authored copy of the same prose");
-                Expect.That(!section.TryGetProperty("baseVersion", out _), "The provider contract asks a model to reproduce an already captured concurrency version");
-                var pointSources = section.GetProperty("points").GetProperty("items").GetProperty("properties").GetProperty("sourceIds");
-                var deferred = schema.GetProperty("properties").GetProperty("deferred");
-                if (EmptyInput)
-                    Expect.That(pointSources.GetProperty("maxItems").GetInt32() == 0 && deferred.GetProperty("maxItems").GetInt32() == 0,
-                        "An organizer without source input can invent source IDs or deferrals");
-                else
-                {
-                    Expect.That(pointSources.GetProperty("items").GetProperty("enum").EnumerateArray().Select(x => x.GetString())
-                            .SequenceEqual(new[] { "T001", "T002", "T003", "T004", "cite_existing" }),
-                        "The SDK schema failed to constrain point sources to supplied aliases and saved citations");
-                    Expect.That(deferred.GetProperty("items").GetProperty("properties").GetProperty("sourceId").GetProperty("enum")
-                            .EnumerateArray().Select(x => x.GetString()).SequenceEqual(new[] { "T001", "T002" }),
-                        "The SDK schema permits deferring unknown sources or editable context");
-                }
+                var properties = schema.GetProperty("properties");
+                Expect.That(EmptyInput ? properties.TryGetProperty("topics", out _) && properties.TryGetProperty("summary", out _)
+                        : properties.TryGetProperty("title", out _) && properties.TryGetProperty("blocks", out _),
+                    "The SDK request did not carry the note task's schema");
+                Expect.That(!schema.GetRawText().Contains("additionalProperties"), "Gemini received additionalProperties, which its schema subset rejects");
             }
             var response = JsonSerializer.Serialize(new
             {

@@ -3,11 +3,10 @@ using Playback.Domain.Notes;
 namespace Playback.Application.Notes;
 
 // Scheduling uses monotonic TimeProvider timestamps and never awaits provider work on the tick.
-// Admission is shared by automatic generation and section organization in NoteAgent.
 public sealed class NoteScheduler(TimeProvider clock, Func<string, CancellationToken, Task> work, int concurrency = 4,
     TimeSpan? interval = null)
 {
-    public static readonly TimeSpan Interval = NoteAdmissionPolicy.CheckInterval;
+    public static readonly TimeSpan Interval = TimeSpan.FromSeconds(2);
     readonly Dictionary<string, Task> active = new();
     long lastTick = clock.GetTimestamp();
     int next;

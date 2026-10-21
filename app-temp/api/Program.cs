@@ -27,10 +27,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .AllowAnyHeader()
         .AllowAnyMethod()));
 
-var processingDefaults = builder.Configuration.GetSection("Processing").Get<ProcessingPolicy>() ?? ProcessingPolicy.Defaults;
-if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_ORGANIZE") == "no") processingDefaults = processingDefaults with {OrganizationEnabled = false};
-processingDefaults.Validate();
-builder.Services.AddPlayback(processingDefaults);
+builder.Services.AddPlayback();
 if (Environment.GetEnvironmentVariable("PLAYBACK_AUTO_TRANSLATION") != "no")
 {
     builder.Services.AddSingleton<TranslationAgent>();
@@ -55,7 +52,6 @@ app.MapChunks();
 app.MapRerun();
 app.MapConcepts();
 app.MapNotes();
-app.MapProcessingSettings();
 app.MapTerms();
 app.MapAsk();
 app.MapActivity();

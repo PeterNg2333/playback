@@ -1,92 +1,71 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
+using Playback.Api.Activity;
+using Playback.Api.Db;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
+using Playback.Application.Notes;
 
-// A note model that writes each input source back as one cited point, so note checks can follow every
-// source without a provider. Switches make it fail, defer, or omit citations on purpose.
+// A note model that answers each three-speed task from its input, so note checks can follow every source without a provider:
+// a jot or segment block per transcript line (citing it), one outline topic per segment title, and a polish that keeps the
+// notes as they are. Switches make it fail or drop citations on purpose.
 sealed class FixtureNoteModel : GeminiLanguageModel
 {
-    static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public override bool IsConfigured => true;
-    public int Calls;
-    public bool FailNext, DeferAll, DeferLast, OmitInlineCitations;
-    public bool PlacementReply;
-    public string? InlineCitation;
-    public Func<string, Task>? BeforeFinish;
-    public readonly ConcurrentBag<int> InputLengths = new();
+    public readonly ConcurrentDictionary<string, int> Calls = new();
+    public int TotalCalls => Calls.Values.Sum();
+    public bool FailNext, PolishDropsCitations;
+    public readonly ConcurrentBag<string> Inputs = new();
 
-    public override async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string? model = null,
+    public override Task<string> Complete(NoteTask task, string instructions, string prompt, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null)
     {
-        Interlocked.Increment(ref Calls);
+        Calls.AddOrUpdate(task.Name, 1, (_, n) => n + 1);
+        Inputs.Add(prompt);
         if (FailNext)
         {
             FailNext = false;
             throw new TimeoutException("Synthetic generation timeout");
         }
-        using var doc = JsonDocument.Parse(prompt);
+        // The input is the course prefix line, then the task's JSON.
+        using var doc = JsonDocument.Parse(prompt[(prompt.IndexOf('\n') + 1)..]);
         var root = doc.RootElement;
-        var pending = root.GetProperty("pending");
-        InputLengths.Add(prompt.Length);
-        Expect.That(instructions == NoteInstructions.For(root.GetProperty("language").GetString()!) +
-            (name == "LectureSectionOrganizer" ? "\n" + NoteInstructions.Organize : ""), "Effective note prompt did not reach the generation call");
-        var inputs = pending.EnumerateArray().Concat(root.GetProperty("materials").EnumerateArray()).ToList();
-        var points = (DeferLast ? inputs.SkipLast(1) : inputs).Select(x => new
+        static IEnumerable<JsonElement> Rows(JsonElement value) => value.EnumerateArray();
+        object reply = task.Name switch
         {
-            text = x.GetProperty("text").GetString() + (OmitInlineCitations ? "" : " [" + (InlineCitation ?? x.GetProperty("id").GetString()) + "]"),
-            sourceIds = new[] { x.GetProperty("id").GetString()! },
-            retains = Array.Empty<string>()
-        }).ToArray();
-        var result = DeferAll
-            ? JsonSerializer.Serialize(new
+            "NoteLiveJot" => new { points = Rows(root.GetProperty("new")).Select(r => new { text = r[3].GetString() + " [" + r[0].GetString() + "]", sources = new[] { r[0].GetString() } }) },
+            "NoteSegment" => new
             {
-                sections = Array.Empty<object>(),
-                deferred = inputs.Select(x => new { sourceId = x.GetProperty("id").GetString(), reason = "Needs a complete continuation" })
-            }, JsonOptions)
-            : JsonSerializer.Serialize(new
+                title = "Window " + Rows(root.GetProperty("window")).First()[1].GetString(),
+                blocks = Rows(root.GetProperty("window")).Select(r => new { kind = "concept", markdown = r[3].GetString() + " [" + r[0].GetString() + "]", sources = new[] { r[0].GetString() } }),
+                concepts = Rows(root.GetProperty("window")).Take(1).Select(r => new { name = r[3].GetString()!.Split(' ')[0], definition = "Fixture concept", sources = new[] { r[0].GetString() } }),
+                corrections = Array.Empty<object>()
+            },
+            "NoteOutline" => new
             {
-                sections = new[]
-                {
-                    new { id = "new", baseVersion = 0, title = "Fixture topic", markdown = "## Fixture topic\n\n" + string.Join("\n\n", points.Select(x => x.text)), points }
-                },
-                deferred = (DeferLast ? inputs.TakeLast(1) : []).Select(x => new { sourceId = x.GetProperty("id").GetString(), reason = "Needs a complete continuation" })
-            }, JsonOptions);
-        if (name == "LectureSectionOrganizer")
-        {
-            var section = root.GetProperty("editableSections")[0];
-            var organized = section.GetProperty("points").EnumerateArray().Select(x => new
+                topics = Rows(root.GetProperty("blocks")).GroupBy(b => b[2].GetString()).Select((g, i) => new { key = "k" + (i + 1), title = g.Key, parent = "", blocks = g.Select(b => b[0].GetString()) }),
+                summary = new[] { "Fixture summary" },
+                reviewQuestions = new[] { "Fixture question?" }
+            },
+            "NotePolish" => new
             {
-                text = x.GetProperty("text").GetString(),
-                sourceIds = x.GetProperty("sourceIds").EnumerateArray().Select(s => s.GetString()).ToArray(),
-                retains = new[] { x.GetProperty("id").GetString() }
-            }).ToArray();
-            result = JsonSerializer.Serialize(new
-            {
-                sections = new[]
-                {
-                    new
-                    {
-                        id = section.GetProperty("id").GetString(),
-                        baseVersion = section.GetProperty("version").GetInt32(),
-                        title = "Organized sharing",
-                        markdown = "## Organized sharing\n\n" + string.Join("\n\n", organized.Select(x => x.text)),
-                        points = organized
-                    }
-                },
-                deferred = Array.Empty<object>()
-            }, JsonOptions);
-        }
-        if (PlacementReply)
-            result = name == "LectureSectionOrganizer" ? "{\"outline\":[],\"blocks\":[],\"operations\":[],\"deferred\":[]}" :
-                JsonSerializer.Serialize(new { outline = new[] { new { key = "new1", title = "Fixture topic", parent = "" } },
-                    blocks = points.Select(x => new { topic = "new1", role = "detail", body = x.text, sourceIds = x.sourceIds }),
-                    operations = Array.Empty<object>(), deferred = Array.Empty<object>() }, JsonOptions);
+                topics = Rows(root.GetProperty("topics")).Select(t => new { key = t.GetProperty("key").GetString(),
+                    markdown = PolishDropsCitations ? System.Text.RegularExpressions.Regex.Replace(t.GetProperty("notes").GetString()!, @"\s*\[T\d+(?:, T\d+)*\]", "") + " polished"
+                        : t.GetProperty("notes").GetString() + "\n\nPolished." })
+            },
+            "NoteRewrite" => new { markdown = "Rewritten: " + root.GetProperty("target").GetProperty("markdown").GetString() },
+            _ => throw new InvalidOperationException("Unknown note task " + task.Name)
+        };
+        var text = JsonSerializer.Serialize(reply, Json);
         onUsage?.Invoke("{\"input_tokens\":20,\"output_tokens\":12}");
-        onUpdate?.Invoke(result);
-        var id = pending.GetArrayLength() > 0 ? pending[0].GetProperty("sourceId").GetString()! : "";
-        if (BeforeFinish is not null) await BeforeFinish(id);
-        return result;
+        onUpdate?.Invoke(text);
+        return Task.FromResult(text);
     }
+
+    // The production workflow over an in-memory store, written by this model.
+    public NoteWorkflow Workflow(PlaybackStore store) => new(new NoteStoreAdapter(store), new NoteStoreAdapter(store), new GeminiNoteWriter(this),
+        new NoteActivityAdapter(new AiActivity(store), NullLogger<NoteAgent>.Instance), new OpenccNoteScript());
 }

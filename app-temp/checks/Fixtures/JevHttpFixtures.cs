@@ -1,40 +1,7 @@
 using System.Net;
 using System.Text.Json;
 
-// In-memory Jev (TypeSafe) endpoints: model discovery plus the note-gate or term-ranking answer.
-
-// Answers the note gate's "update now or wait" questions.
-sealed class NoteGateHandler : HttpMessageHandler
-{
-    public int Models;
-    public string? Request;
-    public double Confidence = .9;
-    public double Probability = .95;
-    public bool Invalid;
-
-    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-    {
-        if (request.Method == HttpMethod.Get)
-        {
-            Models++;
-            return new(HttpStatusCode.OK) { Content = new StringContent("{\"models\":[{\"name\":\"fixture-alias\"}]}") };
-        }
-        Request = await request.Content!.ReadAsStringAsync(ct);
-        return new(HttpStatusCode.OK)
-        {
-            Content = new StringContent(JsonSerializer.Serialize(new
-            {
-                model = "fixture-version",
-                answers = new
-                {
-                    update = new { type = "noul", noul = Invalid ? 2 : Probability },
-                    action = new { type = "choice", choice = "update", confidence = Confidence, probabilities = new { update = .95, wait = .05 } }
-                },
-                usage = new { input_tokens = 12, output_tokens = 3 }
-            }))
-        };
-    }
-}
+// In-memory Jev (TypeSafe) endpoints: model discovery plus the term-ranking answer.
 
 // Ranks every term "high" and counts discovery and ranking calls, to show the cache saves paid calls.
 sealed class TermRankHandler : HttpMessageHandler

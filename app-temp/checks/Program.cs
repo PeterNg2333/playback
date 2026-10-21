@@ -10,16 +10,6 @@ try
         case ["--notes"]:
             await RunOffline(notesOnly: true);
             break;
-        case ["--refactor-acceptance"]:
-            await RefactorAcceptanceChecks.Run();
-            break;
-        case ["--refactor-mongo"]:
-            await RefactorMongoChecks.Run();
-            break;
-        case ["--refactor-baseline"]:
-            Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");
-            await RefactorBaselineChecks.Run();
-            break;
 
         // Offline, reading the Week 3 sample in app-temp/data/test-audio/sampleAudio; decoding the M4A needs Windows.
         case ["--sample-audio", var folder]:
@@ -76,41 +66,11 @@ try
         case ["--validation-fixtures"]:
             ValidationFixtures.Run();
             break;
-        case ["--notes-recovery-preview", var folder]:
-            NotesRecoveryPreview.Run(folder);
-            break;
-        case ["--note-coverage-replay", var folder]:
-            await NoteCoverageRuns.Replay(folder, live: false);
-            break;
-        case ["--note-coverage-live", var folder]:
-            await NoteCoverageRuns.Replay(folder, live: true);
-            break;
-        case ["--note-coverage-store", var folder]:
-            await NoteCoverageRuns.Store(folder);
-            break;
-        case ["--week3-live", var folder]:
-            await Week3ProviderRun.Run(folder);
-            break;
         case ["--week3-store-seed", var folder]:
             await Week3StoreRun.Seed(folder);
             break;
         case ["--week3-term-live", var folder]:
             await Week3StoreRun.Term(folder);
-            break;
-        case ["--note-models", var folder]:
-            await NoteModelComparison.Run(folder, live: false);
-            break;
-        case ["--note-models-live", var folder]:
-            await NoteModelComparison.Run(folder, live: true);
-            break;
-        case ["--wave1-recording", var folder]:
-            await Wave1RecordingCheck.Run(folder);
-            break;
-        case ["--wave1-review", var folder]:
-            await Wave1RecordingCheck.Review(folder);
-            break;
-        case ["--wave1-note-replay", var folder]:
-            await RecordingNoteReplay.Run(folder);
             break;
 
         default:
@@ -145,27 +105,16 @@ static async Task RunOffline(bool notesOnly)
         await OpenRouterTextChecks.Run();
         await RateLimitGuardChecks.Run();
     }
-    NoteDocumentChecks.Run();
-    await NoteTreeChecks.Run();
-    await NoteOrganizationChecks.Run();
-    await NoteReplayChecks.Run();
     await NoteHistoryJournalChecks.Run();
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();
     await TranscriptReviewChecks.Run();
     await RerunChecks.Run();
     await ConceptGraphChecks.Run();
-    await NoteCorrectionChecks.Run();
-    await NoteGenerationChecks.Run();
-    await NoteEditChecks.Run();
+    await ThreeSpeedNoteChecks.Run();
     NoteScriptChecks.Run();
     await NoteWriterFallbackChecks.Run();
-    await NoteSchedulingChecks.Run();
-    await ProcessingPolicyChecks.Run();
-    await NoteCoverageChecks.Run();
     await SessionSyncChecks.Run();
-    await RefactorBaselineChecks.Run();
-    await NoteApiChecks.Run();
     NoteFoundationChecks.Run();
 }
 

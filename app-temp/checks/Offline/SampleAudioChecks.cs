@@ -63,22 +63,11 @@ static class SampleAudioChecks
         }
         Expect.That(covered == 3, "Q&A failed to retrieve all three lecture windows");
 
-        var pending = transcripts.ToList();
-        var calls = 0;
-        var assigned = new HashSet<string>();
-        while (assigned.Count < pending.Count)
-        {
-            var batch = NoteInput.Pending(pending);
-            Expect.That(batch.Count > 0 && batch.Count <= 64 && (batch.Count == 1 || batch.Sum(x => x.SourceText.Length) <= 18_000),
-                "Note batch stalled or exceeded its 64-source, 18,000-character bound");
-            foreach (var item in batch)
-            {
-                Expect.That(assigned.Add(item.Id), "Duplicate note transcript input");
-                item.NoteStatus = "completed";
-            }
-            calls++;
-        }
-        Console.WriteLine($"Sample audio offline: {transcripts.Count} source entries, {calls} bounded backlog batches, beginning/middle/end Q&A lookup and transcript times passed; no external calls");
+        // Notes are written five minutes at a time; every window stays well inside one model call.
+        var windows = transcripts.GroupBy(x => x.StartMs / Playback.Application.Notes.NoteTimeline.WindowMs).ToList();
+        Expect.That(windows.Count >= 30 && windows.All(w => w.Sum(x => x.SourceText.Length) <= 20_000),
+            "The Week 3 transcript did not split into bounded five-minute note windows");
+        Console.WriteLine($"Sample audio offline: {transcripts.Count} source entries, {windows.Count} five-minute note windows, beginning/middle/end Q&A lookup and transcript times passed; no external calls");
     }
 
     // The first 20 minutes decode into forty valid 30-second WAV chunks.

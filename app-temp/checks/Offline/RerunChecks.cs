@@ -18,7 +18,7 @@ static class RerunChecks
         await Workflow();
         Console.WriteLine("Rerun checks passed: windows close at pauses after the target and never pass 90 s, quiet edges trimmed, streams and earlier segments never split, " +
             "deterministic IDs; superseded citations/anchors/terms map to the segment and its coverage reopens; rerun supersedes rows with retained first pass, " +
-            "corrected wording edits the existing block, failed windows keep the first pass, a restart resumes at the next window, recording refuses, " +
+            "the segment is written again with the corrected wording, failed windows keep the first pass, a restart resumes at the next window, recording refuses, " +
             "rebuild keeps locked blocks and history; lineage reaches block from chunk (fixture ASR and note model only)");
     }
 
@@ -97,11 +97,10 @@ static class RerunChecks
             store.Chunks[id].Add(chunks[i]);
             store.Transcripts[id].Add(new Transcript { Id = chunks[i].Id, SessionId = id, SourceId = "mic", StartMs = chunks[i].StartMs, EndMs = chunks[i].EndMs, Original = firstPass[i] });
         }
-        var model = new RerunModel();
-        await using var agent = new NoteAgent(store, model, new FixtureNoteGate(), NullLogger<NoteAgent>.Instance, new AiActivity(store));
+        var model = new FixtureNoteModel();
+        await using var agent = model.Workflow(store);
         await agent.WritePending(id, default);
         var before = store.Notes[id];
-        var blockId = before.Sections.SelectMany(x => x.Blocks).First().Id;
         Expect.That(before.Markdown.Contains("cash"), "Fixture notes were not written from the first pass");
 
         var repository = new MemoryReruns(store); var asr = new Recognizer(); var audio = new Audio(); var files = new Files();
@@ -114,7 +113,6 @@ static class RerunChecks
         var job = await Rerun().Start(id, new(WindowSeconds: 20));
         await Expect.RejectsAsync(() => Rerun().Start(id, new(WindowSeconds: 20)), "A second rerun must wait for the first");
         Expect.That(job.Windows.Count == 1 && job.Windows[0].ReplacesIds.Count == 4, "Four contiguous chunks must form one 20 s+ window");
-        model.Rerun = true;
         await Rerun().Run(job, default);
         var window = job.Windows[0];
         var rows = store.Transcripts[id];
@@ -129,10 +127,10 @@ static class RerunChecks
             "Rerun must supersede every first-pass row with one active segment that keeps the first-pass text");
         Expect.That(asr.Requests.Single() is { Pass: var pass, Hash: var hash } && pass == "rerun-" + job.Id && hash == window.AudioId &&
             files.Windows.Single() == window.Id && audio.Disposed == 1, "Rerun must upload one combined window with a stable identity and dispose the prepared audio");
-        Expect.That(model.SawRetranscribed && after.Markdown.Contains("cache holds") && !after.Markdown.Contains("cash") &&
-            after.Sections.SelectMany(x => x.Blocks).Any(x => x.Id == blockId) && segment.NoteStatus == "completed" &&
+        var blockId = current.Sections.SelectMany(x => x.Blocks).First(b => b.Anchors.SelectMany(a => a.SourceIds).Contains(window.Id)).Id;
+        Expect.That(after.Markdown.Contains("cache holds") && !after.Markdown.Contains("cash") && segment.NoteStatus == "completed" &&
             current.Citations.SelectMany(x => x.SourceIds).All(x => x == window.Id),
-            "Corrected wording must edit the existing block, and its citations must name the new segment");
+            "The rewritten segment must carry the corrected wording, and its citations must name the new segment");
         Expect.That(store.Activity.Values.Count(x => x.Task == "ASR rerun window" && x.Status == "completed") == 1 &&
             store.Activity.Values.Any(x => x.Task == "Session rerun" && x.Status == "completed"), "Rerun activity must record the actual window call");
 
@@ -171,7 +169,6 @@ static class RerunChecks
         // Rebuild: a locked block survives; every source is written again; earlier versions stay in history.
         var locked = store.Notes[id].Sections.SelectMany(x => x.Blocks).First(); locked.UserEdited = true;
         var versionsBefore = store.Versions[id].Count;
-        model.Rerun = false;
         var rebuild = await Rerun().Start(id, new(Asr: false, Notes: "rebuild"));
         await Rerun().Run(rebuild, default);
         var rebuilt = store.Notes[id];
@@ -179,25 +176,6 @@ static class RerunChecks
             rebuilt.Sections.SelectMany(x => x.Blocks).Any(x => x.Id == locked.Id && x.UserEdited) &&
             store.Versions[id].Any(x => x.Author == "user rebuild") && store.Transcripts[id].Where(x => x.Active).All(x => x.NoteStatus == "completed"),
             "Rebuild must keep locked blocks, write every active source again and keep history");
-    }
-
-    sealed class RerunModel : GeminiLanguageModel
-    {
-        readonly FixtureNoteModel fixture = new();
-        public bool Rerun, SawRetranscribed;
-        public override bool IsConfigured => true;
-        public override async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string? model = null,
-            Action<string>? onUpdate = null, Action<string>? onUsage = null)
-        {
-            if (!Rerun) return await fixture.Generate(name, instructions, prompt, ct, model, onUpdate, onUsage);
-            using var doc = JsonDocument.Parse(prompt);
-            var root = doc.RootElement;
-            SawRetranscribed |= root.GetProperty("pending").EnumerateArray().Any(x => x.GetProperty("retranscribed").GetBoolean());
-            var block = root.GetProperty("editableSections").EnumerateArray().SelectMany(x => x.GetProperty("blocks").EnumerateArray())
-                .Select(x => x.GetProperty("id").GetString()).FirstOrDefault();
-            Expect.That(block is not null, "The block citing the superseded rows was not offered for editing");
-            return JsonSerializer.Serialize(new NotePatch { Operations = [new() { Kind = "replace-text", BlockId = block!, Find = "cash", Replace = "cache", Reason = "Rerun recognition" }] });
-        }
     }
 
     sealed class MemoryReruns(MemoryStore store) : IRerunRepository

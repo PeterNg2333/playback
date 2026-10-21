@@ -7,7 +7,7 @@ using Playback.Api.Audio.Asr;
 using Playback.Api.Ask;
 using Playback.Api.Activity; using Playback.Application.Workspace;
 namespace Playback.Infrastructure.Workspace;
-public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr, ProcessingPolicy defaults, AiFlow flow) : IRuntimeProjections
+public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr, AiFlow flow) : IRuntimeProjections
 {
     public Task<object> Flow(string groupId, string? sessionId) => flow.Read(groupId, sessionId);
     public async Task<object> Health(HostBuildInfo host) => new
@@ -22,13 +22,9 @@ public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel 
             chatPromptVersion = ChatAgent.PromptVersion,
             chatConversations = true,
             sectionNotes = true,
-            noteCoverage = true,
             sessionSync = true,
-            jevNoteGate = jev.IsConfigured,
-            noteDecisionIntervalSeconds = defaults.CheckIntervalSeconds,
-            noteProcessingSettings = true,
-            noteMaxPendingWaitSeconds = defaults.MaxPendingWaitSeconds,
-            notePromptVersion = NoteInstructions.Version,
+            threeSpeedNotes = true,
+            notePromptVersion = Playback.Application.Notes.NotePrompts.Version,
             savedAsrRecovery = PlaybackEnvironment.ResumeSavedAsr,
             database = PlaybackEnvironment.Database,
             gemini = gemini.IsConfigured,

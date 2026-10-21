@@ -15,7 +15,6 @@ public partial class PlaybackStore : IActivityRepository, IConversationRepositor
     public event Action<string>? SourceChanged;
     readonly IMongoDatabase? db;
     readonly IHttpContextAccessor? http;
-    readonly ProcessingPolicy processingDefaults = ProcessingPolicy.Defaults;
     // Request identity only; background workers operate on session IDs without an HTTP user.
     string? CurrentOwner => http?.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
     // One note write or language change at a time per session, so a save never mixes two bases.
@@ -26,11 +25,9 @@ public partial class PlaybackStore : IActivityRepository, IConversationRepositor
     {
         if (!inMemory) throw new ArgumentException("Use the public constructor for database storage", nameof(inMemory));
     }
-    public PlaybackStore(IHttpContextAccessor? http = null, ProcessingPolicy? processingDefaults = null)
+    public PlaybackStore(IHttpContextAccessor? http = null)
     {
         this.http = http;
-        this.processingDefaults = processingDefaults ?? ProcessingPolicy.Defaults;
-        this.processingDefaults.Validate();
         var settings = MongoClientSettings.FromConnectionString(PlaybackEnvironment.MongoUri);
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
         var database = PlaybackEnvironment.Database;

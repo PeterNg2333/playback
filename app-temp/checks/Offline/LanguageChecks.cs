@@ -14,10 +14,10 @@ static class LanguageChecks
         foreach (var language in new[] { "zh-Hant", "zh-Hans", "en" }) LanguageSettings.ValidateNote(language);
         Expect.Rejects(() => LanguageSettings.ValidateAsr("zh-Hant"), "ASR accepted a writing system as a spoken language");
         Expect.Rejects(() => LanguageSettings.ValidateNote("yue"), "Notes accepted an unsupported output language");
-        Expect.That(NoteInstructions.For("zh-Hant").Contains("Traditional Chinese") &&
-            NoteInstructions.For("zh-Hans").Contains("Simplified Chinese") &&
-            NoteInstructions.For("en").Contains("Write section Markdown and point text in English"),
-            "Note output settings must reach the generation instructions");
+        Expect.That(Playback.Application.Notes.NotePrompts.SegmentInstructions("zh-Hant").Contains("Traditional Chinese") &&
+            Playback.Application.Notes.NotePrompts.SegmentInstructions("zh-Hans").Contains("Simplified Chinese") &&
+            Playback.Application.Notes.NotePrompts.SegmentInstructions("en").Contains("Write in English"),
+            "Note output settings must reach the note instructions");
         Expect.That(TranslationAgent.Instructions("yue-Hant").Contains("natural written Cantonese") &&
             TranslationAgent.Instructions("zh-Hans").Contains("Simplified Chinese"),
             "Translations must distinguish Cantonese from standard written Chinese and character script");

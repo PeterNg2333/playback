@@ -11,9 +11,6 @@ public sealed class GeminiNoteWriter(GeminiLanguageModel model) : INoteWriter
     public bool IsConfigured => model.IsConfigured;
     public string Provider => "vertex";
     public string Model => model.Model;
-    public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
-        Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
-        NoteReplyParser.Parse(await model.Generate(name, instructions, input, ct, onUpdate: onUpdate, onUsage: onUsage));
     public Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null) => model.Complete(task, instructions, input, ct, onUpdate, onUsage);
 }
@@ -65,12 +62,6 @@ public sealed class OpenRouterNoteWriter(OpenRouterTextModel model) : INoteWrite
     public bool IsConfigured => model.IsConfigured;
     public string Provider => "openrouter";
     public string Model => model.Model;
-    public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
-        Action<string>? onUpdate = null, Action<string>? onUsage = null)
-    {
-        var reply = await model.Generate(name, instructions, input, ct, onUsage, onUpdate ?? (_ => { }));
-        return NoteReplyParser.Parse(reply);
-    }
     public Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
         model.Generate(task.Name, instructions, input, ct, onUsage, onUpdate ?? (_ => { }), task);

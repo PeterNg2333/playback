@@ -9,7 +9,6 @@ public interface INoteRepository
     Task<Note?> Version(string id, int version);
     Task<object> Page(string id, int? before, int limit);
     Task<NoteGateRecord?> Gate(string id);
-    Task SaveGate(NoteGateRecord state);
     Task AcknowledgeFlush(string id, int version);
     Task<object> Save(string id, SectionUpdate update, string inputHash, int basedOnVersion, string language,
         string author = "agent", List<string>? deleted = null, List<string>? suppressed = null);
@@ -29,32 +28,14 @@ public sealed record NoteProvenance(List<string> MaterialIds, List<NoteSourceTim
 public interface INoteSettings
 {
     Task<string> Language(string id);
-    Task<string> Presentation(string id) => Task.FromResult(ProcessingPolicy.Defaults.NotePresentation);
+    Task<string> Presentation(string id) => Task.FromResult("numbered-hierarchy");
 }
-public interface INoteOrganizationRepository
-{
-    Task<NoteOrganizationState?> Organization(string sessionId);
-    Task SaveOrganization(NoteOrganizationState state, int expectedRevision);
-}
-public interface INoteRewriteRepository
-{
-    Task<List<NoteRewriteProposal>> Rewrites(string sessionId);
-    Task<NoteRewriteProposal?> Rewrite(string sessionId, string proposalId);
-    Task SaveRewrite(NoteRewriteProposal proposal);
-}
-public interface INoteSpeechBoundaries
-{
-    Task<Playback.Domain.Audio.SpeechBoundary?> Latest(string sessionId);
-}
-
 public interface INoteWriter
 {
     bool IsConfigured { get; }
     // Saved in AI activity so a note version names who actually wrote it, e.g. "vertex" or "openrouter".
     string Provider { get; }
     string Model { get; }
-    Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
-        Action<string>? onUpdate = null, Action<string>? onUsage = null);
     // The reply text for one task; the caller parses it against task.Schema.
     Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null);
@@ -66,15 +47,6 @@ public interface INoteScript
 {
     string Apply(string text, string language);
 }
-
-public interface INoteGate
-{
-    bool IsConfigured { get; }
-    Task<NoteGateDecision> Decide(string input, CancellationToken ct);
-}
-
-public sealed record NoteGateDecision(bool Allow, double Probability, double Confidence, string Model, string? UsageJson, long LatencyMs,
-    string? Action = null);
 
 // Only the mutable fields needed by note orchestration; the adapter owns the saved activity document.
 public sealed class NoteActivity

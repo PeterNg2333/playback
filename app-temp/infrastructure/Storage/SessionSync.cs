@@ -63,7 +63,6 @@ public partial class PlaybackStore
     public virtual async Task<List<SyncRecord>> ReadSyncRecords(string id, string kind, string[]? ids) {
         var records = new List<SyncRecord>();
         if (kind == "combined-audio") records.Add(new(kind, id, new { combinedAudioSegments = await CombinedAudio(id) }));
-        if (kind == "processing") records.Add(new(kind, id, new { processingSettings = await SessionProcessingSettings(id), noteAdmission = NoteAdmissionView.Read(await NoteGate(id)), organization = await NoteOrganizationStatus(id) }));
         if (kind == "meta") {
             var session = await SessionSettings(id);
             var note = await NoteRepository.Latest(id) is { } latest ? Playback.Api.Sources.Lineage.Apply(latest, await Supersessions(id)) : null;
@@ -150,7 +149,6 @@ public partial class PlaybackStore
                     foreach (var item in session.Chunks) Add("chunk", item.Id, item);
                     foreach (var item in session.Materials) Add("material", item.Id, item);
                     foreach (var item in session.TermInsights) Add("insight", item.Id, item);
-                    foreach (var row in await ReadSyncRecords(id, "processing", [id])) AddRecord(row);
                     foreach (var row in await ReadSyncRecords(id, "combined-audio", [id])) AddRecord(row);
                     Add("lineage", id, new { supersededBy = session.Supersessions });
                     foreach (var row in await ReadSyncRecords(id, "rerun", [id])) AddRecord(row);

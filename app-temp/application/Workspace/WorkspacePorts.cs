@@ -20,10 +20,6 @@ public interface IWorkspaceRepository
     Task<object> SyncSession(string id, string? cursor);
     Task RequireSessionOwner(string id);
     Task GetOrCreateDemoUser(string username, CancellationToken ct);
-    Task<ProcessingSettingsView> WorkspaceProcessingSettings();
-    Task<ProcessingSettingsView> SessionProcessingSettings(string id);
-    Task<ProcessingSettingsView> SaveWorkspaceProcessingSettings(ProcessingSettingsUpdate input);
-    Task<ProcessingSettingsView> SaveSessionProcessingSettings(string id, ProcessingSettingsUpdate input);
 }
 public sealed class WorkspaceCommands(IWorkspaceRepository repository)
 {
@@ -55,8 +51,4 @@ public sealed class WorkspaceCommands(IWorkspaceRepository repository)
     }
     public Task<object> AddMaterial(string id, string name, string text) {Playback.Domain.Workspace.WorkspaceRules.Material(name, text); return repository.AddMaterial(id, name, text);}
     public Task<object> SyncSession(string id, string? cursor) => repository.SyncSession(id, cursor);
-    public Task<ProcessingSettingsView> WorkspaceProcessingSettings() => repository.WorkspaceProcessingSettings();
-    public Task<ProcessingSettingsView> SessionProcessingSettings(string id) => repository.SessionProcessingSettings(id);
-    public Task<ProcessingSettingsView> SaveWorkspaceProcessingSettings(ProcessingSettingsUpdate input) => repository.SaveWorkspaceProcessingSettings(input);
-    public Task<ProcessingSettingsView> SaveSessionProcessingSettings(string id, ProcessingSettingsUpdate input) => repository.SaveSessionProcessingSettings(id, input);
 }

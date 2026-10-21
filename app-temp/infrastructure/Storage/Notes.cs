@@ -17,15 +17,12 @@ public partial class PlaybackStore
     public virtual Task<Note?> NoteVersion(string id, int version) => NoteRepository.Version(id, version);
     public Task<object> NotePage(string id, int? before, int limit = 20) => NoteRepository.Page(id, before, limit);
     public virtual Task<NoteGateRecord?> NoteGate(string id) => NoteRepository.Gate(id);
-    public virtual async Task SaveNoteGate(NoteGateRecord item) { await NoteRepository.SaveGate(item); Touch(item.SessionId, "processing"); }
-    public virtual async Task RequestNoteFlush(string id) { await NoteRepository.RequestFlush(id); Touch(id, "processing"); }
-    public virtual async Task AcknowledgeNoteFlush(string id, int version) { await NoteRepository.AcknowledgeFlush(id, version); Touch(id, "processing"); }
+    public virtual async Task RequestNoteFlush(string id) => await NoteRepository.RequestFlush(id);
+    public virtual async Task AcknowledgeNoteFlush(string id, int version) => await NoteRepository.AcknowledgeFlush(id, version);
     public virtual Task<object> SaveSectionNote(string id, SectionUpdate update, string inputHash, int basedOnVersion, string language,
         string author = "agent", List<string>? deleted = null, List<string>? suppressed = null) =>
         NoteRepository.Save(id, update, inputHash, basedOnVersion, language, author, deleted, suppressed);
-    public Task<RecoveryPreview> Recovery(string id, int version) => NoteCommands.Recovery(id, version);
     public Task<object> RestoreNote(string id, int version, int? basedOnVersion) => NoteCommands.RestoreNote(id, version, basedOnVersion);
-    public Task<object> ApplyRecovery(string id, int version, int basedOnVersion, List<string> selected) => NoteCommands.ApplyRecovery(id, version, basedOnVersion, selected);
 
     public virtual async Task<NoteProvenance> NoteProvenance(string id, IReadOnlyCollection<string> sourceIds)
     {
@@ -62,10 +59,5 @@ public partial class PlaybackStore
         var flushed = await Collection<NoteGateRecord>("note_gates").Find(x => x.FlushRequested).Project(x => x.SessionId).ToListAsync();
         return ids.Concat(materialSessions).Concat(flushed).Distinct().ToList();
     }
-    public virtual async Task<List<string>> SessionsNeedingOrganization() {
-        var latest = await Collection<Note>("notes").Aggregate().Group(x => x.SessionId, rows => new {Id = rows.Key, Revision = rows.Max(x => x.MeaningfulRevision)}).Match(x => x.Revision > 0).ToListAsync();
-        var states = await Collection<Playback.Domain.Notes.NoteOrganizationState>("note_organization").Find(FilterDefinition<Playback.Domain.Notes.NoteOrganizationState>.Empty).ToListAsync();
-        var byId = states.ToDictionary(x => x.Id);
-        return latest.Where(x => !byId.TryGetValue(x.Id, out var state) || state.OrganizedMeaningfulRevision < x.Revision || state.PendingTopics.Count > 0).Select(x => x.Id).ToList();
-    }
+
 }

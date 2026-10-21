@@ -28,6 +28,39 @@ public sealed class Note
     public List<string> DeletedSectionIds { get; set; } = [];
     public List<string> SuppressedSourceIds { get; set; } = [];
     public List<SourceDisposition> Coverage { get; set; } = [];
+    // What the segment pass wrote, five minutes at a time; the topics above are laid out from these.
+    public List<NoteSegment> Segments { get; set; } = [];
+    // From the final pass, when the lecture stopped.
+    public List<string> Summary { get; set; } = [];
+    public List<string> ReviewQuestions { get; set; } = [];
+}
+// Five minutes of lecture written as study notes. InputHash identifies the transcript it was written from, so a
+// corrected or re-recognized transcript makes the segment due again.
+public sealed class NoteSegment
+{
+    public int Index { get; set; }
+    public long StartMs { get; set; }
+    public long EndMs { get; set; }
+    public string InputHash { get; set; } = "";
+    public string Title { get; set; } = "";
+    public List<string> SourceIds { get; set; } = [];
+    public List<NoteBlock> Blocks { get; set; } = [];
+    public List<NoteConcept> Concepts { get; set; } = [];
+    public List<NoteCorrection> Corrections { get; set; } = [];
+}
+// A concept a segment defines or explains; Ask and topic rewrites use them to find related notes.
+public sealed class NoteConcept
+{
+    public string Name { get; set; } = "";
+    public string Definition { get; set; } = "";
+    public List<string> SourceIds { get; set; } = [];
+}
+// A misrecognized word the segment pass wrote as another term, kept so a reader can check it.
+public sealed class NoteCorrection
+{
+    public string Heard { get; set; } = "";
+    public string Written { get; set; } = "";
+    public List<string> SourceIds { get; set; } = [];
 }
 public sealed class NoteSection
 {
@@ -45,6 +78,8 @@ public sealed class NoteSection
     public List<NotePoint> Points { get => Blocks.Count == 0 ? points : Blocks.SelectMany(block => block.Anchors.Select(anchor => new NotePoint { Id = anchor.Id, SourceIds = anchor.SourceIds.ToList(), Text = block.Body.Substring(anchor.Offset, anchor.Length) })).ToList(); set => points = value; }
     public DateTime? OrganizedAt { get; set; }
     public int? OrganizedVersion { get; set; }
+    // The segment blocks a finished topic was polished from; a rewritten segment makes the topic due for polishing again.
+    public List<string> SegmentBlockIds { get; set; } = [];
 }
 public sealed class NotePoint
 {
@@ -73,35 +108,17 @@ public sealed class NoteEdit
     public List<string> TranscriptIds { get; set; } = [];
     public List<string> MaterialIds { get; set; } = [];
 }
+// Stop asks for a flush: write what is left and finish. A newer Stop increments FlushVersion, so an older acknowledgement cannot clear it.
 public sealed class NoteGateRecord
 {
     public string Id { get; set; } = "";
     public string SessionId { get; set; } = "";
-    public string InputHash { get; set; } = "";
-    public string Status { get; set; } = "pending";
-    public string Decision { get; set; } = "";
-    public double Probability { get; set; }
-    public double Confidence { get; set; }
-    public string Model { get; set; } = "";
-    public string? UsageJson { get; set; }
-    public string PromptVersion { get; set; } = "";
-    public int WaitCount { get; set; }
-    public int Attempts { get; set; }
-    public DateTime? RetryAt { get; set; }
-    public DateTime ChangedAt { get; set; }
     public bool FlushRequested { get; set; }
-    public bool GenerationRequested { get; set; }
     public int FlushVersion { get; set; }
-    public int EvaluatedFlushVersion { get; set; }
-    public string PolicyRevision { get; set; } = "";
-    public ProcessingPolicy? PolicySnapshot { get; set; }
-    public DateTime? FirstPendingAt { get; set; }
-    public DateTime? LastCheckedAt { get; set; }
-    public string AdmissionReason { get; set; } = "";
-    public string EvidenceHash { get; set; } = "";
-    public string SettledEvidenceHash { get; set; } = "";
-    public int SettledNoteVersion { get; set; }
-    public string SettledLanguage { get; set; } = "";
-    public string GateFailure { get; set; } = "";
-    public string EvaluatedBoundaryId { get; set; } = "";
+}
+public sealed class NoteContentChange
+{
+    public int Revision { get; set; }
+    public DateTime At { get; set; }
+    public List<string> TopicIds { get; set; } = [];
 }

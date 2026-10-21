@@ -24,7 +24,7 @@ static class MigrationChecks
         var session = BsonSerializer.Deserialize<SessionRecord>(new BsonDocument {{"_id", "legacy"}, {"Title", "Original"}, {"unknownHistoricalField", true}});
         Expect.That(session.Id == "legacy" && session.Title == "Original", "Legacy session ignore-extra reader changed");
         Expect.That(new DemoUser {Username = "owner"}.ToBsonDocument()["_id"] == "owner", "User owner identity changed");
-        var services = new ServiceCollection(); services.AddLogging(); services.AddHttpContextAccessor(); services.AddPlayback(ProcessingPolicy.Defaults);
+        var services = new ServiceCollection(); services.AddLogging(); services.AddHttpContextAccessor(); services.AddPlayback();
         services.AddSingleton<PlaybackStore>(new MemoryStore());
         services.AddSingleton<TranslationAgent>();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions {ValidateOnBuild = true, ValidateScopes = true});

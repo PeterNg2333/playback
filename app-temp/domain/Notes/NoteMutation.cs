@@ -23,6 +23,7 @@ public static class NoteMutation
                 UserEdited = section.UserEdited,
                 OrganizedAt = section.OrganizedAt,
                 OrganizedVersion = section.OrganizedVersion,
+                SegmentBlockIds = section.SegmentBlockIds.ToList(),
                 Markdown = NoteSections.Compact(id, section.Markdown, allowed, update.Citations),
                 Points = section.Points.Select(point => new NotePoint
                 {
@@ -57,7 +58,6 @@ public static class NoteMutation
         }).ToList();
         NoteTree.Validate(canonical);
         update = update with { Sections = canonical };
-        if (author.StartsWith("agent")) NoteSections.RequireRetention(previous, update, allowed, allowProtectedReformat: author == "agent organization");
         var presentation = update.Presentation ?? previous?.Presentation ?? "numbered-hierarchy";
         markdown = NoteTree.Render(canonical, presentation != "headings");
         var coverage = (previous?.Coverage ?? []).Where(x => !update.Coverage.Any(y => y.SourceId == x.SourceId)).Concat(update.Coverage)
@@ -95,18 +95,26 @@ public static class NoteMutation
             MaterialIds = previous?.MaterialIds.ToList() ?? [],
             InputTranscriptIds = update.Coverage.Select(x => x.SourceId).ToList(),
             Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown, update.Citations.SelectMany(x => x.SourceIds), []),
+            Segments = update.Segments ?? previous?.Segments ?? [],
+            Summary = update.Summary ?? previous?.Summary ?? [],
+            ReviewQuestions = update.ReviewQuestions ?? previous?.ReviewQuestions ?? [],
             SourceFrom = previous?.SourceFrom,
             SourceThrough = previous?.SourceThrough,
             ProcessedThroughMs = previous?.ProcessedThroughMs ?? 0
         };
         var prior = (previous?.Sections ?? []).Select(x => NoteTree.Canonical(x)).ToList();
-        var changed = NoteOrganization.Identity(prior) != NoteOrganization.Identity(canonical) || previous is not null && previous.Presentation != presentation;
+        var changed = Identity(prior) != Identity(canonical) || previous is not null && previous.Presentation != presentation;
         note.MeaningfulRevision = (previous?.MeaningfulRevision ?? 0) + (changed ? 1 : 0);
         note.RecentChanges = (previous?.RecentChanges ?? []).Select(x => new NoteContentChange {Revision = x.Revision, At = x.At, TopicIds = x.TopicIds.ToList()}).ToList();
         if (changed)
             note.RecentChanges.Add(new() {Revision = note.MeaningfulRevision, At = note.CreatedAt,
-                TopicIds = canonical.Where(topic => prior.All(old => old.Id != topic.Id || NoteOrganization.Identity([old]) != NoteOrganization.Identity([topic]))).Select(x => x.Id).ToList()});
+                TopicIds = canonical.Where(topic => prior.All(old => old.Id != topic.Id || Identity([old]) != Identity([topic]))).Select(x => x.Id).ToList()});
         note.RecentChanges = note.RecentChanges.TakeLast(11).ToList();
         return note;
     }
+
+    // What a reader would see change: topic structure and block text, not citations or version numbers.
+    static string Identity(IEnumerable<NoteSection> topics) => ContentHash.Of(System.Text.Json.JsonSerializer.Serialize(topics.Select(x => new {
+        x.Id, x.Title, x.ParentId, x.Order, x.UserEdited, bodies = x.Blocks.Select(b => new {b.Id, b.Order, b.Role, b.Body, b.UserEdited, b.SupersedesBlockId})
+    })));
 }

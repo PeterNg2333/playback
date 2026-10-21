@@ -28,7 +28,7 @@ static class GeminiLiveCheck
             "Before analyzing a recording, check the microphone for clipping and verify its sample rate.";
         const string prompt =
             $"BASE VERSION 0\n\nMATERIALS\n\nTRANSCRIPTS\n[{transcriptId}, 0-120000 ms] {transcript}";
-        const string instructions = NoteInstructions.Sections + "\n" +
+        const string instructions =
             "Create Markdown lecture notes from the supplied synthetic transcript. " +
             "Start with a short '## Summary', then '## Lecture notes'. " +
             "Mention the Fourier transform, FFT, aliasing, and the sampling example. " +

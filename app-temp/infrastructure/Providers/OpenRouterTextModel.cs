@@ -140,17 +140,6 @@ public sealed class OpenRouterTextModel : IDisposable
                 ["type"] = "json_schema",
                 ["json_schema"] = new JsonObject { ["name"] = task.Name, ["strict"] = true, ["schema"] = JsonNode.Parse(task.Schema) }
             };
-        else if (ModelOutputContract.ResponseFormat(name, prompt) is ChatResponseFormatJson { Schema: { } schema } format)
-            payload["response_format"] = new JsonObject
-            {
-                ["type"] = "json_schema",
-                ["json_schema"] = new JsonObject
-                {
-                    ["name"] = format.SchemaName ?? "LectureSectionPatch",
-                    ["strict"] = true,
-                    ["schema"] = JsonNode.Parse(schema.GetRawText())
-                }
-            };
         return payload;
     }
 

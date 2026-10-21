@@ -1,352 +1,513 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-
 using Playback.Domain;
 using Playback.Domain.Notes;
 
 namespace Playback.Application.Notes;
 
-// Writes a session's notes with the configured note writer (Gemini or an OpenRouter model): new confirmed
-// speech, Revise with AI, one organized section or a coverage-gap repair. Every run saves one section patch
-// as a new note version. When automatic runs happen is decided in NoteWorkflow.Automatic.cs.
-public sealed partial class NoteWorkflow : IAsyncDisposable
+// Writes a session's notes at three speeds (NotePrompts): while recording, a live jot for each finished minute and a segment
+// for each finished five minutes; after Stop, an outline and a polish per top-level topic. Segments are the record the AI
+// keeps; topics are laid out from them (NoteLayout). A segment whose transcript changed (a correction or a session rerun) is
+// written again, and only the finished topics polished from it are polished again: lineage decides what an update touches.
+// Every change is saved as a new note version through INoteRepository.
+public sealed class NoteWorkflow : IAsyncDisposable
 {
-    const int MaxConcurrentGenerations = 4;
+    const int MaxConcurrentCalls = 4;
+    const int MaxInstructionLength = 2_000;
+    const int MaxMaterialChars = 12_000;
+    const int MaxRelatedBlocks = 8;
+    static readonly TimeSpan[] Backoff = [TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15)];
+    static readonly TimeSpan IdleAfter = TimeSpan.FromMinutes(1);
+    static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     readonly ConcurrentDictionary<string, SemaphoreSlim> sessionLocks = new();
-    readonly SemaphoreSlim generationSlots = new(MaxConcurrentGenerations, MaxConcurrentGenerations);
-    readonly SemaphoreSlim organizationSlots = new(1, 1);
+    readonly ConcurrentDictionary<string, (int Attempts, DateTime RetryAt)> failures = new();
+    readonly SemaphoreSlim callSlots = new(MaxConcurrentCalls, MaxConcurrentCalls);
     readonly INoteRepository repository;
     readonly INoteEvidence evidence;
     readonly INoteWriter writer;
-    readonly INoteGate jev;
     readonly INoteActivity activity;
+    readonly INoteScript? script;
     readonly TimeProvider clock;
     readonly NoteScheduler scheduler;
-    readonly INoteProcessingPolicy? processingPolicy;
-    readonly INoteSpeechBoundaries? boundaries;
-    readonly INoteOrganizationRepository? organization;
-    readonly INoteRewriteRepository? rewrites;
-    readonly INoteScript? script;
-    readonly DateTime startedAt;
 
-    public NoteWorkflow(INoteRepository repository, INoteEvidence evidence, INoteWriter writer, INoteGate gate,
-        INoteActivity activity, TimeProvider? clock = null, INoteProcessingPolicy? processingPolicy = null, INoteSpeechBoundaries? boundaries = null, INoteOrganizationRepository? organization = null, INoteRewriteRepository? rewrites = null,
-        INoteScript? script = null)
+    public NoteWorkflow(INoteRepository repository, INoteEvidence evidence, INoteWriter writer, INoteActivity activity,
+        INoteScript? script = null, TimeProvider? clock = null)
     {
         this.repository = repository;
         this.evidence = evidence;
         this.writer = writer;
-        jev = gate;
         this.activity = activity;
-        this.clock = clock ?? TimeProvider.System;
-        this.processingPolicy = processingPolicy;
-        this.boundaries = boundaries;
-        this.organization = organization;
-        this.rewrites = rewrites;
         this.script = script;
-        startedAt = this.clock.GetUtcNow().UtcDateTime;
+        this.clock = clock ?? TimeProvider.System;
         scheduler = new NoteScheduler(this.clock, Automatic, interval: TimeSpan.FromSeconds(2));
     }
 
+    public sealed record InstructionResult(object Note, int Applied, List<string> NotApplied);
+
     public bool Due => scheduler.Due;
+    public void Tick(IEnumerable<string> ids, CancellationToken ct) => scheduler.Tick(ids, ct);
+    public Task Drain() => Task.WhenAll(scheduler.Active);
 
-    // Revise with AI: pending speech and new materials first; with none, every editable section.
-    public async Task<object> Generate(string id, CancellationToken ct)
+    // One step per tick: the oldest due segment, else the last minute's jot, else the finish. Every window counts as closed
+    // after Stop, or once no new speech has been confirmed for a minute (so corrections after the lecture are written too).
+    // Only Stop outlines the whole lecture; when idle, finished topics are polished again if a segment they came from changed.
+    // A failed step waits 10 s, 1 min, 5 min, then 15 min before it is tried again, so a failing provider is not paid every tick.
+    async Task Automatic(string id, CancellationToken ct)
     {
+        var now = clock.GetUtcNow().UtcDateTime;
+        if (!writer.IsConfigured || failures.TryGetValue(id, out var failed) && failed.RetryAt > now) return;
         var sessionLock = SessionLock(id);
-        await sessionLock.WaitAsync(ct);
+        if (!await sessionLock.WaitAsync(0, ct)) return;
         try
         {
-            var session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
-            var pending = NoteInput.Pending(session);
-            var sections = session.Sections;
-            if (pending.Count > 0 || NoteInput.Materials(session.Materials, session.CurrentNote).Count > 0)
-                return await Revise(session, pending, NoteInput.ContextSections(sections, pending), ct);
-            object? result = null;
-            // Explicit revision visits every editable section with its own sources, not the last 40 chunks.
-            foreach (var section in sections.Where(x => !x.UserEdited))
+            var gate = await repository.Gate(id);
+            var stopped = gate?.FlushRequested == true;
+            var session = await evidence.Session(id);
+            if (session is null) return;
+            var lastSpeech = session.Transcripts.Max(x => x.ConfirmedAt);
+            var idle = lastSpeech is null || now - lastSpeech > IdleAfter;
+            var closeAll = (stopped || idle) && !session.AwaitingTranscripts;
+            var plan = NoteTimeline.Plan(session, closeAll);
+            if (plan.Segments.Count > 0) await WriteSegment(session, plan.Segments[0], ct);
+            else if (plan.JotMinute is { } minute) await WriteJot(session, minute, ct);
+            else if (closeAll && stopped)
             {
-                session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
-                var current = session.Sections.Single(x => x.Id == section.Id);
-                result = await Revise(session, [], [current], ct);
+                await Finish(session, ct, outline: true);
+                await repository.AcknowledgeFlush(id, gate!.FlushVersion);
             }
-            return result ?? throw new InvalidOperationException(
-                "No editable section; user-edited sections are protected. Select a section to organize it explicitly.");
+            else if (closeAll) await Finish(session, ct, outline: false);
+            failures.TryRemove(id, out _);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            var attempts = failures.TryGetValue(id, out var previous) ? previous.Attempts + 1 : 1;
+            failures[id] = (attempts, clock.GetUtcNow().UtcDateTime + Backoff[Math.Min(attempts, Backoff.Length) - 1]);
+            activity.Warning("Note job failed", id, ex);
         }
         finally { sessionLock.Release(); }
     }
 
-    public async Task<object> Organize(string id, string sectionId, int baseVersion, CancellationToken ct)
+    // Revise with AI: write every window that is due as if the lecture had stopped, then finish.
+    public Task<object> Generate(string id, CancellationToken ct) => Locked(id, ct, async () =>
     {
-        var sessionLock = SessionLock(id);
-        await sessionLock.WaitAsync(ct);
-        try
-        {
-            var session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
-            if (session.NoteVersion != baseVersion) throw new InvalidOperationException("Notes changed; reload before organizing");
-            var section = session.Sections.SingleOrDefault(x => x.Id == sectionId)
-                ?? throw new InvalidOperationException("Section not found");
-            return await Revise(session, [], [section], ct, organize: true);
-        }
-        finally { sessionLock.Release(); }
-    }
-
-    // Writes the earliest actionable gap as new content; existing sections and user edits stay.
-    public async Task<object> RepairCoverage(string id, int baseVersion, CancellationToken ct)
-    {
-        var sessionLock = SessionLock(id);
-        await sessionLock.WaitAsync(ct);
-        try
-        {
-            var session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
-            if (session.NoteVersion != baseVersion) throw new InvalidOperationException("Notes changed; reload the coverage report");
-            var pending = NoteCoverage.OldestBatch(session);
-            if (pending.Count == 0)
-                throw new InvalidOperationException("No unreferenced speech; citations alone do not prove semantic completeness");
-            return await Revise(session, pending, [], ct, repair: true);
-        }
-        finally { sessionLock.Release(); }
-    }
-
-    SemaphoreSlim SessionLock(string id) => sessionLocks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
-
-    // A transcript correction cannot race a note call that is still marking the old wording completed.
-    public async Task<bool> UpdateEvidence(string id, Func<Task<bool>> save, CancellationToken ct)
-    {
-        var sessionLock = SessionLock(id);
-        await sessionLock.WaitAsync(ct);
-        try { return await save(); }
-        finally { sessionLock.Release(); }
-    }
-
-    // One model run: build the bounded input, stream the reply, apply it as a section patch and save
-    // the new version. Sources the reply neither wrote nor deferred stay pending.
-    async Task<object> Revise(NoteSession session, List<NoteTranscript> pending, List<NoteSection> context, CancellationToken ct,
-        bool organize = false, bool repair = false, string admissionReason = "manual", bool outlineOnly = false, bool automaticOrganization = false, string? persistenceHash = null)
-    {
-        var policy = processingPolicy is null ? ProcessingPolicy.Defaults : (await processingPolicy.Effective(session.Id)).Values;
-        var materials = organize || repair ? new List<NoteMaterial>() : NoteInput.Materials(session.Materials, session.CurrentNote);
-        var instructions = NoteInstructions.For(session.NoteLanguage) + (organize ? "\n" + NoteInstructions.Organize : "");
-        var call = await activity.Begin(session.Id, organize ? "Section organization" : "Note revision", writer.Provider, writer.Model,
-            pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Concat(context.SelectMany(x => x.Points).SelectMany(x => x.SourceIds)),
-            session.NoteVersion);
-        call.SectionId = organize ? context[0].Id : null;
-        var admitted = false;
-        try
-        {
-            var input = outlineOnly ? NoteInput.Outline(session, context) : organize
-                ? NoteInput.Build(session, pending, context, materials, "organize")
-                : NoteInput.Bounded(session, pending, context, materials, repair ? "gap-repair" : admissionReason);
-            var hash = persistenceHash ?? ContentHash.Of(writer.Model + instructions + input.Text);
-            activity.Context(call, organize ? NoteInstructions.OrganizeVersion : NoteInstructions.Version, instructions, input.Text);
-            await generationSlots.WaitAsync(ct);
-            admitted = true;
-            await activity.Start(call);
-            var watch = Stopwatch.StartNew();
-            NotePatch patch;
-            try
-            {
-                patch = await writer.Generate(organize ? "LectureSectionOrganizer" : "LectureSectionWriter", instructions, input.Text, ct,
-                    onUpdate: text => activity.Draft(call, input.Decode(ReadableDraft(text))), onUsage: usage => call.UsageJson = usage);
-            }
-            finally { call.ProviderLatencyMs = watch.ElapsedMilliseconds; }
-
-            var allowed = session.AllowedSources.ToList();
-            ExpandPlacements(patch);
-            SplitTopicContent(patch);
-            InScript(patch, session.NoteLanguage);
-            var distantMoves = 0;
-            OrganizerDrops? outOfScope = null;
-            DecodePatch(patch, input, context, session, allowed);
-            if (organize) { outOfScope = DropOutOfScope(patch, context, session.Sections); distantMoves = DropDistantMoves(patch, session); }
-            // Organization stays structural and all-or-nothing; writing applies each change on its own.
-            var edits = organize ? null : await TriageEdits(session, patch, allowed, pending);
-            var proposals = organize ? RewriteCandidates(session, patch) : [];
-            if (proposals.Count > 0)
-            {
-                if (rewrites is null) throw new InvalidOperationException("Body rewrite requires a saved preview; prior content remains unchanged");
-                foreach (var proposal in proposals) await rewrites.SaveRewrite(proposal);
-                await evidence.MarkNotes(pending.Select(x => x.Id), "deferred", "Rewrite preview requires review; input remains unwritten");
-                await activity.End(call, "review-required", "Prior bodies preserved in position; inspect the retained-block rewrite preview before accepting");
-                return new NoteRewritePending(session.NoteVersion, session.NoteMarkdown, proposals.Select(x => x.Id).ToList());
-            }
-            // Newly compacted legacy citations must be available for decoding before applying the patch.
-            var baseSections = session.Sections;
-            var baseNote = session.CurrentNote ?? new Note { SessionId = session.Id };
-            baseNote.Citations = NoteSections.CloneCitations(baseNote.Citations);
-            foreach (var section in context) NoteSections.Compact(session.Id, section.Markdown, allowed, baseNote.Citations);
-            var update = NoteSections.Apply(session.Id, baseNote, baseSections, patch, context.Select(x => x.Id),
-                pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)), allowed, hash, allowUserEdited: organize);
-            if (patch.Operations.Count > 0)
-            {
-                if (outlineOnly && patch.Operations.Any(x => x.Kind is not ("create-topic" or "move-topic" or "reorder-topic" or "rename-topic"))) throw new InvalidOperationException("Outline organization may change only topic structure");
-                List<NoteSection> operated;
-                List<string> edited = [];
-                if (edits is null)
-                {
-                    // Splitting a large topic moves each block, so organization may use more operations than writing.
-                    operated = NoteTree.Apply(update.Sections, patch.Operations, allowed, hash, allowProtected: organize && !automaticOrganization, structuralOnly: organize,
-                        maxOperations: organize ? NoteTree.MaxOrganizationOperations : NoteTree.MaxOperations);
-                    KeepLectureOrder(operated, update.Sections.Select(x => x.Id).ToHashSet(), session);
-                }
-                else
-                {
-                    (operated, var rejected) = NoteTree.ApplyEach(update.Sections, patch.Operations, allowed, hash);
-                    edits.Dropped.AddRange(rejected);
-                    KeepLectureOrder(operated, update.Sections.Select(x => x.Id).ToHashSet(), session);
-                    edited = patch.Operations.Where(x => x.Kind is "replace-text" or "delete-block" && rejected.All(r => r.Operation != x)).Select(x => x.BlockId).ToList();
-                }
-                var points = operated.SelectMany(x => x.Points).ToList();
-                var coverage = pending.Select(x => x.Id).Concat(materials.Select(x => x.Id)).Select(source =>
-                {
-                    var corrected = pending.Any(x => x.Id == source && x.Retranscribed);
-                    var written = points.Where(x => x.SourceIds.Contains(source) && (!corrected ||
-                        session.Sections.SelectMany(s => s.Points).All(old => old.Id != x.Id || old.Text != x.Text)))
-                        .Select(x => x.Id).ToList();
-                    var deferred = patch.Deferred.FirstOrDefault(x => x.SourceId == source);
-                    return new SourceDisposition { SourceId = source, PointIds = written, Status = written.Count > 0 ? "covered" : deferred is not null ? "deferred" : "pending",
-                        Reason = written.Count > 0 ? "Source-backed canonical block saved" : deferred?.Reason ?? "No block or deferral; source remains pending" };
-                }).ToList();
-                update = new(operated, update.Citations, coverage, EditedBlockIds: edited);
-            }
-            if (patch.Sections.Count == 0 && patch.Operations.Count == 0)
-            {
-                await evidence.MarkNotes(pending.Select(x => x.Id), "deferred", "Generation deferred this input; it has not been incorporated into notes");
-                await activity.End(call, "completed", "No section change; all input deferred, no note version saved" + EditSummary(edits) +
-                    Dropped(distantMoves, outOfScope));
-                return new { Version = session.NoteVersion, Markdown = session.NoteMarkdown, Author = session.CurrentNote?.Author };
-            }
-            if (organize)
-                foreach (var section in update.Sections.Where(x => context.Any(s => s.Id == x.Id)))
-                {
-                    section.OrganizedAt = DateTime.UtcNow;
-                    section.OrganizedVersion = section.Version;
-                }
-            foreach (var item in update.Coverage)
-                item.ContentHash = ContentHash.Of(pending.FirstOrDefault(x => x.Id == item.SourceId)?.SourceText
-                    ?? materials.First(x => x.Id == item.SourceId).Text);
-            RequireKnownReferences(patch, update, context, session, allowed);
-            update = update with { Presentation = policy.NotePresentation };
-
-            var result = await repository.Save(session.Id, update, hash, session.NoteVersion, session.NoteLanguage,
-                author: organize ? "agent organization" : "agent");
-            await MarkSources(update, pending);
-            await activity.End(call, "completed",
-                $"Section patch saved; untouched sections retained; {update.Coverage.Count(x => x.Status == "covered")} sources have written points, " +
-                $"{update.Coverage.Count(x => x.Status == "deferred")} deferred, {update.Coverage.Count(x => x.Status == "pending")} remain pending without a model disposition" +
-                EditSummary(edits) + Dropped(distantMoves, outOfScope));
-            return result;
-        }
-        catch (Exception ex) { await activity.Fail(call, ex); throw; }
-        finally { if (admitted) generationSlots.Release(); }
-    }
-
-    // The reply cites input aliases; store the real source IDs and show every point's sources as a citation.
-    static void DecodePatch(NotePatch patch, NotePrompt input, List<NoteSection> context, NoteSession session, List<string> allowed)
-    {
-        foreach (var section in patch.Sections)
-        {
-            section.BaseVersion = context.FirstOrDefault(x => x.Id == section.Id)?.Version ?? 0;
-            foreach (var point in section.Points)
-            {
-                point.Text = input.Decode(SourceRefsAsCitations(point.Text, input));
-                point.SourceIds = point.SourceIds.SelectMany(x => input.Aliases.TryGetValue(x, out var source) ? new[] { source } :
-                    session.CurrentNote?.Citations.FirstOrDefault(c => c.Id == x)?.SourceIds.ToArray() ?? [x]).Distinct().ToList();
-                var cited = NoteSections.Sources(NoteSections.Expand(point.Text, session.CurrentNote?.Citations ?? []), allowed);
-                var missing = point.SourceIds.Except(cited).ToArray();
-                if (missing.Length > 0) point.Text += " [" + string.Join(", ", missing) + "]";
-            }
-            section.Markdown = "## " + section.Title + "\n\n" + string.Join("\n\n", section.Points.Select(x => x.Text));
-        }
-        foreach (var deferred in patch.Deferred)
-            if (input.Aliases.TryGetValue(deferred.SourceId, out var source)) deferred.SourceId = source;
-        foreach (var operation in patch.Operations)
-        {
-            operation.Body = SourceRefsAsCitations(operation.Body, input);
-            operation.Replace = SourceRefsAsCitations(operation.Replace, input);
-            operation.TopicId = input.Aliases.GetValueOrDefault(operation.TopicId, operation.TopicId);
-            if (operation.ParentId is not null) operation.ParentId = input.Aliases.GetValueOrDefault(operation.ParentId, operation.ParentId);
-            operation.Body = input.Decode(operation.Body);
-            operation.Replace = input.Decode(operation.Replace);
-            operation.SourceIds = operation.SourceIds.Select(x => input.Aliases.GetValueOrDefault(x, x)).ToList();
-            if (operation.Kind == "add-block")
-            {
-                operation.Body = WithoutCopiedCitations(operation.Body);
-                var cited = NoteSections.Sources(operation.Body, allowed);
-                var missing = operation.SourceIds.Except(cited).ToList();
-                if (missing.Count > 0) operation.Body += " [" + string.Join(", ", missing) + "]";
-            }
-        }
-        foreach (var rewrite in patch.Rewrites) rewrite.Body = input.Decode(rewrite.Body);
-    }
-
-    // Models write source citations as term references ("[ref:T001, T002]"). When every ID is a source alias in
-    // this input it is a source citation; any other [ref:...] stays and is checked as a term reference.
-    static string SourceRefsAsCitations(string text, NotePrompt input) => Regex.Replace(text, @"\[ref:\s*([^\]]+)\]", match =>
-    {
-        var ids = match.Groups[1].Value.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        return ids.Length > 0 && ids.All(input.Aliases.ContainsKey) ? "[" + string.Join(", ", ids) + "]" : match.Value;
+        await WriteDue(id, ct);
+        return await Finish(await Session(id), ct);
     });
 
-    // A new block cites through its sourceIds. Models also paste an existing cite_* marker into the text as a
-    // generic citation, which attributes the claim to an unrelated earlier source, so those markers are removed.
-    static string WithoutCopiedCitations(string body) => Regex.Replace(
-        CitationSyntax.Rewrite(body, inner => inner.Split([',', ';'], StringSplitOptions.TrimEntries).All(x => x.StartsWith("cite_", StringComparison.Ordinal)) ? "" : inner),
-        @"[ \t]*\[\]", "");
-
-    // Older versions can contain unavailable historical IDs. Copying them remains visibly unavailable;
-    // no new source ID may be invented and none can be counted as coverage.
-    static void RequireKnownReferences(NotePatch patch, SectionUpdate update, List<NoteSection> context, NoteSession session, List<string> allowed)
+    // After a correction or a session rerun: rewrite the windows whose transcript changed and polish what cited them.
+    public Task<int> WritePending(string id, CancellationToken ct) => Locked(id, ct, async () =>
     {
-        foreach (var section in patch.Sections)
+        var written = await WriteDue(id, ct);
+        if (written > 0) await Finish(await Session(id), ct);
+        return written;
+    });
+
+    // Writes the notes again from the whole transcript. Edited and locked blocks stay (in the topic they were in); history
+    // keeps every earlier version.
+    public Task<NoteRebuildResult> Rebuild(string id, CancellationToken ct) => Locked(id, ct, async () =>
+    {
+        var session = await Session(id);
+        if (session.Transcripts.All(x => string.IsNullOrWhiteSpace(x.SourceText)))
+            throw new InvalidOperationException("No transcript to write notes from");
+        var start = session.NoteVersion;
+        var kept = session.Sections.Select(x => NoteTree.Canonical(x)).Select(topic =>
         {
-            NoteReferences.ValidateReferences(section.Markdown, session.TermReferenceIds);
-            var priorReferences = context.SelectMany(s => CitationSyntax.Bodies(s.Markdown))
-                .SelectMany(body => body.Split([',', ';'], StringSplitOptions.TrimEntries))
-                .Where(x => !x.StartsWith("ref:") && !Regex.IsMatch(x, @"^(?:T\d+|cite_.*)$", RegexOptions.IgnoreCase))
-                .ToList();
-            NoteReferences.ValidateSourceReferences(NoteSections.Expand(section.Markdown, update.Citations),
-                allowed.Concat(priorReferences).Concat(update.Citations.Select(c => c.Id)));
-        }
-        // Operation text was checked one operation at a time in TriageEdits; organization adds no text.
+            topic.Blocks = topic.Blocks.Where(b => b.UserEdited).ToList();
+            topic.SegmentBlockIds = [];
+            return topic;
+        }).Where(x => x.Blocks.Count > 0 || x.UserEdited).ToList();
+        await repository.Save(id, new SectionUpdate(kept, NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []), [],
+                Segments: [], Summary: [], ReviewQuestions: []),
+            ContentHash.Of("rebuild:" + start + ":" + clock.GetUtcNow().Ticks), start, session.NoteLanguage, "user rebuild");
+        await evidence.MarkNotes(session.Transcripts.Select(x => x.Id), "pending");
+        var written = await WriteDue(id, ct);
+        await Finish(await Session(id), ct);
+        var final = await Session(id);
+        return new NoteRebuildResult(start, final.NoteVersion, written, NoteTimeline.Plan(final, closeAll: true).Segments.Count);
+    });
+
+    // The owner's instruction for one block, one topic, or every top-level topic. It is applied directly because a person
+    // asked for it; history keeps the previous version, and locked blocks stay as they are.
+    public Task<InstructionResult> Instruct(string id, string instruction, string? topicId, string? blockId, int baseVersion, CancellationToken ct)
+    {
+        instruction = instruction.Trim();
+        if (instruction.Length is < 1 or > MaxInstructionLength) throw new InvalidOperationException("Write an instruction of up to 2,000 characters");
+        if (!writer.IsConfigured) throw new InvalidOperationException("The note model is not configured; no instruction was sent");
+        return Locked(id, ct, async () =>
+        {
+            var session = await Session(id);
+            if (session.NoteVersion != baseVersion) throw new InvalidOperationException("Notes changed; reload and give the instruction again");
+            var note = session.CurrentNote ?? throw new InvalidOperationException("There are no notes to revise yet");
+            var topics = note.Sections.Select(x => NoteTree.Canonical(x)).ToList();
+            List<(NoteSection Topic, NoteBlock? Block)> targets = blockId is not null
+                ? topics.Where(t => t.Blocks.Any(b => b.Id == blockId)).Select(t => (t, (NoteBlock?)t.Blocks.First(b => b.Id == blockId))).ToList()
+                : topics.Where(t => topicId is not null ? t.Id == topicId : t.ParentId is null && t.Id != NoteLayout.LiveTopicId)
+                    .Take(12).Select(t => (t, (NoteBlock?)null)).ToList();
+            if (targets.Count == 0) throw new InvalidOperationException(blockId is not null ? "Block not found" : "Topic not found");
+            var notApplied = new List<string>();
+            var applied = 0;
+            foreach (var (topic, block) in targets)
+            {
+                var editable = block is null ? topic.Blocks.Where(b => !b.UserEdited).ToList() : block.UserEdited ? [] : [block];
+                if (editable.Count == 0) { notApplied.Add($"{topic.Title}: locked"); continue; }
+                var markdown = await RewriteText(session, note, topic, editable, instruction, ct);
+                if (markdown is null) { notApplied.Add($"{topic.Title}: the model returned no text"); continue; }
+                var (body, sources) = markdown.Value;
+                if (block is not null) Replace(topic, block.Id, NoteLayout.Block(block.Id, block.Role, body, sources, block.Order));
+                else
+                {
+                    var rewritten = NoteLayout.Block("r-" + ContentHash.Of(topic.Id + body)[..12], "detail", body, sources);
+                    topic.Blocks = topic.Blocks.Where(b => b.UserEdited).Prepend(rewritten).Select((b, i) => { b.Order = i; return b; }).ToList();
+                }
+                applied++;
+            }
+            if (applied == 0) return new InstructionResult(Current(session), 0, notApplied);
+            var saved = await repository.Save(id, new SectionUpdate(topics, NoteSections.CloneCitations(note.Citations), []),
+                ContentHash.Of("instruction:" + session.NoteVersion + instruction + topicId + blockId), session.NoteVersion, session.NoteLanguage, "user instruction");
+            return new InstructionResult(saved, applied, notApplied);
+        });
     }
 
-    static string EditSummary(EditOutcome? edits) => edits is null ? "" :
-        $"; {edits.Appended} appended to existing topics, {edits.AutoEdited} edits applied automatically, {edits.Suggested} suggestions for review" +
-        (edits.RepeatDeferrals == 0 ? "" : $", {edits.RepeatDeferrals} repeated deferrals ignored") +
-        (edits.Redirected == 0 ? "" : $", {edits.Redirected} blocks for closed topics placed in the subtopic the reply declared") +
-        (edits.ClosedKept == 0 ? "" : $", {edits.ClosedKept} blocks for closed topics kept there without a declared subtopic") +
-        (edits.Dropped.Count == 0 ? "" : $", {edits.Dropped.Count} changes not applied ({string.Join("; ", edits.Dropped.Select(x => x.Reason).Distinct().Take(3))})");
+    // A transcript correction cannot race a note call that is still writing from the old wording.
+    public Task<bool> UpdateEvidence(string id, Func<Task<bool>> save, CancellationToken ct) => Locked(id, ct, save);
 
-    async Task MarkSources(SectionUpdate update, List<NoteTranscript> pending)
+    async Task<int> WriteDue(string id, CancellationToken ct)
     {
-        var pendingIds = pending.Select(x => x.Id);
-        await evidence.MarkNotes(update.Coverage.Where(x => x.Status == "covered").Select(x => x.SourceId).Intersect(pendingIds), "completed");
-        await evidence.MarkNotes(update.Coverage.Where(x => x.Status == "deferred").Select(x => x.SourceId).Intersect(pendingIds),
-            "deferred", "Retained for continuation; the saved source disposition explains why");
-        await evidence.MarkNotes(update.Coverage.Where(x => x.Status == "pending").Select(x => x.SourceId).Intersect(pendingIds),
-            "pending", "No written point or deferral; still awaiting coverage");
+        var written = 0;
+        // Each window is written once per pass; a window that fails to change is not retried here.
+        var tried = new HashSet<int>();
+        while (NoteTimeline.Plan(await Session(id), closeAll: true).Segments.FirstOrDefault(x => !tried.Contains(x.Index)) is { } window)
+        {
+            ct.ThrowIfCancellationRequested();
+            tried.Add(window.Index);
+            await WriteSegment(await Session(id), window, ct);
+            written++;
+        }
+        return written;
+    }
+
+    // ── Live jot ──
+
+    sealed record JotReply(List<JotPoint> Points);
+    sealed record JotPoint(string Text, List<string> Sources);
+
+    async Task WriteJot(NoteSession session, int minute, CancellationToken ct)
+    {
+        var lines = NoteTimeline.Lines(session);
+        var current = lines.Where(x => x.At / NoteTimeline.MinuteMs == minute).ToList();
+        var recent = lines.Where(x => x.At >= minute * NoteTimeline.MinuteMs - 3 * NoteTimeline.MinuteMs && x.At < minute * NoteTimeline.MinuteMs).ToList();
+        var aliases = new NoteAliases(recent.Concat(current).Select(x => x.Id));
+        var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new { recent = aliases.Rows(recent), @new = aliases.Rows(current) }, Json);
+        var (reply, call) = await Call<JotReply>(session, NotePrompts.Jot, "Live jot", NotePrompts.JotInstructions(session.NoteLanguage), input,
+            current.Select(x => x.Id), ct);
+        try
+        {
+            var points = reply.Points.Select(p => (Text: InScript(aliases.Decode(p.Text), session), Sources: aliases.Sources(p.Sources).ToList()))
+                .Where(p => !NoteContent.IsPlaceholder(p.Text)).ToList();
+            if (points.Count == 0) { await activity.End(call, "completed", "Nothing to jot for this minute"); return; }
+            var body = string.Join("\n", points.Select(p => "- " + p.Text.Trim()));
+            var live = NoteLayout.Live(session.CurrentNote).Append(NoteLayout.Block(NoteLayout.LiveBlockId(minute), "live", body,
+                points.SelectMany(p => p.Sources))).ToList();
+            await Save(session, NoteLayout.Arrange(session.CurrentNote, session.CurrentNote?.Segments ?? [], live, session.NoteLanguage),
+                null, "notes live", "jot:" + minute + ":" + body);
+            await activity.End(call, "completed", $"{points.Count} live points for {NoteTimeline.Clock(minute * NoteTimeline.MinuteMs)}");
+        }
+        catch (Exception ex) { await activity.Fail(call, ex); throw; }
+    }
+
+    // ── Segment ──
+
+    sealed record SegmentReply(string Title, List<SegmentBlock> Blocks, List<SegmentConcept> Concepts, List<SegmentCorrection> Corrections);
+    sealed record SegmentBlock(string Kind, string Markdown, List<string> Sources);
+    sealed record SegmentConcept(string Name, string Definition, List<string> Sources);
+    sealed record SegmentCorrection(string Heard, string Written, List<string> Sources);
+
+    async Task WriteSegment(NoteSession session, NoteWindow window, CancellationToken ct)
+    {
+        var note = session.CurrentNote;
+        var before = (note?.Segments ?? []).Where(x => x.Index < window.Index).OrderBy(x => x.Index).ToList();
+        var aliases = new NoteAliases(window.Lines.Select(x => x.Id));
+        var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new
+        {
+            outline = before.Select(s => NoteTimeline.Clock(s.StartMs) + " " + s.Title),
+            previous = before.LastOrDefault() is { } last ? new { last.Title, notes = string.Join("\n\n", last.Blocks.Select(b => Uncited(b.Body))) } : null,
+            window = aliases.Rows(window.Lines)
+        }, Json);
+        var (reply, call) = await Call<SegmentReply>(session, NotePrompts.Segment, "Note segment", NotePrompts.SegmentInstructions(session.NoteLanguage),
+            input, window.Lines.Select(x => x.Id), ct);
+        try
+        {
+            var blocks = reply.Blocks.Select(b => (b.Kind, Body: InScript(aliases.Decode(b.Markdown), session), Sources: aliases.Sources(b.Sources).ToList()))
+                .Where(b => !NoteContent.IsPlaceholder(b.Body))
+                .Select((b, i) => NoteLayout.Block(NoteLayout.SegmentBlockId(window.Index, ContentHash.Of(window.Hash + "\n" + i + "\n" + b.Body)), b.Kind, b.Body, b.Sources, i))
+                .ToList();
+            var segment = new NoteSegment
+            {
+                Index = window.Index, StartMs = window.StartMs, EndMs = window.EndMs, InputHash = window.Hash,
+                Title = InScript(reply.Title.Trim(), session), SourceIds = window.Lines.Select(x => x.Id).ToList(), Blocks = blocks,
+                Concepts = reply.Concepts.Select(c => new NoteConcept { Name = c.Name.Trim(), Definition = InScript(c.Definition, session),
+                    SourceIds = aliases.Sources(c.Sources).ToList() }).Where(c => c.Name.Length > 0).ToList(),
+                Corrections = reply.Corrections.Select(c => new NoteCorrection { Heard = c.Heard, Written = c.Written,
+                    SourceIds = aliases.Sources(c.Sources).ToList() }).ToList()
+            };
+            var segments = (note?.Segments ?? []).Where(x => x.Index != window.Index).Append(segment).OrderBy(x => x.Index).ToList();
+            // The window's jots are now covered by its segment.
+            var live = NoteLayout.Live(note).Where(x => NoteLayout.MinuteOf(x.Id) is not { } m || m * NoteTimeline.MinuteMs / NoteTimeline.WindowMs != window.Index).ToList();
+            await Save(session, NoteLayout.Arrange(note, segments, live, session.NoteLanguage), segments, "notes segment", "segment:" + window.Hash + ":" + JsonSerializer.Serialize(reply, Json));
+            await evidence.MarkNotes(window.Lines.Select(x => x.Id), "completed");
+            await activity.End(call, "completed", $"{blocks.Count} blocks for {NoteTimeline.Clock(window.StartMs)} \"{segment.Title}\"");
+        }
+        catch (Exception ex) { await activity.Fail(call, ex); throw; }
+    }
+
+    // ── Finish: outline and polish ──
+
+    sealed record OutlineReply(List<OutlineEntry> Topics, List<string> Summary, List<string> ReviewQuestions);
+    sealed record OutlineEntry(string Key, string Title, string Parent, List<string> Blocks);
+    sealed record PolishReply(List<PolishedTopic> Topics);
+    sealed record PolishedTopic(string Key, string Markdown);
+
+    // With outline, and no finished topics yet or segments no finished topic covers: outline and polish everything. Otherwise
+    // only the finished topics whose segment blocks were rewritten are polished again. Returns the saved (or current) note.
+    async Task<object> Finish(NoteSession session, CancellationToken ct, bool outline = true)
+    {
+        var note = session.CurrentNote;
+        var segments = note?.Segments ?? [];
+        if (note is null || segments.Count == 0) return Current(session);
+        var topics = note.Sections.Select(x => NoteTree.Canonical(x)).ToList();
+        var finished = topics.Where(NoteLayout.IsFinished).ToList();
+        var placed = finished.SelectMany(x => x.SegmentBlockIds).Select(NoteLayout.SegmentOf).OfType<int>().ToHashSet();
+        // A segment without blocks (only greetings or filler) has nothing to place.
+        var written = segments.Where(x => x.Blocks.Count > 0).ToList();
+        if (written.Count == 0) return Current(session);
+        if (outline && (finished.Count == 0 || written.Any(x => !placed.Contains(x.Index)))) return await Outline(session, note, ct);
+        var current = segments.SelectMany(x => x.Blocks).Select(x => x.Id).ToHashSet();
+        var stale = finished.Where(t => t.SegmentBlockIds.Any(id => !current.Contains(id))).ToList();
+        if (stale.Count == 0) return Current(session);
+        // A rewritten segment's new blocks go to the topic that held most of its old blocks; other topics just lose the old IDs.
+        foreach (var index in stale.SelectMany(t => t.SegmentBlockIds).Where(id => !current.Contains(id)).Select(NoteLayout.SegmentOf).OfType<int>().Distinct().ToList())
+        {
+            var owner = stale.MaxBy(t => t.SegmentBlockIds.Count(id => NoteLayout.SegmentOf(id) == index))!;
+            foreach (var topic in stale) topic.SegmentBlockIds.RemoveAll(id => NoteLayout.SegmentOf(id) == index);
+            owner.SegmentBlockIds.AddRange(segments.First(x => x.Index == index).Blocks.Select(x => x.Id));
+        }
+        var blocks = segments.SelectMany(x => x.Blocks).ToDictionary(x => x.Id);
+        var polished = await Polish(session, stale.Select(t => (t, 1, t.SegmentBlockIds.Select(id => blocks[id]).ToList())).ToList(), ct);
+        foreach (var topic in stale) topic.Blocks = PolishedBlocks(topic, polished.GetValueOrDefault(topic.Id), topic.SegmentBlockIds.Select(id => blocks[id]));
+        return await Save(session, topics, null, "notes final", "repolish:" + string.Join("|", stale.Select(t => t.Id + string.Join(",", t.SegmentBlockIds))));
+    }
+
+    async Task<object> Outline(NoteSession session, Note note, CancellationToken ct)
+    {
+        var segments = note.Segments.Where(x => x.Blocks.Count > 0).OrderBy(x => x.Index).ToList();
+        var blocks = segments.SelectMany(s => s.Blocks.Select(b => (Segment: s, Block: b))).ToList();
+        var keys = blocks.Select((x, i) => (Key: "B" + (i + 1), x.Block.Id)).ToDictionary(x => x.Key, x => x.Id);
+        var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new
+        {
+            blocks = blocks.Select((x, i) => new object[] { "B" + (i + 1), NoteTimeline.Clock(x.Segment.StartMs), x.Segment.Title, x.Block.Role,
+                Regex.Replace(Uncited(x.Block.Body), @"\s+", " ").Trim() is var text && text.Length > 160 ? text[..160] : text })
+        }, Json);
+        var (reply, call) = await Call<OutlineReply>(session, NotePrompts.Outline, "Note outline", NotePrompts.OutlineInstructions(session.NoteLanguage),
+            input, segments.SelectMany(s => s.SourceIds), ct);
+        try
+        {
+            var outline = NoteLayout.RepairOutline(reply.Topics.Select(t => new NoteLayout.OutlineTopic(t.Key, InScript(t.Title, session), t.Parent,
+                t.Blocks.Where(keys.ContainsKey).Select(k => keys[k]).ToList())), blocks.Select(x => x.Block.Id).ToList());
+            var ids = outline.ToDictionary(t => t.Key, t => NoteLayout.TopicId(session.Id, [t.Key, t.Title, .. t.Blocks]));
+            var byId = blocks.ToDictionary(x => x.Block.Id, x => x.Block);
+            var topics = outline.Select(t => new NoteSection { Id = ids[t.Key], SchemaVersion = 2, Title = t.Title,
+                ParentId = t.Parent.Length > 0 ? ids[t.Parent] : null, SegmentBlockIds = t.Blocks.ToList() }).ToList();
+            foreach (var group in topics.GroupBy(x => x.ParentId)) { var order = 0; foreach (var topic in group) topic.Order = order++; }
+            int Depth(NoteSection t) => t.ParentId is null ? 1 : 1 + Depth(topics.First(x => x.Id == t.ParentId));
+            var polished = await Polish(session, topics.Select(t => (t, Depth(t), t.SegmentBlockIds.Select(id => byId[id]).ToList())).ToList(), ct);
+            foreach (var topic in topics) topic.Blocks = PolishedBlocks(topic, polished.GetValueOrDefault(topic.Id), topic.SegmentBlockIds.Select(id => byId[id]));
+            // Edited and locked blocks keep their text: one the finish wrote again (same ID) is replaced by the edited version,
+            // any other joins the topic that cites most of the same sources.
+            foreach (var edited in NoteLayout.Edited(note.Sections.Select(x => NoteTree.Canonical(x))))
+            {
+                if (topics.FirstOrDefault(t => t.Blocks.Any(b => b.Id == edited.Id)) is { } rewritten)
+                {
+                    Replace(rewritten, edited.Id, edited);
+                    continue;
+                }
+                var sources = NoteLayout.Sources(edited, note.Citations);
+                var home = topics.MaxBy(t => t.SegmentBlockIds.Select(id => byId[id]).SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds).Intersect(sources).Count())!;
+                edited.Order = home.Blocks.Count;
+                home.Blocks.Add(edited);
+            }
+            var saved = await Save(session, topics, null, "notes final", "outline:" + JsonSerializer.Serialize(reply, Json),
+                reply.Summary.Select(x => InScript(aliasesFree(x), session)).ToList(), reply.ReviewQuestions.Select(x => InScript(x, session)).ToList());
+            await activity.End(call, "completed", $"{topics.Count} topics ({topics.Count(x => x.ParentId is null)} top level) from {blocks.Count} blocks");
+            return saved;
+        }
+        catch (Exception ex) { await activity.Fail(call, ex); throw; }
+        static string aliasesFree(string text) => Regex.Replace(text, @"\s*\[(?:T|B)\d+(?:\s*,\s*(?:T|B)\d+)*\]", "");
+    }
+
+    // One polish call per top-level topic (with its subtopics), at most four at a time. A reply that keeps under 80% of a
+    // topic's citations or half its length is not used: that topic keeps its segment blocks.
+    async Task<Dictionary<string, string>> Polish(NoteSession session, List<(NoteSection Topic, int Depth, List<NoteBlock> Blocks)> topics, CancellationToken ct)
+    {
+        var result = new ConcurrentDictionary<string, string>();
+        var roots = topics.Where(x => x.Topic.ParentId is null || topics.All(p => p.Topic.Id != x.Topic.ParentId)).ToList();
+        List<(NoteSection Topic, int Depth, List<NoteBlock> Blocks)> Subtree(NoteSection root) =>
+            topics.Where(x => x.Topic == root).Concat(topics.Where(x => x.Topic.ParentId == root.Id).SelectMany(x => Subtree(x.Topic))).ToList();
+        await Task.WhenAll(roots.Select(async root =>
+        {
+            var scope = Subtree(root.Topic);
+            if (scope.All(x => x.Blocks.Count == 0)) return;
+            var aliases = new NoteAliases(scope.SelectMany(x => x.Blocks).SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds));
+            var original = scope.ToDictionary(x => x.Topic.Id, x => aliases.Encode(string.Join("\n\n", x.Blocks.Select(b => b.Body))));
+            var keys = scope.Select((x, i) => (Key: "k" + (i + 1), x.Topic.Id)).ToDictionary(x => x.Key, x => x.Id);
+            var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new
+            {
+                topics = scope.Select((x, i) => new { key = "k" + (i + 1), title = x.Topic.Title, depth = x.Depth, notes = original[x.Topic.Id] })
+            }, Json);
+            PolishReply reply;
+            NoteActivity call;
+            // A failed polish (already recorded in activity) leaves these topics with their segment blocks.
+            try
+            {
+                (reply, call) = await Call<PolishReply>(session, NotePrompts.Polish, "Note polish", NotePrompts.PolishInstructions(session.NoteLanguage),
+                    input, scope.SelectMany(x => x.Blocks).SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds), ct);
+            }
+            catch (Exception) when (!ct.IsCancellationRequested) { return; }
+            var kept = 0;
+            foreach (var item in reply.Topics.Where(x => keys.ContainsKey(x.Key)))
+            {
+                var id = keys[item.Key];
+                var before = Regex.Matches(original[id], @"\bT\d+\b").Select(m => m.Value).ToHashSet();
+                var after = Regex.Matches(item.Markdown, @"\bT\d+\b").Select(m => m.Value).ToHashSet();
+                var cited = before.Count == 0 ? 1 : before.Count(after.Contains) / (double)before.Count;
+                if (cited < 0.8 || item.Markdown.Length < original[id].Length * 0.5) continue;
+                result[id] = InScript(aliases.Decode(Regex.Replace(item.Markdown, @"^#{1,6}\s+(.+?)\s*$", "**$1**", RegexOptions.Multiline)), session);
+                kept++;
+            }
+            await activity.End(call, "completed", $"{kept} of {scope.Count} topics polished; the rest keep their segment blocks");
+        }));
+        return new(result);
+    }
+
+    static List<NoteBlock> PolishedBlocks(NoteSection topic, string? polished, IEnumerable<NoteBlock> segmentBlocks)
+    {
+        var blocks = polished is null
+            ? segmentBlocks.Select(b => NoteLayout.Block(b.Id, b.Role, b.Body, b.Anchors.SelectMany(a => a.SourceIds))).ToList()
+            : [NoteLayout.Block("p-" + ContentHash.Of(topic.Id + "\n" + polished)[..12], "detail", polished,
+                segmentBlocks.SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds))];
+        var edited = topic.Blocks.Where(b => b.UserEdited).ToList();
+        return blocks.Where(b => edited.All(e => e.Id != b.Id)).Concat(edited).Select((b, i) => { b.Order = i; return b; }).ToList();
+    }
+
+    // ── Rewrite on request ──
+
+    sealed record RewriteReply(string Markdown);
+
+    // Related notes come from the concept graph: segment concepts whose sources the target cites name the concepts, and other
+    // segment blocks that mention them are given as context, with their transcript lines, so the rewrite can cite them.
+    async Task<(string Body, List<string> Sources)?> RewriteText(NoteSession session, Note note, NoteSection topic, List<NoteBlock> target,
+        string instruction, CancellationToken ct)
+    {
+        var cited = target.SelectMany(b => NoteLayout.Sources(b, note.Citations)).ToHashSet(StringComparer.Ordinal);
+        var names = note.Segments.SelectMany(s => s.Concepts).Where(c => c.SourceIds.Any(cited.Contains)).Select(c => c.Name).Distinct().ToList();
+        var related = note.Segments.SelectMany(s => s.Blocks)
+            .Where(b => !b.Anchors.SelectMany(a => a.SourceIds).Any(cited.Contains))
+            .Select(b => (Block: b, Hits: names.Count(n => b.Body.Contains(n, StringComparison.OrdinalIgnoreCase))))
+            .Where(x => x.Hits > 0).OrderByDescending(x => x.Hits).Take(MaxRelatedBlocks).Select(x => x.Block).ToList();
+        var lines = NoteTimeline.Lines(session);
+        var sources = cited.Concat(related.SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds)).ToHashSet(StringComparer.Ordinal);
+        var used = lines.Where(x => sources.Contains(x.Id)).ToList();
+        var aliases = new NoteAliases(used.Select(x => x.Id));
+        var text = string.Join("\n\n", target.Select(b => aliases.Encode(NoteSections.Expand(b.Body, note.Citations))));
+        var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new
+        {
+            instruction,
+            target = new { kind = target.Count == 1 && topic.Blocks.Count > 1 ? "block" : "topic", topic.Title, markdown = text },
+            transcript = aliases.Rows(used),
+            related = related.Select(b => aliases.Encode(b.Body))
+        }, Json);
+        var (reply, call) = await Call<RewriteReply>(session, NotePrompts.Rewrite, "Note instruction", NotePrompts.RewriteInstructions(session.NoteLanguage),
+            input, cited, ct);
+        var body = InScript(aliases.Decode(reply.Markdown), session).Trim();
+        if (NoteContent.IsPlaceholder(body)) { await activity.End(call, "completed", "No text returned; nothing changed"); return null; }
+        await activity.End(call, "completed", $"Rewrote {topic.Title} with {related.Count} related notes as context");
+        return (body, NoteSections.Sources(body, used.Select(x => x.Id)));
+    }
+
+    static void Replace(NoteSection topic, string blockId, NoteBlock block) =>
+        topic.Blocks = topic.Blocks.Select(b => b.Id == blockId ? block : b).ToList();
+
+    // ── Shared ──
+
+    // One model call, recorded in AI activity. The caller ends the activity once the result is saved.
+    async Task<(T Reply, NoteActivity Call)> Call<T>(NoteSession session, NoteTask task, string label, string instructions, string input,
+        IEnumerable<string> sources, CancellationToken ct)
+    {
+        var call = await activity.Begin(session.Id, label, writer.Provider, writer.Model, sources, session.NoteVersion);
+        activity.Context(call, NotePrompts.Version, instructions, input);
+        await callSlots.WaitAsync(ct);
+        try
+        {
+            await activity.Start(call);
+            var watch = Stopwatch.StartNew();
+            string reply;
+            try { reply = await writer.Complete(task, instructions, input, ct, text => activity.Draft(call, ReadableDraft(text)), usage => call.UsageJson = usage); }
+            finally { call.ProviderLatencyMs = watch.ElapsedMilliseconds; }
+            return (JsonSerializer.Deserialize<T>(reply, Json) ?? throw new InvalidOperationException("The note model returned an empty reply"), call);
+        }
+        catch (Exception ex) { await activity.Fail(call, ex); throw; }
+        finally { callSlots.Release(); }
+    }
+
+    Task<object> Save(NoteSession session, List<NoteSection> topics, List<NoteSegment>? segments, string author, string identity,
+        List<string>? summary = null, List<string>? reviewQuestions = null) =>
+        repository.Save(session.Id, new SectionUpdate(topics, NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []), [],
+                Segments: segments, Summary: summary, ReviewQuestions: reviewQuestions),
+            ContentHash.Of(author + "\n" + session.NoteVersion + "\n" + identity), session.NoteVersion, session.NoteLanguage, author);
+
+    // The fixed start of every input, so providers can cache it: the session's materials (course context).
+    static string Prefix(NoteSession session)
+    {
+        var budget = MaxMaterialChars;
+        var materials = new List<object>();
+        foreach (var material in session.Materials)
+        {
+            if (budget <= 0) break;
+            var text = material.Text.Length > budget ? material.Text[..budget] : material.Text;
+            budget -= text.Length;
+            materials.Add(new { material.Name, text });
+        }
+        return JsonSerializer.Serialize(new { course = new { materials } }, Json);
+    }
+
+    static string Uncited(string text) => Regex.Replace(CitationSyntax.Rewrite(text, _ => ""), @"[ \t]*\[\]", "");
+    string InScript(string text, NoteSession session) => script?.Apply(text, session.NoteLanguage) ?? text;
+    static object Current(NoteSession session) => new { Version = session.NoteVersion, Markdown = session.NoteMarkdown, Author = session.CurrentNote?.Author };
+    async Task<NoteSession> Session(string id) => await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
+    SemaphoreSlim SessionLock(string id) => sessionLocks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+
+    async Task<T> Locked<T>(string id, CancellationToken ct, Func<Task<T>> work)
+    {
+        var sessionLock = SessionLock(id);
+        await sessionLock.WaitAsync(ct);
+        try { return await work(); }
+        finally { sessionLock.Release(); }
     }
 
     // The streamed reply is JSON; the activity popover shows the Markdown inside it as it arrives.
     public static string ReadableDraft(string json)
     {
-        var sections = new List<string>();
-        var field = json.Contains("\"body\"", StringComparison.OrdinalIgnoreCase) ? "body" : json.Contains("\"markdown\"", StringComparison.OrdinalIgnoreCase) ? "markdown" : "text";
-        foreach (Match match in Regex.Matches(json, "\"" + field + "\"\\s*:\\s*\"(?<body>(?:\\\\.|[^\"\\\\])*)", RegexOptions.IgnoreCase))
+        var parts = new List<string>();
+        foreach (Match match in Regex.Matches(json, "\"(?:markdown|text|title)\"\\s*:\\s*\"(?<body>(?:\\\\.|[^\"\\\\])*)", RegexOptions.IgnoreCase))
         {
-            try { sections.Add(JsonSerializer.Deserialize<string>("\"" + match.Groups["body"].Value + "\"") ?? ""); }
-            catch (JsonException) { /* an incomplete escape will become readable on the next streaming update */ }
-            if (field == "markdown" && sections.Count == 4) break;
+            try { parts.Add(JsonSerializer.Deserialize<string>("\"" + match.Groups["body"].Value + "\"") ?? ""); }
+            catch (JsonException) { /* an incomplete escape becomes readable on the next streaming update */ }
         }
-        return string.Join("\n\n", sections);
+        return string.Join("\n\n", parts);
     }
-
-    static string Dropped(int distant, OrganizerDrops? organizer) =>
-        (distant == 0 ? "" : $"; {distant} moves under distant topics dropped") + organizer;
 
     // Work cancelled by its caller's deadline has already recorded its outcome; disposal only waits for it.
     public async ValueTask DisposeAsync()
@@ -355,3 +516,5 @@ public sealed partial class NoteWorkflow : IAsyncDisposable
         catch (OperationCanceledException) { }
     }
 }
+
+public sealed record NoteRebuildResult(int StartVersion, int Version, int Rounds, int RemainingSources);

@@ -39,10 +39,6 @@ public sealed class FallbackNoteWriter(IReadOnlyList<OpenRouterNoteWriter> openR
     public string Model => primary.Model;
     public IReadOnlyList<string> Models => openRouter.Select(x => x.Model).ToList();
 
-    public Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
-        Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
-        Attempt((writer, usage) => writer.Generate(name, instructions, input, ct, onUpdate, usage), onUpdate, onUsage, ct);
-
     public Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
         Attempt((writer, usage) => writer.Complete(task, instructions, input, ct, onUpdate, usage), onUpdate, onUsage, ct);

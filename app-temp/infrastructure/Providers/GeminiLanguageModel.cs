@@ -18,11 +18,15 @@ public class GeminiLanguageModel : ITextGenerator
     public virtual bool IsConfigured => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY"));
 
     public virtual Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
-        Run(name, instructions, prompt, ModelOutputContract.OutputLimit(name), ModelOutputContract.ResponseFormat(name, prompt), ct, model, onUpdate, onUsage);
+        Run(name, instructions, prompt, ModelOutputContract.OutputLimit(name), null, ct, model, onUpdate, onUsage);
 
-    // A note task with its own schema and output cap. Gemini's schema subset has no additionalProperties, so it is removed.
+    // A note task with its own schema and output cap.
     public virtual Task<string> Complete(NoteTask task, string instructions, string prompt, CancellationToken ct,
-        Action<string>? onUpdate = null, Action<string>? onUsage = null)
+        Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+        Run(task.Name, instructions, prompt, task.MaxOutputTokens, ResponseFormat(task), ct, null, onUpdate, onUsage);
+
+    // A task's schema as Gemini takes it: its schema subset has no additionalProperties, so they are removed.
+    public static ChatResponseFormat ResponseFormat(NoteTask task)
     {
         var schema = System.Text.Json.Nodes.JsonNode.Parse(task.Schema)!;
         void Open(System.Text.Json.Nodes.JsonNode? node)
@@ -31,8 +35,7 @@ public class GeminiLanguageModel : ITextGenerator
             else if (node is System.Text.Json.Nodes.JsonArray items) foreach (var child in items) Open(child);
         }
         Open(schema);
-        var format = ChatResponseFormat.ForJsonSchema(JsonDocument.Parse(schema.ToJsonString()).RootElement, task.Name);
-        return Run(task.Name, instructions, prompt, task.MaxOutputTokens, format, ct, null, onUpdate, onUsage);
+        return ChatResponseFormat.ForJsonSchema(JsonDocument.Parse(schema.ToJsonString()).RootElement, task.Name);
     }
 
     async Task<string> Run(string name, string instructions, string prompt, int maxOutputTokens, ChatResponseFormat? format, CancellationToken ct,

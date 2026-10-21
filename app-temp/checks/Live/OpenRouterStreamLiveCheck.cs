@@ -47,8 +47,7 @@ static class OpenRouterStreamLiveCheck
         // stream: one attempt; models: Qwen then GLM; fallback: the production attempts (nothing leaves the machine).
         var writer = new FallbackNoteWriter(openRouter, new GeminiNoteWriter(mode == "fallback" ? gemini : new NoGemini()),
             FallbackNoteWriter.Default with { Attempts = mode switch { "stream" => 1, "models" => 2, _ => FallbackNoteWriter.Default.Attempts } });
-        await using var workflow = new NoteWorkflow(notes, notes, writer, new FixtureNoteGate(),
-            new NoteActivityAdapter(activity, NullLogger<NoteAgent>.Instance), new TestClock(), notes, notes, notes, notes);
+        await using var workflow = new NoteWorkflow(notes, notes, writer, new NoteActivityAdapter(activity, NullLogger<NoteAgent>.Instance), null, new TestClock());
         store.Speech(id, "a", "Synthetic lecture. A kernel debugger can stop the whole operating system at a breakpoint.");
         store.Speech(id, "b", "Local kernel debugging only reads memory; it cannot set breakpoints.");
         store.Speech(id, "c", "Symbols come from the Microsoft symbol server and are cached on the local disk.");
@@ -61,7 +60,7 @@ static class OpenRouterStreamLiveCheck
         while (!generation.IsCompleted)
         {
             await Task.Delay(50);
-            var running = (await activity.Read(id)).SingleOrDefault(x => x.Task == "Note revision" && x.Status == "running");
+            var running = (await activity.Read(id)).SingleOrDefault(x => x.Task == "Note segment" && x.Status == "running");
             if (!string.IsNullOrEmpty(running?.Draft) && running.Draft != lastDraft)
             {
                 drafts++; lastDraft = running.Draft; firstDraftMs ??= watch.ElapsedMilliseconds;
@@ -70,7 +69,7 @@ static class OpenRouterStreamLiveCheck
         }
         try { await generation; }
         catch (Exception ex) { Console.WriteLine("Generation failed: " + AiActivity.SafeError(ex)); }
-        var saved = store.Activity.Values.Single(x => x.Task == "Note revision");
+        var saved = store.Activity.Values.Single(x => x.Task == "Note segment");
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             mode, status = saved.Status, saved.Provider, saved.Model, saved.Summary, totalMs = watch.ElapsedMilliseconds, firstDraftMs,

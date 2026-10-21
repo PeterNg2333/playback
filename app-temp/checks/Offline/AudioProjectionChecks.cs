@@ -63,27 +63,7 @@ static class AudioProjectionChecks
         Expect.That(!SpeechBoundaryPolicy.Ready([new("mic", 0, 2000), new("system", 1000, 2000)], 2000, 2, -1), "Dual-source speech ended too early");
         Expect.That(SpeechBoundaryPolicy.Ready([new("mic", 0, 3000), new("system", 1000, 3000)], 3000, 2, -1), "Dual-source quiet boundary missing");
         Expect.That(!SpeechBoundaryPolicy.Ready([new("mic", 0, 1000)], 3000, 2, -1), "Stale capture established silence");
-        await BoundaryAdmission();
-        Console.WriteLine("Audio projection checks passed: valid streamed WAV/sample offsets, immutable originals, duration/source/format/pause/gap splitting, idempotent crash/corruption recovery, dual-source boundary, ASR settle grace and late confirmation");
-    }
-    static async Task BoundaryAdmission()
-    {
-        var store = new MemoryStore(); const string id = "boundary"; store.Add(id); store.Speech(id, "first", "Confirmed explanation before the pause.");
-        store.Chunks[id].Add(new() { Id = "late", SessionId = id, SourceId = id, EndMs = 16000, Status = "transcribing" });
-        var clock = new TestClock(); var model = new FixtureNoteModel(); var gate = new FixtureNoteGate { Allow = false };
-        await using var agent = new NoteAgent(store, model, gate, NullLogger<NoteAgent>.Instance, new AiActivity(store), clock);
-        clock.Advance(10); agent.Tick([id], default); await agent.Drain();
-        store.Boundaries[id] = new() { Id = "pause", SessionId = id, DetectedAt = clock.GetUtcNow().UtcDateTime, SourceThroughMs = new() { [id] = 16000 } };
-        agent.Tick([id], default); await agent.Drain();
-        Expect.That(model.Calls == 0, "Boundary skipped ASR settle grace");
-        clock.Advance(2); agent.Tick([id], default); await agent.Drain();
-        Expect.That(model.Calls == 1 && store.Gates[id].Decision == "wait" && store.Gates[id].AdmissionReason == "speech-boundary" && store.Gates[id].EvaluatedBoundaryId == "pause", "Saved Jev wait defeated boundary or was fabricated as allow");
-        clock.Advance(2); agent.Tick([id], default); await agent.Drain();
-        Expect.That(model.Calls == 1, "Same boundary regenerated settled input");
-        store.Chunks[id].Clear(); store.Speech(id, "late", "Late confirmed detail remains a new batch.");
-        clock.Advance(10); agent.Tick([id], default); await agent.Drain();
-        clock.Advance(30); agent.Tick([id], default); await agent.Drain();
-        Expect.That(model.Calls == 2 && store.Notes[id].Coverage.Any(x => x.SourceId == "late" && x.Status == "covered"), "Late ASR disappeared after boundary");
+        Console.WriteLine("Audio projection checks passed: valid streamed WAV/sample offsets, immutable originals, duration/source/format/pause/gap splitting, idempotent crash/corruption recovery, dual-source boundary");
     }
     sealed class Repository : ICombinedAudioRepository
     {

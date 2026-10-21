@@ -82,7 +82,6 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
             var offset = session.Chunks.Select(chunk => chunk.EndMs)
                 .Concat(Pending(sessionId).Select(chunk => chunk.EndMs)).DefaultIfEmpty().Max();
             var recording = new Recording(sessionId, offset, sourceMode);
-            recording.Policy = (await store.SessionProcessingSettings(sessionId)).Effective;
             await store.SaveAudioStream(sessionId, recording.StreamId, closed: false);
 
             try
@@ -166,23 +165,18 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                 CaptureSource[] sources;
                 lock (recording.Sources) sources = recording.Sources.ToArray();
                 var elapsed = end - recording.LastFinalizeAtMs;
-                if (DateTime.UtcNow >= recording.NextPolicyRead)
+                if (DateTime.UtcNow >= recording.NextStreamSave)
                 {
-                    recording.Policy = (await store.SessionProcessingSettings(recording.SessionId)).Effective;
                     await store.SaveAudioStream(recording.SessionId, recording.StreamId, closed: false, notify: false);
-                    recording.NextPolicyRead = DateTime.UtcNow.AddSeconds(2);
+                    recording.NextStreamSave = DateTime.UtcNow.AddSeconds(2);
                 }
-                var policy = recording.Policy;
                 var evidence = sources.Select(source => source.SpeechEvidence()).ToList();
-                if (SpeechBoundaryPolicy.Ready(evidence, end, policy.SilenceBoundarySeconds, recording.HandledSpeechMs))
+                if (SpeechBoundaryPolicy.Ready(evidence, end, Playback.Domain.Audio.AudioPolicy.SilenceBoundarySeconds, recording.HandledSpeechMs))
                 {
                     await FinalizeChunks(recording);
                     if (sources.Max(source => source.LastSpeechMs) == evidence.Max(x => x.LastSpeechMs))
                     {
                         recording.HandledSpeechMs = evidence.Max(x => x.LastSpeechMs);
-                        await store.SaveSpeechBoundary(new() { Id = ContentHash.Of(recording.StreamId + ":" + recording.HandledSpeechMs),
-                            SessionId = recording.SessionId, StreamId = recording.StreamId, DetectedAt = DateTime.UtcNow,
-                            SourceThroughMs = sources.ToDictionary(source => source.Name, _ => recording.LastFinalizeAtMs) });
                     }
                     continue;
                 }
@@ -365,8 +359,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
         public string Id { get; } = Guid.NewGuid().ToString("N");
         public string StreamId { get; set; } = Guid.NewGuid().ToString("N");
         public long HandledSpeechMs { get; set; } = -1;
-        public Playback.Domain.Notes.ProcessingPolicy Policy { get; set; } = new();
-        public DateTime NextPolicyRead { get; set; }
+        public DateTime NextStreamSave { get; set; }
         public string SessionId { get; } = sessionId;
         public string SourceMode { get; } = sourceMode;
         public long OffsetMs { get; } = offsetMs;

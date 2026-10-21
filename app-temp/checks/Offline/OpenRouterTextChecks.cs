@@ -4,20 +4,16 @@ using System.Text.Json;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
 
-// OpenRouter text models: the fixed endpoint and process key, the shared note schema and output caps, routing
+// OpenRouter text models: the fixed endpoint and process key, each note task's schema and output cap, routing
 // that requires every parameter and skips 4-bit quantizations, usage kept on rejected replies, and errors that
 // never echo provider text. Streaming: the draft grows while server-sent events arrive, usage comes from the last
 // chunk, and a mid-stream error, dropped connection, silence or deadline fails as a transient error that the note
 // writer may retry. Every HTTP call is answered in memory.
 static class OpenRouterTextChecks
 {
-    const string NoteInput = """
-        {"pending":[{"id":"T001"}],"materials":[{"id":"T002"}],"sectionSources":[{"id":"T003"}],"sectionMaterials":[],
-        "editableSections":[{"id":"known-section","points":[{"sourceIds":["T003"]}]}],"citationSources":[]}
-        """;
-    const string NoteReply = """
-        {"sections":[{"id":"new","title":"TCP","points":[{"text":"TCP 用三次握手建立連線。","sourceIds":["T001"],"retains":[]}]}],"deferred":[]}
-        """;
+    const string NoteInput = "{\"window\":[[\"T1\",\"0:00\",\"mic\",\"TCP uses a three-way handshake.\"]]}";
+    const string NoteReply = "{\"title\":\"TCP\",\"blocks\":[{\"kind\":\"concept\",\"markdown\":\"TCP 用三次握手建立連線。 [T1]\",\"sources\":[\"T1\"]}],\"concepts\":[],\"corrections\":[]}";
+    static readonly Playback.Application.Notes.NoteTask SegmentTask = Playback.Application.Notes.NotePrompts.Segment;
     static readonly OpenRouterTextModel.Limits Quick = new(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(300));
 
     public static async Task Run()
@@ -65,7 +61,7 @@ static class OpenRouterTextChecks
             Expect.That(root.GetProperty("model").GetString() == "deepseek/deepseek-v4.1-flash" &&
                 messages[0].GetProperty("role").GetString() == "system" && messages[0].GetProperty("content").GetString() == "Write notes." &&
                 messages[1].GetProperty("content").GetString() == NoteInput, "Instructions and input must reach the model unchanged");
-            Expect.That(root.GetProperty("max_tokens").GetInt32() == 8192 * 3 / 2, "Note replies keep their cap plus bounded reasoning room");
+            Expect.That(root.GetProperty("max_tokens").GetInt32() == SegmentTask.MaxOutputTokens * 3 / 2, "Note replies keep their task cap plus bounded reasoning room");
             Expect.That(root.GetProperty("reasoning").GetProperty("effort").GetString() == "low" &&
                 root.GetProperty("reasoning").GetProperty("exclude").GetBoolean(), "Reasoning effort must be explicit and its text not returned");
             Expect.That(root.GetProperty("stream").GetBoolean(), "A note writer with a live draft must ask for a stream");
@@ -74,24 +70,17 @@ static class OpenRouterTextChecks
             Expect.That(provider.GetProperty("require_parameters").GetBoolean() && quantizations.Contains("fp8") &&
                 !quantizations.Any(x => x is "fp4" or "int4" or "mxfp4" or "nvfp4"), "Routing must require every parameter and skip 4-bit quantizations");
             var format = root.GetProperty("response_format");
-            var schema = format.GetProperty("json_schema").GetProperty("schema");
-            var section = schema.GetProperty("properties").GetProperty("sections").GetProperty("items").GetProperty("properties");
-            var sectionIds = section.GetProperty("id").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
-            var sourceIds = section.GetProperty("points").GetProperty("items").GetProperty("properties").GetProperty("sourceIds")
-                .GetProperty("items").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
-            var deferred = schema.GetProperty("properties").GetProperty("deferred").GetProperty("items").GetProperty("properties")
-                .GetProperty("sourceId").GetProperty("enum").EnumerateArray().Select(x => x.GetString()).ToList();
             Expect.That(format.GetProperty("type").GetString() == "json_schema" && format.GetProperty("json_schema").GetProperty("strict").GetBoolean() &&
-                sectionIds.SequenceEqual(["new", "known-section"]) && sourceIds.SequenceEqual(["T001", "T002", "T003"]) &&
-                deferred.SequenceEqual(["T001", "T002"]), "Notes must send the same constrained section schema as Gemini");
+                format.GetProperty("json_schema").GetProperty("name").GetString() == SegmentTask.Name &&
+                format.GetProperty("json_schema").GetProperty("schema").GetRawText() == JsonDocument.Parse(SegmentTask.Schema).RootElement.GetRawText(),
+                "A note call must send its task schema as a strict JSON schema");
             return Reply(Completion(NoteReply, "stop"));
         });
         var usage = new List<string>();
         using var model = new OpenRouterTextModel(handler, "deepseek/deepseek-v4.1-flash");
         // A provider may answer a streamed request with one JSON body; it is read the same way.
-        var patch = await new OpenRouterNoteWriter(model).Generate("LectureSectionWriter", "Write notes.", NoteInput, CancellationToken.None,
-            onUsage: usage.Add);
-        Expect.That(patch.Sections.Single().Points.Single().SourceIds.Single() == "T001", "A structured note reply was not parsed");
+        var reply = await new OpenRouterNoteWriter(model).Complete(SegmentTask, "Write notes.", NoteInput, CancellationToken.None, onUsage: usage.Add);
+        Expect.That(reply == NoteReply, "A structured note reply was not returned as written");
         Expect.That(usage.Single().Contains("\"provider\":\"DeepInfra\"") && usage.Single().Contains("\"cost\""),
             "Usage must keep the serving provider and reported cost");
     }
@@ -207,9 +196,8 @@ static class OpenRouterTextChecks
         var writerDrafts = new List<string>();
         using var writerModel = new OpenRouterTextModel(new OpenRouterStub((_, _) => Task.FromResult(OpenRouterStub.Stream([NoteReply[..10], NoteReply[10..]]))),
             "qwen/qwen3.8-flash", "none", Quick);
-        var patch = await new OpenRouterNoteWriter(writerModel).Generate("LectureSectionWriter", "Write notes.", NoteInput, CancellationToken.None,
-            writerDrafts.Add);
-        Expect.That(patch.Sections.Single().Title == "TCP" && writerDrafts.Count >= 1 && writerDrafts[^1] == NoteReply,
+        var streamed = await new OpenRouterNoteWriter(writerModel).Complete(SegmentTask, "Write notes.", NoteInput, CancellationToken.None, writerDrafts.Add);
+        Expect.That(streamed == NoteReply && writerDrafts.Count >= 1 && writerDrafts[^1] == NoteReply,
             "A streamed note reply was not parsed or its draft was lost");
     }
 

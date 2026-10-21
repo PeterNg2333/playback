@@ -73,14 +73,6 @@ public static class QuietAudio
     }
 }
 
-public sealed class SpeechBoundary
-{
-    public string Id { get; set; } = "";
-    public string SessionId { get; set; } = "";
-    public string StreamId { get; set; } = "";
-    public DateTime DetectedAt { get; set; }
-    public Dictionary<string, long> SourceThroughMs { get; set; } = [];
-}
 public sealed record SourceSpeech(string SourceId, long LastSpeechMs, long ObservedThroughMs);
 public static class SpeechBoundaryPolicy
 {

@@ -16,13 +16,6 @@ public sealed class AudioStreamRecord
 public partial class PlaybackStore
 {
     public event Action<string>? AudioChanged;
-    public virtual Task<SpeechBoundary?> LatestSpeechBoundary(string id) => Collection<SpeechBoundary>("speech_boundaries")
-        .Find(x => x.SessionId == id).SortByDescending(x => x.DetectedAt).FirstOrDefaultAsync()!;
-    public async Task SaveSpeechBoundary(SpeechBoundary boundary)
-    {
-        await Collection<SpeechBoundary>("speech_boundaries").ReplaceOneAsync(x => x.Id == boundary.Id, boundary, new ReplaceOptions { IsUpsert = true });
-        Touch(boundary.SessionId, "processing");
-    }
     public async Task SaveAudioStream(string sessionId, string streamId, bool closed, bool notify = true)
     {
         await Collection<AudioStreamRecord>("audio_streams").ReplaceOneAsync(x => x.Id == streamId,
@@ -41,11 +34,10 @@ public partial class PlaybackStore
     }
     public async Task RebuildCombinedAudio(string id, CancellationToken ct)
     {
-        var policy = await SessionProcessingSettings(id);
         var workflow = new CombinedAudioWorkflow(new CombinedRepository(this), new WavCombinedAudioFiles(audioRoot,
             key => Task.FromResult(ChunkAudioPath(key))));
-        await workflow.Run(id, policy.Effective.CombineQuiet, policy.Effective.MaxCombinedSeconds,
-            "quiet-v1:" + policy.Effective.MaxCombinedSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), ct);
+        await workflow.Run(id, AudioPolicy.CombineQuiet, AudioPolicy.MaxCombinedSeconds,
+            "quiet-v1:" + AudioPolicy.MaxCombinedSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), ct);
     }
     public async Task<List<string>> QuietAudioSessions() => (await Collection<ChunkRecord>("chunks")
         .Find(x => x.Status == ChunkStatus.Silent || x.Status == ChunkStatus.VadSilence).SortByDescending(x => x.RecordedAt)

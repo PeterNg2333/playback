@@ -2,9 +2,14 @@ using System.Text.Json;
 
 namespace Playback.Api.Providers;
 
-// Shared discovery, credentials and bounded transport. Each task owns its own questions
-// and admission limit; a slow glossary request cannot monopolize the note gate.
-public sealed class JevTransport : IDisposable, Playback.Infrastructure.Notes.IJevTransport
+public interface IJevTransport
+{
+    bool IsConfigured { get; }
+    Task<(string Model, JsonElement Answers, string? Usage)> Evaluate(string state, object questions, CancellationToken ct);
+}
+
+// Jev discovery, credentials and bounded transport for term ranking.
+public sealed class JevTransport : IDisposable, IJevTransport
 {
     readonly HttpClient http;
     readonly SemaphoreSlim discovery = new(1, 1);

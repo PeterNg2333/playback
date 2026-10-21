@@ -31,26 +31,6 @@ public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoColl
             sectionCount = x.Sections.Count, x.InputHash }), nextBefore = result.Count > limit ? (int?)result[limit - 1].Version : null };
     }
     public Task<NoteGateRecord?> Gate(string id) => gates.Find(x => x.SessionId == id).FirstOrDefaultAsync()!;
-    public Task SaveGate(NoteGateRecord item)
-    {
-        item.Id = item.SessionId;
-        // A decision save must not clear a Stop received during provider work.
-        return gates.UpdateOneAsync(x => x.Id == item.Id,
-            Builders<NoteGateRecord>.Update.Set(x => x.SessionId, item.SessionId).Set(x => x.InputHash, item.InputHash)
-                .Set(x => x.Status, item.Status).Set(x => x.Decision, item.Decision).Set(x => x.Probability, item.Probability)
-                .Set(x => x.Confidence, item.Confidence).Set(x => x.Model, item.Model).Set(x => x.UsageJson, item.UsageJson)
-                .Set(x => x.PromptVersion, item.PromptVersion).Set(x => x.WaitCount, item.WaitCount)
-                .Set(x => x.Attempts, item.Attempts).Set(x => x.RetryAt, item.RetryAt).Set(x => x.ChangedAt, item.ChangedAt)
-                .Set(x => x.GenerationRequested, item.GenerationRequested).Set(x => x.EvaluatedFlushVersion, item.EvaluatedFlushVersion)
-                .Set(x => x.PolicyRevision, item.PolicyRevision).Set(x => x.FirstPendingAt, item.FirstPendingAt)
-                .Set(x => x.PolicySnapshot, item.PolicySnapshot)
-                .Set(x => x.LastCheckedAt, item.LastCheckedAt).Set(x => x.AdmissionReason, item.AdmissionReason)
-                .Set(x => x.EvidenceHash, item.EvidenceHash).Set(x => x.SettledEvidenceHash, item.SettledEvidenceHash)
-                .Set(x => x.SettledNoteVersion, item.SettledNoteVersion).Set(x => x.SettledLanguage, item.SettledLanguage)
-                .Set(x => x.GateFailure, item.GateFailure)
-                .Set(x => x.EvaluatedBoundaryId, item.EvaluatedBoundaryId),
-            new UpdateOptions { IsUpsert = true });
-    }
     public Task RequestFlush(string id) => gates.UpdateOneAsync(x => x.Id == id,
         Builders<NoteGateRecord>.Update.Set(x => x.SessionId, id).Set(x => x.FlushRequested, true).Inc(x => x.FlushVersion, 1), new UpdateOptions { IsUpsert = true });
     public Task AcknowledgeFlush(string id, int version) => gates.UpdateOneAsync(x => x.Id == id && x.FlushVersion == version,
