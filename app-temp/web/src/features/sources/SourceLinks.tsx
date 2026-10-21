@@ -1,6 +1,7 @@
 import type { Evidence, Session } from "../../lib/backend/schemas";
 import { recordedRange } from "../../lib/time";
 import { Chip } from "../../components/Chip";
+import { findTranscript } from "./lineage";
 
 // A source the session no longer has, named by the start of its ID.
 const missingStyle = "text-[11px] font-semibold";
@@ -21,7 +22,7 @@ export function SourceLinks({
   return (
     <div className="my-1.25 flex flex-wrap gap-1.25 text-[10px] text-muted">
       {transcriptIds.map((id) => {
-        const transcript = session.transcripts.find((item) => item.id === id);
+        const transcript = findTranscript(session, id);
         if (!transcript)
           return (
             <span className={missingStyle} key={id} title={id}>
@@ -39,7 +40,7 @@ export function SourceLinks({
             type="button"
             key={id}
             title={id}
-            onClick={() => onSelect({ kind: "lecture", id })}
+            onClick={() => onSelect({ kind: "lecture", id: transcript.id })}
           >
             {range.start}
           </Chip>

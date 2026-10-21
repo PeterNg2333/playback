@@ -339,6 +339,7 @@ export function NotesPanel({
                 </MenuItem>
                 <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("rewrites");}}>Review suggestions{suggestionCount ? ` (${suggestionCount})` : ""}…</MenuItem>
                 <MenuItem disabled={!session?.currentNote?.sections?.length} onClick={() => {close(); setNoteDialog("instruction");}}>Revise with instruction…</MenuItem>
+                <MenuItem disabled={!session?.transcripts.length || session?.rerun?.status === "running"} onClick={() => {close(); usePlaybackStore.setState({ rerunDialog: "notes" });}}>Rebuild notes…</MenuItem>
               </div>
             )}
           </Menu>

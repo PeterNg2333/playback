@@ -35,7 +35,7 @@ public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INo
     public static NoteSession Read(SessionView session) => new(session.Id, session.NoteMarkdown, session.NoteVersion, session.NoteLanguage,
         session.CurrentNote, session.Transcripts.Select(Read).ToList(), session.Materials.Select(Read).ToList(),
         session.TermInsights.Select(x => x.Id).ToList(), session.Chunks.Any(x => ChunkStatus.AwaitingTranscript(x.Status)))
-        { PendingAudio = session.Chunks.Where(x => ChunkStatus.AwaitingTranscript(x.Status)).Select(x => new PendingNoteAudio(x.SourceId, x.EndMs)).ToList() };
+        { PendingAudio = session.Chunks.Where(x => ChunkStatus.AwaitingTranscript(x.Status)).Select(x => new PendingNoteAudio(x.SourceId, x.EndMs)).ToList(), Supersessions = session.Supersessions };
     public static NoteTranscript Read(Transcript x) => new() { Id = x.Id, SourceId = x.SourceId, StartMs = x.StartMs, EndMs = x.EndMs,
         RecordedAt = x.RecordedAt, SourceText = x.SourceText, Uncertain = x.Uncertain, NoteStatus = x.NoteStatus, ConfirmedAt = x.ConfirmedAt,
         Retranscribed = x.FirstPassOriginal is not null };

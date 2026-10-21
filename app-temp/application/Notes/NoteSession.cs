@@ -10,6 +10,8 @@ public sealed record NoteSession(string Id, string NoteMarkdown, int NoteVersion
     public IEnumerable<string> AllowedSources => MaterialSources.Allowed(this);
     public List<NoteSection> Sections => NoteSections.Read(CurrentNote, AllowedSources);
     public List<PendingNoteAudio> PendingAudio { get; init; } = [];
+    // Superseded transcript ID → its replacing segment; historical versions are read through it.
+    public IReadOnlyDictionary<string, string> Supersessions { get; init; } = new Dictionary<string, string>();
 }
 public sealed record PendingNoteAudio(string SourceId, long EndMs);
 

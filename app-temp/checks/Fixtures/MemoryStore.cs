@@ -92,10 +92,18 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
     {
         if (!Languages.ContainsKey(id)) return Task.FromResult<SessionView?>(null);
         Notes.TryGetValue(id, out var note);
-        var copy = note is null ? null : Copy(note);
+        var supersessions = Playback.Api.Sources.Lineage.Supersessions(Transcripts[id]);
+        var copy = note is null ? null : Playback.Api.Sources.Lineage.Apply(Copy(note), supersessions);
+        var insights = Copy(Insights[id]);
+        foreach (var insight in insights) insight.TranscriptIds = Playback.Api.Sources.Lineage.Remap(insight.TranscriptIds, supersessions);
         return Task.FromResult<SessionView?>(new(id, id, null, DateTime.UtcNow.Date, copy?.Markdown ?? "", copy?.Version ?? 0, 0, false, "zh-Hant",
-            Copy(Materials[id]), Copy(Transcripts[id]), Copy(Chunks[id]), Copy(Terms[id]), Copy(Insights[id]), copy, NoteLanguage: Languages[id]));
+            Copy(Materials[id]), Copy(Transcripts[id].Where(x => x.Active).ToList()), Copy(Chunks[id]), Copy(Terms[id]), insights, copy, NoteLanguage: Languages[id])
+            { Supersessions = supersessions });
     }
+    public override Task<Dictionary<string, string>> Supersessions(string sessionId) =>
+        Task.FromResult(Playback.Api.Sources.Lineage.Supersessions(Transcripts[sessionId]));
+    public override Task<List<Transcript>> AllTranscripts(string sessionId) =>
+        Task.FromResult(Copy(Transcripts[sessionId].OrderBy(x => x.StartMs).ToList()));
 
     public override async Task<List<SyncRecord>> ReadSyncRecords(string id, string kind, string[]? ids)
     {
@@ -103,7 +111,8 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
         return kind switch
         {
             "processing" => [new SyncRecord(kind, id, new { processingSettings = await SessionProcessingSettings(id), noteAdmission = NoteAdmissionView.Read(await NoteGate(id)), organization = await NoteOrganizationStatus(id) })],
-            "transcript" => Transcripts[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
+            "transcript" => Transcripts[id].Where(x => x.Active && (ids == null || ids.Contains(x.Id))).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
+            "lineage" => [new SyncRecord(kind, id, new { supersededBy = Playback.Api.Sources.Lineage.Supersessions(Transcripts[id]) })],
             "material" => Materials[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
             "insight" => Insights[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
             _ => new List<SyncRecord>()
@@ -172,7 +181,7 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
         var presentation = (await SessionProcessingSettings(id)).Effective.NotePresentation;
         if (update.Presentation is not null && update.Presentation != presentation) throw new InvalidOperationException("Note presentation changed during this operation");
         update = update with {Presentation = presentation};
-        var note = NoteMutation.Create(id, previous is null ? null : Copy(previous), NoteMutation.Prepare(id, update), hash,
+        var note = NoteMutation.Create(id, previous is null ? null : Playback.Api.Sources.Lineage.Apply(Copy(previous), Playback.Api.Sources.Lineage.Supersessions(Transcripts[id])), NoteMutation.Prepare(id, update), hash,
             basedOnVersion, language, Languages[id], author, deleted, suppressed, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
         Notes[id] = Copy(note);
         Versions[id].Add(Copy(note));

@@ -8,7 +8,9 @@ import {
   TermInsightSchema,
   ProcessingSyncSchema,
   CombinedAudioSchema,
+  RerunSchema,
 } from "./schemas";
+import { z } from "zod";
 import { api } from "./client";
 
 // Reads a session as paged changes from a server cursor. A record too large for one change
@@ -69,11 +71,23 @@ function merge(session: Session | null, delta: Delta): Session | null {
         materials: draft?.materials ?? [],
         terms: draft?.terms ?? [],
         termInsights: draft?.termInsights ?? [],
+        supersessions: draft?.supersessions,
+        rerun: draft?.rerun,
       };
+    } else if (draft && change.kind === "lineage") {
+      draft.supersessions = z
+        .record(z.string(), z.string())
+        .parse((change.value as Record<string, unknown>).supersededBy);
+    } else if (draft && change.kind === "rerun") {
+      draft.rerun = RerunSchema.nullish().parse(
+        (change.value as Record<string, unknown>).rerun,
+      );
     } else if (draft && change.kind === "processing") {
       Object.assign(draft, ProcessingSyncSchema.parse(change.value));
     } else if (draft && change.kind === "combined-audio") {
-      draft.combinedAudioSegments = CombinedAudioSchema.array().parse((change.value as Record<string, unknown>).combinedAudioSegments);
+      draft.combinedAudioSegments = CombinedAudioSchema.array().parse(
+        (change.value as Record<string, unknown>).combinedAudioSegments,
+      );
     } else if (draft && change.kind === "removed") {
       const [kind, ...rest] = String(change.value).split(":");
       const field = fields[kind];

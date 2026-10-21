@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { usePlaybackStore } from "../../lib/store";
 import type { Evidence, Session } from "../../lib/backend/schemas";
+import { currentSourceId } from "./lineage";
 
 // Asks the transcript to show one passage, even one its virtual list has not mounted.
 // The browser checks dispatch this event directly, so it stays a window event.
@@ -23,7 +24,10 @@ export function useRevealSource(session: Session | null) {
       return;
     }
     if (view !== "transcript") return;
-    const { evidence } = request;
+    const evidence = {
+      ...request.evidence,
+      id: request.evidence.id && currentSourceId(session, request.evidence.id),
+    };
     if (evidence.kind === "material") {
       document
         .querySelector<HTMLDetailsElement>("#session-materials")

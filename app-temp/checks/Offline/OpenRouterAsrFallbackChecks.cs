@@ -8,15 +8,16 @@ static class OpenRouterAsrFallbackChecks
     public static async Task Run(string path)
     {
         var request = new AsrRequest(path, "session", "microphone", 1, "hash", "en");
-        Expect.That(AsrModelOptions.OpenRouter.Concat(AsrModelOptions.Fallbacks).All(x => !x.StartsWith("openai/")),
-            "OpenAI models must not be selectable or used for ASR fallback");
-        foreach (var legacy in new[] {"openai/whisper-large-v3-turbo", "openai/gpt-4o-transcribe", " OPENAI/gpt-4o-mini-transcribe "})
+        Expect.That(AsrModelOptions.Fallbacks.All(x => !x.StartsWith("openai/")) && AsrModelOptions.Whisper.All(AsrModelOptions.OpenRouter.Contains) &&
+            AsrModelOptions.Whisper.All(x => AsrModelOptions.Resolve(x) == x) && AsrModelOptions.Resolve(" OPENAI/whisper-large-v3 ") == "openai/whisper-large-v3",
+            "Whisper must stay selectable and be sent as chosen; fallback stays non-OpenAI");
+        foreach (var legacy in new[] {"openai/gpt-4o-transcribe", " OPENAI/gpt-4o-mini-transcribe "})
         {
             using var adapter = new OpenRouterAsrClient(new Handler(async (message, ct) =>
             {
                 using var body = JsonDocument.Parse(await message.Content!.ReadAsStringAsync(ct));
                 Expect.That(body.RootElement.GetProperty("model").GetString() == AsrModelOptions.Default,
-                    "An old OpenAI session/environment selection must resolve to Qwen before uploading");
+                    "An old non-Whisper OpenAI selection must resolve to Qwen before uploading");
                 return new(HttpStatusCode.OK) {Content = new StringContent("{\"text\":\"Recovered\"}")};
             }), legacy);
             await adapter.Transcribe(request, default);

@@ -17,7 +17,12 @@ export function saveLanguages(
     await api.put(`/sessions/${session.id}/languages`, {
       asrLanguage,
       noteLanguage,
-      asrModel: asrModel?.trim().toLowerCase().startsWith("openai/") ? null : asrModel,
+      // Whisper is selectable; other old OpenAI transcription choices fall back to the default model.
+      asrModel:
+        asrModel?.trim().toLowerCase().startsWith("openai/") &&
+        !asrModel.trim().toLowerCase().startsWith("openai/whisper-")
+          ? null
+          : asrModel,
     });
     await refreshWorkspace(session.id);
   });

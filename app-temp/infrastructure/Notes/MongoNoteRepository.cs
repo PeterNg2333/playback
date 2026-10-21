@@ -8,7 +8,7 @@ namespace Playback.Infrastructure.Notes;
 // Existing history stays intact; a single atomic head and durable history marker protect competing writers.
 public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoCollection<NoteGateRecord> gates,
     INoteEvidence evidence, INoteSettings settings, ConcurrentDictionary<string, SemaphoreSlim> writeLocks,
-    Action<string> changed, INoteHistoryStorage historyStorage) : INoteRepository
+    Action<string> changed, INoteHistoryStorage historyStorage, Func<string, Task<Dictionary<string, string>>>? supersessions = null) : INoteRepository
 {
     readonly NoteHistoryJournal journal = new(historyStorage);
     Task<NoteHead> Head(string id) => journal.Read(id, () => notes.Find(x => x.SessionId == id).SortByDescending(x => x.Version).FirstOrDefaultAsync()!);
@@ -70,6 +70,8 @@ public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoColl
             update = update with { Presentation = currentPresentation };
             var previous = (await Head(id)).Current;
             if (previous?.InputHash == inputHash) return new { previous.Version, previous.Markdown, previous.Author };
+            // Retention and coverage compare against the previous version as every reader sees it: through lineage.
+            if (previous is not null && supersessions is not null) Playback.Api.Sources.Lineage.Apply(previous, await supersessions(id));
             var note = NoteMutation.Create(id, previous, update, inputHash, basedOnVersion, language, currentLanguage, author, deleted, suppressed);
             var provenance = await evidence.Provenance(id, note.TranscriptIds);
             var materialIds = provenance.MaterialIds;

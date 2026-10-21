@@ -1,11 +1,11 @@
 using NAudio.Wave;
 using Playback.Api.Audio;
 
-// The Week 3 sample audio (first 20 minutes, M4A) decoded into forty 30-second 16 kHz mono WAV chunks.
+// The Week 3 sample audio (first 20 minutes, M4A) decoded into 16 kHz mono WAV chunks: forty of 30 seconds by default.
 // Decoding uses Windows Media Foundation, so it runs on Windows only.
 static class SampleAudio
 {
-    public static IEnumerable<(int Sequence, byte[] Wav, bool HasSound)> Chunks(string folder)
+    public static IEnumerable<(int Sequence, byte[] Wav, bool HasSound)> Chunks(string folder, int seconds = 30)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("M4A preview requires Windows Media Foundation");
         var path = Path.Combine(folder, "sampleAudio.m4a");
@@ -14,8 +14,9 @@ static class SampleAudio
         if (reader.TotalTime < TimeSpan.FromMinutes(20))
             throw new InvalidOperationException("The sample audio clip is shorter than 20 minutes");
         var buffer = new byte[32_000];
-        const int bytesPerChunk = 30 * 16_000 * 2;
-        for (var sequence = 0; sequence < 40; sequence++)
+        if (seconds is < 1 or > 60 || 1200 % seconds != 0) throw new ArgumentOutOfRangeException(nameof(seconds));
+        var bytesPerChunk = seconds * 16_000 * 2;
+        for (var sequence = 0; sequence < 1200 / seconds; sequence++)
         {
             using var output = new MemoryStream();
             var hasSound = false;

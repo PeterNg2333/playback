@@ -33,6 +33,8 @@ public static class SessionsEndpoints
             await store.Session(id) is { } session
                 ? Results.Ok(session)
                 : Results.NotFound());
+        app.MapGet("/api/sessions/{id}/lineage", async (string id, string? node, int? depth, Playback.Application.Workspace.WorkspaceCommands store) =>
+            await store.Lineage(id, node, depth ?? 2));
         app.MapGet("/api/sessions/{id}/sync", async (string id, string? cursor, Playback.Application.Workspace.WorkspaceCommands store) => await store.SyncSession(id, cursor));
         app.MapPost("/api/sessions/{id}/materials", async (
             string id, MaterialInput input, Playback.Application.Workspace.WorkspaceCommands store) =>

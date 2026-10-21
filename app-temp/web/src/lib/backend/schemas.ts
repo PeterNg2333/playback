@@ -33,6 +33,10 @@ export const TranscriptSchema = z.object({
   noteStatus: z.string().optional(),
   revision: z.string().nullish(),
   uncertain: z.boolean(),
+  // A rerun window: one segment re-recognized from several consecutive chunks; chunkIds lists them.
+  kind: z.string().optional(),
+  chunkIds: z.array(z.string()).optional(),
+  runId: z.string().nullish(),
 });
 export const MaterialSchema = z.object({
   id: z.string(),
@@ -250,8 +254,32 @@ export const CombinedAudioSchema = z.object({
     }),
   ),
 });
+export const RerunSchema = z.object({
+  id: z.string(),
+  status: z.enum(["running", "completed", "failed", "cancelled"]),
+  asr: z.boolean(),
+  asrModel: z.string().nullish(),
+  windowSeconds: z.number(),
+  notes: z.enum(["incremental", "rebuild", "none"]),
+  notesStatus: z.string(),
+  windows: z.number(),
+  completed: z.number(),
+  unchanged: z.number(),
+  skipped: z.number(),
+  failed: z.number(),
+  pending: z.number(),
+  cancelRequested: z.boolean(),
+  summary: z.string(),
+  error: z.string().nullish(),
+  createdAt: z.string(),
+  completedAt: z.string().nullish(),
+});
+export type Rerun = z.infer<typeof RerunSchema>;
 export const SessionSchema = SessionSummarySchema.extend({
   combinedAudioSegments: z.array(CombinedAudioSchema).optional(),
+  // Superseded transcript ID → the rerun segment that replaced it; old citations resolve through it.
+  supersessions: z.record(z.string(), z.string()).optional(),
+  rerun: RerunSchema.nullish(),
   processingSettings: ProcessingSettingsSchema.optional(),
   noteAdmission: NoteAdmissionSchema.nullish(),
   organization: ProcessingSyncSchema.shape.organization,

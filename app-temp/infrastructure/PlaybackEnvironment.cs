@@ -46,6 +46,8 @@ public static class PlaybackEnvironment
     // app-temp/data, found from the API's build output (bin/<configuration>/<framework>/).
     public static string AudioFolder => DataFolder("audio");
     public static string CaptureFolder => DataFolder("local-capture");
+    // The concept graph sidecar keeps one LightRAG workspace per session here (PLAYBACK_GRAPH_DIR for the sidecar).
+    public static string GraphFolder => DataFolder("graph");
 
     static string DataFolder(string name) => !string.IsNullOrEmpty(dataPath)
         ? Path.GetFullPath(Path.Combine(dataPath, name))

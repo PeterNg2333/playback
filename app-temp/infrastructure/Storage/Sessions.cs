@@ -1,4 +1,5 @@
 using Playback.Api.Terms;
+using Playback.Api.Sources;
 using Playback.Api.Audio.Asr;
 using MongoDB.Driver;
 using MongoDB.Bson.Serialization.Attributes;
@@ -94,13 +95,16 @@ public partial class PlaybackStore
         var session = await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstOrDefaultAsync();
         if (session is null) return null;
         var materials = await Collection<Material>("materials").Find(x => x.SessionId == id).ToListAsync();
-        var transcripts = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
+        var rows = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
+        var supersessions = Lineage.Supersessions(rows);
+        var transcripts = rows.Where(x => x.Active).ToList();
         // Recompute display from immutable provider text, including older transcripts. No ASR call.
         foreach (var transcript in transcripts)
             transcript.DisplayOriginal = LanguageSettings.CantoneseDisplay(transcript.Original, session.AsrLanguage, transcript.AsrDetectedLanguage);
         var chunks = await Collection<ChunkRecord>("chunks").Find(x => x.SessionId == id).SortBy(x => x.StartMs).ToListAsync();
-        var note = await NoteRepository.Latest(id);
+        var note = await NoteRepository.Latest(id) is { } latest ? Lineage.Apply(latest, supersessions) : null;
         var insights = await Collection<TermInsight>("term_insights").Find(x => x.SessionId == id).ToListAsync();
+        foreach (var insight in insights) insight.TranscriptIds = Lineage.Remap(insight.TranscriptIds, supersessions);
         var terms = TermCandidateExtractor.Find(materials, transcripts);
         foreach (var insight in insights)
         {
@@ -126,7 +130,7 @@ public partial class PlaybackStore
             insights,
             note,
             session.AsrLanguage,
-            session.NoteLanguage, session.AsrModel);
+            session.NoteLanguage, session.AsrModel) { Supersessions = supersessions };
     }
     public async Task<object> AddMaterial(string id, string name, string text)
     {

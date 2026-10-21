@@ -100,6 +100,37 @@ function run(label, command, args, options = {}) {
   return child;
 }
 
+// The optional concept graph sidecar (app-temp/graph). It starts only with PLAYBACK_CONCEPT_GRAPH=yes and an
+// installed virtual environment; if it stops, Playback keeps running and Ask falls back to keyword retrieval.
+function startConceptGraph() {
+  if (process.env.PLAYBACK_CONCEPT_GRAPH !== "yes") return;
+  const python = path.join(
+    app,
+    "graph",
+    ".venv",
+    process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
+  );
+  if (!existsSync(python)) {
+    console.warn(
+      "PLAYBACK_CONCEPT_GRAPH=yes but app-temp/graph/.venv is missing; see app-temp/graph/README.zh-HK.md. Starting without the concept graph.",
+    );
+    return;
+  }
+  const child = spawn(python, ["-I", path.join(app, "graph", "server.py")], {
+    cwd: path.join(app, "graph"),
+    stdio: "inherit",
+    env: { ...process.env, PLAYBACK_GRAPH_DIR: path.join(app, "data", "graph") },
+  });
+  children.push(child);
+  child.on("error", (error) => console.warn(`Concept graph: ${error.message}`));
+  child.on("exit", (code) => {
+    if (!stopping)
+      console.warn(
+        `Concept graph exited (${code ?? "unknown"}); Ask uses keyword retrieval until it is restarted.`,
+      );
+  });
+}
+
 async function reachable(url) {
   try {
     await fetch(url, { signal: AbortSignal.timeout(5000) });
@@ -251,6 +282,7 @@ async function main() {
       "restore",
       "app-temp/api/Playback.Api.csproj",
     ]);
+    startConceptGraph();
     const api = run("API", "dotnet", [
       "run",
       "--no-restore",

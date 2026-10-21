@@ -2,8 +2,15 @@
 
 2026-10-21 POC（app 未改）：三速筆記（每分鐘 live jot → 每五分鐘一段 → 完場 outline／polish）喺 Week 3 全堂，Qwen3.8 Flash 用 US$0.099、160／165 分鐘有引用，舊 `tree-notes-v15` pipeline 跑到 133 分鐘已 US$0.63；Qwen3.7 Flash 冇 structured outputs，失敗。ASR：Qwen3-ASR 8 秒第一遍已經係項目 stack 最準，90 秒窗口冇改善；經 OpenRouter 傳 glossary prompt 對 Qwen 冇效；Whisper Large V3 明顯較差；Gemini＋glossary 術語最好但會靜靜漏尾段。Graph 更新：逐字稿 rerun 後用 lineage 只重寫受影響嘅 2 段，US$0.0037、其餘 11 個 topic 一字不改；完整重建要 US$0.053，原文只剩 9／582 行。Concept graph 做影響分析唔可靠（概念改名就當消失），但 regenerate 時提供相關段落，令交叉引用有課堂出處。詳見 [POC 結果](../docs/poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md)。
 
+2026-10-20 Session rerun、lineage 及 concept graph（需重建並重啟 API）：
+- **Rerun session**（Transcript settings → Rerun session…）：將已保存嘅音訊按 capture stream 合成約 30／45／60／80 秒嘅段落重新辨識（過咗目標長度後喺停頓位切：提早封存嘅 chunk 或靜音 chunk；冇停頓就喺目標後 20 秒切；最長 90 秒），可揀模型。每段成為一個新 segment（`{session}-window-{hash}`），取代佢覆蓋嘅 chunk 列；原始 chunk 音訊、ID 不變，舊列保留作歷史，第一遍文字顯示喺列詳情。要先停止錄音及等待未完成 ASR；同一 session 一次一個 job，job 及每段狀態保存喺 `rerun_jobs`，API 重啟後由下一段繼續，失敗段最多試三次並保留第一遍。之後筆記可揀：**Update**（只修改引用咗被取代列嘅 block，沿用 `retranscribed` 修正路徑）、**Rebuild**（保留 locked block，其餘由整份逐字稿重寫，舊版本留喺 history）或 **Leave**。Notes 選單亦有 **Rebuild notes…**（只重寫筆記）。
+- **Lineage**：被取代嘅列記錄 `SupersededBy`。讀 session 時筆記 citation、anchor、coverage、術語來源都會映射到新 segment（`Lineage.Apply`），下一個筆記版本就會存新 ID，唔使每段寫一個版本；舊 Ask 答案打開引用時亦會跳去新 segment。`GET /api/sessions/{id}/lineage?node=…` 回傳 chunk → segment → block → topic、term → segment 嘅追溯圖。
+- **Concept graph（可選，LightRAG sidecar）**：見 [graph/README.zh-HK.md](graph/README.zh-HK.md)。開咗之後 Ask 先由概念圖揀段落，失敗或冇結果就用原本關鍵字檢索；佢唔參與決定邊啲筆記要更新。需要另行安裝 Python 套件，預設關閉。
+- Writer prompt 升為 `tree-notes-v18`：`retranscribed` 來源可能係取代咗幾個舊來源嘅較長段落。
+- 驗證：offline checks（`RerunChecks`、`ConceptGraphChecks` 及全部原有 checks）、Web build、`web/test/session-rerun.check.mjs` 通過。**未做 live 測試**：未量度較長段落是否真係提升準確度、費用及時間；concept graph sidecar 未安裝、未連過 Vertex。`transcript-recording.check.mjs` 喺 live-row 一段逾時（等待 `我哋 study FFT and frequency`）；暫時移走本輪所有 web 改動後結果一樣，屬於之前未完成嘅改動。
+
 2026-10-20 ASR／筆記後續修正（需重建並重啟 API 才生效）：
-- OpenRouter ASR 選單只使用非 OpenAI 模型：Qwen 1.7B、Qwen 0.6B、ElevenLabs Scribe v2、Gemini 3.5 Transcribe。已對照 [OpenRouter STT 文件](https://openrouter.ai/docs/guides/overview/multimodal/stt) 與公開模型目錄；目錄列出不代表本帳戶已成功呼叫。
+- OpenRouter ASR 選單：Qwen 1.7B、Qwen 0.6B、Whisper Large V3、Whisper Large V3 Turbo、ElevenLabs Scribe v2、Gemini 3.5 Transcribe（Whisper 已加返；自動 fallback 仍然只用 Scribe 同 Gemini，舊設定嘅其他 `openai/gpt-4o-*` 轉錄模型會轉用 Qwen 1.7B）。已對照 [OpenRouter STT 文件](https://openrouter.ai/docs/guides/overview/multimodal/stt) 與公開模型目錄；目錄列出不代表本帳戶已成功呼叫。
 - 每次先用所選模型，遇到模型錯誤、408／429／5xx 或逾時，依序轉 ElevenLabs Scribe v2、Gemini 3.5 Transcribe（去重，最多三個模型）。每個正式辨識模型最多 20 秒，灰字預覽每個最多 5 秒並沿用整體 15 秒上限；401／402／403、過大請求及本機禁止連線不換模型。Activity 保留實際成功模型及 fallback 原因；全部失敗時保留每個模型的安全錯誤摘要。舊 session 或環境若選了 `openai/*`，實際請求會轉用 Qwen 1.7B，不上傳至 OpenAI 模型。
 - 新確認的語音在 30 秒或同 session／source／capture stream 累積四個 chunk 後，再逐 chunk 辨識一次，每批最多八個。每個 chunk 的 ID、hash、音訊及時間不變；第二次改字時保存 `FirstPassOriginal`，逐字稿來源詳情可檢視。這是逐 chunk 的第二次辨識，未合成較長的語音；不保證第二次一定較準。相同結果不重跑 LLM；改字則重開 pending note／translation，並執行一輪 notes。辨識失敗保留第一稿，最多三次 review 嘗試；完成紀錄防止重啟後反覆上傳。舊逐字稿沒有 pending review 標記，不會整批重傳。`PLAYBACK_ASR_REVIEW=no` 可關閉第二遍；第二遍會增加 ASR 費用。
 - 自動整理恢復使用 timing／batch 設定：預設筆記改動後 30 秒或三批 meaningful revisions，另保留六段／八分鐘／過多主題的結構 review。預設 cooldown 30 秒；既有 workspace／session overrides 繼續有效，可在 Processing settings 調整。沒有新改動時不重複呼叫。

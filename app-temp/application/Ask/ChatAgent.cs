@@ -20,7 +20,7 @@ public record QuestionInput(
 
 public sealed record SessionEvidence(string Kind, string Id, string Label);
 
-public sealed class ChatAgent(IConversationRepository store, ITextGenerator gemini, AiActivity activity)
+public sealed class ChatAgent(IConversationRepository store, ITextGenerator gemini, AiActivity activity, IConceptGraph? graph = null)
 {
     public Task<List<ConversationRecord>> Conversations(string id) => store.Conversations(id);
     public Task<ConversationRecord> CreateConversation(string id) => store.CreateConversation(id);
@@ -55,6 +55,25 @@ public sealed class ChatAgent(IConversationRepository store, ITextGenerator gemi
         return entry.Work.Value;
     }
 
+    // The concept graph proposes passages; keyword retrieval stays the fallback whenever it is off, empty or failing.
+    async Task<List<string>?> GraphPassages(SessionView session, string question, CancellationToken ct)
+    {
+        if (graph?.Enabled != true) return null;
+        var call = await activity.Begin(session.Id, "Concept graph query", "lightrag", "sidecar", []);
+        activity.Context(call, "concept-v1", "Find lecture passages related to the question through the session concept graph (mix mode).", question);
+        try
+        {
+            await activity.Start(call);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(12));
+            var passages = ConceptIndex.Passages(session, await graph.Query(session.Id, question, timeout.Token));
+            call.SourceIds = passages.Take(40).ToList();
+            await activity.End(call, "completed", passages.Count > 0 ? $"{passages.Count} passages proposed; keyword matches rank after them" : "No related passages; keyword retrieval used");
+            return passages;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested) { await activity.Fail(call, ex); return null; }
+    }
+
     // Saved conversation turns compare this exact value (uppercase hex) when a request is replayed.
     static string QuestionHash(QuestionInput input) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(input))));
@@ -72,7 +91,7 @@ public sealed class ChatAgent(IConversationRepository store, ITextGenerator gemi
                 return saved;
             turns = await store.ConversationTurns(id, input.ConversationId, 4);
         }
-        var context = ChatContextBuilder.Build(session, input, string.Join(" ", turns.TakeLast(2).Select(x => x.Question)));
+        var context = ChatContextBuilder.Build(session, input, string.Join(" ", turns.TakeLast(2).Select(x => x.Question)), await GraphPassages(session, input.Question, ct));
         if (turns.Count > 0) {
             var history = turns.Select(turn => {
                 using var saved = JsonDocument.Parse(turn.AnswerJson);

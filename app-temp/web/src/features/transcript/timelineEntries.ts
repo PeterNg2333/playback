@@ -30,7 +30,21 @@ export function transcriptDays(
     session.transcripts.map((entry) => [entry.id, entry]),
   );
   const entries: TimelineEntry[] = [];
-  const combinedByChild = new Map(session.combinedAudioSegments?.flatMap(segment => segment.children.map(child => [child.chunkId, segment.id] as const)) ?? []);
+  // A rerun window covers several chunks: it is shown once, on the row of its first chunk, which also holds the rest.
+  const coveringWindow = new Map(
+    session.transcripts.flatMap((entry) =>
+      (entry.chunkIds ?? []).map((chunkId) => [chunkId, entry] as const),
+    ),
+  );
+  const windowRows = new Map<
+    string,
+    Extract<TimelineEntry, { kind: "audio" }>
+  >();
+  const combinedByChild = new Map(
+    session.combinedAudioSegments?.flatMap((segment) =>
+      segment.children.map((child) => [child.chunkId, segment.id] as const),
+    ) ?? [],
+  );
   const bySource = new Map<string, Chunk[]>();
   for (const chunk of session.chunks) {
     if (!bySource.has(chunk.sourceId)) bySource.set(chunk.sourceId, []);
@@ -41,22 +55,40 @@ export function transcriptDays(
     let audio: Extract<TimelineEntry, { kind: "audio" }> | null = null;
     for (const chunk of [...chunks].sort((a, b) => a.sequence - b.sequence)) {
       const at = dateAt(chunk.recordedAt, chunk.startMs);
+      const window = coveringWindow.get(chunk.id);
+      if (window) {
+        silence = null;
+        const row = windowRows.get(window.id);
+        if (row) row.chunks.push(chunk);
+        else {
+          audio = { kind: "audio", chunks: [chunk], transcript: window, at };
+          windowRows.set(window.id, audio);
+          entries.push(audio);
+        }
+        transcripts.delete(window.id);
+        transcripts.delete(chunk.id);
+        continue;
+      }
       const transcript = transcripts.get(chunk.id);
-      if (
-        chunk.status === "silent" ||
-        chunk.status === "vad-silence"
-      ) {
+      if (chunk.status === "silent" || chunk.status === "vad-silence") {
         audio = null;
         transcripts.delete(chunk.id);
         const previous = silence?.chunks.at(-1);
         if (
           previous &&
           session.processingSettings?.effective.combineQuiet !== false &&
-          combinedByChild.has(chunk.id) && combinedByChild.get(chunk.id) === combinedByChild.get(previous.id) &&
+          combinedByChild.has(chunk.id) &&
+          combinedByChild.get(chunk.id) === combinedByChild.get(previous.id) &&
           chunk.startMs === previous.endMs &&
           chunk.streamId === previous.streamId &&
-          Math.abs(at.getTime() - silence!.at.getTime() - (chunk.startMs - silence!.chunks[0].startMs)) <= 50 &&
-          chunk.endMs - silence!.chunks[0].startMs <= (session.processingSettings?.effective.maxCombinedSeconds ?? 60) * 1000 &&
+          Math.abs(
+            at.getTime() -
+              silence!.at.getTime() -
+              (chunk.startMs - silence!.chunks[0].startMs),
+          ) <= 50 &&
+          chunk.endMs - silence!.chunks[0].startMs <=
+            (session.processingSettings?.effective.maxCombinedSeconds ?? 60) *
+              1000 &&
           silence!.chunks.length < 100 &&
           at.getHours() === silence!.at.getHours() &&
           at.toDateString() === silence!.at.toDateString()

@@ -66,6 +66,12 @@ public static class ServiceRegistration
         services.AddSingleton<NoteAgent>(s => new(s.GetRequiredService<PlaybackStore>(), s.GetRequiredService<NoteWorkflow>(),
             s.GetRequiredService<ILogger<NoteAgent>>()));
         services.AddHostedService(s => s.GetRequiredService<NoteAgent>());
+        services.AddSingleton<Playback.Application.Recording.SessionRerun>(SessionRerunWorker.Create);
+        services.AddSingleton<SessionRerunWorker>();
+        services.AddHostedService(s => s.GetRequiredService<SessionRerunWorker>());
+        services.AddSingleton<Playback.Api.Ask.IConceptGraph>(_ => new LightRagClient());
+        services.AddSingleton<ConceptGraphWorker>();
+        services.AddHostedService(s => s.GetRequiredService<ConceptGraphWorker>());
         services.AddSingleton<JevTermClassifier>(s => new JevTermClassifier(s.GetRequiredService<JevTransport>()));
         services.AddSingleton<Playback.Application.Assistance.ITermClassifier>(s => s.GetRequiredService<JevTermClassifier>());
         services.AddSingleton<Playback.Application.Assistance.TermAssistance>();

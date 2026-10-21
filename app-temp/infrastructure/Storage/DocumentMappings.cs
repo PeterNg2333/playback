@@ -13,7 +13,7 @@ public static class DocumentMappings
         {
             if (!BsonClassMap.IsClassMapRegistered(typeof(SessionRecord))) BsonClassMap.RegisterClassMap<SessionRecord>(map => {map.AutoMap(); map.SetIgnoreExtraElements(true);});
             if (!BsonClassMap.IsClassMapRegistered(typeof(ChunkRecord))) BsonClassMap.RegisterClassMap<ChunkRecord>(map => {map.AutoMap(); map.UnmapMember(x => x.Path);});
-            if (!BsonClassMap.IsClassMapRegistered(typeof(Transcript))) BsonClassMap.RegisterClassMap<Transcript>(map => {map.AutoMap(); map.UnmapMember(x => x.SourceText);});
+            if (!BsonClassMap.IsClassMapRegistered(typeof(Transcript))) BsonClassMap.RegisterClassMap<Transcript>(map => {map.AutoMap(); map.UnmapMember(x => x.SourceText); map.UnmapMember(x => x.CoveredChunkIds); map.UnmapMember(x => x.Active);});
             if (!BsonClassMap.IsClassMapRegistered(typeof(ActivityRecord))) BsonClassMap.RegisterClassMap<ActivityRecord>(map => {map.AutoMap(); map.UnmapMember(x => x.Draft);});
             if (!BsonClassMap.IsClassMapRegistered(typeof(DemoUser))) BsonClassMap.RegisterClassMap<DemoUser>(map => {map.AutoMap(); map.MapIdMember(x => x.Username);});
         }

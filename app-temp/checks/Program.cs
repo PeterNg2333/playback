@@ -59,6 +59,12 @@ try
         case ["--sample-audio-live", var folder]:
             await SampleAudioLiveCheck.Run(folder);
             break;
+        case ["--rerun-live", var folder, var output]:
+            await RerunLiveCheck.Run(folder, output);
+            break;
+        case ["--rerun-live-ask", var session, var output, var label]:
+            await RerunLiveCheck.Ask(session, output, label);
+            break;
         case ["--openrouter-stream-live", var mode]:
             await OpenRouterStreamLiveCheck.Run(mode);
             break;
@@ -147,6 +153,8 @@ static async Task RunOffline(bool notesOnly)
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();
     await TranscriptReviewChecks.Run();
+    await RerunChecks.Run();
+    await ConceptGraphChecks.Run();
     await NoteCorrectionChecks.Run();
     await NoteGenerationChecks.Run();
     await NoteEditChecks.Run();

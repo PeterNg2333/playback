@@ -10,7 +10,7 @@ public partial class PlaybackStore
 {
     MongoNoteRepository? noteRepository;
     MongoNoteRepository NoteRepository => noteRepository ??= new(Collection<Note>("notes"), Collection<NoteGateRecord>("note_gates"),
-        new NoteStoreAdapter(this), new NoteStoreAdapter(this), noteWriteLocks, id => Touch(id, "note"), new MongoNoteHistoryStorage(Collection<NoteHead>("note_heads"), Collection<Note>("notes")));
+        new NoteStoreAdapter(this), new NoteStoreAdapter(this), noteWriteLocks, id => Touch(id, "note"), new MongoNoteHistoryStorage(Collection<NoteHead>("note_heads"), Collection<Note>("notes")), Supersessions);
     NoteCommands NoteCommands => new(new NoteStoreAdapter(this), new NoteStoreAdapter(this));
     public Task<object> SaveNote(string id, string markdown, string author, int? basedOnVersion = null) => NoteCommands.SaveNote(id, markdown, author, basedOnVersion);
     public virtual Task<List<Note>> NoteHistory(string id) => NoteRepository.History(id);
@@ -55,7 +55,7 @@ public partial class PlaybackStore
     }
     public virtual async Task<List<string>> SessionsWithPendingNotes()
     {
-        var ids = await Collection<Transcript>("transcripts").Find(x => x.Original != "" &&
+        var ids = await Collection<Transcript>("transcripts").Find(x => x.Original != "" && x.SupersededBy == null &&
             (x.NoteStatus == "pending" || x.NoteStatus == "deferred" || x.NoteStatus == "failed" || x.NoteStatus == "processing"))
             .Project(x => x.SessionId).ToListAsync();
         var materialSessions = await Collection<Material>("materials").Find(FilterDefinition<Material>.Empty).Project(x => x.SessionId).ToListAsync();

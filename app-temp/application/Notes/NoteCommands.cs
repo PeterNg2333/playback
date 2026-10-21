@@ -28,13 +28,13 @@ public sealed class NoteCommands(INoteRepository repository, INoteEvidence evide
     }
     public async Task<RecoveryPreview> Recovery(string id, int version) {
         var session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
-        var historical = await repository.Version(id, version) ?? throw new InvalidOperationException("Historical note not found");
+        var historical = Playback.Api.Sources.Lineage.Apply(await repository.Version(id, version) ?? throw new InvalidOperationException("Historical note not found"), session.Supersessions);
         return NoteSections.Recover(historical, session.CurrentNote, session.AllowedSources);
     }
     public async Task<object> RestoreNote(string id, int version, int? basedOnVersion) {
         var session = await evidence.Session(id) ?? throw new InvalidOperationException("Session not found");
         if (basedOnVersion is not null && session.NoteVersion != basedOnVersion) throw new InvalidOperationException("Notes changed; reload before restoring");
-        var historical = await repository.Version(id, version) ?? throw new InvalidOperationException("Historical note not found");
+        var historical = Playback.Api.Sources.Lineage.Apply(await repository.Version(id, version) ?? throw new InvalidOperationException("Historical note not found"), session.Supersessions);
         var citations = NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []);
         foreach (var citation in historical.Citations.Where(x => citations.All(c => c.Id != x.Id))) citations.Add(citation);
         var deleted = session.CurrentNote?.DeletedSectionIds.ToList() ?? [];

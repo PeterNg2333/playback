@@ -43,6 +43,12 @@ public partial class PlaybackStore
     }
     public async Task<Transcript?> TranscriptForChunk(string id) =>
         await Collection<Transcript>("transcripts").Find(x => x.Id == id).FirstOrDefaultAsync();
+    public virtual async Task<Dictionary<string, string>> Supersessions(string sessionId) =>
+        Playback.Api.Sources.Lineage.Supersessions(await Collection<Transcript>("transcripts")
+            .Find(x => x.SessionId == sessionId && x.SupersededBy != null).ToListAsync());
+    // Every transcript row of a session, superseded rows included, for trace and rerun planning.
+    public virtual async Task<List<Transcript>> AllTranscripts(string sessionId) =>
+        await Collection<Transcript>("transcripts").Find(x => x.SessionId == sessionId).SortBy(x => x.StartMs).ToListAsync();
     public async Task<SessionRecord> SetTranslation(string id, bool enabled, string language)
     {
         _ = LanguageSettings.OutputDescription(language);
@@ -71,7 +77,7 @@ public partial class PlaybackStore
         var result = new List<Transcript>();
         foreach (var session in sessions)
         {
-            var transcripts = await Collection<Transcript>("transcripts").Find(x => x.SessionId == session.Id && x.Original != "" &&
+            var transcripts = await Collection<Transcript>("transcripts").Find(x => x.SessionId == session.Id && x.SupersededBy == null && x.Original != "" &&
                 (x.TranslationLanguage != session.TranslationLanguage || x.TranslationStatus != "completed") &&
                 (x.TranslationRetryAt == null || x.TranslationRetryAt <= DateTime.UtcNow))
                 .SortBy(x => x.StartMs).Limit(limit - result.Count).ToListAsync();

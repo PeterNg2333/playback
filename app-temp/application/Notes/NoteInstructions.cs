@@ -6,7 +6,7 @@ namespace Playback.Application.Notes;
 // record which instructions produced them.
 public static class NoteInstructions
 {
-    public const string Version = "tree-notes-v17";
+    public const string Version = "tree-notes-v18";
     public const string OrganizeVersion = "tree-organize-v20";
 
     public const string Sections = """
@@ -124,8 +124,9 @@ public static class NoteInstructions
         to wait for a better topic. A source with deferredBefore cannot be deferred again: write what it
         supports, with "(?)" on unclear parts. For a gap-repair batch, write the substantive definitions, examples,
         conditions and arguments in that earlier input; the latest topic is not the whole lecture.
-        A pending source with retranscribed=true has been recognized again from its saved audio. Its source
-        ID and time range are unchanged. Compare the corrected wording with blocks already citing it and use
+        A pending source with retranscribed=true has been recognized again from its saved audio, sometimes as
+        one longer passage replacing several earlier sources; blocks written from the earlier wording already
+        cite it. Compare the corrected wording with blocks already citing it and use
         replace-text to correct those blocks before adding genuinely missing concepts. Never duplicate a
         previously written point merely because its source returned to pending. Keep protected blocks untouched.
         More than one input chunk may support a complete thought. Source IDs establish traceability, not

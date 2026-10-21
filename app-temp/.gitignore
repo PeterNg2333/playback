@@ -8,3 +8,5 @@ browser-*.png
 *.log
 *.tsbuildinfo
 checks/output/
+graph/.venv/
+graph/__pycache__/

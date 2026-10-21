@@ -66,12 +66,15 @@ public partial class PlaybackStore
         if (kind == "processing") records.Add(new(kind, id, new { processingSettings = await SessionProcessingSettings(id), noteAdmission = NoteAdmissionView.Read(await NoteGate(id)), organization = await NoteOrganizationStatus(id) }));
         if (kind == "meta") {
             var session = await SessionSettings(id);
-            var note = await NoteRepository.Latest(id);
+            var note = await NoteRepository.Latest(id) is { } latest ? Playback.Api.Sources.Lineage.Apply(latest, await Supersessions(id)) : null;
             records.Add(new("meta", id, SyncMeta(session, note)));
         }
+        if (kind == "lineage") records.Add(new(kind, id, new { supersededBy = await Supersessions(id) }));
+        if (kind == "rerun") records.Add(new(kind, id, new { rerun = await RerunStatus(id) }));
         if (kind == "transcript") {
             var session = await SessionSettings(id);
-            var rows = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id && (ids == null || ids.Contains(x.Id))).ToListAsync();
+            // A superseded row is not returned, so the reader removes it; its replacing segment arrives in the same change.
+            var rows = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id && x.SupersededBy == null && (ids == null || ids.Contains(x.Id))).ToListAsync();
             foreach (var row in rows) { row.DisplayOriginal = LanguageSettings.CantoneseDisplay(row.Original, session.AsrLanguage, row.AsrDetectedLanguage);
                 records.Add(new("transcript", row.Id, row)); }
         }
@@ -82,7 +85,7 @@ public partial class PlaybackStore
     }
     public virtual async Task<TermCandidate?> ReadSyncTerm(string id, string term) {
         var pattern = new BsonRegularExpression(Regex.Escape(term), "i");
-        var tf = Builders<Transcript>.Filter.Eq(x => x.SessionId, id) & Builders<Transcript>.Filter.Ne(x => x.RecognitionStatus, "asr-empty") &
+        var tf = Builders<Transcript>.Filter.Eq(x => x.SessionId, id) & Builders<Transcript>.Filter.Eq(x => x.SupersededBy, null) & Builders<Transcript>.Filter.Ne(x => x.RecognitionStatus, "asr-empty") &
             Builders<Transcript>.Filter.Ne(x => x.Uncertain, true) & (Builders<Transcript>.Filter.Regex(x => x.Original, pattern) | Builders<Transcript>.Filter.Regex(x => x.DisplayOriginal, pattern));
         var ids = await Collection<Transcript>("transcripts").Find(tf).SortBy(x => x.StartMs).Project(x => x.Id).ToListAsync();
         var latest = await Collection<Transcript>("transcripts").Find(tf).SortByDescending(x => x.StartMs).FirstOrDefaultAsync();
@@ -149,8 +152,10 @@ public partial class PlaybackStore
                     foreach (var item in session.TermInsights) Add("insight", item.Id, item);
                     foreach (var row in await ReadSyncRecords(id, "processing", [id])) AddRecord(row);
                     foreach (var row in await ReadSyncRecords(id, "combined-audio", [id])) AddRecord(row);
+                    Add("lineage", id, new { supersededBy = session.Supersessions });
+                    foreach (var row in await ReadSyncRecords(id, "rerun", [id])) AddRecord(row);
                     var current = new HashSet<string>(session.Transcripts.Select(x => "transcript:" + x.Id).Concat(session.Chunks.Select(x => "chunk:" + x.Id))
-                        .Concat(session.Materials.Select(x => "material:" + x.Id)).Concat(session.TermInsights.Select(x => "insight:" + x.Id)).Concat(session.Terms.Select(x => "term:" + x.Text))) { "meta:" + id, "processing:" + id, "combined-audio:" + id };
+                        .Concat(session.Materials.Select(x => "material:" + x.Id)).Concat(session.TermInsights.Select(x => "insight:" + x.Id)).Concat(session.Terms.Select(x => "term:" + x.Text))) { "meta:" + id, "processing:" + id, "combined-audio:" + id, "lineage:" + id, "rerun:" + id };
                     foreach (var removed in state.Hashes.Keys.Except(current)) Remove(removed);
                     state.Terms = session.Terms.ToDictionary(x => x.Text, StringComparer.OrdinalIgnoreCase);
                     foreach (var item in session.Terms) Add("term", item.Text, item);

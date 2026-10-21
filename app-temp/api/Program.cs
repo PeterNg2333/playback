@@ -52,6 +52,8 @@ app.MapSessions();
 app.MapGroups();
 app.MapCapture();
 app.MapChunks();
+app.MapRerun();
+app.MapConcepts();
 app.MapNotes();
 app.MapProcessingSettings();
 app.MapTerms();

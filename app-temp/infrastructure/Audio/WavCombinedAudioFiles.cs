@@ -42,7 +42,7 @@ public sealed class WavCombinedAudioFiles(string root, Func<string, Task<string?
     }
     public string PathFor(string sessionId, string id)
     {
-        if (!System.Text.RegularExpressions.Regex.IsMatch(sessionId, "^[a-f0-9]{32}$") || !System.Text.RegularExpressions.Regex.IsMatch(id, "^quiet_[a-f0-9]{64}$")) throw new InvalidOperationException("Invalid derived audio identity");
+        if (!System.Text.RegularExpressions.Regex.IsMatch(sessionId, "^[a-f0-9]{32}$") || !System.Text.RegularExpressions.Regex.IsMatch(id, "^(?:quiet|rerun)_[a-f0-9]{64}$")) throw new InvalidOperationException("Invalid derived audio identity");
         return Path.Combine(root, sessionId, "combined", id + ".wav");
     }
     public async Task<bool> Valid(CombinedAudioSegment segment, CancellationToken ct)

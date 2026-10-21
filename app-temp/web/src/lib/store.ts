@@ -34,6 +34,8 @@ type PlaybackState = {
   useWeb: boolean;
   textDialog: TextDialogState | null;
   textDialogError: string;
+  // Which rerun the dialog offers: the whole session (ASR and notes) or the notes only.
+  rerunDialog: "session" | "notes" | null;
 };
 
 export const usePlaybackStore = create<PlaybackState>(() => ({
@@ -53,6 +55,7 @@ export const usePlaybackStore = create<PlaybackState>(() => ({
   useWeb: false,
   textDialog: null,
   textDialogError: "",
+  rerunDialog: null,
 }));
 
 // Keep each field subscription narrow while retaining React's functional setter shape.

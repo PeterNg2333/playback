@@ -27,6 +27,8 @@ public sealed record SessionView(
     string? AsrModel = null)
 {
     public List<Playback.Api.Sources.TranscriptSourceGroup> SourceGroups => new Playback.Api.Sources.SourceReferences(this).Groups;
+    // Superseded transcript ID → the active segment that replaced it. Transcripts holds active rows only.
+    public IReadOnlyDictionary<string, string> Supersessions { get; init; } = new Dictionary<string, string>();
 }
 public sealed class SessionRecord
 {

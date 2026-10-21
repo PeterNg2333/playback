@@ -7,6 +7,7 @@ import type { AudioPlayer } from "../player/useAudioPlayer";
 import { Timeline } from "./Timeline";
 import { SessionSettings } from "./SessionSettings";
 import { asrSummary } from "./asrStatus";
+import { RerunStatus } from "./RerunStatus";
 
 export function TranscriptPanel({
   className,
@@ -40,6 +41,7 @@ export function TranscriptPanel({
           </>
         }
       />
+      <RerunStatus session={session} />
       <div className="flex min-h-0 flex-1 overflow-hidden" id="transcript-view">
         <Timeline key={session?.id} session={session} player={player} />
       </div>

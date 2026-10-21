@@ -18,6 +18,7 @@ import { showError, usePlaybackField, usePlaybackStore } from "../lib/store";
 import { LibrarySidebar } from "../features/library/LibrarySidebar";
 import { NotesPanel } from "../features/notes/NotesPanel";
 import { TranscriptPanel } from "../features/transcript/TranscriptPanel";
+import { RerunDialog } from "../features/transcript/RerunDialog";
 import { AudioPlayerBar } from "../features/player/AudioPlayerBar";
 import { SignOutButton } from "../features/auth/SignOutButton";
 
@@ -154,6 +155,7 @@ export function PlaybackPage() {
         <ErrorToast message={error} onDismiss={() => setError("")} />
       )}
       <NameDialog />
+      <RerunDialog session={session} />
     </div>
   );
 }

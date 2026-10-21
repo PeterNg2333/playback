@@ -11,7 +11,7 @@ public partial class PlaybackStore
     {
         public async Task<List<TranscriptReviewItem>> Pending(DateTime now)
         {
-            var rows = await store.Collection<Transcript>("transcripts").Find(x => x.ReviewStatus == "pending" &&
+            var rows = await store.Collection<Transcript>("transcripts").Find(x => x.ReviewStatus == "pending" && x.SupersededBy == null &&
                 x.ReviewAttempts < 3 && (x.ReviewRetryAt == null || x.ReviewRetryAt <= now))
                 .SortBy(x => x.ConfirmedAt).Limit(128).ToListAsync();
             var result = new List<TranscriptReviewItem>();
@@ -36,7 +36,7 @@ public partial class PlaybackStore
                 .Set(x => x.Translation, null).Set(x => x.TranslationStatus, "pending").Set(x => x.TranslationAttempts, 0)
                 .Set(x => x.TranslationRetryAt, null).Set(x => x.TranslationError, null);
             var saved = await store.Collection<Transcript>("transcripts").UpdateOneAsync(x => x.Id == before.Id &&
-                x.Original == before.Original && x.ReviewStatus == "pending", update);
+                x.Original == before.Original && x.ReviewStatus == "pending" && x.SupersededBy == null, update);
             if (saved.ModifiedCount == 0) return false;
             store.Touch(before.SessionId, "transcript", [before.Id]);
             return changed;

@@ -22,7 +22,8 @@ public static class ChatContextBuilder
         "said", "that", "their", "there", "these", "this", "what", "when", "where", "which", "with", "would",
         "was", "were", "the", "and", "for", "you", "your", "are", "but", "not", "how", "why"
     };
-    public static ChatContext Build(SessionView session, QuestionInput input, string retrievalContext = "")
+    // preferred: transcript IDs the concept graph found relevant, best first; their passages rank ahead of keyword matches.
+    public static ChatContext Build(SessionView session, QuestionInput input, string retrievalContext = "", IReadOnlyList<string>? preferred = null)
     {
         var searchText = input.Question + " " + retrievalContext;
         var words = Word.Matches(HanRun.Replace(searchText, " "))
@@ -45,11 +46,13 @@ public static class ChatContextBuilder
             throw new InvalidOperationException("Selected text must come from the selected transcript");
 
         var references = new SourceReferences(session);
+        var rank = (preferred ?? []).Select((id, index) => (id, index)).GroupBy(x => x.id).ToDictionary(x => x.Key, x => x.First().index, StringComparer.Ordinal);
         var groups = references.Groups
             .Select(x => (
                 item: x,
                 score: terms.Count(term => references.GroupText(x).Contains(term, StringComparison.OrdinalIgnoreCase))
-                    + (focused is not null && x.TranscriptIds.Contains(focused.Id) ? 100 : 0)))
+                    + (focused is not null && x.TranscriptIds.Contains(focused.Id) ? 100 : 0)
+                    + (rank.Count > 0 && x.TranscriptIds.Where(rank.ContainsKey).Select(id => rank[id]).DefaultIfEmpty(int.MaxValue).Min() is var best && best < 40 ? 60 - best : 0)))
             .OrderByDescending(x => x.score)
             .ThenByDescending(x => x.item.StartMs)
             .Take(5)

@@ -79,7 +79,12 @@ export function SessionSettings({ session }: { session: Session | null }) {
               <select
                 className={selectStyle}
                 id="asr-model"
-                value={session?.asrModel && health.asrModels.includes(session.asrModel) ? session.asrModel : ""}
+                value={
+                  session?.asrModel &&
+                  health.asrModels.includes(session.asrModel)
+                    ? session.asrModel
+                    : ""
+                }
                 disabled={!session || !!busy || !!streamActive}
                 onChange={(event) =>
                   setLanguages(
@@ -97,7 +102,8 @@ export function SessionSettings({ session }: { session: Session | null }) {
                 ))}
               </select>
               <small className={noteStyle}>
-                Automatic fallback: ElevenLabs Scribe v2, then Gemini Transcribe if the selected model fails or times out.
+                Automatic fallback: ElevenLabs Scribe v2, then Gemini Transcribe
+                if the selected model fails or times out.
               </small>
             </>
           )}
@@ -197,6 +203,24 @@ export function SessionSettings({ session }: { session: Session | null }) {
             <option value="ko">Korean</option>
           </select>
 
+          <Button
+            disabled={
+              !session ||
+              !!busy ||
+              recordingThisSession ||
+              session?.rerun?.status === "running"
+            }
+            onClick={() => {
+              setSettingsOpen(false);
+              usePlaybackStore.setState({ rerunDialog: "session" });
+            }}
+          >
+            Rerun session…
+          </Button>
+          <small className={noteStyle}>
+            Re-transcribe the saved audio in longer passages, then update or
+            rebuild the notes.
+          </small>
           {session?.translationEnabled && translationsFailed && (
             <Button
               disabled={!!busy}

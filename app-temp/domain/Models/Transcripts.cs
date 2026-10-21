@@ -46,6 +46,17 @@ public sealed class Transcript
     public bool Uncertain { get; set; }
     public string RecognitionStatus { get; set; } = "recognized";
     public DateTime? ConfirmedAt { get; set; }
+    // A rerun window re-recognizes several consecutive chunks as one segment and supersedes their rows.
+    // Superseded rows stay for history and trace; only active rows are evidence. Missing fields read as an active chunk row.
+    public string Kind { get; set; } = "chunk";
+    public List<string> ChunkIds { get; set; } = [];
+    public string? RunId { get; set; }
+    public string? SupersededBy { get; set; }
+    public DateTime? SupersededAt { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<string> CoveredChunkIds => ChunkIds.Count > 0 ? ChunkIds : [Id];
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool Active => SupersededBy is null;
 }
 public sealed class TranslationVersion
 {
