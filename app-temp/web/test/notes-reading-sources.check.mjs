@@ -1,7 +1,7 @@
 // Offline browser behavior/performance. Generated content quality requires a separate real-provider review.
 import assert from "node:assert/strict";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
 const folder = "output/playwright/notes-redesign";
 await mkdir(folder, { recursive: true });
@@ -183,11 +183,7 @@ function sync(sessionId, cursor) {
     changes: state.queue.splice(0, limit),
   };
 }
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
   timezoneId: "UTC",

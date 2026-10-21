@@ -11,7 +11,8 @@
     "test:math": "node test/markdown-math.check.mjs",
     "test:loading": "node test/session-loading.check.mjs",
     "test:load-assets": "node test/cold-loading.check.mjs",
-    "test:memory": "node test/memory-retention.check.mjs"
+    "test:memory": "node test/memory-retention.check.mjs",
+    "test:offline": "node test/run-offline.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",

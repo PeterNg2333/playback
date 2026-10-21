@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
 // Session rerun UI against fixture API data: a rerun window shown once over the chunks it covers, its first pass
 // in the row details, the Rerun dialog (estimate, model, passage length, notes mode), progress with Stop, and
@@ -61,11 +61,7 @@ const session = {
 };
 const rerunRequests = [];
 let cancelled = 0;
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 try {
   const page = await browser.newPage({ timezoneId: "UTC" });
   await page.route("**/api/**", async (route) => {

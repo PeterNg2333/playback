@@ -14,12 +14,12 @@ import { TermExplanation } from "../terms/TermExplanation";
 import { ActivityPopover } from "../activity/ActivityPopover";
 import { useActivity } from "../activity/useActivity";
 import { Icon } from "../../components/Icon";
-import { LazyDetails } from "../../components/LazyDetails";
 import { Menu, MenuItem } from "../../components/Menu";
-import { Chip } from "../../components/Chip";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
 import { InstructionDialog } from "./InstructionDialog";
+import { TopicTree } from "./TopicTree";
+import { VersionChanges } from "./VersionChanges";
 
 // The activity tasks that write notes (NoteWorkflow): jots, segments, the finish and owner instructions.
 const noteTasks = new Set([
@@ -59,6 +59,18 @@ export function NotesPanel({
   const renderedNotes = useRef<HTMLDivElement>(null);
   const headings = () =>
     renderedNotes.current?.querySelectorAll<HTMLElement>("h1, h2, h3") ?? [];
+  // Scrolls the notes so the chosen topic's heading is at the top, and focuses it.
+  function scrollToTopic(index: number) {
+    const element = body.current;
+    const heading = headings()[index];
+    if (!element || !heading) return;
+    element.scrollTop +=
+      heading.getBoundingClientRect().top -
+      element.getBoundingClientRect().top -
+      12;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
   const markdownBlocks = (element: HTMLElement) =>
     element.querySelectorAll<HTMLElement>("[data-markdown] > *");
   const [topics, setTopics] = useState<{ title: string; level: number }[]>([]);
@@ -314,49 +326,7 @@ export function NotesPanel({
           markdown ? (
             <>
               {topics.length > 1 && (
-                <details
-                  className="mb-5.5 rounded-[10px] border border-line bg-accent-soft p-3.5"
-                  open
-                >
-                  <summary className="cursor-pointer text-[12px] font-bold">
-                    Topic tree · {topics.length}
-                  </summary>
-                  <nav aria-label="Note topics">
-                    <ol className="mt-3">
-                      {topics.map((topic, index) => (
-                        <li
-                          className="border-l-2 border-line py-1 pl-3"
-                          key={`${index}-${topic.title}`}
-                          style={{
-                            marginLeft:
-                              (topic.level -
-                                Math.min(...topics.map((item) => item.level))) *
-                              14,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="cursor-pointer text-left text-[12px] text-accent"
-                            onClick={() => {
-                              const element = body.current;
-                              const heading = headings()[index];
-                              if (element && heading) {
-                                element.scrollTop +=
-                                  heading.getBoundingClientRect().top -
-                                  element.getBoundingClientRect().top -
-                                  12;
-                                heading.tabIndex = -1;
-                                heading.focus({ preventScroll: true });
-                              }
-                            }}
-                          >
-                            {topic.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  </nav>
-                </details>
+                <TopicTree topics={topics} onSelect={scrollToTopic} />
               )}
               <NotePreview
                 key={session?.id}
@@ -376,58 +346,10 @@ export function NotesPanel({
                       Links are evidence metadata, not a check of the text.
                     </p>
                   )}
-                  <LazyDetails
-                    className="mt-3 border-t border-line pt-2.5"
-                    summaryClassName="cursor-pointer text-[12px] font-bold text-muted"
-                    summary={
-                      <>
-                        Changes in v{session.noteVersion} ·{" "}
-                        {session.currentNote.edits?.length || 0}
-                      </>
-                    }
-                  >
-                    {() =>
-                      session.currentNote!.edits?.length ? (
-                        <ol className="my-2.5 grid list-decimal gap-2.5 pl-5">
-                          {session.currentNote!.edits.map((edit, index) => (
-                            <li
-                              className="pl-0.5"
-                              key={`${edit.kind}-${edit.line}-${index}`}
-                            >
-                              <small className="text-[11px] text-muted">
-                                {edit.kind === "insert" ? "Added" : "Removed"} ·
-                                line {edit.line}
-                              </small>
-                              <p className="my-0.75 text-[12px] whitespace-pre-wrap wrap-anywhere">
-                                {edit.text || "(blank line)"}
-                              </p>
-                              {edit.transcriptIds.map((id) => {
-                                const source = session.transcripts.find(
-                                  (entry) => entry.id === id,
-                                );
-                                return (
-                                  source && (
-                                    <Chip
-                                      key={id}
-                                      onClick={() =>
-                                        onOpenSource({ kind: "lecture", id })
-                                      }
-                                    >
-                                      {String(source.startMs / 1000) + "s"}
-                                    </Chip>
-                                  )
-                                );
-                              })}
-                            </li>
-                          ))}
-                        </ol>
-                      ) : (
-                        <EmptyState>
-                          No recorded line changes in this version.
-                        </EmptyState>
-                      )
-                    }
-                  </LazyDetails>
+                  <VersionChanges
+                    session={session}
+                    onOpenSource={onOpenSource}
+                  />
                 </>
               )}
             </>
@@ -455,7 +377,7 @@ export function NotesPanel({
             ) : (
               <EmptyState>
                 {runningNote
-                  ? "Analyzing confirmed sources. The draft will appear as it is written."
+                  ? "Reading the transcript. The draft appears as it is written."
                   : "No live revision is running. Saved notes are available in Preview."}
               </EmptyState>
             )}

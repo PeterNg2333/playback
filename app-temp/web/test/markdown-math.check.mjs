@@ -1,7 +1,7 @@
 // Offline production-browser rendering and retention check. No DB/provider writes.
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
 const url = process.env.MATH_BASE_URL ?? "http://127.0.0.1:5180";
 const label = process.env.MATH_RUN_LABEL ?? "current";
@@ -106,11 +106,7 @@ const longNote = Array.from({ length: 20 }, (_, i) =>
   ),
 ).join("\n\n");
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
 });

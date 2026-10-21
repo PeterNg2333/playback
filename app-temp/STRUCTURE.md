@@ -147,22 +147,30 @@ npm.cmd --prefix app-temp/web run build
 
 Web: `web/test/` holds the browser checks, named after what they protect. The
 checks below answer every API request from fixture data, so they need no API,
-MongoDB or network. Run them from `app-temp/web` against Vite dev on port 5174
-(`$env:PLAYBACK_OFFLINE_TEST="yes"; npm.cmd run dev -- --port 5174`), or against
-`vite preview` by setting the check's base-URL variable:
+MongoDB or network. `npm.cmd run test:offline` in `app-temp/web` starts Vite dev
+on port 5174, runs them in turn and stops it (`-- note-tree session-loading` runs
+only those). A check can also run alone against a running Vite dev on 5174, or
+against `vite preview` by setting its base-URL variable. Every check drives the
+browser in `test/browser.mjs`: Edge, or the Chromium executable `PLAYBACK_BROWSER`
+names.
 
+- `refactor-baseline.check.mjs`: quiet-audio timeline rows and playback parts (no browser).
+- `note-tree.check.mjs` and `note-instruction.check.mjs`: the notes components
+  with their own Vite server: numbered topics, block edit conflicts, instructions
+  and locks.
 - `library-sidebar.check.mjs`: sessions and groups, drag and keyboard moves.
-- `transcript-recording.check.mjs` (with `PLAYBACK_OFFLINE_TEST=yes`): timeline,
-  ASR states and retry, player, settings, terms, activity, recording controls,
-  Ask failures, and an API without the newer capability flags.
+- `transcript-recording.check.mjs`: timeline, ASR states and retry, player,
+  settings, terms, activity, recording controls, Ask failures, and an API without
+  the newer capability flags. It currently fails where a live preview row should
+  keep its text after its saved chunk fails ASR (already failing at 2ccb53e).
 - `session-loading.check.mjs`: loading state; a failed read keeps the draft.
 - `session-rerun.check.mjs`: a rerun window shown once with its first pass, the Rerun dialog request, progress and Stop, Rebuild notes.
 - `notes-citations-chat.check.mjs`: citations, diagrams, topic tree, saved
   terms, chat failures and conversations, layout bounds.
 - `notes-reading-sources.check.mjs`: Reading/Sources, 1,350 and 2,700 rows,
   history, AI flow, edit conflicts and draft recovery.
-- `cold-loading.check.mjs` and `markdown-math.check.mjs`: lazy diagram and maths
-  loading. `markdown-math` blocks the built `MathFormula-*.js` chunk, so it needs
+- `cold-loading.check.mjs` and `markdown-math.check.mjs` (not in `test:offline`):
+  lazy diagram and maths loading. `markdown-math` blocks the built `MathFormula-*.js` chunk, so it needs
   a production preview (`MATH_BASE_URL`, default port 5180).
 
 Checks find elements the way a reader does: by role and accessible name, by

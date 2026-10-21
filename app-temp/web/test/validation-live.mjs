@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import path from "node:path";
 const output = path.resolve("app-temp/data/validation/runs/2026-09-28-repair");
 const phase = process.argv[process.argv.indexOf("--phase") + 1] ?? "chat";
@@ -32,11 +32,7 @@ const session = JSON.parse(
     ),
   ),
 );
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));

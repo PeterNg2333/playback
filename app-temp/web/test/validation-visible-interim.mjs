@@ -1,4 +1,4 @@
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import { readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
@@ -31,11 +31,7 @@ assert.equal((await get("/capture/status")).state, "idle");
 const health = await get("/health");
 assert.equal(health.autoNotes, false);
 assert.equal(health.autoTerms, false);
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 let player,
   passed = false,

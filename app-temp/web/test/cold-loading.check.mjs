@@ -1,7 +1,7 @@
 // Cold production asset loading plus first diagram, with offline API fixtures.
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 const url = process.env.LOADING_BASE_URL ?? "http://127.0.0.1:5174";
 const label = process.env.LOADING_RUN_LABEL ?? "current";
 assert(/^http:\/\/127\.0\.0\.1:\d+$/.test(url));
@@ -30,11 +30,7 @@ const session = {
   currentNote: null,
   sourceGroups: [],
 };
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
 });

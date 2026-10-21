@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 const web = fileURLToPath(new URL("..", import.meta.url));
 const preview = path.join(web, "output/instruction");
 await mkdir(preview, { recursive: true });
@@ -65,12 +65,7 @@ let browser;
 try {
   await server.listen();
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
-  browser = await chromium.launch({
-    executablePath:
-      "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-    headless: true,
-    args: ["--disable-background-networking"],
-  });
+  browser = await launchBrowser(["--disable-background-networking"]);
   const context = await browser.newContext({ serviceWorkers: "block" });
   const errors = [];
   const posts = [];

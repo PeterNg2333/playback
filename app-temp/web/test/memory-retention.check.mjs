@@ -5,7 +5,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import { week3Fixture } from "./week3-fixture.mjs";
 
 const url = process.env.MEMORY_BASE_URL ?? "http://127.0.0.1:5176";
@@ -168,11 +168,7 @@ const start = Date.now(),
   requests = {},
   payloads = {},
   cancelled = {};
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
   timezoneId: "UTC",

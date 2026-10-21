@@ -1,7 +1,7 @@
 // Offline UI acceptance: fixture content verifies presentation, never generated-note quality.
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
 const id = "a".repeat(32);
 const sourceId = `${id}-microphone-63926191107278790-${"b".repeat(64)}`;
@@ -95,11 +95,7 @@ const session = {
   ],
 };
 await mkdir("output/playwright", { recursive: true });
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
   timezoneId: "UTC",

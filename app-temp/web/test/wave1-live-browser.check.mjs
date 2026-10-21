@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import { createServer } from "vite";
 const web = fileURLToPath(new URL("..", import.meta.url));
 const folder = "app-temp/data/validation/runs/2026-10-20-wave1-p1-recording";
@@ -13,7 +13,7 @@ await mkdir(artifacts, { recursive: true });
 const server = await createServer({ root: web, configFile: path.join(web, "vite.config.ts"), configLoader: "runner",
   server: { host: "127.0.0.1", port: 5188, strictPort: true, proxy: { "/api": "http://127.0.0.1:5088" } } });
 await server.listen();
-const browser = await chromium.launch({ headless: true, executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" });
+const browser = await launchBrowser();
 const errors = [];
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });

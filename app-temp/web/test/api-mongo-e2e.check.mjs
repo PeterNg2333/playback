@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -22,11 +22,7 @@ assert.equal(
   "Local MongoDB must be ready",
 );
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 let sessionId;
 let groupId;
 let nestedSessionId;

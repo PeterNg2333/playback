@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 const out = path.resolve("app-temp/data/validation/runs/2026-09-28-repair");
 const read = async (name) =>
   JSON.parse(
@@ -20,11 +20,7 @@ const health = {
   aiActivity: true,
   groundedChatFallback: true,
 };
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
   hasTouch: true,

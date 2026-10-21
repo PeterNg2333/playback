@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
-import { chromium, request } from "playwright-core";
+import { request } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
 const image = process.env.PLAYBACK_DOCKER_IMAGE || "playback:cloud-run";
 const port = Number(process.env.PLAYBACK_DOCKER_TEST_PORT || 8088);
@@ -657,12 +658,7 @@ try {
     "PASS: login, MongoDB notes and saved WAV survive a container restart; retry identity and audio ranges work",
   );
 
-  browser = await chromium.launch({
-    headless: true,
-    executablePath:
-      process.env.PLAYBACK_BROWSER ||
-      "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-  });
+  browser = await launchBrowser();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
   });

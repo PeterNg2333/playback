@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {writeFile} from 'node:fs/promises';
 import path from 'node:path';
-import {chromium} from 'playwright-core';
+import { launchBrowser } from "./browser.mjs";
 
 export async function refactorMongoBrowser({origin, password, artifacts, restart}) {
   assert.equal(process.env.PLAYBACK_REFACTOR_MONGO, 'yes', 'Explicit Mongo opt-in is required');
   assert.equal(origin, 'http://127.0.0.1:5082');
-  const browser = await chromium.launch({headless: true, executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+  const browser = await launchBrowser();
   const suffix = randomUUID().slice(0, 8);
   const title = `Refactor retained browser ${suffix}`;
   const errors = [];

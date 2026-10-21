@@ -1,6 +1,6 @@
 // Same saved 737-transcript / 745-chunk snapshot as the previous retention audit.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import assert from "node:assert/strict";
 const input =
   "../data/validation/runs/2026-09-28-notes-retention-125936/session.json";
@@ -9,11 +9,7 @@ const session = JSON.parse(
 );
 const folder = "output/playwright/notes-redesign";
 await mkdir(folder, { recursive: true });
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const context = await browser.newContext({
   viewport: { width: 1440, height: 1000 },
   timezoneId: "UTC",

@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
 const preview = path.join(web, "output/tree");
@@ -103,11 +103,7 @@ try {
   await server.listen();
   const address = server.httpServer.address();
   const origin = `http://127.0.0.1:${address.port}`;
-  browser = await chromium.launch({
-    executablePath:
-      "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-    headless: true,
-  });
+  browser = await launchBrowser();
   const context = await browser.newContext();
   let saved;
   await context.route("**/*", async (route) => {

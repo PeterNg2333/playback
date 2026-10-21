@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 const out = path.resolve("app-temp/data/validation/runs/2026-09-28-repair");
 const previewOnly = process.argv.includes("--preview-only");
 const report = path.join(
@@ -38,11 +38,7 @@ const before = await get("/sessions/" + session.id);
 assert.equal((await get("/capture/status")).state, "idle");
 const health = await get("/health");
 assert.equal(health.database, "playback_e2e");
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 await page.addInitScript((id) => {
   if (window === window.top) localStorage.setItem("playback-session", id);

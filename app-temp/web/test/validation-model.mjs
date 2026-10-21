@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 const out = path.resolve("app-temp/data/validation/runs/2026-09-28-repair"),
   file = path.join(out, "app-model-selection.json");
 if (!process.argv.includes("--live")) {
@@ -23,11 +23,7 @@ const health = await get("/health");
 assert.equal(health.autoTerms, false);
 assert.equal(health.autoNotes, false);
 const before = await get("/sessions/" + session.id);
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const page = await browser.newPage();
 let passed = false,
   transcript,

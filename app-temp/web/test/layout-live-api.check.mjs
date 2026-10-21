@@ -1,14 +1,10 @@
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 
 mkdirSync("app-temp/.artifacts", { recursive: true });
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 try {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 900 },

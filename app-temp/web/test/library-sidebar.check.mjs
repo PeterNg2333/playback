@@ -1,13 +1,9 @@
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-});
+const browser = await launchBrowser();
 const groups = [{ id: "group-1", name: "Research" }];
 const sessions = [{ id: "session-1", title: "Lecture 12", groupId: null }];
 const errors = [];

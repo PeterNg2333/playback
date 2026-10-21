@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
+import { launchBrowser } from "./browser.mjs";
 
 const id = "a".repeat(32);
 const insightId = "b".repeat(64);
@@ -127,12 +127,7 @@ let retryRequest;
 let explanationRequests = 0;
 const noteActions = [];
 const audioRequests = [];
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-  args: ["--autoplay-policy=no-user-gesture-required"],
-});
+const browser = await launchBrowser(["--autoplay-policy=no-user-gesture-required"]);
 
 try {
   const page = await browser.newPage({ timezoneId: "UTC" });
