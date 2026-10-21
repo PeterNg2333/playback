@@ -40,6 +40,22 @@
 - [ ] 開 PR：`feature/note-edit-operations` → `main`。
 - [x] `app-temp/checks/output/`（檢查產生嘅 WAV）已加入 `.gitignore`。
 
+### E. 三速筆記＋graph 更新（2026-10-21 使用者決定）
+
+方向：live jot → 五分鐘 segment → final outline／polish，筆記模型 Qwen3.8 Flash；lineage 決定更新範圍，concept graph 用喺 regenerate／Ask。證據同數字見 [POC 結果](poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md)。
+
+- [x] POC：Week 3 全堂三速筆記（Qwen3.8 US$0.099、160／165 分鐘有引用）、ASR 長窗口／glossary 比較、graph 更新 vs 完整重建（US$0.0037 vs US$0.053，其餘 11 個 topic 一字不改）、有／冇 concept graph 嘅 regenerate。Script 喺 `app-temp/checks/Validation/poc-*.mjs`，預設 offline。
+- [ ] 人手聽 `app-temp/data/validation/runs/2026-10-21-poc/asr/w1.wav`–`w3.wav`（各 90 秒），確認 create file／query file 同術語計數。
+- [ ] App：每分鐘 live jot（best effort，失敗唔影響後面）取代而家 30 秒 placement writer 嘅即時角色。
+- [ ] App：segment consolidation（每五分鐘或話題轉換）寫 block、概念、辨識修正；final pass（outline＋每個大題 polish）。沿用 NoteTree、citations、locked blocks、CAS 同 history。
+- [ ] Outline 要強制分子題（Qwen3.8 出咗 12 個平排大題）；citation parser 要識 `[T112-T115]` 範圍。
+- [ ] 逐字稿改動（Session rerun、手改）：用 lineage 搵受影響 segment，只重寫嗰幾段同佢哋所在嘅 topic；Rebuild 只做明確嘅用戶動作。
+- [ ] Concept graph：node key 用 glossary 嘅 canonical term（POC 入面概念改個寫法就當咗消失）；唔用嚟決定更新範圍。
+- [ ] 課程 context：group＝course，glossary 由 slides 或上堂筆記建立、可以手改；辨識修正表要顯示同可以改（POC 有錯對應：`needle dock → NtCreateFile`）。
+- [ ] 不確定數字：polish 唔可以將字幕數字當確定（POC：「4069 個項目」應係 4096，冇標「(?)」）。
+- [ ] ASR：保持 Qwen3-ASR 8 秒第一遍；OpenRouter 上長窗口 rerun 同 glossary prompt 冇改善。逐 chunk 第二遍（`PLAYBACK_ASR_REVIEW`）停唔停要先量度；如要 ASR 層 biasing，先試 DashScope Qwen3-ASR-Flash 嘅 context。用 LLM 做 ASR rerun 一定要有長度 guard（Gemini 會靜靜漏尾段）。
+- [ ] OpenRouter key 每月上限 US$5；剩唔夠 US$0.50 時所有 audio 請求（包括 app 嘅 ASR）都會 HTTP 402。
+
 ## 未來想做（產品方向）
 
 每項開工前先對照 [business requirements](business-requirements.md) 同 [scope decisions](scope-decision.zh-HK.md)，再定範圍。

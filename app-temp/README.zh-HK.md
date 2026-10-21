@@ -1,5 +1,7 @@
 # Playback 本機 prototype
 
+2026-10-21 POC（app 未改）：三速筆記（每分鐘 live jot → 每五分鐘一段 → 完場 outline／polish）喺 Week 3 全堂，Qwen3.8 Flash 用 US$0.099、160／165 分鐘有引用，舊 `tree-notes-v15` pipeline 跑到 133 分鐘已 US$0.63；Qwen3.7 Flash 冇 structured outputs，失敗。ASR：Qwen3-ASR 8 秒第一遍已經係項目 stack 最準，90 秒窗口冇改善；經 OpenRouter 傳 glossary prompt 對 Qwen 冇效；Whisper Large V3 明顯較差；Gemini＋glossary 術語最好但會靜靜漏尾段。Graph 更新：逐字稿 rerun 後用 lineage 只重寫受影響嘅 2 段，US$0.0037、其餘 11 個 topic 一字不改；完整重建要 US$0.053，原文只剩 9／582 行。Concept graph 做影響分析唔可靠（概念改名就當消失），但 regenerate 時提供相關段落，令交叉引用有課堂出處。詳見 [POC 結果](../docs/poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md)。
+
 2026-10-20 ASR／筆記後續修正（需重建並重啟 API 才生效）：
 - OpenRouter ASR 選單只使用非 OpenAI 模型：Qwen 1.7B、Qwen 0.6B、ElevenLabs Scribe v2、Gemini 3.5 Transcribe。已對照 [OpenRouter STT 文件](https://openrouter.ai/docs/guides/overview/multimodal/stt) 與公開模型目錄；目錄列出不代表本帳戶已成功呼叫。
 - 每次先用所選模型，遇到模型錯誤、408／429／5xx 或逾時，依序轉 ElevenLabs Scribe v2、Gemini 3.5 Transcribe（去重，最多三個模型）。每個正式辨識模型最多 20 秒，灰字預覽每個最多 5 秒並沿用整體 15 秒上限；401／402／403、過大請求及本機禁止連線不換模型。Activity 保留實際成功模型及 fallback 原因；全部失敗時保留每個模型的安全錯誤摘要。舊 session 或環境若選了 `openai/*`，實際請求會轉用 Qwen 1.7B，不上傳至 OpenAI 模型。
