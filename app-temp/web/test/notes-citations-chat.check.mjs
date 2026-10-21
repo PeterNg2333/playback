@@ -372,7 +372,7 @@ try {
     {
       id: "running-note",
       sessionId: id,
-      task: "Note revision",
+      task: "Note segment",
       status: "running",
       provider: "fixture",
       model: "fixture",
@@ -383,12 +383,12 @@ try {
   ];
   await page
     .getByRole("status")
-    .getByText("Analyzing…", { exact: true })
+    .getByText("Reading the transcript…", { exact: true })
     .waitFor();
   activities[0].draft = `## Draft topic\n\n- A short point [01].`;
   await page
     .getByRole("status")
-    .getByText("Editing…", { exact: true })
+    .getByText("Writing…", { exact: true })
     .waitFor();
   assert.equal(
     await page.getByRole("region", { name: "Live note draft" }).count(),

@@ -9,7 +9,6 @@ public partial class PlaybackStore : IActivityRepository, IConversationRepositor
 {
     static PlaybackStore()
     {
-        Playback.Infrastructure.Notes.NoteBsonMappings.Register();
         Playback.Infrastructure.Storage.DocumentMappings.Register();
     }
     public event Action<string>? SourceChanged;

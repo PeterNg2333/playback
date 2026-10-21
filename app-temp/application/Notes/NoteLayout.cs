@@ -20,19 +20,19 @@ public static class NoteLayout
     public static int? SegmentOf(string blockId) => Regex.Match(blockId, @"^s(\d+)-") is { Success: true } match ? int.Parse(match.Groups[1].Value) : null;
     public static int? MinuteOf(string blockId) => Regex.Match(blockId, @"^live-(\d+)$") is { Success: true } match ? int.Parse(match.Groups[1].Value) : null;
 
-    // A block whose whole body is one anchor carrying its sources, so citations, lineage and the note's source list see them.
+    // A block that names its sources, so citations, lineage and the note's source list see them. A body that cites none of
+    // them gets them appended as one citation.
     public static NoteBlock Block(string id, string role, string body, IEnumerable<string> sourceIds, int order = 0)
     {
         var sources = sourceIds.Distinct(StringComparer.Ordinal).ToList();
         if (sources.Count > 0 && CitationSyntax.Bodies(body).All(x => !x.Split(',').Any(cited => sources.Contains(cited.Trim()))))
             body = body.TrimEnd() + " [" + string.Join(", ", sources) + "]";
-        return new NoteBlock { Id = id, Role = role, Order = order, Body = body,
-            Anchors = [new PointAnchor { Id = id, Offset = 0, Length = body.Length, SourceIds = sources }] };
+        return new NoteBlock { Id = id, Role = role, Order = order, Body = body, SourceIds = sources };
     }
 
     // The sources a saved block cites, through the note's compacted citations.
     public static List<string> Sources(NoteBlock block, IEnumerable<NoteCitation> citations) =>
-        block.Anchors.SelectMany(x => x.SourceIds).Concat(CitationSyntax.Bodies(NoteSections.Expand(block.Body, citations))
+        block.SourceIds.Concat(CitationSyntax.Bodies(NoteSections.Expand(block.Body, citations))
             .SelectMany(x => x.Split([',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Where(x => !x.StartsWith("ref:", StringComparison.Ordinal)))
         .Distinct(StringComparer.Ordinal).ToList();
@@ -43,7 +43,7 @@ public static class NoteLayout
     // jots. A draft keeps the owner's edits to its blocks and any edited block that is no longer in the segment.
     public static List<NoteSection> Arrange(Note? previous, IReadOnlyList<NoteSegment> segments, IReadOnlyList<NoteBlock> live, string language)
     {
-        var old = previous?.Sections.Select(x => NoteTree.Canonical(x)).ToList() ?? [];
+        var old = previous?.Sections.Select(NoteTree.Clone).ToList() ?? [];
         var finished = old.Where(IsFinished).ToList();
         var placed = finished.SelectMany(x => x.SegmentBlockIds).Select(SegmentOf).OfType<int>().ToHashSet();
         var order = finished.Where(x => x.ParentId is null).Select(x => x.Order + 1).DefaultIfEmpty(0).Max();
@@ -56,17 +56,17 @@ public static class NoteLayout
                 .Concat(edited.Values.Where(e => segment.Blocks.All(b => b.Id != e.Id))).ToList();
             for (var i = 0; i < blocks.Count; i++) blocks[i].Order = i;
             if (blocks.Count == 0) continue;
-            result.Add(new NoteSection { Id = DraftTopicId(segment.Index), SchemaVersion = 2, Order = order++,
+            result.Add(new NoteSection { Id = DraftTopicId(segment.Index), Order = order++,
                 Title = draft?.UserEdited == true ? draft.Title : segment.Title, UserEdited = draft?.UserEdited ?? false, Blocks = blocks });
         }
         if (live.Count > 0)
-            result.Add(new NoteSection { Id = LiveTopicId, SchemaVersion = 2, Order = order, Title = NotePrompts.LiveTitle(language),
+            result.Add(new NoteSection { Id = LiveTopicId, Order = order, Title = NotePrompts.LiveTitle(language),
                 Blocks = live.OrderBy(x => MinuteOf(x.Id) ?? int.MaxValue).Select((x, i) => { x.Order = i; return x; }).ToList() });
         return result;
     }
 
     public static List<NoteBlock> Live(Note? note) =>
-        note?.Sections.FirstOrDefault(x => x.Id == LiveTopicId) is { } topic ? NoteTree.Canonical(topic).Blocks : [];
+        note?.Sections.FirstOrDefault(x => x.Id == LiveTopicId) is { } topic ? NoteTree.Clone(topic).Blocks : [];
 
     // Every block placed once, parents that exist, at most three levels; a block the outline missed joins the topic of
     // the block before it, and empty topics are dropped. Keys are the model's; the caller gives the topics real IDs.

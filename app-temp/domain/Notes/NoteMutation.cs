@@ -1,120 +1,53 @@
 namespace Playback.Domain.Notes;
 
-// Mutations have one home, shared by Mongo persistence and in-memory acceptance adapters.
+// Builds the next saved version from an update; shared by Mongo persistence and the in-memory test store.
 public static class NoteMutation
 {
+    const int MaxMarkdownLength = 250_000;
+
+    // Writes inline source lists as citation keys and checks the tree and its size, before the write lock is taken.
     public static SectionUpdate Prepare(string id, SectionUpdate update)
     {
-        update = update with { Citations = NoteSections.CloneCitations(update.Citations) };
-        var allowed = update.Sections.SelectMany(s => s.Points).SelectMany(p => p.SourceIds)
-            .Concat(update.Citations.SelectMany(c => c.SourceIds))
-            .Distinct()
-            .ToList();
-        var originalSections = update.Sections;
-        update = update with
+        var citations = NoteSections.CloneCitations(update.Citations);
+        var allowed = update.Sections.SelectMany(x => x.Blocks).SelectMany(x => x.SourceIds)
+            .Concat(citations.SelectMany(x => x.SourceIds)).Distinct().ToList();
+        var sections = update.Sections.Select(topic =>
         {
-            Sections = update.Sections.Select(section => new NoteSection
-            {
-                Id = section.Id,
-                SchemaVersion = section.SchemaVersion,
-                Version = section.Version,
-                Title = section.Title,
-                ParentId = section.ParentId, Order = section.Order,
-                UserEdited = section.UserEdited,
-                OrganizedAt = section.OrganizedAt,
-                OrganizedVersion = section.OrganizedVersion,
-                SegmentBlockIds = section.SegmentBlockIds.ToList(),
-                Markdown = NoteSections.Compact(id, section.Markdown, allowed, update.Citations),
-                Points = section.Points.Select(point => new NotePoint
-                {
-                    Id = point.Id,
-                    SourceIds = point.SourceIds.ToList(),
-                    Text = NoteSections.Compact(id, point.Text, allowed, update.Citations)
-                }).ToList()
-            }).ToList()
-        };
-        for (var i = 0; i < update.Sections.Count; i++)
-            if (originalSections[i].Blocks.Count > 0) update.Sections[i].Blocks = NoteTree.Compact(id, originalSections[i].Blocks, allowed, update.Citations);
-        if (update.Sections.Any(x => string.IsNullOrWhiteSpace(x.Id))) throw new InvalidOperationException("Missing topic identity");
-        var markdown = NoteSections.Render(update.Sections);
-        if (markdown.Length > 250_000) throw new InvalidOperationException("Note exceeds the document size limit");
-        return update;
+            var copy = NoteTree.Clone(topic);
+            copy.Blocks = NoteTree.Compact(id, topic.Blocks, allowed, citations);
+            return copy;
+        }).ToList();
+        if (NoteTree.Render(sections).Length > MaxMarkdownLength) throw new InvalidOperationException("Note exceeds the document size limit");
+        return update with { Sections = sections, Citations = citations };
     }
 
     public static Note Create(string id, Note? previous, SectionUpdate update, string inputHash,
-        int basedOnVersion, string language, string currentLanguage, string author,
-        List<string>? deleted = null, List<string>? suppressed = null, DateTime? createdAt = null)
+        int basedOnVersion, string language, string currentLanguage, string author, DateTime? createdAt = null)
     {
         if ((previous?.Version ?? 0) != basedOnVersion || currentLanguage != language)
             throw new InvalidOperationException("Note or language changed during this operation; the result was not applied");
-        var allowed = update.Sections.SelectMany(s => s.Points).SelectMany(p => p.SourceIds)
-            .Concat(update.Citations.SelectMany(c => c.SourceIds)).Distinct().ToList();
-        var markdown = NoteSections.Render(update.Sections);
-        var canonical = update.Sections.Select((section, index) =>
-        {
-            var topic = NoteTree.Canonical(section, previous?.Sections.FirstOrDefault(x => x.Id == section.Id));
-            if (previous?.SchemaVersion != 2 && section.ParentId is null && update.Sections.All(x => x.Order == 0)) topic.Order = index;
-            return topic;
-        }).ToList();
-        NoteTree.Validate(canonical);
-        update = update with { Sections = canonical };
-        var presentation = update.Presentation ?? previous?.Presentation ?? "numbered-hierarchy";
-        markdown = NoteTree.Render(canonical, presentation != "headings");
-        var coverage = (previous?.Coverage ?? []).Where(x => !update.Coverage.Any(y => y.SourceId == x.SourceId)).Concat(update.Coverage)
-            .Select(x => new SourceDisposition { SourceId = x.SourceId, Status = x.Status, Reason = x.Reason,
-                PointIds = x.PointIds.ToList(), ContentHash = x.ContentHash }).ToList();
-        foreach (var item in coverage.Where(x => x.Status == "covered"))
-        {
-            item.PointIds = update.Sections.SelectMany(x => x.Points).Where(x => x.SourceIds.Contains(item.SourceId)).Select(x => x.Id).ToList();
-            if (item.PointIds.Count == 0)
-            {
-                item.Status = "suppressed";
-                item.Reason = "Written point removed by an explicit user edit/restore; do not regenerate automatically";
-            }
-        }
-        var usedCitations = NoteSections.UsedCitations(update.Sections, update.Citations);
-        var note = new Note
+        var markdown = NoteTree.Render(update.Sections);
+        var citations = NoteSections.UsedCitations(update.Sections, update.Citations);
+        return new Note
         {
             Id = Guid.NewGuid().ToString("N"),
             SessionId = id,
             Version = basedOnVersion + 1,
-            SchemaVersion = 2, Presentation = presentation,
             BasedOnVersion = basedOnVersion,
             Markdown = markdown,
             Author = author,
             OutputLanguage = language,
             CreatedAt = createdAt ?? DateTime.UtcNow,
-            Sections = canonical,
-            Citations = usedCitations,
             InputHash = inputHash,
-            Coverage = coverage,
-            DeletedSectionIds = (deleted ?? previous?.DeletedSectionIds ?? []).Distinct().ToList(),
-            SuppressedSourceIds = (suppressed ?? previous?.SuppressedSourceIds ?? []).Distinct().ToList(),
-            TranscriptIds = update.Sections.SelectMany(x => x.Points).SelectMany(x => x.SourceIds)
-                .Concat(usedCitations.SelectMany(x => x.SourceIds)).Distinct().ToList(),
+            Sections = update.Sections,
+            Citations = citations,
+            TranscriptIds = update.Sections.SelectMany(x => x.Blocks).SelectMany(x => x.SourceIds)
+                .Concat(citations.SelectMany(x => x.SourceIds)).Distinct().ToList(),
             MaterialIds = previous?.MaterialIds.ToList() ?? [],
-            InputTranscriptIds = update.Coverage.Select(x => x.SourceId).ToList(),
             Edits = NoteChangeLog.Build(previous?.Markdown ?? "", markdown, update.Citations.SelectMany(x => x.SourceIds), []),
             Segments = update.Segments ?? previous?.Segments ?? [],
             Summary = update.Summary ?? previous?.Summary ?? [],
-            ReviewQuestions = update.ReviewQuestions ?? previous?.ReviewQuestions ?? [],
-            SourceFrom = previous?.SourceFrom,
-            SourceThrough = previous?.SourceThrough,
-            ProcessedThroughMs = previous?.ProcessedThroughMs ?? 0
+            ReviewQuestions = update.ReviewQuestions ?? previous?.ReviewQuestions ?? []
         };
-        var prior = (previous?.Sections ?? []).Select(x => NoteTree.Canonical(x)).ToList();
-        var changed = Identity(prior) != Identity(canonical) || previous is not null && previous.Presentation != presentation;
-        note.MeaningfulRevision = (previous?.MeaningfulRevision ?? 0) + (changed ? 1 : 0);
-        note.RecentChanges = (previous?.RecentChanges ?? []).Select(x => new NoteContentChange {Revision = x.Revision, At = x.At, TopicIds = x.TopicIds.ToList()}).ToList();
-        if (changed)
-            note.RecentChanges.Add(new() {Revision = note.MeaningfulRevision, At = note.CreatedAt,
-                TopicIds = canonical.Where(topic => prior.All(old => old.Id != topic.Id || Identity([old]) != Identity([topic]))).Select(x => x.Id).ToList()});
-        note.RecentChanges = note.RecentChanges.TakeLast(11).ToList();
-        return note;
     }
-
-    // What a reader would see change: topic structure and block text, not citations or version numbers.
-    static string Identity(IEnumerable<NoteSection> topics) => ContentHash.Of(System.Text.Json.JsonSerializer.Serialize(topics.Select(x => new {
-        x.Id, x.Title, x.ParentId, x.Order, x.UserEdited, bodies = x.Blocks.Select(b => new {b.Id, b.Order, b.Role, b.Body, b.UserEdited, b.SupersedesBlockId})
-    })));
 }

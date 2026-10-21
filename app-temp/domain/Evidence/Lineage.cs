@@ -24,40 +24,23 @@ public static class Lineage
     public static List<string> Remap(IEnumerable<string> ids, IReadOnlyDictionary<string, string> map) =>
         ids.Select(x => Resolve(map, x)).Distinct(StringComparer.Ordinal).ToList();
 
-    // Coverage of a superseded ID is dropped: the replacing segment is new wording and must be written or acknowledged.
-    // A replacing segment is suppressed only when every row it replaced was suppressed.
+    // Citations and block source lists move to the replacing segment.
     public static Note Apply(Note note, IReadOnlyDictionary<string, string> map)
     {
         if (map.Count == 0) return note;
         foreach (var citation in note.Citations) citation.SourceIds = Remap(citation.SourceIds, map);
-        foreach (var section in note.Sections)
+        foreach (var block in note.Sections.SelectMany(x => x.Blocks))
         {
-            if (section.Blocks.Count == 0 && section.SchemaVersion < 2)
-            {
-                var points = section.Points;
-                foreach (var point in points) { point.SourceIds = Remap(point.SourceIds, map); point.Text = Body(point.Text, map); }
-                section.Points = points;
-                section.Markdown = Body(section.Markdown, map);
-            }
-            foreach (var block in section.Blocks)
-            {
-                block.Body = Body(block.Body, map);
-                foreach (var anchor in block.Anchors) anchor.SourceIds = Remap(anchor.SourceIds, map);
-            }
+            block.Body = Body(block.Body, map);
+            block.SourceIds = Remap(block.SourceIds, map);
         }
         note.Markdown = Body(note.Markdown, map);
-        note.Coverage = note.Coverage.Where(x => !map.ContainsKey(x.SourceId)).ToList();
         note.TranscriptIds = Remap(note.TranscriptIds, map);
-        note.InputTranscriptIds = Remap(note.InputTranscriptIds, map);
         foreach (var edit in note.Edits) edit.TranscriptIds = Remap(edit.TranscriptIds, map);
-        var suppressed = note.SuppressedSourceIds.ToHashSet(StringComparer.Ordinal);
-        var replaced = map.GroupBy(x => x.Value, x => x.Key);
-        note.SuppressedSourceIds = note.SuppressedSourceIds.Where(x => !map.ContainsKey(x))
-            .Concat(replaced.Where(x => x.All(suppressed.Contains)).Select(x => x.Key)).Distinct(StringComparer.Ordinal).ToList();
         return note;
     }
 
-    // Raw source IDs written into a body (legacy or uncompacted) are mapped too; cite_ keys keep their ID and
+    // Raw source IDs written into a body are mapped too; cite_ keys keep their ID and
     // their citation's source list moves instead, so block bodies stay byte-identical.
     static string Body(string text, IReadOnlyDictionary<string, string> map) => string.IsNullOrEmpty(text) ? text : CitationSyntax.Rewrite(text, body =>
     {
@@ -105,7 +88,7 @@ public static class LineageGraph
                     edges.Add(new(topic.Id, block.Id, "contains"));
                     var cited = CitationSyntax.Bodies(block.Body)
                         .SelectMany(x => citations.TryGetValue(x, out var ids) ? ids : (IEnumerable<string>)x.Split([',', ';'], StringSplitOptions.TrimEntries))
-                        .Concat(block.Anchors.SelectMany(x => x.SourceIds))
+                        .Concat(block.SourceIds)
                         .Select(x => Lineage.Resolve(map, x)).Distinct(StringComparer.Ordinal);
                     foreach (var source in cited.Where(nodes.ContainsKey)) edges.Add(new(block.Id, source, "cites"));
                 }

@@ -28,8 +28,6 @@ public static class NotesEndpoints
                 note.BasedOnVersion,
                 note.Author,
                 note.CreatedAt,
-                note.InputTranscriptIds,
-                note.InputMaterialIds,
                 note.Edits
             }));
         // Revise with AI: write every window that is due, then outline and polish.

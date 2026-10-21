@@ -51,7 +51,7 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
         var copy = note is null ? null : Playback.Api.Sources.Lineage.Apply(Copy(note), supersessions);
         var insights = Copy(Insights[id]);
         foreach (var insight in insights) insight.TranscriptIds = Playback.Api.Sources.Lineage.Remap(insight.TranscriptIds, supersessions);
-        return Task.FromResult<SessionView?>(new(id, id, null, DateTime.UtcNow.Date, copy?.Markdown ?? "", copy?.Version ?? 0, 0, false, "zh-Hant",
+        return Task.FromResult<SessionView?>(new(id, id, null, DateTime.UtcNow.Date, copy?.Markdown ?? "", copy?.Version ?? 0, false, "zh-Hant",
             Copy(Materials[id]), Copy(Transcripts[id].Where(x => x.Active).ToList()), Copy(Chunks[id]), Copy(Terms[id]), insights, copy, NoteLanguage: Languages[id])
             { Supersessions = supersessions });
     }
@@ -108,18 +108,16 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
     public override Task<List<Note>> NoteHistory(string id) => Task.FromResult(Copy(Versions[id].TakeLast(100).ToList()));
     public override Task<Note?> NoteVersion(string id, int version) =>
         Task.FromResult(Versions[id].FirstOrDefault(x => x.Version == version) is { } note ? Copy(note) : null);
-    public override Task<NoteProvenance> NoteProvenance(string id, IReadOnlyCollection<string> sourceIds) => Task.FromResult(new NoteProvenance(
-        Materials[id].Select(x => x.Id).ToList(), Transcripts[id].Where(x => sourceIds.Contains(x.Id))
-            .Select(x => new NoteSourceTiming(x.StartMs, x.EndMs, x.RecordedAt)).ToList()));
+    public override Task<List<string>> NoteMaterialIds(string id) => Task.FromResult(Materials[id].Select(x => x.Id).ToList());
 
     // Storage is in memory; the mutation rules are the production domain implementation.
     public override Task<object> SaveSectionNote(string id, SectionUpdate update, string hash, int basedOnVersion, string language,
-        string author = "agent", List<string>? deleted = null, List<string>? suppressed = null)
+        string author = "agent")
     {
         Notes.TryGetValue(id, out var previous);
         if (previous?.InputHash == hash) return Task.FromResult<object>(new { previous.Version, previous.Markdown, previous.Author });
         var note = NoteMutation.Create(id, previous is null ? null : Playback.Api.Sources.Lineage.Apply(Copy(previous), Playback.Api.Sources.Lineage.Supersessions(Transcripts[id])), NoteMutation.Prepare(id, update), hash,
-            basedOnVersion, language, Languages[id], author, deleted, suppressed, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
+            basedOnVersion, language, Languages[id], author, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
         Notes[id] = Copy(note);
         Versions[id].Add(Copy(note));
         return Task.FromResult<object>(new { note.Version, note.Markdown, note.Author });

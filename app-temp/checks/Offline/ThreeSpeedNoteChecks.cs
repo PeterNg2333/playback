@@ -57,7 +57,7 @@ static class ThreeSpeedNoteChecks
         Expect.That(note.Segments.Count == 1 && note.Segments[0].Blocks.Count == 30 && note.Sections.Any(x => x.Id == "segment-0"),
             "A closed five-minute window was not written as one segment shown as a draft topic");
         Expect.That(store.Transcripts["rec"].Where(x => x.StartMs < 300_000).All(x => x.NoteStatus == "completed"), "Segment sources were not marked completed");
-        Expect.That(note.Segments[0].Blocks.All(b => b.Anchors.Single().SourceIds.Count == 1) && note.Markdown.Contains("cite_"),
+        Expect.That(note.Segments[0].Blocks.All(b => b.SourceIds.Count == 1) && note.Markdown.Contains("cite_"),
             "Segment blocks lost their single cited source");
 
         Line(store, clock, "rec", "rec-330", 330, "Middle of the second window");

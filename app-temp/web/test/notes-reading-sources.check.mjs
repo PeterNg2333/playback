@@ -36,14 +36,7 @@ function lecture(n) {
   }));
   const cite = "cite_" + "f".repeat(20),
     ids = [key(0), key(2), key(Math.min(1200, n - 2))];
-  const section = {
-    id: "fair-sharing",
-    version: 1,
-    title: "Fair sharing",
-    userEdited: false,
-    markdown: `## Fair sharing
-
-A bottleneck limits throughput. The target is **R/n** when n flows share that bottleneck. **Example:** n=10 gives R/10. Conditions matter. [${cite}]
+  const body = `A bottleneck limits throughput. The target is **R/n** when n flows share that bottleneck. **Example:** n=10 gives R/10. Conditions matter. [${cite}]
 
 | Symbol | Meaning |
 | --- | --- |
@@ -55,11 +48,21 @@ flowchart LR
  A["One bottleneck: R"] --> B["n competing flows"]
  B --> C["Target per flow: R/n"]
 \`\`\`
-Source-supported relationship. [${cite}]`,
-    points: [
+Source-supported relationship. [${cite}]`;
+  const section = {
+    id: "fair-sharing",
+    version: 1,
+    title: "Fair sharing",
+    userEdited: false,
+    markdown: `## 1 Fair sharing\n\n${body}`,
+    blocks: [
       {
         id: "formula",
-        text: "The target is R/n; n=10 gives R/10.",
+        order: 0,
+        role: "definition",
+        body,
+        userEdited: false,
+        citationIds: [cite],
         sourceIds: ids,
       },
     ],
@@ -527,7 +530,9 @@ try {
   await screenshot("note-actions");
   await page.keyboard.press("Escape");
   assert.equal(
-    await page.getByRole("button", { name: "History", exact: true }).isVisible(),
+    await page
+      .getByRole("button", { name: "History", exact: true })
+      .isVisible(),
     false,
   );
   await page.getByLabel("Note actions", { exact: true }).press("Enter");

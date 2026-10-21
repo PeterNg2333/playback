@@ -114,13 +114,13 @@ public sealed class NoteWorkflow : IAsyncDisposable
         if (session.Transcripts.All(x => string.IsNullOrWhiteSpace(x.SourceText)))
             throw new InvalidOperationException("No transcript to write notes from");
         var start = session.NoteVersion;
-        var kept = session.Sections.Select(x => NoteTree.Canonical(x)).Select(topic =>
+        var kept = session.Sections.Select(NoteTree.Clone).Select(topic =>
         {
             topic.Blocks = topic.Blocks.Where(b => b.UserEdited).ToList();
             topic.SegmentBlockIds = [];
             return topic;
         }).Where(x => x.Blocks.Count > 0 || x.UserEdited).ToList();
-        await repository.Save(id, new SectionUpdate(kept, NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []), [],
+        await repository.Save(id, new SectionUpdate(kept, NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []),
                 Segments: [], Summary: [], ReviewQuestions: []),
             ContentHash.Of("rebuild:" + start + ":" + clock.GetUtcNow().Ticks), start, session.NoteLanguage, "user rebuild");
         await evidence.MarkNotes(session.Transcripts.Select(x => x.Id), "pending");
@@ -142,7 +142,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             var session = await Session(id);
             if (session.NoteVersion != baseVersion) throw new InvalidOperationException("Notes changed; reload and give the instruction again");
             var note = session.CurrentNote ?? throw new InvalidOperationException("There are no notes to revise yet");
-            var topics = note.Sections.Select(x => NoteTree.Canonical(x)).ToList();
+            var topics = note.Sections.Select(NoteTree.Clone).ToList();
             List<(NoteSection Topic, NoteBlock? Block)> targets = blockId is not null
                 ? topics.Where(t => t.Blocks.Any(b => b.Id == blockId)).Select(t => (t, (NoteBlock?)t.Blocks.First(b => b.Id == blockId))).ToList()
                 : topics.Where(t => topicId is not null ? t.Id == topicId : t.ParentId is null && t.Id != NoteLayout.LiveTopicId)
@@ -166,7 +166,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
                 applied++;
             }
             if (applied == 0) return new InstructionResult(Current(session), 0, notApplied);
-            var saved = await repository.Save(id, new SectionUpdate(topics, NoteSections.CloneCitations(note.Citations), []),
+            var saved = await repository.Save(id, new SectionUpdate(topics, NoteSections.CloneCitations(note.Citations)),
                 ContentHash.Of("instruction:" + session.NoteVersion + instruction + topicId + blockId), session.NoteVersion, session.NoteLanguage, "user instruction");
             return new InstructionResult(saved, applied, notApplied);
         });
@@ -278,7 +278,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
         var note = session.CurrentNote;
         var segments = note?.Segments ?? [];
         if (note is null || segments.Count == 0) return Current(session);
-        var topics = note.Sections.Select(x => NoteTree.Canonical(x)).ToList();
+        var topics = note.Sections.Select(NoteTree.Clone).ToList();
         var finished = topics.Where(NoteLayout.IsFinished).ToList();
         var placed = finished.SelectMany(x => x.SegmentBlockIds).Select(NoteLayout.SegmentOf).OfType<int>().ToHashSet();
         // A segment without blocks (only greetings or filler) has nothing to place.
@@ -319,7 +319,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
                 t.Blocks.Where(keys.ContainsKey).Select(k => keys[k]).ToList())), blocks.Select(x => x.Block.Id).ToList());
             var ids = outline.ToDictionary(t => t.Key, t => NoteLayout.TopicId(session.Id, [t.Key, t.Title, .. t.Blocks]));
             var byId = blocks.ToDictionary(x => x.Block.Id, x => x.Block);
-            var topics = outline.Select(t => new NoteSection { Id = ids[t.Key], SchemaVersion = 2, Title = t.Title,
+            var topics = outline.Select(t => new NoteSection { Id = ids[t.Key], Title = t.Title,
                 ParentId = t.Parent.Length > 0 ? ids[t.Parent] : null, SegmentBlockIds = t.Blocks.ToList() }).ToList();
             foreach (var group in topics.GroupBy(x => x.ParentId)) { var order = 0; foreach (var topic in group) topic.Order = order++; }
             int Depth(NoteSection t) => t.ParentId is null ? 1 : 1 + Depth(topics.First(x => x.Id == t.ParentId));
@@ -327,7 +327,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             foreach (var topic in topics) topic.Blocks = PolishedBlocks(topic, polished.GetValueOrDefault(topic.Id), topic.SegmentBlockIds.Select(id => byId[id]));
             // Edited and locked blocks keep their text: one the finish wrote again (same ID) is replaced by the edited version,
             // any other joins the topic that cites most of the same sources.
-            foreach (var edited in NoteLayout.Edited(note.Sections.Select(x => NoteTree.Canonical(x))))
+            foreach (var edited in NoteLayout.Edited(note.Sections.Select(NoteTree.Clone)))
             {
                 if (topics.FirstOrDefault(t => t.Blocks.Any(b => b.Id == edited.Id)) is { } rewritten)
                 {
@@ -335,7 +335,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
                     continue;
                 }
                 var sources = NoteLayout.Sources(edited, note.Citations);
-                var home = topics.MaxBy(t => t.SegmentBlockIds.Select(id => byId[id]).SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds).Intersect(sources).Count())!;
+                var home = topics.MaxBy(t => t.SegmentBlockIds.Select(id => byId[id]).SelectMany(b => b.SourceIds).Intersect(sources).Count())!;
                 edited.Order = home.Blocks.Count;
                 home.Blocks.Add(edited);
             }
@@ -360,7 +360,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
         {
             var scope = Subtree(root.Topic);
             if (scope.All(x => x.Blocks.Count == 0)) return;
-            var aliases = new NoteAliases(scope.SelectMany(x => x.Blocks).SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds));
+            var aliases = new NoteAliases(scope.SelectMany(x => x.Blocks).SelectMany(b => b.SourceIds));
             var original = scope.ToDictionary(x => x.Topic.Id, x => aliases.Encode(string.Join("\n\n", x.Blocks.Select(b => b.Body))));
             var keys = scope.Select((x, i) => (Key: "k" + (i + 1), x.Topic.Id)).ToDictionary(x => x.Key, x => x.Id);
             var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new
@@ -373,7 +373,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             try
             {
                 (reply, call) = await Call<PolishReply>(session, NotePrompts.Polish, "Note polish", NotePrompts.PolishInstructions(session.NoteLanguage),
-                    input, scope.SelectMany(x => x.Blocks).SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds), ct);
+                    input, scope.SelectMany(x => x.Blocks).SelectMany(b => b.SourceIds), ct);
             }
             catch (Exception) when (!ct.IsCancellationRequested) { return; }
             var kept = 0;
@@ -395,9 +395,9 @@ public sealed class NoteWorkflow : IAsyncDisposable
     static List<NoteBlock> PolishedBlocks(NoteSection topic, string? polished, IEnumerable<NoteBlock> segmentBlocks)
     {
         var blocks = polished is null
-            ? segmentBlocks.Select(b => NoteLayout.Block(b.Id, b.Role, b.Body, b.Anchors.SelectMany(a => a.SourceIds))).ToList()
+            ? segmentBlocks.Select(b => NoteLayout.Block(b.Id, b.Role, b.Body, b.SourceIds)).ToList()
             : [NoteLayout.Block("p-" + ContentHash.Of(topic.Id + "\n" + polished)[..12], "detail", polished,
-                segmentBlocks.SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds))];
+                segmentBlocks.SelectMany(b => b.SourceIds))];
         var edited = topic.Blocks.Where(b => b.UserEdited).ToList();
         return blocks.Where(b => edited.All(e => e.Id != b.Id)).Concat(edited).Select((b, i) => { b.Order = i; return b; }).ToList();
     }
@@ -414,11 +414,11 @@ public sealed class NoteWorkflow : IAsyncDisposable
         var cited = target.SelectMany(b => NoteLayout.Sources(b, note.Citations)).ToHashSet(StringComparer.Ordinal);
         var names = note.Segments.SelectMany(s => s.Concepts).Where(c => c.SourceIds.Any(cited.Contains)).Select(c => c.Name).Distinct().ToList();
         var related = note.Segments.SelectMany(s => s.Blocks)
-            .Where(b => !b.Anchors.SelectMany(a => a.SourceIds).Any(cited.Contains))
+            .Where(b => !b.SourceIds.Any(cited.Contains))
             .Select(b => (Block: b, Hits: names.Count(n => b.Body.Contains(n, StringComparison.OrdinalIgnoreCase))))
             .Where(x => x.Hits > 0).OrderByDescending(x => x.Hits).Take(MaxRelatedBlocks).Select(x => x.Block).ToList();
         var lines = NoteTimeline.Lines(session);
-        var sources = cited.Concat(related.SelectMany(b => b.Anchors).SelectMany(a => a.SourceIds)).ToHashSet(StringComparer.Ordinal);
+        var sources = cited.Concat(related.SelectMany(b => b.SourceIds)).ToHashSet(StringComparer.Ordinal);
         var used = lines.Where(x => sources.Contains(x.Id)).ToList();
         var aliases = new NoteAliases(used.Select(x => x.Id));
         var text = string.Join("\n\n", target.Select(b => aliases.Encode(NoteSections.Expand(b.Body, note.Citations))));
@@ -464,7 +464,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
 
     Task<object> Save(NoteSession session, List<NoteSection> topics, List<NoteSegment>? segments, string author, string identity,
         List<string>? summary = null, List<string>? reviewQuestions = null) =>
-        repository.Save(session.Id, new SectionUpdate(topics, NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []), [],
+        repository.Save(session.Id, new SectionUpdate(topics, NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []),
                 Segments: segments, Summary: summary, ReviewQuestions: reviewQuestions),
             ContentHash.Of(author + "\n" + session.NoteVersion + "\n" + identity), session.NoteVersion, session.NoteLanguage, author);
 

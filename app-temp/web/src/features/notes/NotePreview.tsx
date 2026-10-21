@@ -9,7 +9,7 @@ import type { AudioPlayer } from "../player/useAudioPlayer";
 import { SourceCitation } from "../sources/SourceCitation";
 import { TermHighlight } from "../terms/TermHighlight";
 import { recordedRange } from "../../lib/time";
-import { noteOutline, topicMarkdown, topicMarker } from "./noteOutline";
+import { noteOutline, topicMarker } from "./noteOutline";
 import { NoteBlockEditor } from "./NoteBlockEditor";
 
 const noRows: never[] = [];
@@ -70,8 +70,8 @@ export function NotePreview({
       }
     }
     for (const section of session?.currentNote?.sections ?? [])
-      for (const point of section.points)
-        for (const id of point.sourceIds) ids.add(id);
+      for (const block of section.blocks)
+        for (const id of block.sourceIds) ids.add(id);
     for (const id of [...ids]) {
       const material = parseMaterialPassageId(id)?.materialId;
       if (material) ids.add(material);
@@ -188,7 +188,7 @@ export function NotePreview({
     <div data-testid="note-content" ref={ref}>
       {sections?.length ? (
         noteOutline(sections).map(({section, number, depth}) => {
-          const ids = [...new Set(section.points.flatMap((x) => x.sourceIds))];
+          const ids = [...new Set(section.blocks.flatMap((x) => x.sourceIds))];
           return (
             <section
               className="mb-5"
@@ -197,10 +197,8 @@ export function NotePreview({
               data-section-id={section.id}
               key={section.id}
             >
-              {section.schemaVersion === 2 && (section.blocks?.length ?? 0) > 0 && session?.currentNote?.presentation !== "headings" ? <>
-                <CitedMarkdown value={"#".repeat(depth + 1) + " " + topicMarker(number, depth) + " " + section.title} {...common} reading />
-                <ol data-point-depth={depth} className={clsx("note-points space-y-2 pl-5", depth === 1 ? "list-[lower-alpha]" : depth === 2 ? "list-[lower-roman]" : "list-decimal")}>{[...section.blocks!].sort((a, b) => a.order - b.order).map(block => <li key={block.id}><CitedMarkdown value={block.body} {...common} reading /></li>)}</ol>
-              </> : <CitedMarkdown value={topicMarkdown(section, number, depth, session?.currentNote?.presentation !== "headings")} {...common} reading />}
+              <CitedMarkdown value={"#".repeat(depth + 1) + " " + topicMarker(number, depth) + " " + section.title} {...common} reading />
+              <ol data-point-depth={depth} className={clsx("note-points space-y-2 pl-5", depth === 1 ? "list-[lower-alpha]" : depth === 2 ? "list-[lower-roman]" : "list-decimal")}>{[...section.blocks].sort((a, b) => a.order - b.order).map(block => <li key={block.id}><CitedMarkdown value={block.body} {...common} reading /></li>)}</ol>
               {!reading && ids.length > 0 && (
                 <SourceCitation
                   groups={[{ id: section.id, transcriptIds: ids }]}
@@ -212,12 +210,12 @@ export function NotePreview({
               )}
               {!reading && (
                 <small className="mt-1.5 block text-[10px] text-muted">
-                  {section.points.length} traceable points · section v
+                  {section.blocks.length} blocks · section v
                   {section.version}
                   {section.userEdited ? " · protected user edits" : ""}
                 </small>
               )}
-              {!reading && session && !!section.blocks?.length && <div className="mt-2 flex flex-wrap gap-3">{section.blocks.map(block => <NoteBlockEditor key={block.id} session={session} block={block} />)}</div>}
+              {!reading && session && section.blocks.length > 0 && <div className="mt-2 flex flex-wrap gap-3">{section.blocks.map(block => <NoteBlockEditor key={block.id} session={session} block={block} />)}</div>}
             </section>
           );
         })

@@ -7,7 +7,7 @@ namespace Playback.Api.Notes;
 public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INoteEvidence, INoteSettings
 {
     public async Task<NoteSession?> Session(string id) => await store.Session(id) is { } session ? Read(session) : null;
-    public Task<NoteProvenance> Provenance(string id, IReadOnlyCollection<string> sourceIds) => store.NoteProvenance(id, sourceIds);
+    public Task<List<string>> MaterialIds(string id) => store.NoteMaterialIds(id);
     public async Task<string> Language(string id) => (await store.SessionSettings(id)).NoteLanguage;
     public Task MarkNotes(IEnumerable<string> ids, string status, string? error = null) => store.MarkNotes(ids, status, error);
     public Task<List<Note>> History(string id) => store.NoteHistory(id);
@@ -15,9 +15,8 @@ public sealed class NoteStoreAdapter(PlaybackStore store) : INoteRepository, INo
     public Task<object> Page(string id, int? before, int limit) => store.NotePage(id, before, limit);
     public Task<NoteGateRecord?> Gate(string id) => store.NoteGate(id);
     public Task AcknowledgeFlush(string id, int version) => store.AcknowledgeNoteFlush(id, version);
-    public Task<object> Save(string id, SectionUpdate update, string inputHash, int basedOnVersion, string language,
-        string author = "agent", List<string>? deleted = null, List<string>? suppressed = null) =>
-        store.SaveSectionNote(id, update, inputHash, basedOnVersion, language, author, deleted, suppressed);
+    public Task<object> Save(string id, SectionUpdate update, string inputHash, int basedOnVersion, string language, string author = "agent") =>
+        store.SaveSectionNote(id, update, inputHash, basedOnVersion, language, author);
 
     public static NoteSession Read(SessionView session) => new(session.Id, session.NoteMarkdown, session.NoteVersion, session.NoteLanguage,
         session.CurrentNote, session.Transcripts.Select(Read).ToList(), session.Materials.Select(Read).ToList(),

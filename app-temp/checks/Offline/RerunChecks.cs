@@ -17,7 +17,7 @@ static class RerunChecks
         Remap();
         await Workflow();
         Console.WriteLine("Rerun checks passed: windows close at pauses after the target and never pass 90 s, quiet edges trimmed, streams and earlier segments never split, " +
-            "deterministic IDs; superseded citations/anchors/terms map to the segment and its coverage reopens; rerun supersedes rows with retained first pass, " +
+            "deterministic IDs; superseded citations, block sources and terms map to the segment; rerun supersedes rows with retained first pass, " +
             "the segment is written again with the corrected wording, failed windows keep the first pass, a restart resumes at the next window, recording refuses, " +
             "rebuild keeps locked blocks and history; lineage reaches block from chunk (fixture ASR and note model only)");
     }
@@ -71,19 +71,16 @@ static class RerunChecks
         {
             SessionId = "r",
             Citations = [new() { Id = "cite_1", SourceIds = ["c1", "c2"] }],
-            Sections = [new() { Id = "t", SchemaVersion = 2, Title = "Topic", Blocks = [new() { Id = "b", Body = "Point [cite_1] and [c3]",
-                Anchors = [new() { Id = "a", Offset = 0, Length = 5, SourceIds = ["c1"] }] }] }],
-            Coverage = [new() { SourceId = "c1", Status = "covered" }, new() { SourceId = "c2", Status = "covered" }, new() { SourceId = "c3", Status = "covered" }],
-            SuppressedSourceIds = ["c4", "c5"]
+            Sections = [new() { Id = "t", Title = "Topic", Blocks = [new() { Id = "b", Body = "Point [cite_1] and [c3]", SourceIds = ["c1", "c3"] }] }],
+            TranscriptIds = ["c1", "c2", "c3"]
         };
         var map = Lineage.Supersessions([new Transcript { Id = "c1", SupersededBy = "w" }, new Transcript { Id = "c2", SupersededBy = "w" },
-            new Transcript { Id = "c3", SupersededBy = "v" }, new Transcript { Id = "v", SupersededBy = "x" },
-            new Transcript { Id = "c4", SupersededBy = "y" }, new Transcript { Id = "c5", SupersededBy = "y" }]);
+            new Transcript { Id = "c3", SupersededBy = "v" }, new Transcript { Id = "v", SupersededBy = "x" }]);
         Lineage.Apply(note, map);
         var block = note.Sections[0].Blocks[0];
-        Expect.That(note.Citations[0].SourceIds.SequenceEqual(new[] { "w" }) && block.Anchors[0].SourceIds.SequenceEqual(new[] { "w" }) &&
-            block.Body == "Point [cite_1] and [x]" && note.Coverage.Count == 0 && note.SuppressedSourceIds.SequenceEqual(new[] { "y" }),
-            "Lineage must map citations, anchors and raw IDs through chains, reopen coverage and keep a fully suppressed segment suppressed");
+        Expect.That(note.Citations[0].SourceIds.SequenceEqual(new[] { "w" }) && block.SourceIds.SequenceEqual(new[] { "w", "x" }) &&
+            block.Body == "Point [cite_1] and [x]" && note.TranscriptIds.SequenceEqual(new[] { "w", "x" }),
+            "Lineage must map citations, block sources and raw IDs through chains");
     }
 
     static async Task Workflow()
@@ -127,7 +124,7 @@ static class RerunChecks
             "Rerun must supersede every first-pass row with one active segment that keeps the first-pass text");
         Expect.That(asr.Requests.Single() is { Pass: var pass, Hash: var hash } && pass == "rerun-" + job.Id && hash == window.AudioId &&
             files.Windows.Single() == window.Id && audio.Disposed == 1, "Rerun must upload one combined window with a stable identity and dispose the prepared audio");
-        var blockId = current.Sections.SelectMany(x => x.Blocks).First(b => b.Anchors.SelectMany(a => a.SourceIds).Contains(window.Id)).Id;
+        var blockId = current.Sections.SelectMany(x => x.Blocks).First(b => b.SourceIds.Contains(window.Id)).Id;
         Expect.That(after.Markdown.Contains("cache holds") && !after.Markdown.Contains("cash") && segment.NoteStatus == "completed" &&
             current.Citations.SelectMany(x => x.SourceIds).All(x => x == window.Id),
             "The rewritten segment must carry the corrected wording, and its citations must name the new segment");

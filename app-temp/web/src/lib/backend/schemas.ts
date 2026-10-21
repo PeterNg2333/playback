@@ -56,14 +56,9 @@ export const NoteEditSchema = z.object({
   transcriptIds: z.array(z.string()),
   materialIds: z.array(z.string()),
 });
-export const NotePointSchema = z.object({
-  id: z.string(),
-  text: z.string(),
-  sourceIds: z.array(z.string()),
-});
+// A topic and its blocks; each block names the sources it was written from.
 export const NoteSectionSchema = z.object({
   id: z.string(),
-  schemaVersion: z.number().int().default(1),
   title: z.string(),
   parentId: z.string().nullish(),
   order: z.number().int().nonnegative().default(0),
@@ -75,24 +70,13 @@ export const NoteSectionSchema = z.object({
         role: z.string(),
         body: z.string(),
         userEdited: z.boolean(),
-        supersedesBlockId: z.string().nullish(),
         citationIds: z.array(z.string()),
-        anchors: z.array(
-          z.object({
-            id: z.string(),
-            offset: z.number(),
-            length: z.number(),
-            sourceIds: z.array(z.string()),
-          }),
-        ),
+        sourceIds: z.array(z.string()).default([]),
       }),
     )
-    .optional(),
+    .default([]),
   version: z.number(),
-  markdown: z.string(),
   userEdited: z.boolean(),
-  points: z.array(NotePointSchema),
-  organizedAt: z.string().nullish(),
 });
 export const NoteCitationSchema = z.object({
   id: z.string(),
@@ -103,8 +87,6 @@ export const NoteEditLogSchema = z.object({
   basedOnVersion: z.number().nullish(),
   author: z.string(),
   createdAt: z.string(),
-  inputTranscriptIds: z.array(z.string()),
-  inputMaterialIds: z.array(z.string()),
   edits: z.array(NoteEditSchema),
 });
 export const TermInsightSchema = z.object({
@@ -218,20 +200,13 @@ export const SessionSchema = SessionSummarySchema.extend({
   currentNote: z
     .object({
       author: z.string(),
-      schemaVersion: z.number().int().optional(),
-      presentation: z.enum(["numbered-hierarchy", "headings"]).optional(),
       basedOnVersion: z.number().nullish(),
       inputHash: z.string().nullish(),
       transcriptIds: z.array(z.string()),
       materialIds: z.array(z.string()),
-      sourceFrom: z.string().nullish(),
-      sourceThrough: z.string().nullish(),
-      inputTranscriptIds: z.array(z.string()).optional(),
-      inputMaterialIds: z.array(z.string()).optional(),
       edits: z.array(NoteEditSchema).optional(),
       sections: z.array(NoteSectionSchema).optional(),
       citations: z.array(NoteCitationSchema).optional(),
-      suppressedSourceIds: z.array(z.string()).optional(),
     })
     .nullish(),
 });

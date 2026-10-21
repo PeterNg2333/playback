@@ -271,7 +271,7 @@ function activity(id) {
   return Array.from({ length: 100 }, (_, i) => ({
     id: `activity-${i}`,
     sessionId: id,
-    task: i === 0 ? "Note revision" : "Note segment",
+    task: i === 0 ? "Note segment" : "Note polish",
     provider: "offline fixture",
     model: "fixture-model",
     status: i === 0 && runningDraft ? "running" : "completed",

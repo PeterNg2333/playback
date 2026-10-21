@@ -31,7 +31,7 @@ static class LanguageChecks
                 $"Cantonese display must convert script while retaining Cantonese and English words: {display}");
             var transcript = new Transcript { Id = "cantonese", Original = raw, DisplayOriginal = display };
             Expect.That(transcript.Original == raw && transcript.SourceText == expected, "Script conversion must preserve raw ASR text");
-            var session = new SessionView("fixture", "Language fixture", null, DateTime.UtcNow, "", 0, 0, false,
+            var session = new SessionView("fixture", "Language fixture", null, DateTime.UtcNow, "", 0, false,
                 "zh-Hant", [], [transcript], [], [], [], null);
             var context = ChatContextBuilder.Build(session, new QuestionInput("What was said?", TranscriptId: "cantonese", SelectedText: "電腦"));
             Expect.That(context.Prompt.Contains("電腦"), "Selecting converted text must retain source-backed Q&A");

@@ -29,8 +29,6 @@ export function NoteEditHistory({
         : note.author === "agent"
           ? "AI edit"
           : note.author;
-    const hasInputs =
-      note.inputTranscriptIds.length > 0 || note.inputMaterialIds.length > 0;
     return (
       <ActivityEntry
         key={note.version}
@@ -52,17 +50,6 @@ export function NoteEditHistory({
                 : `Based on v${note.basedOnVersion}`}{" "}
               · {note.author}
             </ActivityHelp>
-            {hasInputs && (
-              <div>
-                <strong className="text-[11px]">Inputs to this update</strong>
-                <SourceLinks
-                  session={session}
-                  transcriptIds={note.inputTranscriptIds}
-                  materialIds={note.inputMaterialIds}
-                  onSelect={onSource}
-                />
-              </div>
-            )}
             {note.edits.length === 0 && (
               <EmptyState>No recorded line changes in this version.</EmptyState>
             )}

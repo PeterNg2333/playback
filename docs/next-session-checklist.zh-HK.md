@@ -46,10 +46,12 @@
 
 - [x] POC：Week 3 全堂三速筆記（Qwen3.8 US$0.099、160／165 分鐘有引用）、ASR 長窗口／glossary 比較、graph 更新 vs 完整重建（US$0.0037 vs US$0.053，其餘 11 個 topic 一字不改）、有／冇 concept graph 嘅 regenerate。Script 喺 `app-temp/checks/Validation/poc-*.mjs`，預設 offline。
 - [ ] 人手聽 `app-temp/data/validation/runs/2026-10-21-poc/asr/w1.wav`–`w3.wav`（各 90 秒），確認 create file／query file 同術語計數。
-- [ ] App：每分鐘 live jot（best effort，失敗唔影響後面）取代而家 30 秒 placement writer 嘅即時角色。
-- [ ] App：segment consolidation（每五分鐘或話題轉換）寫 block、概念、辨識修正；final pass（outline＋每個大題 polish）。沿用 NoteTree、citations、locked blocks、CAS 同 history。
-- [ ] Outline 要強制分子題（Qwen3.8 出咗 12 個平排大題）；citation parser 要識 `[T112-T115]` 範圍。
-- [ ] 逐字稿改動（Session rerun、手改）：用 lineage 搵受影響 segment，只重寫嗰幾段同佢哋所在嘅 topic；Rebuild 只做明確嘅用戶動作。
+- [x] App：每分鐘 live jot，取代咗 30 秒 placement writer（`NoteWorkflow`，commit 2ccb53e）。
+- [x] App：每五分鐘 segment 寫 block、概念、辨識修正；Stop 後 outline＋每個大題 polish。沿用 NoteTree、citations、locked blocks、CAS 同 history。舊 placement／organizer、coverage、processing settings 已刪。
+- [ ] Outline 要強制分子題（Qwen3.8 出咗 12 個平排大題）；citation parser 識 `[T112-T115]` 範圍（已做，`NoteAliases`）。
+- [x] 逐字稿改動（Session rerun、第二遍 ASR）：窗口 hash 變咗先重寫嗰個 segment，只重新 polish 引用佢嘅 topic；Rebuild 只做明確嘅用戶動作。
+- [ ] Live 驗收：用 Week 3 喺真 API＋MongoDB＋Qwen3.8 跑一次三速筆記（取代已刪嘅 placement 年代 `week3-e2e`），記低費用、引用覆蓋同 Stop 後 outline。
+- [ ] 舊筆記資料：placement 年代嘅版本唔再自動轉換（block 來源喺舊 `Anchors` 欄位，pre-tree 版本冇 block）；另一個 session 寫 data patch，或者逐個 session 用 Rebuild notes。
 - [ ] Concept graph：node key 用 glossary 嘅 canonical term（POC 入面概念改個寫法就當咗消失）；唔用嚟決定更新範圍。
 - [ ] 課程 context：group＝course，glossary 由 slides 或上堂筆記建立、可以手改；辨識修正表要顯示同可以改（POC 有錯對應：`needle dock → NtCreateFile`）。
 - [ ] 不確定數字：polish 唔可以將字幕數字當確定（POC：「4069 個項目」應係 4096，冇標「(?)」）。
@@ -63,7 +65,7 @@
 1. [ ] **Prompt 分組、事件觸發同筆記範本**
    - 按組別（session／workspace）揀 prompt 同筆記範本，例如上堂筆記、會議 mode（議程、決定、行動項目）。
    - 事件驅動嘅觸發流程：例如累積字數、STT 事件（講話停頓、換講者、Stop）觸發寫筆記或者其他 action；而家只有 30 秒批次、停頓同 Stop。
-   - 基礎：位置決定 harness、`NoteInstructions`、`ProcessingPolicy`、`NoteAdmissionPolicy`。
+   - 基礎：`NoteWorkflow.Automatic`（分鐘／五分鐘窗口、Stop、閒置一分鐘）、`NotePrompts`（每個 task 嘅 prompt 同 schema）。
 2. [ ] **按 session 上載 lecture notes 同文件**
    - 而家：`POST /api/sessions/{id}/materials` 只收純文字（name + text），筆記同 Ask 已經會用 materials。
    - 要加：上載 PDF／PPT／Word，抽取文字同頁碼，引用時可以指返原文件位置；限制檔案大小同類型。

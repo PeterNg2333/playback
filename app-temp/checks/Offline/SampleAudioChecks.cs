@@ -40,7 +40,7 @@ static class SampleAudioChecks
         Expect.That(transcripts.Count >= 1000 && transcripts[^1].EndMs >= 9_800_000, "Expected long transcript was not found");
 
         var material = new Material { Id = "tutorial", Name = "Tutorial", Text = File.ReadAllText(Path.Combine(folder, "Tutorial.txt")) };
-        var session = new SessionView("sample-audio-offline", "Sample audio", null, DateTime.UtcNow, "", 0, 0, false, "zh-Hant", [material], transcripts, [], [], [], null);
+        var session = new SessionView("sample-audio-offline", "Sample audio", null, DateTime.UtcNow, "", 0, false, "zh-Hant", [material], transcripts, [], [], [], null);
         var covered = 0;
         foreach (var index in new[] { 50, transcripts.Count / 2, transcripts.Count - 50 })
         {

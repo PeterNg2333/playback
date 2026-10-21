@@ -54,9 +54,7 @@ public partial class PlaybackStore
         noteMarkdown = note?.Markdown ?? "", noteVersion = note?.Version ?? 0,
         session.TranslationEnabled, session.TranslationLanguage, session.AsrLanguage, session.AsrModel, session.NoteLanguage,
         currentNote = note is null ? null : new { note.Author, note.BasedOnVersion,
-            note.InputHash, note.TranscriptIds, note.MaterialIds, note.InputTranscriptIds, note.InputMaterialIds,
-            note.Edits, note.Sections, note.Citations, note.Coverage, note.SourceFrom, note.SourceThrough,
-            note.DeletedSectionIds, note.SuppressedSourceIds }
+            note.InputHash, note.TranscriptIds, note.MaterialIds, note.Edits, note.Sections, note.Citations }
     };
     // Only changed IDs are read after bootstrap. A null ID list is an explicit bulk operation,
     // such as changing the translation language; audio levels/idle polling never read a session.

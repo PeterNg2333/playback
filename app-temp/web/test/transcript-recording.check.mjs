@@ -209,15 +209,13 @@ try {
           basedOnVersion: 0,
           author: "agent",
           createdAt: "2026-09-26T08:15:00Z",
-          inputTranscriptIds: ["first"],
-          inputMaterialIds: ["activity-material"],
           edits: [
             {
               kind: "insert",
               line: 1,
               text: "# Signal notes [first]",
               transcriptIds: ["first"],
-              materialIds: [],
+              materialIds: ["activity-material"],
             },
           ],
         },

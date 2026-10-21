@@ -67,7 +67,7 @@ static class GeminiLiveCheck
             throw new InvalidOperationException("Vertex translation did not map both synthetic transcript IDs");
 
         var qaSession = new SessionView("synthetic-qa", "Synthetic Fourier lecture", null, DateTime.UtcNow,
-            "", 0, 0, false, "zh-Hant", [],
+            "", 0, false, "zh-Hant", [],
             [new Transcript { Id = transcriptId, StartMs = 0, EndMs = 120_000, Original = transcript }],
             [], [], [], null);
         var qaContext = ChatContextBuilder.Build(qaSession,

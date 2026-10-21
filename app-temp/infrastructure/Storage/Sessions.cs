@@ -120,7 +120,6 @@ public partial class PlaybackStore
             session.CreatedAt,
             note?.Markdown ?? "",
             note?.Version ?? 0,
-            note?.ProcessedThroughMs ?? 0,
             session.TranslationEnabled,
             session.TranslationLanguage ?? "zh-Hant",
             materials,

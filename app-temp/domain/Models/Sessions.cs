@@ -13,7 +13,6 @@ public sealed record SessionView(
     DateTime CreatedAt,
     string NoteMarkdown,
     int NoteVersion,
-    long NoteProcessedThroughMs,
     bool TranslationEnabled,
     string TranslationLanguage,
     List<Material> Materials,

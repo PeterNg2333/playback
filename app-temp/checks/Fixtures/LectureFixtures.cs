@@ -33,5 +33,5 @@ static class LectureFixtures
     }).ToList();
 
     public static SessionView Session(List<Transcript> transcripts, List<Material>? materials = null) =>
-        new("synthetic", "Three hours", null, DateTime.UtcNow, "", 0, 0, false, "zh-Hant", materials ?? [], transcripts, [], [], [], null);
+        new("synthetic", "Three hours", null, DateTime.UtcNow, "", 0, false, "zh-Hant", materials ?? [], transcripts, [], [], [], null);
 }

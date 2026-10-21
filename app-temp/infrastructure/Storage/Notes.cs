@@ -20,18 +20,11 @@ public partial class PlaybackStore
     public virtual async Task RequestNoteFlush(string id) => await NoteRepository.RequestFlush(id);
     public virtual async Task AcknowledgeNoteFlush(string id, int version) => await NoteRepository.AcknowledgeFlush(id, version);
     public virtual Task<object> SaveSectionNote(string id, SectionUpdate update, string inputHash, int basedOnVersion, string language,
-        string author = "agent", List<string>? deleted = null, List<string>? suppressed = null) =>
-        NoteRepository.Save(id, update, inputHash, basedOnVersion, language, author, deleted, suppressed);
+        string author = "agent") => NoteRepository.Save(id, update, inputHash, basedOnVersion, language, author);
     public Task<object> RestoreNote(string id, int version, int? basedOnVersion) => NoteCommands.RestoreNote(id, version, basedOnVersion);
 
-    public virtual async Task<NoteProvenance> NoteProvenance(string id, IReadOnlyCollection<string> sourceIds)
-    {
-        var materialIds = await Collection<Material>("materials").Find(x => x.SessionId == id).Project(x => x.Id).ToListAsync();
-        var ids = sourceIds.ToList();
-        var times = await Collection<Transcript>("transcripts").Find(x => x.SessionId == id && ids.Contains(x.Id))
-            .Project(x => new { x.StartMs, x.EndMs, x.RecordedAt }).ToListAsync();
-        return new NoteProvenance(materialIds, times.Select(x => new NoteSourceTiming(x.StartMs, x.EndMs, x.RecordedAt)).ToList());
-    }
+    public virtual Task<List<string>> NoteMaterialIds(string id) =>
+        Collection<Material>("materials").Find(x => x.SessionId == id).Project(x => x.Id).ToListAsync();
 
     public virtual async Task MarkNotes(IEnumerable<string> ids, string status, string? error = null)
     {

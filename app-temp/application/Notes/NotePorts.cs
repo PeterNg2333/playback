@@ -10,25 +10,20 @@ public interface INoteRepository
     Task<object> Page(string id, int? before, int limit);
     Task<NoteGateRecord?> Gate(string id);
     Task AcknowledgeFlush(string id, int version);
-    Task<object> Save(string id, SectionUpdate update, string inputHash, int basedOnVersion, string language,
-        string author = "agent", List<string>? deleted = null, List<string>? suppressed = null);
+    Task<object> Save(string id, SectionUpdate update, string inputHash, int basedOnVersion, string language, string author = "agent");
 }
 
 public interface INoteEvidence
 {
     Task<NoteSession?> Session(string id);
-    Task<NoteProvenance> Provenance(string id, IReadOnlyCollection<string> sourceIds);
+    // The session's material IDs; a note cites material passages by IDs that start with them.
+    Task<List<string>> MaterialIds(string id);
     Task MarkNotes(IEnumerable<string> ids, string status, string? error = null);
 }
-
-// Narrow persistence read: save must not reload a three-hour session or recompute all term candidates.
-public sealed record NoteSourceTiming(long StartMs, long EndMs, DateTime? RecordedAt);
-public sealed record NoteProvenance(List<string> MaterialIds, List<NoteSourceTiming> Transcripts);
 
 public interface INoteSettings
 {
     Task<string> Language(string id);
-    Task<string> Presentation(string id) => Task.FromResult("numbered-hierarchy");
 }
 public interface INoteWriter
 {
