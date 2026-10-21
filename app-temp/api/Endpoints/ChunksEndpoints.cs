@@ -1,6 +1,7 @@
 using Playback.Api.Audio;
 using Playback.Api.Audio.Asr;
 using Playback.Api.Db;
+using Playback.Application.Recording;
 namespace Playback.Api.Endpoints;
 
 public static class ChunksEndpoints
@@ -8,13 +9,13 @@ public static class ChunksEndpoints
     public static void MapChunks(this WebApplication app)
     {
         app.MapPost("/api/sessions/{sessionId}/chunks/retry", async (
-            string sessionId, RetryChunksInput input, Playback.Application.Recording.ChunkCommands asr) =>
+            string sessionId, RetryChunksInput input, ChunkCommands asr) =>
         {
             await asr.Retry(sessionId, input.ChunkIds);
             return Results.Accepted(value: new { status = "queued" });
         });
         app.MapPost("/api/chunks", async (
-            HttpRequest request, Playback.Application.Recording.ChunkCommands service, CancellationToken ct) =>
+            HttpRequest request, ChunkCommands service, CancellationToken ct) =>
         {
             if (!request.HasFormContentType || request.ContentLength is null or > 26_000_000)
                 return Results.BadRequest(new { error = "A bounded multipart upload is required" });
@@ -31,14 +32,14 @@ public static class ChunksEndpoints
                 $"/api/sessions/{chunk.SessionId}",
                 new { chunk.Id, status = ChunkStatus.PendingAsr });
         });
-        app.MapGet("/api/chunks/{id}/audio", (string id, Playback.Application.Recording.ChunkCommands store) =>
+        app.MapGet("/api/chunks/{id}/audio", (string id, ChunkCommands store) =>
             store.ChunkAudioPath(id) is { } path
                 ? Results.File(path, "audio/wav", enableRangeProcessing: true)
                 : Results.NotFound());
-        app.MapGet("/api/sessions/{sessionId}/audio/combined/{segmentId}", async (string sessionId, string segmentId, Playback.Application.Recording.ChunkCommands store) =>
+        app.MapGet("/api/sessions/{sessionId}/audio/combined/{segmentId}", async (string sessionId, string segmentId, ChunkCommands store) =>
             await store.CombinedAudioPath(sessionId, segmentId) is { } path ? Results.File(path, "audio/wav", enableRangeProcessing: true) : Results.NotFound());
         app.MapGet("/api/sessions/{sessionId}/audio/segments/{index:int}", async (
-            string sessionId, int index, string? source, Playback.Application.Recording.ChunkCommands renderer) =>
+            string sessionId, int index, string? source, ChunkCommands renderer) =>
             await renderer.Render(sessionId, index, source) is { } wav
                 ? Results.File(wav, "audio/wav")
                 : Results.NotFound());

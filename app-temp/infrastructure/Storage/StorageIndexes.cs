@@ -1,4 +1,5 @@
 using MongoDB.Driver;
+using Playback.Application.Activity;
 using Playback.Domain.Models;
 namespace Playback.Api.Db;
 public partial class PlaybackStore
@@ -21,7 +22,7 @@ public sealed class StorageIndexWorker(PlaybackStore store, ILogger<StorageIndex
         while (!ct.IsCancellationRequested)
         {
             try {await store.EnsureRecoveryIndexes(ct); return;}
-            catch (Exception ex) when (!ct.IsCancellationRequested) {logger.LogWarning("Recovery indexes unavailable: {Error}", Playback.Api.Activity.AiActivity.SafeError(ex));}
+            catch (Exception ex) when (!ct.IsCancellationRequested) {logger.LogWarning("Recovery indexes unavailable: {Error}", AiActivity.SafeError(ex));}
             await Task.Delay(TimeSpan.FromSeconds(30), ct);
         }
     }

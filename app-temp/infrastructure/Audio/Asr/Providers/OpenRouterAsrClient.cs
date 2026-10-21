@@ -1,4 +1,5 @@
 using Playback.Api.Providers;
+using Playback.Application.Recording;
 using Playback.Domain;
 using System.Net;
 using System.Net.Http.Headers;

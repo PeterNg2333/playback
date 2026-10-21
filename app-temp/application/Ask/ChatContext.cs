@@ -2,7 +2,7 @@ using Playback.Domain.Evidence;
 using Playback.Domain.Models;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Ask;
+namespace Playback.Application.Ask;
 
 public sealed record ChatContext(
     string Prompt,

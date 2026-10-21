@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using Playback.Api.Activity;
 using Playback.Api.Db;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
+using Playback.Application.Activity;
 using Playback.Application.Notes;
 
 // A note model that answers each three-speed task from its input, so note checks can follow every source without a provider:

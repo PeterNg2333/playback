@@ -1,5 +1,5 @@
 using Playback.Domain.Models;
-namespace Playback.Api.Translation;
+namespace Playback.Application.Translation;
 
 public sealed record TranslationRequest(string Prompt, Dictionary<string, string> TargetIds);
 

@@ -1,5 +1,6 @@
 using Playback.Api.Audio.Asr.Providers;
 using Playback.Api.Providers;
+using Playback.Application.Recording;
 namespace Playback.Api.Audio.Asr;
 
 public static class AsrAdapters

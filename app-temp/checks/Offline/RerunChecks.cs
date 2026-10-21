@@ -1,9 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using Playback.Api.Activity;
-using Playback.Api.Audio.Asr;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
+using Playback.Application.Activity;
 using Playback.Application.Recording;
 using Playback.Domain.Audio;
 using Playback.Domain.Evidence;

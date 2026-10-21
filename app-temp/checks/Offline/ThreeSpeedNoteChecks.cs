@@ -1,3 +1,4 @@
+using Playback.Application.Activity;
 using Playback.Application.Notes;
 using Playback.Domain.Models;
 using Playback.Domain.Notes;
@@ -36,7 +37,7 @@ static class ThreeSpeedNoteChecks
         for (var s = 0; s < 300; s += 10) Line(store, clock, id, $"{id}-{s}", s, $"Kernel point {s}");
         Line(store, clock, id, $"{id}-301", 301, "Second window starts");
         return (store, clock, model, new NoteWorkflow(new Playback.Api.Notes.NoteStoreAdapter(store), new Playback.Api.Notes.NoteStoreAdapter(store),
-            new Playback.Api.Notes.GeminiNoteWriter(model), new Playback.Api.Notes.NoteActivityAdapter(new Playback.Api.Activity.AiActivity(store),
+            new Playback.Api.Notes.GeminiNoteWriter(model), new Playback.Api.Notes.NoteActivityAdapter(new AiActivity(store),
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<Playback.Api.Notes.NoteAgent>.Instance), new Playback.Api.Notes.OpenccNoteScript(), clock));
     }
 

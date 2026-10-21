@@ -1,6 +1,7 @@
 using Playback.Api.Db;
 using Playback.Api.Providers;
-using Playback.Api.Activity;
+using Playback.Application.Activity;
+using Playback.Application.Translation;
 using Playback.Infrastructure.Activity;
 namespace Playback.Api.Translation;
 // The host owns the timer/cancellation; Application owns batching, validation and result persistence.

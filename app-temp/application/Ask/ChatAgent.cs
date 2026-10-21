@@ -1,4 +1,4 @@
-using Playback.Api.Activity;
+using Playback.Application.Activity;
 using Playback.Domain.Evidence;
 using Playback.Domain.Models;
 using System.Collections.Concurrent;
@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace Playback.Api.Ask;
+namespace Playback.Application.Ask;
 
 public record QuestionInput(
     string Question,

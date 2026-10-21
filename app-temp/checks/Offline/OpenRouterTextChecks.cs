@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
+using Playback.Application.Notes;
 
 // OpenRouter text models: the fixed endpoint and process key, each note task's schema and output cap, routing
 // that requires every parameter and skips 4-bit quantizations, usage kept on rejected replies, and errors that
@@ -13,7 +14,7 @@ static class OpenRouterTextChecks
 {
     const string NoteInput = "{\"window\":[[\"T1\",\"0:00\",\"mic\",\"TCP uses a three-way handshake.\"]]}";
     const string NoteReply = "{\"title\":\"TCP\",\"blocks\":[{\"kind\":\"concept\",\"markdown\":\"TCP 用三次握手建立連線。 [T1]\",\"sources\":[\"T1\"]}],\"concepts\":[],\"corrections\":[]}";
-    static readonly Playback.Application.Notes.NoteTask SegmentTask = Playback.Application.Notes.NotePrompts.Segment;
+    static readonly NoteTask SegmentTask = NotePrompts.Segment;
     static readonly OpenRouterTextModel.Limits Quick = new(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(300));
 
     public static async Task Run()

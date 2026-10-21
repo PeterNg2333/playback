@@ -1,14 +1,14 @@
-using Playback.Api.Terms;
 using Playback.Api.Providers;
+using Playback.Application.Terms;
 namespace Playback.Api.Endpoints;
 
 public static class TermsEndpoints
 {
     public static void MapTerms(this WebApplication app)
     {
-        app.MapPost("/api/explain", async (ExplainInput input, Playback.Application.Assistance.TermAssistance service, CancellationToken ct) =>
+        app.MapPost("/api/explain", async (ExplainInput input, TermAssistance service, CancellationToken ct) =>
             Results.Ok(await service.Explain(input.Term, ct)));
-        app.MapPost("/api/terms/rank", async (TermInput input, Playback.Application.Assistance.TermAssistance service, CancellationToken ct) =>
+        app.MapPost("/api/terms/rank", async (TermInput input, TermAssistance service, CancellationToken ct) =>
             Results.Ok(await service.Rank(input.Term, input.Context, ct)));
         app.MapPost("/api/terms/evaluate-synthetic", async (SyntheticTermComparison comparison, CancellationToken ct) =>
             Results.Ok(await comparison.Evaluate(ct)));

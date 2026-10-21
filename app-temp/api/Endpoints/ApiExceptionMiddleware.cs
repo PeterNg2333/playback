@@ -1,4 +1,5 @@
-using Playback.Api.Activity;
+using Playback.Application.Activity;
+using Playback.Application.Workspace;
 namespace Playback.Api.Endpoints;
 
 public sealed class ApiExceptionMiddleware(RequestDelegate next)
@@ -9,7 +10,7 @@ public sealed class ApiExceptionMiddleware(RequestDelegate next)
         {
             await next(context);
         }
-        catch (Playback.Application.Workspace.WorkspaceNotFoundException)
+        catch (WorkspaceNotFoundException)
         {
             await WriteError(context, 404, "Resource not found");
         }

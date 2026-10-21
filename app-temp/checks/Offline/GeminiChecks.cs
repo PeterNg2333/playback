@@ -7,6 +7,7 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
+using Playback.Application.Notes;
 
 // Gemini: the real SDK request keeps its token cap and section schema, a truncated reply is rejected with
 // its usage kept, grounded search keeps only safe web sources, and every task keeps its cost limit.
@@ -17,7 +18,7 @@ static class GeminiChecks
         await TruncatedReplies();
         GroundedSearch();
         Expect.That(ModelOutputContract.OutputLimit("PlaybackTranslator") == 4096 && ModelOutputContract.OutputLimit("PlaybackQuestionAnswerer") == 1024 &&
-            Playback.Application.Notes.NotePrompts.Segment.MaxOutputTokens == 8192 && NoteScheduler.Interval.TotalSeconds == 2,
+            NotePrompts.Segment.MaxOutputTokens == 8192 && NoteScheduler.Interval.TotalSeconds == 2,
             "Notes and routine answers must retain explicit cost limits");
         Console.WriteLine("Gemini checks passed (in-memory HTTP): SDK token cap and note task schemas, truncation rejected with usage kept, safe grounded sources, cost limits");
     }
@@ -59,7 +60,7 @@ static class GeminiChecks
             ChatOptions = new ChatOptions
             {
                 MaxOutputTokens = 8192,
-                ResponseFormat = Format(Playback.Application.Notes.NotePrompts.Segment)
+                ResponseFormat = Format(NotePrompts.Segment)
             }
         });
         await foreach (var update in sections.RunStreamingAsync("Confirmed lecture input")) { }
@@ -69,7 +70,7 @@ static class GeminiChecks
         {
             Name = "OfflineOrganizerSchemaCheck",
             ChatOptions = new ChatOptions { MaxOutputTokens = 8192,
-                ResponseFormat = Format(Playback.Application.Notes.NotePrompts.Outline) }
+                ResponseFormat = Format(NotePrompts.Outline) }
         });
         await foreach (var update in organizer.RunStreamingAsync("User-authored uncited text")) { }
         Expect.That(handler.Requests == 5 && usage.Count == 5, "An input-free organizer repeated a request or lost usage");
@@ -96,7 +97,7 @@ static class GeminiChecks
     }
 
     static byte[] Json(string value) => Encoding.UTF8.GetBytes(value);
-    static ChatResponseFormat Format(Playback.Application.Notes.NoteTask task) => GeminiLanguageModel.ResponseFormat(task);
+    static ChatResponseFormat Format(NoteTask task) => GeminiLanguageModel.ResponseFormat(task);
 
     // Checks every request the SDK sends and answers with a complete or a truncated reply.
     sealed class FixtureHandler : HttpMessageHandler

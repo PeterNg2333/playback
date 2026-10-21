@@ -3,12 +3,13 @@ using Microsoft.Extensions.Hosting;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using Playback.Api.Activity;
-using Playback.Api.Ask;
 using Playback.Api.Audio.Asr;
 using Playback.Api.Db;
 using Playback.Api.Notes;
-using Playback.Api.Terms;
 using Playback.Api.Translation;
+using Playback.Application.Ask;
+using Playback.Application.Recording;
+using Playback.Application.Terms;
 using Playback.Application.Workspace;
 using Playback.Domain.Models;
 using Playback.Infrastructure;
@@ -29,7 +30,7 @@ static class MigrationChecks
         services.AddSingleton<PlaybackStore>(new MemoryStore());
         services.AddSingleton<TranslationAgent>();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions {ValidateOnBuild = true, ValidateScopes = true});
-        foreach (var type in new[] {typeof(NoteCommands), typeof(NoteWorkflow), typeof(ChatAgent), typeof(TermReview), typeof(WorkspaceCommands), typeof(Playback.Application.Recording.RecordingCommands), typeof(Playback.Application.Recording.ChunkCommands), typeof(RuntimeQueries)})
+        foreach (var type in new[] {typeof(NoteCommands), typeof(NoteWorkflow), typeof(ChatAgent), typeof(TermReview), typeof(WorkspaceCommands), typeof(RecordingCommands), typeof(ChunkCommands), typeof(RuntimeQueries)})
             _ = provider.GetRequiredService(type);
         var workers = provider.GetServices<IHostedService>().ToList();
         // The independent migration commit also builds with the preserved translation WIP left unstaged.

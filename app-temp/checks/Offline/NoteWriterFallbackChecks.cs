@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
-using Playback.Api.Activity;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
+using Playback.Application.Activity;
 using Playback.Application.Notes;
 
 // The OpenRouter note writer retries transient failures and then lets Gemini write (decision 2026-10-19, option 2):

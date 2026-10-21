@@ -5,6 +5,7 @@ using System.Text.Json;
 using NAudio.Wave;
 using Playback.Api.Audio.Asr;
 using Playback.Api.Audio.Asr.Providers;
+using Playback.Application.Recording;
 using Playback.Domain.Models;
 
 // ASR: which provider is chosen, what each adapter sends and reads back (over in-memory HTTP), how

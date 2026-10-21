@@ -1,10 +1,9 @@
-using Playback.Application.Recording;
+using Playback.Application.Activity;
 using System.Diagnostics;
 using System.Net.Sockets;
-using Playback.Api.Activity;
 using System.Text.Json;
 
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Application.Recording;
 
 public sealed class Transcription(
     ITranscriptionRepository store,

@@ -1,6 +1,6 @@
-using Playback.Api.Ask;
-using Playback.Api.Activity;
 using Playback.Api.Providers;
+using Playback.Application.Activity;
+using Playback.Application.Ask;
 using Playback.Domain.Assistance;
 using Playback.Domain.Models;
 using System.Text.Json;

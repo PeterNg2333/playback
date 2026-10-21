@@ -1,10 +1,11 @@
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Playback.Api.Db;
+using Playback.Application.Recording;
 
 namespace Playback.Api.Audio;
 
-public sealed class SessionAudioRenderer(PlaybackStore store) : Playback.Application.Recording.IAudioRenderer
+public sealed class SessionAudioRenderer(PlaybackStore store) : IAudioRenderer
 {
     public const int SegmentMs = 30_000;
     const int SampleRate = 16_000;

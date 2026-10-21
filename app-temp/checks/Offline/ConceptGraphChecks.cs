@@ -1,8 +1,8 @@
 using System.Net;
 using System.Text;
-using Playback.Api.Activity;
-using Playback.Api.Ask;
 using Playback.Api.Providers;
+using Playback.Application.Activity;
+using Playback.Application.Ask;
 using Playback.Domain.Evidence;
 using Playback.Domain.Models;
 

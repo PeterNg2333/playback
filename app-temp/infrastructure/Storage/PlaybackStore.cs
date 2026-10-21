@@ -1,12 +1,15 @@
 using System.Collections.Concurrent;
 using MongoDB.Driver;
 using System.Security.Claims;
+using Playback.Application.Recording;
+using Playback.Application.Translation;
+using Playback.Application.Workspace;
 using Playback.Domain.Models;
 
 namespace Playback.Api.Db;
 
 // The local MongoDB store. Each file in Db/ holds one saved concept: its documents and their reads and writes.
-public partial class PlaybackStore : IActivityRepository, IConversationRepository, ITermRepository, Playback.Application.Recording.ITranscriptionRepository, Playback.Application.Workspace.IWorkspaceRepository, Playback.Application.Recording.IRecordingAccess, Playback.Application.Workspace.ITestingRepository, Playback.Application.Translation.ITranslationRepository
+public partial class PlaybackStore : IActivityRepository, IConversationRepository, ITermRepository, ITranscriptionRepository, IWorkspaceRepository, IRecordingAccess, ITestingRepository, ITranslationRepository
 {
     static PlaybackStore()
     {
@@ -44,12 +47,12 @@ public partial class PlaybackStore : IActivityRepository, IConversationRepositor
     public async Task RequireSessionOwner(string id)
     {
         if (CurrentOwner is { } owner && !await OwnsSession(id, owner))
-            throw new Playback.Application.Workspace.WorkspaceNotFoundException();
+            throw new WorkspaceNotFoundException();
     }
     async Task RequireGroupOwner(string id)
     {
         if (CurrentOwner is { } owner && !await OwnsGroup(id, owner))
-            throw new Playback.Application.Workspace.WorkspaceNotFoundException();
+            throw new WorkspaceNotFoundException();
     }
     public async Task<bool> IsReady()
     {

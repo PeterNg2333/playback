@@ -1,16 +1,17 @@
 using Playback.Api.Audio.Vad;
 using Playback.Api.Audio.Asr;
 using Playback.Api.Db;
-using Playback.Api.Activity;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
 using NAudio.Wave;
 using Playback.Domain.Audio;
+using Playback.Application.Activity;
+using Playback.Application.Recording;
 
 namespace Playback.Api.Audio.Recording;
 
-public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger, IAsrAdapter adapter, AiActivity activity) : IAsyncDisposable, Playback.Application.Recording.IRecordingControl
+public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr, ILogger<WindowsAudioCaptureService> logger, IAsrAdapter adapter, AiActivity activity) : IAsyncDisposable, IRecordingControl
 {
     // A WAV chunk closes after 8 s, or after 3 s once speech was heard and every source has been quiet for 0.7 s.
     public const int ChunkMilliseconds = 8_000;

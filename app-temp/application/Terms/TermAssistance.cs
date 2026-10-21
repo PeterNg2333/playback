@@ -1,4 +1,4 @@
-namespace Playback.Application.Assistance;
+namespace Playback.Application.Terms;
 public sealed class TermAssistance(ITermClassifier classifier, ITextGenerator writer)
 {
     public Task<JevRankResult> Rank(string term, string context, CancellationToken ct) => classifier.Rank(term, ct, context);

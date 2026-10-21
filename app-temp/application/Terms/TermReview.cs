@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using Playback.Domain.Models;
-using Playback.Api.Activity;
 using Playback.Domain.Assistance;
-namespace Playback.Api.Terms;
+using Playback.Application.Activity;
+namespace Playback.Application.Terms;
 public sealed class TermReview(ITermRepository store, ITermClassifier jev, ITextGenerator gemini, IWorkLog logger, AiActivity activity)
 {
     readonly ConcurrentDictionary<string, SemaphoreSlim> reviewGates = new();

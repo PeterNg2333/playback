@@ -1,7 +1,8 @@
 using Playback.Api;
 using Playback.Api.Notes;
-using Playback.Api.Ask;
 using Playback.Api.Translation;
+using Playback.Application.Ask;
+using Playback.Application.Notes;
 using Playback.Domain.Models;
 
 // Language settings: spoken and output languages stay distinct, Cantonese is shown in Traditional
@@ -14,9 +15,9 @@ static class LanguageChecks
         foreach (var language in new[] { "zh-Hant", "zh-Hans", "en" }) LanguageSettings.ValidateNote(language);
         Expect.Rejects(() => LanguageSettings.ValidateAsr("zh-Hant"), "ASR accepted a writing system as a spoken language");
         Expect.Rejects(() => LanguageSettings.ValidateNote("yue"), "Notes accepted an unsupported output language");
-        Expect.That(Playback.Application.Notes.NotePrompts.SegmentInstructions("zh-Hant").Contains("Traditional Chinese") &&
-            Playback.Application.Notes.NotePrompts.SegmentInstructions("zh-Hans").Contains("Simplified Chinese") &&
-            Playback.Application.Notes.NotePrompts.SegmentInstructions("en").Contains("Write in English"),
+        Expect.That(NotePrompts.SegmentInstructions("zh-Hant").Contains("Traditional Chinese") &&
+            NotePrompts.SegmentInstructions("zh-Hans").Contains("Simplified Chinese") &&
+            NotePrompts.SegmentInstructions("en").Contains("Write in English"),
             "Note output settings must reach the note instructions");
         Expect.That(TranslationAgent.Instructions("yue-Hant").Contains("natural written Cantonese") &&
             TranslationAgent.Instructions("zh-Hans").Contains("Simplified Chinese"),

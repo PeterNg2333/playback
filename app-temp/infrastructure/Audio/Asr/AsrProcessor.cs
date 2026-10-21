@@ -1,5 +1,6 @@
 using Playback.Api.Db;
-using Playback.Api.Activity;
+using Playback.Application.Activity;
+using Playback.Application.Recording;
 using Playback.Infrastructure.Activity;
 namespace Playback.Api.Audio.Asr;
 // Compatibility adapter for capture/recovery callers. There is one transcription use case.

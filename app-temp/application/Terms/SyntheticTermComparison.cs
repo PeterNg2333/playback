@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 
-namespace Playback.Api.Terms;
+namespace Playback.Application.Terms;
 
 public sealed class SyntheticTermComparison(ITermClassifier jev, ITextGenerator gemini)
 {

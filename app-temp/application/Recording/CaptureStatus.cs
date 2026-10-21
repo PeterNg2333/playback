@@ -1,4 +1,4 @@
-namespace Playback.Api.Audio.Recording;
+namespace Playback.Application.Recording;
 public sealed record ActiveCaptureSegment(string SourceId, long StartMs, long EndMs, DateTime RecordedAt, bool Streaming,
     string? InterimText = null, string? RawInterimText = null, long? LatencyMs = null, string? Model = null);
 

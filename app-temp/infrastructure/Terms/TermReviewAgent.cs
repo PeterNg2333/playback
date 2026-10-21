@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using Playback.Api.Db;
 using Playback.Api.Providers;
-using Playback.Api.Activity;
+using Playback.Application.Activity;
+using Playback.Application.Terms;
 using Playback.Domain.Assistance;
 using Playback.Domain.Models;
 

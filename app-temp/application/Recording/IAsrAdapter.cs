@@ -1,4 +1,4 @@
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Application.Recording;
 
 public sealed record AsrRequest(string Path, string SessionId, string SourceId, long Sequence, string Hash, string Language = "auto", string? Model = null, bool Preview = false, string Pass = "first");
 public sealed record AsrModel(string Provider, string Model, string Transport, bool SupportsLanguageHint = false);

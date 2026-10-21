@@ -1,8 +1,8 @@
-using Playback.Api.Activity;
+using Playback.Application.Activity;
 using Playback.Domain.Evidence;
 using Playback.Domain.Models;
 
-namespace Playback.Api.Ask;
+namespace Playback.Application.Ask;
 
 // The LightRAG concept graph: LLM-extracted entities and relations over the lecture, kept in a localhost sidecar with
 // one workspace per session. It chooses which passages Ask reads and lists concepts for trace; it is never used to decide

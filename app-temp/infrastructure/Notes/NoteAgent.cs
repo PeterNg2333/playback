@@ -1,5 +1,6 @@
-﻿using Playback.Api.Activity;
-using Playback.Api.Db;
+﻿using Playback.Api.Db;
+using Playback.Application.Activity;
+using Playback.Application.Notes;
 
 namespace Playback.Api.Notes;
 
@@ -13,7 +14,7 @@ public sealed class NoteAgent(PlaybackStore store, NoteWorkflow workflow, ILogge
     public Task<object> Generate(string id, CancellationToken ct) => workflow.Generate(id, ct);
     public Task Drain() => workflow.Drain();
     public Task<bool> UpdateEvidence(string id, Func<Task<bool>> save, CancellationToken ct) => workflow.UpdateEvidence(id, save, ct);
-    public Task<Playback.Application.Notes.NoteRebuildResult> Rebuild(string id, CancellationToken ct) => workflow.Rebuild(id, ct);
+    public Task<NoteRebuildResult> Rebuild(string id, CancellationToken ct) => workflow.Rebuild(id, ct);
     public Task<int> WritePending(string id, CancellationToken ct) => workflow.WritePending(id, ct);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

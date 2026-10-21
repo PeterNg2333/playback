@@ -1,9 +1,10 @@
 using Playback.Api.Audio.Recording;
+using Playback.Application.Activity;
+using Playback.Application.Recording;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Threading.Channels;
 using NAudio.Wave;
-using Playback.Api.Activity;
 using Playback.Domain.Models;
 using System.Text.Json;
 

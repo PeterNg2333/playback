@@ -1,4 +1,5 @@
 using MongoDB.Driver;
+using Playback.Application.Activity;
 using Playback.Application.Audio;
 using Playback.Domain.Audio;
 using Playback.Domain.Models;
@@ -82,10 +83,10 @@ public sealed class CombinedAudioWorker(PlaybackStore store, ILogger<CombinedAud
                 if (DateTime.UtcNow >= nextRecovery)
                 {
                     nextRecovery = DateTime.UtcNow.AddSeconds(30);
-                    try { ids.UnionWith(await store.QuietAudioSessions()); } catch (Exception ex) { logger.LogWarning("Quiet recovery scan failed: {Message}", Playback.Api.Activity.AiActivity.SafeError(ex)); }
+                    try { ids.UnionWith(await store.QuietAudioSessions()); } catch (Exception ex) { logger.LogWarning("Quiet recovery scan failed: {Message}", AiActivity.SafeError(ex)); }
                 }
                 foreach (var id in ids.Where(PlaybackEnvironment.AllowsAutomaticWork))
-                    try { await store.RebuildCombinedAudio(id, ct); } catch (Exception ex) when (!ct.IsCancellationRequested) { logger.LogWarning("Quiet audio projection retained originals for {Session}: {Message}", id, Playback.Api.Activity.AiActivity.SafeError(ex)); }
+                    try { await store.RebuildCombinedAudio(id, ct); } catch (Exception ex) when (!ct.IsCancellationRequested) { logger.LogWarning("Quiet audio projection retained originals for {Session}: {Message}", id, AiActivity.SafeError(ex)); }
                 await Task.Delay(1000, ct);
             }
         }

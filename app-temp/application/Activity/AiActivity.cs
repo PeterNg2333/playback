@@ -4,7 +4,7 @@ using Playback.Domain.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
-namespace Playback.Api.Activity;
+namespace Playback.Application.Activity;
 
 // Execution state belongs here; note versions and Jev decisions remain their own saved results.
 public sealed class AiActivity(IActivityRepository store)

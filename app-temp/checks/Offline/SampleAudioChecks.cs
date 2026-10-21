@@ -1,9 +1,10 @@
 using System.Text.RegularExpressions;
 using NAudio.Wave;
-using Playback.Api.Ask;
 using Playback.Api.Audio;
 using Playback.Api.Audio.Vad;
 using Playback.Api.Notes;
+using Playback.Application.Ask;
+using Playback.Application.Notes;
 using Playback.Domain.Models;
 
 // Checks against the repository's Week 3 sample (app-temp/data/test-audio/sampleAudio). Read-only: nothing
@@ -64,7 +65,7 @@ static class SampleAudioChecks
         Expect.That(covered == 3, "Q&A failed to retrieve all three lecture windows");
 
         // Notes are written five minutes at a time; every window stays well inside one model call.
-        var windows = transcripts.GroupBy(x => x.StartMs / Playback.Application.Notes.NoteTimeline.WindowMs).ToList();
+        var windows = transcripts.GroupBy(x => x.StartMs / NoteTimeline.WindowMs).ToList();
         Expect.That(windows.Count >= 30 && windows.All(w => w.Sum(x => x.SourceText.Length) <= 20_000),
             "The Week 3 transcript did not split into bounded five-minute note windows");
         Console.WriteLine($"Sample audio offline: {transcripts.Count} source entries, {windows.Count} five-minute note windows, beginning/middle/end Q&A lookup and transcript times passed; no external calls");

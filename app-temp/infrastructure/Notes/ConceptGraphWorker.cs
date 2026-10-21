@@ -1,13 +1,14 @@
-using Playback.Api.Activity;
-using Playback.Api.Ask;
 using Playback.Api.Db;
+using Playback.Application.Activity;
+using Playback.Application.Ask;
+using Playback.Application.Recording;
 
 namespace Playback.Api.Notes;
 
 // Indexes changed sessions into the concept graph after their transcript changes (new speech or a rerun window).
 // A failure is logged and retried on the next change; it never affects transcription, notes or Ask's keyword fallback.
 public sealed class ConceptGraphWorker(PlaybackStore store, IConceptGraph graph, AiActivity activity,
-    Playback.Application.Recording.IRecordingControl capture, ILogger<ConceptGraphWorker> logger) : BackgroundService
+    IRecordingControl capture, ILogger<ConceptGraphWorker> logger) : BackgroundService
 {
     readonly HashSet<string> dirty = new(StringComparer.Ordinal);
     // A sidecar that is down is retried after 30 s, doubling to 10 minutes, so the activity log is not flooded.

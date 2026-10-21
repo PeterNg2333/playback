@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-using Playback.Api.Activity;
 using Playback.Api.Db;
 using Playback.Api.Notes;
+using Playback.Application.Activity;
 using Playback.Application.Recording;
 
 namespace Playback.Api.Audio.Asr;
@@ -29,7 +29,7 @@ public sealed class SessionRerunWorker(SessionRerun rerun, AsrQueue queue, ILogg
     {
         var store = s.GetRequiredService<PlaybackStore>();
         var notes = s.GetRequiredService<NoteAgent>();
-        var capture = s.GetRequiredService<Playback.Application.Recording.IRecordingControl>();
+        var capture = s.GetRequiredService<IRecordingControl>();
         return new SessionRerun(store.Reruns(), s.GetRequiredService<IAsrAdapter>(), new TranscriptionAudio(), store.RerunAudio(),
             s.GetRequiredService<AiActivity>(), id => capture.Status() is { State: not "idle" } status && status.SessionId == id,
             notes.UpdateEvidence, async (id, ct) => { await notes.WritePending(id, ct); }, async (id, ct) => { await notes.Rebuild(id, ct); });

@@ -1,4 +1,5 @@
-using Playback.Api.Activity;
+using Playback.Application.Activity;
+using Playback.Application.Workspace;
 namespace Playback.Api.Endpoints;
 
 public static class ActivityEndpoints
@@ -8,6 +9,6 @@ public static class ActivityEndpoints
         // The activity popover polls without prompt text; a group's AI flow returns it in full.
         app.MapGet("/api/sessions/{id}/activity", async (string id, bool? includePrompt, AiActivity activity) =>
             Results.Json(await activity.Read(id), includePrompt == false ? AiActivity.NotesResponseOptions : null));
-        app.MapGet("/api/groups/{id}/flow", async (string id, string? sessionId, Playback.Application.Workspace.RuntimeQueries flow) => await flow.Read(id, sessionId));
+        app.MapGet("/api/groups/{id}/flow", async (string id, string? sessionId, RuntimeQueries flow) => await flow.Read(id, sessionId));
     }
 }

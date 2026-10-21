@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Playback.Api.Db;
+using Playback.Application.Workspace;
 using Playback.Domain.Workspace;
 
 namespace Playback.Api.Security;
@@ -142,7 +143,7 @@ public sealed class DemoAccess
             if (http.User.Identity?.IsAuthenticated == true) return Results.Redirect("/");
             return LoginPage(http, csrf);
         });
-        app.MapPost("/login", async (HttpContext http, IAntiforgery csrf, Playback.Application.Workspace.DemoAccounts accounts) =>
+        app.MapPost("/login", async (HttpContext http, IAntiforgery csrf, DemoAccounts accounts) =>
         {
             if (!http.Request.HasFormContentType || http.Request.ContentLength is null or > 4096)
                 return Results.BadRequest(new { error = "A bounded login form is required" });

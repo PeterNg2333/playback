@@ -1,4 +1,3 @@
-using Playback.Api.Audio.Recording;
 namespace Playback.Application.Recording;
 public interface IRecordingControl
 {

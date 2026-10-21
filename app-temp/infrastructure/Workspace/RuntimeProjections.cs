@@ -3,10 +3,11 @@ using Playback.Api.Providers;
 using Playback.Api.Notes;
 using Playback.Api.Terms;
 using Playback.Api.Db;
-using Playback.Api.Audio.Asr;
-using Playback.Api.Ask;
 using Playback.Api.Activity;
 using Playback.Application.Workspace;
+using Playback.Application.Ask;
+using Playback.Application.Notes;
+using Playback.Application.Recording;
 namespace Playback.Infrastructure.Workspace;
 public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr, AiFlow flow) : IRuntimeProjections
 {
@@ -25,7 +26,7 @@ public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel 
             sectionNotes = true,
             sessionSync = true,
             threeSpeedNotes = true,
-            notePromptVersion = Playback.Application.Notes.NotePrompts.Version,
+            notePromptVersion = NotePrompts.Version,
             savedAsrRecovery = PlaybackEnvironment.ResumeSavedAsr,
             database = PlaybackEnvironment.Database,
             gemini = gemini.IsConfigured,
