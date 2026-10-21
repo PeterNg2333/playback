@@ -14,6 +14,8 @@ public sealed class GeminiNoteWriter(GeminiLanguageModel model) : INoteWriter
     public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
         NoteReplyParser.Parse(await model.Generate(name, instructions, input, ct, onUpdate: onUpdate, onUsage: onUsage));
+    public Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
+        Action<string>? onUpdate = null, Action<string>? onUsage = null) => model.Complete(task, instructions, input, ct, onUpdate, onUsage);
 }
 
 // PLAYBACK_NOTE_MODEL picks the model that writes and organizes notes: "openrouter:<model>[@reasoning]" or
@@ -69,6 +71,9 @@ public sealed class OpenRouterNoteWriter(OpenRouterTextModel model) : INoteWrite
         var reply = await model.Generate(name, instructions, input, ct, onUsage, onUpdate ?? (_ => { }));
         return NoteReplyParser.Parse(reply);
     }
+    public Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
+        Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+        model.Generate(task.Name, instructions, input, ct, onUsage, onUpdate ?? (_ => { }), task);
 }
 
 // The activity entry of an OpenRouter note call names who actually answered (NoteWriterReport): the entry's provider and

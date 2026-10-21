@@ -55,6 +55,9 @@ public interface INoteWriter
     string Model { get; }
     Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
         Action<string>? onUpdate = null, Action<string>? onUsage = null);
+    // The reply text for one task; the caller parses it against task.Schema.
+    Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
+        Action<string>? onUpdate = null, Action<string>? onUsage = null);
 }
 
 // Puts note text into the session's script after the model writes it, e.g. Simplified characters that slip into

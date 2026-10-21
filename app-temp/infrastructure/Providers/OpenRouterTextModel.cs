@@ -68,7 +68,7 @@ public sealed class OpenRouterTextModel : IDisposable
     public static bool IsTransient(Exception error) => error is OpenRouterTransientException or TimeoutException;
 
     public async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct,
-        Action<string>? onUsage = null, Action<string>? onUpdate = null)
+        Action<string>? onUsage = null, Action<string>? onUpdate = null, NoteTask? task = null)
     {
         if (PlaybackEnvironment.Offline)
             throw new InvalidOperationException("External AI is disabled for offline tests");
@@ -81,7 +81,7 @@ public sealed class OpenRouterTextModel : IDisposable
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
-            var payload = Payload(name, instructions, prompt);
+            var payload = Payload(name, instructions, prompt, task);
             if (onUpdate is not null) payload["stream"] = true;
             request.Content = JsonContent.Create(payload);
             var since = Stopwatch.StartNew();
@@ -111,9 +111,10 @@ public sealed class OpenRouterTextModel : IDisposable
         }
     }
 
-    public JsonObject Payload(string name, string instructions, string prompt)
+    // A note task brings its own schema and output cap; other calls take theirs from ModelOutputContract by name.
+    public JsonObject Payload(string name, string instructions, string prompt, NoteTask? task = null)
     {
-        var reply = ModelOutputContract.OutputLimit(name);
+        var reply = task?.MaxOutputTokens ?? ModelOutputContract.OutputLimit(name);
         var payload = new JsonObject
         {
             ["model"] = Model,
@@ -133,7 +134,13 @@ public sealed class OpenRouterTextModel : IDisposable
         // "order" names the preferred provider; other providers of the model stay allowed (allow_fallbacks defaults to
         // true, https://openrouter.ai/docs/guides/routing/provider-selection), though Qwen3.8 Flash has no other.
         if (CachingProvider.TryGetValue(Model, out var provider)) payload["provider"]!["order"] = new JsonArray(provider);
-        if (ModelOutputContract.ResponseFormat(name, prompt) is ChatResponseFormatJson { Schema: { } schema } format)
+        if (task is not null)
+            payload["response_format"] = new JsonObject
+            {
+                ["type"] = "json_schema",
+                ["json_schema"] = new JsonObject { ["name"] = task.Name, ["strict"] = true, ["schema"] = JsonNode.Parse(task.Schema) }
+            };
+        else if (ModelOutputContract.ResponseFormat(name, prompt) is ChatResponseFormatJson { Schema: { } schema } format)
             payload["response_format"] = new JsonObject
             {
                 ["type"] = "json_schema",

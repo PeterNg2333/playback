@@ -9,3 +9,4 @@ global using NoteInstructions = Playback.Application.Notes.NoteInstructions;
 global using NotePrompt = Playback.Application.Notes.NotePrompt;
 global using NoteScheduler = Playback.Application.Notes.NoteScheduler;
 global using NoteCoverageReport = Playback.Application.Notes.NoteCoverageReport;
+global using NoteTask = Playback.Application.Notes.NoteTask;

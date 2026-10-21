@@ -39,8 +39,15 @@ public sealed class FallbackNoteWriter(IReadOnlyList<OpenRouterNoteWriter> openR
     public string Model => primary.Model;
     public IReadOnlyList<string> Models => openRouter.Select(x => x.Model).ToList();
 
-    public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
-        Action<string>? onUpdate = null, Action<string>? onUsage = null)
+    public Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct,
+        Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+        Attempt((writer, usage) => writer.Generate(name, instructions, input, ct, onUpdate, usage), onUpdate, onUsage, ct);
+
+    public Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct,
+        Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+        Attempt((writer, usage) => writer.Complete(task, instructions, input, ct, onUpdate, usage), onUpdate, onUsage, ct);
+
+    async Task<T> Attempt<T>(Func<INoteWriter, Action<string>, Task<T>> call, Action<string>? onUpdate, Action<string>? onUsage, CancellationToken ct)
     {
         var failures = new JsonArray();
         var since = Stopwatch.StartNew();
@@ -64,7 +71,7 @@ public sealed class FallbackNoteWriter(IReadOnlyList<OpenRouterNoteWriter> openR
             JsonNode? usage = null;
             try
             {
-                return await current.Generate(name, instructions, input, ct, onUpdate, report =>
+                return await call(current, report =>
                 {
                     usage = JsonNode.Parse(report);
                     onUsage?.Invoke(failures.Count == 0 ? report : WithWriter(report, Writer(current, current == primary ? null : primary, failures)));
@@ -84,7 +91,7 @@ public sealed class FallbackNoteWriter(IReadOnlyList<OpenRouterNoteWriter> openR
         var writer = Writer(fallback, primary, failures);
         onUsage?.Invoke(writer.ToJsonString());
         onUpdate?.Invoke("");
-        return await fallback.Generate(name, instructions, input, ct, onUpdate, report => onUsage?.Invoke(WithWriter(report, writer)));
+        return await call(fallback, report => onUsage?.Invoke(WithWriter(report, writer)));
     }
 
     static JsonObject Writer(INoteWriter actual, INoteWriter? replaced, JsonArray failures)

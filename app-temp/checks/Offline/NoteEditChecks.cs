@@ -463,5 +463,7 @@ static class NoteEditChecks
             using var document = JsonDocument.Parse(input);
             return Task.FromResult(Next(document.RootElement.Clone()));
         }
+        public Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct, Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+            throw new NotSupportedException("The scripted edit writer answers placement calls only");
     }
 }

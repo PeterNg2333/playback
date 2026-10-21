@@ -343,6 +343,8 @@ static class NoteModelComparison
         public bool IsConfigured => inner.IsConfigured;
         public string Provider => inner.Provider;
         public string Model => inner.Model;
+        public Task<string> Complete(Playback.Application.Notes.NoteTask task, string instructions, string input, CancellationToken ct, Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+            throw new NotSupportedException("The comparison replays the placement writer only");
         public async Task<NotePatch> Generate(string name, string instructions, string input, CancellationToken ct, Action<string>? onUpdate = null, Action<string>? onUsage = null)
         {
             var last = "";

@@ -17,7 +17,26 @@ public class GeminiLanguageModel : ITextGenerator
     readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
     public virtual bool IsConfigured => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY"));
 
-    public virtual async Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null)
+    public virtual Task<string> Generate(string name, string instructions, string prompt, CancellationToken ct, string? model = null, Action<string>? onUpdate = null, Action<string>? onUsage = null) =>
+        Run(name, instructions, prompt, ModelOutputContract.OutputLimit(name), ModelOutputContract.ResponseFormat(name, prompt), ct, model, onUpdate, onUsage);
+
+    // A note task with its own schema and output cap. Gemini's schema subset has no additionalProperties, so it is removed.
+    public virtual Task<string> Complete(NoteTask task, string instructions, string prompt, CancellationToken ct,
+        Action<string>? onUpdate = null, Action<string>? onUsage = null)
+    {
+        var schema = System.Text.Json.Nodes.JsonNode.Parse(task.Schema)!;
+        void Open(System.Text.Json.Nodes.JsonNode? node)
+        {
+            if (node is System.Text.Json.Nodes.JsonObject value) { value.Remove("additionalProperties"); foreach (var child in value.ToList()) Open(child.Value); }
+            else if (node is System.Text.Json.Nodes.JsonArray items) foreach (var child in items) Open(child);
+        }
+        Open(schema);
+        var format = ChatResponseFormat.ForJsonSchema(JsonDocument.Parse(schema.ToJsonString()).RootElement, task.Name);
+        return Run(task.Name, instructions, prompt, task.MaxOutputTokens, format, ct, null, onUpdate, onUsage);
+    }
+
+    async Task<string> Run(string name, string instructions, string prompt, int maxOutputTokens, ChatResponseFormat? format, CancellationToken ct,
+        string? model, Action<string>? onUpdate, Action<string>? onUsage)
     {
         if (PlaybackEnvironment.Offline)
             throw new InvalidOperationException("External AI is disabled for offline tests");
@@ -27,8 +46,7 @@ public class GeminiLanguageModel : ITextGenerator
         using var client = new Client(vertexAI: true, apiKey: key);
         using var chat = new OutputGuardChatClient(client.AsIChatClient(model ?? Model), onUsage);
         var agent = new ChatClientAgent(chat, new ChatClientAgentOptions {
-            Name = name, ChatOptions = new ChatOptions { Instructions = instructions, MaxOutputTokens = ModelOutputContract.OutputLimit(name),
-                ResponseFormat = ModelOutputContract.ResponseFormat(name, prompt) }
+            Name = name, ChatOptions = new ChatOptions { Instructions = instructions, MaxOutputTokens = maxOutputTokens, ResponseFormat = format }
         });
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(100));

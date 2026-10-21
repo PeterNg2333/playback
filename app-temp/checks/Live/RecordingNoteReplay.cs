@@ -44,5 +44,12 @@ static class RecordingNoteReplay
             try { return await inner.Generate(name, instructions, input, ct, text => { reply = text; onUpdate?.Invoke(text); }, onUsage); }
             finally { await File.WriteAllTextAsync(Path.Combine(folder, label + "-reply.json"), reply, CancellationToken.None); }
         }
+        public async Task<string> Complete(NoteTask task, string instructions, string input, CancellationToken ct, Action<string>? onUpdate = null, Action<string>? onUsage = null)
+        {
+            var reply = "";
+            await File.WriteAllTextAsync(Path.Combine(folder, label + "-input.json"), input, ct);
+            try { return reply = await inner.Complete(task, instructions, input, ct, onUpdate, onUsage); }
+            finally { await File.WriteAllTextAsync(Path.Combine(folder, label + "-reply.json"), reply, CancellationToken.None); }
+        }
     }
 }
