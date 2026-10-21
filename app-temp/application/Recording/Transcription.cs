@@ -1,7 +1,6 @@
 using Playback.Application.Recording;
 using System.Diagnostics;
 using System.Net.Sockets;
-using Playback.Api.Db;
 using Playback.Api.Activity;
 using System.Text.Json;
 
@@ -68,7 +67,7 @@ public sealed class Transcription(
         var display = audio.Display(result.Text, settings.AsrLanguage, result.Language);
         try {
             await store.SaveTranscript(chunk, result.Text, model, display == result.Text ? null : display,
-                model.SupportsLanguageHint ? Playback.Domain.Audio.AsrLanguage.ProviderHint(settings.AsrLanguage) : null, result.Language);
+                model.SupportsLanguageHint ? AsrLanguage.ProviderHint(settings.AsrLanguage) : null, result.Language);
             var summary = string.IsNullOrWhiteSpace(result.Text) ? "No words returned; original audio retained" : "Confirmed original ASR saved";
             await activity.End(call, "completed", summary + (result.FallbackSummary is null ? "" : "; " + result.FallbackSummary), model.Model);
         } catch (Exception ex) { await activity.Fail(call, ex); throw; }

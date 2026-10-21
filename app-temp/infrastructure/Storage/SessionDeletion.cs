@@ -1,4 +1,5 @@
 using MongoDB.Driver;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Db;
 
@@ -46,7 +47,7 @@ public partial class PlaybackStore
         await Collection<NoteGateRecord>("note_gates").DeleteManyAsync(x => x.SessionId == id);
         await Collection<MongoDB.Bson.BsonDocument>("note_organization").DeleteOneAsync(new MongoDB.Bson.BsonDocument("_id", id));
         await Collection<MongoDB.Bson.BsonDocument>("note_rewrites").DeleteManyAsync(new MongoDB.Bson.BsonDocument("SessionId", id));
-        await Collection<Playback.Domain.Audio.CombinedAudioSegment>("combined_audio").DeleteManyAsync(x => x.SessionId == id);
+        await Collection<CombinedAudioSegment>("combined_audio").DeleteManyAsync(x => x.SessionId == id);
         await Collection<MongoDB.Bson.BsonDocument>("speech_boundaries").DeleteManyAsync(new MongoDB.Bson.BsonDocument("SessionId", id));
         await Collection<AudioStreamRecord>("audio_streams").DeleteManyAsync(x => x.SessionId == id);
         await Collection<RerunJob>("rerun_jobs").DeleteManyAsync(x => x.SessionId == id);

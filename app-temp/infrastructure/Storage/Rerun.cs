@@ -1,6 +1,7 @@
 using MongoDB.Driver;
 using Playback.Application.Recording;
 using Playback.Domain.Audio;
+using Playback.Domain.Models;
 using Playback.Infrastructure.Audio;
 
 namespace Playback.Api.Db;

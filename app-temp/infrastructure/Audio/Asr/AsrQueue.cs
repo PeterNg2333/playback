@@ -1,5 +1,6 @@
 using MongoDB.Driver;
 using Playback.Api.Db;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Audio.Asr;
 

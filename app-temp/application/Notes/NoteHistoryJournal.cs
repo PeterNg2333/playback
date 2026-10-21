@@ -1,3 +1,4 @@
+using Playback.Domain;
 using Playback.Domain.Notes;
 namespace Playback.Application.Notes;
 public interface INoteHistoryStorage
@@ -31,7 +32,7 @@ public sealed class NoteHistoryJournal(INoteHistoryStorage storage)
     public async Task Commit(Note note, int expectedVersion)
     {
         if (note.Version != expectedVersion + 1) throw new InvalidOperationException("Invalid next note revision");
-        note.Id = "note_" + Playback.Domain.ContentHash.Of(note.SessionId + ":" + note.Version);
+        note.Id = "note_" + ContentHash.Of(note.SessionId + ":" + note.Version);
         var next = new NoteHead {Id = note.SessionId, Version = note.Version, Current = note, PendingHistory = true};
         if (!await storage.Advance(next, expectedVersion)) throw new InvalidOperationException("Notes changed; reload before saving");
         await Recover(next);

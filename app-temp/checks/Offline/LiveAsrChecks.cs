@@ -3,6 +3,7 @@ using NAudio.Wave;
 using Playback.Api.Db;
 using Playback.Api.Audio.Asr;
 using Playback.Api.Activity;
+using Playback.Domain.Models;
 using System.Collections.Concurrent;
 
 // Live ASR while recording: interim previews from real 16 kHz PCM, one request at a time, streaming

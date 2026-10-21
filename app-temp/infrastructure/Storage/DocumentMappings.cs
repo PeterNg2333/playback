@@ -1,5 +1,5 @@
 using MongoDB.Bson.Serialization;
-using Playback.Api.Db;
+using Playback.Domain.Models;
 
 namespace Playback.Infrastructure.Storage;
 

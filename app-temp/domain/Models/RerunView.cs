@@ -1,4 +1,4 @@
-namespace Playback.Api.Db;
+namespace Playback.Domain.Models;
 
 // The compact job state the page shows; the window plan itself stays on the server.
 public sealed record RerunView(string Id, string Status, bool Asr, string? AsrModel, int WindowSeconds, string Notes, string NotesStatus,

@@ -1,7 +1,7 @@
 using Playback.Api.Activity;
 using Playback.Api.Audio.Asr;
-using Playback.Api.Db;
 using Playback.Domain.Audio;
+using Playback.Domain.Models;
 
 namespace Playback.Application.Recording;
 

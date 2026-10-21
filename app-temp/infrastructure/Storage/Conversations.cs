@@ -1,4 +1,5 @@
-using Playback.Api.Providers;
+using Playback.Domain.Assistance;
+using Playback.Domain.Models;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using System.Text.Json;

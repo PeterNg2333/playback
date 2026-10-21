@@ -1,4 +1,4 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 namespace Playback.Application.Recording;
 public sealed record ChunkUpload(Dictionary<string, string> Fields, Stream Content, long Length);
 public interface IChunkRepository
@@ -19,7 +19,7 @@ public sealed class ChunkCommands(IChunkRepository repository, IAsrJobs jobs, IA
     {
         if (upload.Length is < 44 or > 25000000) throw new InvalidOperationException("Expected a bounded WAV file");
         var chunk = await repository.ImportChunk(upload, ct);
-        if (!Playback.Domain.Audio.ChunkStatus.Finished(chunk.Status) && chunk.Status is not (Playback.Domain.Audio.ChunkStatus.AsrError or Playback.Domain.Audio.ChunkStatus.AsrManual)) jobs.Enqueue(chunk.Id);
+        if (!ChunkStatus.Finished(chunk.Status) && chunk.Status is not (ChunkStatus.AsrError or ChunkStatus.AsrManual)) jobs.Enqueue(chunk.Id);
         return chunk;
     }
     public Task Retry(string sessionId, IEnumerable<string>? ids) => jobs.Retry(sessionId, ids);

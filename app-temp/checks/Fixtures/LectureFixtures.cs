@@ -1,4 +1,4 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 
 // Synthetic lectures: three hours of 30-second passages, and the widest passage one citation alias can cover.
 static class LectureFixtures

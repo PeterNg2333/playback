@@ -1,6 +1,6 @@
-using Playback.Api;
+using Playback.Domain;
+using Playback.Domain.Models;
 using System.Text.RegularExpressions;
-using Playback.Api.Db;
 
 // The repository's Week 3 lecture transcript as text-import sources. Each timestamp line ends the passage above
 // it; neighbouring passages are paired into one source. The text is exact, so this is provider-input evidence,

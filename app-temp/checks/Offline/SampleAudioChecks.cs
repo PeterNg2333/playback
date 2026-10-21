@@ -3,8 +3,8 @@ using NAudio.Wave;
 using Playback.Api.Ask;
 using Playback.Api.Audio;
 using Playback.Api.Audio.Vad;
-using Playback.Api.Db;
 using Playback.Api.Notes;
+using Playback.Domain.Models;
 
 // Checks against the repository's Week 3 sample (app-temp/data/test-audio/sampleAudio). Read-only: nothing
 // is saved or uploaded. Decoding the M4A needs Windows; the transcript lookup does not.

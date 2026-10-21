@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
-using Playback.Api.Db;
+using Playback.Domain;
+using Playback.Domain.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 

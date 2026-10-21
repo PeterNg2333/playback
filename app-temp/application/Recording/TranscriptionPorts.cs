@@ -1,5 +1,5 @@
-using Playback.Api.Db;
 using Playback.Api.Audio.Asr;
+using Playback.Domain.Models;
 
 namespace Playback.Application.Recording;
 

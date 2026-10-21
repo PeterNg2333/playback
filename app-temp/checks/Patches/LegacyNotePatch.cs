@@ -4,7 +4,8 @@ using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Playback.Api;
-using Playback.Api.Db;
+using Playback.Domain;
+using Playback.Domain.Models;
 
 // Data patch for notes saved before commit 8dd747f simplified the note model. The model now reads only
 // Sections → Blocks with each block's SourceIds, so two older shapes lost what they showed:
@@ -68,7 +69,7 @@ static class LegacyNotePatch
         var compact = NoteSections.Compact(sessionId, body, allowed, citations);
         return new NoteBlock
         {
-            Id = "block_" + Playback.Domain.ContentHash.Of(topicId + ":" + body)[..20],
+            Id = "block_" + ContentHash.Of(topicId + ":" + body)[..20],
             Role = "note",
             Body = compact,
             CitationIds = CitationSyntax.Bodies(compact).Distinct().ToList(),

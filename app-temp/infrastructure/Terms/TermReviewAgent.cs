@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using Playback.Api.Db;
 using Playback.Api.Providers;
 using Playback.Api.Activity;
+using Playback.Domain.Assistance;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Terms;
 

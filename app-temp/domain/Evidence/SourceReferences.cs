@@ -1,7 +1,7 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Sources;
+namespace Playback.Domain.Evidence;
 
 public sealed record TranscriptSourceGroup(string Id, string SourceId, List<string> TranscriptIds,
     long StartMs, long EndMs, DateTime? RecordedAt);

@@ -1,4 +1,4 @@
-namespace Playback.Api.Audio.Asr;
+namespace Playback.Domain.Audio;
 
 public static class AsrModelOptions
 {

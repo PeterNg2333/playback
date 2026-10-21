@@ -1,7 +1,6 @@
-using Playback.Api.Db;
-using Playback.Api.Providers;
 using Playback.Api.Activity;
-using Playback.Api.Sources;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
@@ -151,7 +150,7 @@ public sealed class ChatAgent(IConversationRepository store, ITextGenerator gemi
                 "\nAnswer independently from public sources. Do not claim this was said in the lecture. " +
                 "Write in English unless the question explicitly requests another language. Prefer concise bullets. " +
                 (input.SelectedText is null ? "" : "An ASR selection may be misheard; a correction is only a hypothesis.");
-            activity.Context(search, "chat-search-v1", Playback.Domain.Assistance.ModelInstructions.Search, searchInput);
+            activity.Context(search, "chat-search-v1", ModelInstructions.Search, searchInput);
             await activity.Start(search);
             using var searchDeadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
             searchDeadline.CancelAfter(TimeSpan.FromSeconds(15));

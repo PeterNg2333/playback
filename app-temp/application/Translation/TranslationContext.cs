@@ -1,4 +1,4 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 namespace Playback.Api.Translation;
 
 public sealed record TranslationRequest(string Prompt, Dictionary<string, string> TargetIds);
@@ -8,7 +8,7 @@ public sealed record TranslationRequest(string Prompt, Dictionary<string, string
 public static class TranslationContext
 {
     public static string Instructions(string language) =>
-        $"Translate each TARGET original into {Playback.Domain.Notes.NoteLanguage.OutputDescription(language)}. " +
+        $"Translate each TARGET original into {NoteLanguage.OutputDescription(language)}. " +
         "Use CONTEXT for terminology and preserve uncertainty. " +
         "Return only JSON: {\"translations\":[{\"id\":\"target ID\",\"text\":\"translation\"}]}. " +
         "Include each target ID exactly once and do not translate context. " +

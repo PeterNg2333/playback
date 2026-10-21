@@ -1,4 +1,8 @@
-using Playback.Api.Db; using Playback.Api.Activity; using Playback.Application.Translation; using System.Text; using System.Text.Json;
+using Playback.Domain.Models;
+using Playback.Api.Activity;
+using Playback.Application.Translation;
+using System.Text;
+using System.Text.Json;
 namespace Playback.Api.Translation;
 public sealed class TranslationWorkflow(ITranslationRepository store, ITextGenerator gemini, IWorkLog logger, AiActivity activity)
 {

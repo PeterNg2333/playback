@@ -1,6 +1,6 @@
 using Playback.Api.Audio.Asr;
-using Playback.Api.Db;
 using Playback.Application.Recording;
+using Playback.Domain.Models;
 namespace Playback.Api.Endpoints;
 
 // Rerun a session: ASR over longer windows and/or the notes (incremental or rebuilt). One job per session at a time.

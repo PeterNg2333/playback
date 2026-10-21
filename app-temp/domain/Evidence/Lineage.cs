@@ -1,6 +1,6 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 
-namespace Playback.Api.Sources;
+namespace Playback.Domain.Evidence;
 
 // Source lineage: audio chunk → transcript segment (a rerun window supersedes the rows it re-recognized) → note
 // block → topic, and term → segment. Stored notes keep the IDs they were written with; every read maps a superseded

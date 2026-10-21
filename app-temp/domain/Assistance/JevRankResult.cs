@@ -1,5 +1,5 @@
 using System.Text.Json;
-namespace Playback.Api.Terms;
+namespace Playback.Domain.Assistance;
 
 public sealed record JevRankResult(
     string Term, bool RuleSuggestExplanation, string Model, long LatencyMs,

@@ -1,9 +1,7 @@
 using Playback.Domain.Notes;
-using Playback.Api.Terms;
-using Playback.Api.Sources;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Db;
+namespace Playback.Domain.Models;
 
 // Saved audio chunks: the WAV on disk, its identity, and its ASR status.
 public sealed class ChunkRecord

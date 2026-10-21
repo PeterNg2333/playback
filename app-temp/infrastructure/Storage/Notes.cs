@@ -2,6 +2,7 @@ using MongoDB.Driver;
 using Playback.Api.Notes;
 using Playback.Infrastructure.Notes;
 using Playback.Application.Notes;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Db;
 

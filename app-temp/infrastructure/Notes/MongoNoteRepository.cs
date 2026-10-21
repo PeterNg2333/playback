@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using MongoDB.Driver;
 using Playback.Application.Notes;
+using Playback.Domain.Evidence;
 using Playback.Domain.Notes;
 
 namespace Playback.Infrastructure.Notes;
@@ -47,7 +48,7 @@ public sealed class MongoNoteRepository(IMongoCollection<Note> notes, IMongoColl
             var previous = (await Head(id)).Current;
             if (previous?.InputHash == inputHash) return new { previous.Version, previous.Markdown, previous.Author };
             // The change log compares with the previous version as every reader sees it: through lineage.
-            if (previous is not null && supersessions is not null) Playback.Api.Sources.Lineage.Apply(previous, await supersessions(id));
+            if (previous is not null && supersessions is not null) Lineage.Apply(previous, await supersessions(id));
             var note = NoteMutation.Create(id, previous, update, inputHash, basedOnVersion, language, currentLanguage, author);
             var materialIds = await evidence.MaterialIds(id);
             note.MaterialIds = note.TranscriptIds.Select(MaterialSources.Parent).Intersect(materialIds).Distinct().ToList();

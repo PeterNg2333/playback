@@ -1,6 +1,6 @@
-using Playback.Api.Db;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 using System.Text.RegularExpressions;
-using Playback.Api.Sources;
 
 namespace Playback.Api.Ask;
 

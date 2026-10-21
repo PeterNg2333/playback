@@ -1,6 +1,6 @@
 using Playback.Api.Activity;
-using Playback.Api.Db;
-using Playback.Api.Sources;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Ask;
 

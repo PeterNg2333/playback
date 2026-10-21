@@ -1,9 +1,7 @@
 using Playback.Domain.Notes;
-using Playback.Api.Terms;
-using Playback.Api.Sources;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Db;
+namespace Playback.Domain.Models;
 
 public sealed class ConversationRecord
 {

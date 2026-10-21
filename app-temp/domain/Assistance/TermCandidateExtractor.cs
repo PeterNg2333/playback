@@ -1,7 +1,7 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Terms;
+namespace Playback.Domain.Assistance;
 
 public sealed record TermCandidate(string Text, List<string> TranscriptIds, List<string> MaterialIds, string Context = "");
 

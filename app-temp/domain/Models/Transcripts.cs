@@ -1,9 +1,7 @@
 using Playback.Domain.Notes;
-using Playback.Api.Terms;
-using Playback.Api.Sources;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Db;
+namespace Playback.Domain.Models;
 
 // Transcripts: the original ASR text of each chunk and its separately saved translations.
 public sealed class Transcript

@@ -3,8 +3,8 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Threading.Channels;
 using NAudio.Wave;
-using Playback.Api.Db;
 using Playback.Api.Activity;
+using Playback.Domain.Models;
 using System.Text.Json;
 
 namespace Playback.Api.Audio.Asr;

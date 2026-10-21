@@ -2,8 +2,10 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Playback.Api.Db;
 using Playback.Api.Notes;
-using Playback.Api.Terms;
 using Playback.Application.Notes;
+using Playback.Domain.Assistance;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 
 // PlaybackStore with the note, activity and sync reads kept in memory, for checks without MongoDB.
 // Every read returns a copy, as a database would.
@@ -47,16 +49,16 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
     {
         if (!Languages.ContainsKey(id)) return Task.FromResult<SessionView?>(null);
         Notes.TryGetValue(id, out var note);
-        var supersessions = Playback.Api.Sources.Lineage.Supersessions(Transcripts[id]);
-        var copy = note is null ? null : Playback.Api.Sources.Lineage.Apply(Copy(note), supersessions);
+        var supersessions = Lineage.Supersessions(Transcripts[id]);
+        var copy = note is null ? null : Lineage.Apply(Copy(note), supersessions);
         var insights = Copy(Insights[id]);
-        foreach (var insight in insights) insight.TranscriptIds = Playback.Api.Sources.Lineage.Remap(insight.TranscriptIds, supersessions);
+        foreach (var insight in insights) insight.TranscriptIds = Lineage.Remap(insight.TranscriptIds, supersessions);
         return Task.FromResult<SessionView?>(new(id, id, null, DateTime.UtcNow.Date, copy?.Markdown ?? "", copy?.Version ?? 0, false, "zh-Hant",
             Copy(Materials[id]), Copy(Transcripts[id].Where(x => x.Active).ToList()), Copy(Chunks[id]), Copy(Terms[id]), insights, copy, NoteLanguage: Languages[id])
             { Supersessions = supersessions });
     }
     public override Task<Dictionary<string, string>> Supersessions(string sessionId) =>
-        Task.FromResult(Playback.Api.Sources.Lineage.Supersessions(Transcripts[sessionId]));
+        Task.FromResult(Lineage.Supersessions(Transcripts[sessionId]));
     public override Task<List<Transcript>> AllTranscripts(string sessionId) =>
         Task.FromResult(Copy(Transcripts[sessionId].OrderBy(x => x.StartMs).ToList()));
 
@@ -66,7 +68,7 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
         return Task.FromResult(kind switch
         {
             "transcript" => Transcripts[id].Where(x => x.Active && (ids == null || ids.Contains(x.Id))).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
-            "lineage" => [new SyncRecord(kind, id, new { supersededBy = Playback.Api.Sources.Lineage.Supersessions(Transcripts[id]) })],
+            "lineage" => [new SyncRecord(kind, id, new { supersededBy = Lineage.Supersessions(Transcripts[id]) })],
             "material" => Materials[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
             "insight" => Insights[id].Where(x => ids == null || ids.Contains(x.Id)).Select(x => new SyncRecord(kind, x.Id, Copy(x))).ToList(),
             _ => new List<SyncRecord>()
@@ -116,7 +118,7 @@ sealed class MemoryStore() : PlaybackStore(inMemory: true)
     {
         Notes.TryGetValue(id, out var previous);
         if (previous?.InputHash == hash) return Task.FromResult<object>(new { previous.Version, previous.Markdown, previous.Author });
-        var note = NoteMutation.Create(id, previous is null ? null : Playback.Api.Sources.Lineage.Apply(Copy(previous), Playback.Api.Sources.Lineage.Supersessions(Transcripts[id])), NoteMutation.Prepare(id, update), hash,
+        var note = NoteMutation.Create(id, previous is null ? null : Lineage.Apply(Copy(previous), Lineage.Supersessions(Transcripts[id])), NoteMutation.Prepare(id, update), hash,
             basedOnVersion, language, Languages[id], author, (Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
         Notes[id] = Copy(note);
         Versions[id].Add(Copy(note));

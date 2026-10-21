@@ -6,6 +6,7 @@ using Playback.Api.Terms;
 using Playback.Api.Translation;
 using Playback.Api.Providers;
 using Playback.Api.Audio.Asr;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Activity;
 

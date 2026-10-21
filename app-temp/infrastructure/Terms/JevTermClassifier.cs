@@ -2,13 +2,14 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
 using Playback.Api.Providers;
+using Playback.Domain.Assistance;
 
 namespace Playback.Api.Terms;
 
 public sealed class JevTermClassifier : ITermClassifier
 {
-    public static string HighlightRule => Playback.Domain.Assistance.TermRanking.HighlightRule;
-    public static bool ShouldHighlight(JevRankResult result) => Playback.Domain.Assistance.TermRanking.ShouldHighlight(result);
+    public static string HighlightRule => TermRanking.HighlightRule;
+    public static bool ShouldHighlight(JevRankResult result) => TermRanking.ShouldHighlight(result);
     readonly JevTransport transport;
     readonly SemaphoreSlim rankGate = new(1, 1);
     readonly ConcurrentDictionary<string, (DateTimeOffset Expires, JevRankResult Result)> cache = new();
@@ -41,8 +42,8 @@ public sealed class JevTermClassifier : ITermClassifier
         finally { rankGate.Release(); }
     }
 
-    public static object Questions => Playback.Domain.Assistance.TermRanking.Questions;
-    public static string State(string term, string context) => Playback.Domain.Assistance.TermRanking.State(term, context);
+    public static object Questions => TermRanking.Questions;
+    public static string State(string term, string context) => TermRanking.State(term, context);
     async Task<JevRankResult> RankUncached(string term, string context, CancellationToken ct)
     {
         var rule = term.Length >= 8 || term.Any(char.IsUpper);

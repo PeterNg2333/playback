@@ -4,12 +4,13 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging.Abstractions;
 using MongoDB.Driver;
-using Playback.Api;
 using Playback.Api.Activity;
 using Playback.Api.Db;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
 using Playback.Application.Notes;
+using Playback.Domain;
+using Playback.Domain.Models;
 
 // Three-speed notes on the whole Week 3 lecture through the product's NoteWorkflow, real MongoDB (playback_e2e) and the
 // real note writer (Qwen3.8 Flash on OpenRouter, then GLM, then Gemini). Text only; no audio is read or sent.

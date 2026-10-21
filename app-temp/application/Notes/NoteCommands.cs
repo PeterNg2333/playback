@@ -1,4 +1,5 @@
 using Playback.Domain;
+using Playback.Domain.Evidence;
 using Playback.Domain.Notes;
 
 namespace Playback.Application.Notes;
@@ -31,7 +32,7 @@ public sealed class NoteCommands(INoteRepository repository, INoteEvidence evide
     {
         var session = await Session(id);
         if (basedOnVersion is not null && session.NoteVersion != basedOnVersion) throw new InvalidOperationException("Notes changed; reload before restoring");
-        var historical = Playback.Api.Sources.Lineage.Apply(await repository.Version(id, version) ?? throw new InvalidOperationException("Historical note not found"), session.Supersessions);
+        var historical = Lineage.Apply(await repository.Version(id, version) ?? throw new InvalidOperationException("Historical note not found"), session.Supersessions);
         if (historical.Sections.All(x => x.Blocks.Count == 0))
             throw new InvalidOperationException("This version was saved before topic notes and cannot be restored; rebuild the notes instead");
         var citations = NoteSections.CloneCitations(session.CurrentNote?.Citations ?? []);

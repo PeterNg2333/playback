@@ -1,4 +1,7 @@
 using Playback.Api.Audio.Asr;
+using Playback.Domain;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 using System.Text.RegularExpressions;
 using MongoDB.Driver;
 using MongoDB.Bson.Serialization.Attributes;
@@ -44,7 +47,7 @@ public partial class PlaybackStore
     public async Task<Transcript?> TranscriptForChunk(string id) =>
         await Collection<Transcript>("transcripts").Find(x => x.Id == id).FirstOrDefaultAsync();
     public virtual async Task<Dictionary<string, string>> Supersessions(string sessionId) =>
-        Playback.Api.Sources.Lineage.Supersessions(await Collection<Transcript>("transcripts")
+        Lineage.Supersessions(await Collection<Transcript>("transcripts")
             .Find(x => x.SessionId == sessionId && x.SupersededBy != null).ToListAsync());
     // Every transcript row of a session, superseded rows included, for trace and rerun planning.
     public virtual async Task<List<Transcript>> AllTranscripts(string sessionId) =>

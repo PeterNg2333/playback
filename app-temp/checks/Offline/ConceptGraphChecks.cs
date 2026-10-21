@@ -2,9 +2,9 @@ using System.Net;
 using System.Text;
 using Playback.Api.Activity;
 using Playback.Api.Ask;
-using Playback.Api.Db;
 using Playback.Api.Providers;
-using Playback.Api.Sources;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 
 static class ConceptGraphChecks
 {

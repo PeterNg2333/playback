@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Playback.Api.Terms;
+using Playback.Domain;
+using Playback.Domain.Assistance;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using System.Text.RegularExpressions;
@@ -63,7 +66,7 @@ public partial class PlaybackStore
         if (kind == "combined-audio") records.Add(new(kind, id, new { combinedAudioSegments = await CombinedAudio(id) }));
         if (kind == "meta") {
             var session = await SessionSettings(id);
-            var note = await NoteRepository.Latest(id) is { } latest ? Playback.Api.Sources.Lineage.Apply(latest, await Supersessions(id)) : null;
+            var note = await NoteRepository.Latest(id) is { } latest ? Lineage.Apply(latest, await Supersessions(id)) : null;
             records.Add(new("meta", id, SyncMeta(session, note)));
         }
         if (kind == "lineage") records.Add(new(kind, id, new { supersededBy = await Supersessions(id) }));

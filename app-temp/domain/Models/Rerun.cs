@@ -1,4 +1,4 @@
-namespace Playback.Api.Db;
+namespace Playback.Domain.Models;
 
 // A user-requested rerun of one session: ASR over longer windows, then the notes (incremental or rebuilt).
 // The window plan is persisted so a restart resumes window by window without re-uploading completed ones.

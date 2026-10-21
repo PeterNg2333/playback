@@ -1,6 +1,7 @@
 using Playback.Api.Activity;
 using Playback.Api.Db;
 using Playback.Api.Endpoints;
+using Playback.Domain.Models;
 
 // In-memory lifecycle checks only: never removes a database record or audio file.
 static class SessionDeletionChecks

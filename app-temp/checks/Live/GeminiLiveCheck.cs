@@ -2,7 +2,7 @@ using Playback.Api.Providers;
 using Playback.Api.Notes;
 using Playback.Api.Ask;
 using Playback.Api.Translation;
-using Playback.Api.Db;
+using Playback.Domain.Models;
 
 // Paid: synthetic notes, grounded search, translation and a cited answer through Vertex Gemini.
 // Needs PLAYBACK_GEMINI_LIVE_TEST=yes (set by run-gemini-live.mjs) and a real key in the process environment.

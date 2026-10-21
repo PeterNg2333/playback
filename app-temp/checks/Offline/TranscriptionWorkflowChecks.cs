@@ -1,9 +1,9 @@
 using Playback.Api.Audio.Asr;
 using Playback.Api.Activity;
-using Playback.Api.Db;
 using Playback.Application.Assistance;
 using Playback.Application.Recording;
 using Playback.Domain.Audio;
+using Playback.Domain.Models;
 static class TranscriptionWorkflowChecks
 {
     public static async Task Run()

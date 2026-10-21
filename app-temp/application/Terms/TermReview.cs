@@ -1,4 +1,7 @@
-using System.Collections.Concurrent; using Playback.Api.Db; using Playback.Api.Activity; using Playback.Domain.Assistance;
+using System.Collections.Concurrent;
+using Playback.Domain.Models;
+using Playback.Api.Activity;
+using Playback.Domain.Assistance;
 namespace Playback.Api.Terms;
 public sealed class TermReview(ITermRepository store, ITermClassifier jev, ITextGenerator gemini, IWorkLog logger, AiActivity activity)
 {
@@ -54,7 +57,7 @@ public sealed class TermReview(ITermRepository store, ITermClassifier jev, IText
             if (!insight.Highlight) throw new InvalidOperationException("This term was not selected for explanation");
             var call = await activity.Begin(sessionId, "Term explanation: " + insight.Term, "vertex / Google Search",
                 gemini.Model, insight.TranscriptIds.Concat(insight.MaterialIds));
-            var input = $"Term: {insight.Term}\nContext: {insight.Context}\nOutput language: {Playback.Domain.Notes.NoteLanguage.OutputDescription(insight.OutputLanguage)}";
+            var input = $"Term: {insight.Term}\nContext: {insight.Context}\nOutput language: {NoteLanguage.OutputDescription(insight.OutputLanguage)}";
             activity.Context(call, ModelInstructions.ExplanationPromptVersion, ModelInstructions.Explanation, input);
             await activity.Start(call);
             try

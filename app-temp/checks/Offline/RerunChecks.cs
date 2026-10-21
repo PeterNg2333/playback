@@ -2,12 +2,12 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Playback.Api.Activity;
 using Playback.Api.Audio.Asr;
-using Playback.Api.Db;
 using Playback.Api.Notes;
 using Playback.Api.Providers;
-using Playback.Api.Sources;
 using Playback.Application.Recording;
 using Playback.Domain.Audio;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
 
 static class RerunChecks
 {
@@ -67,7 +67,7 @@ static class RerunChecks
 
     static void Remap()
     {
-        var note = new Playback.Domain.Notes.Note
+        var note = new Note
         {
             SessionId = "r",
             Citations = [new() { Id = "cite_1", SourceIds = ["c1", "c2"] }],

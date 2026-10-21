@@ -1,8 +1,8 @@
-using Playback.Api.Db;
 using Playback.Api;
 using Playback.Api.Notes;
 using Playback.Api.Ask;
 using Playback.Api.Translation;
+using Playback.Domain.Models;
 
 // Language settings: spoken and output languages stay distinct, Cantonese is shown in Traditional
 // script without changing the saved ASR text, and the settings reach the prompts.

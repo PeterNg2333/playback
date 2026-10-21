@@ -1,5 +1,6 @@
 using MongoDB.Driver;
 using MongoDB.Bson.Serialization.Attributes;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Db;
 

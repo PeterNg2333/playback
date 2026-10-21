@@ -1,6 +1,7 @@
-using Playback.Api.Terms;
-using Playback.Api.Sources;
-using Playback.Api.Audio.Asr;
+using Playback.Domain.Assistance;
+using Playback.Domain.Evidence;
+using Playback.Domain.Models;
+using Playback.Domain.Workspace;
 using MongoDB.Driver;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -10,7 +11,7 @@ public partial class PlaybackStore
 {
     public async Task<object> CreateSession(string title, string? groupId = null)
     {
-        title = Playback.Domain.Workspace.WorkspaceRules.Title(title);
+        title = WorkspaceRules.Title(title);
         if (groupId is not null) await RequireGroupOwner(groupId);
         if (groupId is not null && await Collection<GroupRecord>("groups").CountDocumentsAsync(x => x.Id == groupId) == 0)
             throw new InvalidOperationException("Group not found");
@@ -31,7 +32,7 @@ public partial class PlaybackStore
             .ToListAsync();
     public async Task<GroupRecord> CreateGroup(string name)
     {
-        name = Playback.Domain.Workspace.WorkspaceRules.GroupName(name);
+        name = WorkspaceRules.GroupName(name);
         var group = new GroupRecord { Id = Guid.NewGuid().ToString("N"), OwnerId = CurrentOwner, Name = name, CreatedAt = DateTime.UtcNow };
         await Collection<GroupRecord>("groups").InsertOneAsync(group);
         return group;
@@ -39,7 +40,7 @@ public partial class PlaybackStore
     public async Task<GroupRecord> RenameGroup(string id, string name)
     {
         await RequireGroupOwner(id);
-        name = Playback.Domain.Workspace.WorkspaceRules.GroupName(name);
+        name = WorkspaceRules.GroupName(name);
         return await Collection<GroupRecord>("groups").FindOneAndUpdateAsync(x => x.Id == id,
             Builders<GroupRecord>.Update.Set(x => x.Name, name),
             new FindOneAndUpdateOptions<GroupRecord> { ReturnDocument = ReturnDocument.After })
@@ -133,7 +134,7 @@ public partial class PlaybackStore
     }
     public async Task<object> AddMaterial(string id, string name, string text)
     {
-        Playback.Domain.Workspace.WorkspaceRules.Material(name, text);
+        WorkspaceRules.Material(name, text);
         if (await Collection<SessionRecord>("sessions").CountDocumentsAsync(x => x.Id == id) == 0)
             throw new InvalidOperationException("Session not found");
         var material = new Material { Id = Guid.NewGuid().ToString("N"), SessionId = id, Name = name, Text = text };

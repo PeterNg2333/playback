@@ -1,5 +1,6 @@
 using Playback.Application.Notes;
 using Playback.Api.Db;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Notes;
 

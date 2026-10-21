@@ -2,6 +2,8 @@ using System.Text.Json;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Playback.Api.Db;
+using Playback.Domain;
+using Playback.Domain.Models;
 
 // The legacy note patch against local MongoDB (playback_e2e): a synthetic session with a pre-tree and a placement-era
 // version (history and head) is patched once, a second run writes nothing, the patched version restores with its
@@ -23,7 +25,7 @@ static class LegacyNotePatchStoreChecks
         string[] t = [id + "-t1", id + "-t2", id + "-t3"];
         await db.GetCollection<Transcript>("transcripts").InsertManyAsync(t.Select((x, i) => new Transcript
             { Id = x, SessionId = id, SourceId = "microphone", StartMs = i * 8000, EndMs = (i + 1) * 8000, Original = "Synthetic legacy source " + i }));
-        string Identity(int version) => "note_" + Playback.Domain.ContentHash.Of(id + ":" + version);
+        string Identity(int version) => "note_" + ContentHash.Of(id + ":" + version);
         var placement = LegacyNotePatchChecks.Placement(id, Identity(2), t);
         await db.GetCollection<BsonDocument>("notes").InsertManyAsync([LegacyNotePatchChecks.PreTree(id, Identity(1), t), placement]);
         await db.GetCollection<BsonDocument>("note_heads").InsertOneAsync(new BsonDocument

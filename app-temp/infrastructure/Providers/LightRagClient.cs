@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Playback.Api.Ask;
-using Playback.Api.Sources;
+using Playback.Domain.Evidence;
 
 namespace Playback.Api.Providers;
 
@@ -26,7 +26,7 @@ public sealed class LightRagClient : IConceptGraph, IDisposable
     {
         if (PlaybackEnvironment.Offline) throw new InvalidOperationException("The concept graph is disabled for offline tests");
         if (!Enabled) throw new InvalidOperationException("The concept graph is off; set PLAYBACK_CONCEPT_GRAPH=yes and start the sidecar");
-        if (!Playback.Domain.Audio.ChunkIdentity.IsSessionId(sessionId)) throw new InvalidOperationException("Invalid session identity");
+        if (!ChunkIdentity.IsSessionId(sessionId)) throw new InvalidOperationException("Invalid session identity");
     }
 
     async Task<T> Send<T>(HttpMethod method, string path, object? body, TimeSpan deadline, CancellationToken ct)

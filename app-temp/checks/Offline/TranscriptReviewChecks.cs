@@ -1,7 +1,7 @@
 using Playback.Api.Activity;
 using Playback.Api.Audio.Asr;
-using Playback.Api.Db;
 using Playback.Application.Recording;
+using Playback.Domain.Models;
 
 static class TranscriptReviewChecks
 {

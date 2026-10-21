@@ -1,7 +1,5 @@
 using System.Text.Json;
-using Playback.Api.Db;
-using Playback.Api.Providers;
-using Playback.Api.Terms;
+using Playback.Domain.Models;
 
 namespace Playback.Application.Assistance;
 

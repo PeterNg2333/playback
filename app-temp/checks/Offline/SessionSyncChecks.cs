@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Playback.Api.Db;
-using Playback.Api.Terms;
+using Playback.Domain.Assistance;
+using Playback.Domain.Models;
 
 // The page's session sync over the in-memory store: a bounded paged first read of a long session, nothing
 // sent when idle, one record for one change, a cursor that resets across sessions, fresh term sources.

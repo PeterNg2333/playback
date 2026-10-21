@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using MongoDB.Driver;
 using System.Security.Claims;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Db;
 

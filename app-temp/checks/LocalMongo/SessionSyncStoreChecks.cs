@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MongoDB.Driver;
 using Playback.Api.Db;
+using Playback.Domain.Models;
 
 // Session sync against local MongoDB (playback_e2e): 900 microphone and system sources page in, idle polling
 // queries nothing, each change sends one record, and a restarted API resets old cursors. The session stays for review.

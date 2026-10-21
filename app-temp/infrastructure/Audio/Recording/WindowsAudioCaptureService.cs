@@ -171,7 +171,7 @@ public sealed class WindowsAudioCaptureService(PlaybackStore store, AsrQueue asr
                     recording.NextStreamSave = DateTime.UtcNow.AddSeconds(2);
                 }
                 var evidence = sources.Select(source => source.SpeechEvidence()).ToList();
-                if (SpeechBoundaryPolicy.Ready(evidence, end, Playback.Domain.Audio.AudioPolicy.SilenceBoundarySeconds, recording.HandledSpeechMs))
+                if (SpeechBoundaryPolicy.Ready(evidence, end, AudioPolicy.SilenceBoundarySeconds, recording.HandledSpeechMs))
                 {
                     await FinalizeChunks(recording);
                     if (sources.Max(source => source.LastSpeechMs) == evidence.Max(x => x.LastSpeechMs))

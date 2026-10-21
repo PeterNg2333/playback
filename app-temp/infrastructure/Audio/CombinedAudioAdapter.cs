@@ -1,6 +1,7 @@
 using MongoDB.Driver;
 using Playback.Application.Audio;
 using Playback.Domain.Audio;
+using Playback.Domain.Models;
 using Playback.Infrastructure.Audio;
 using System.Threading.Channels;
 

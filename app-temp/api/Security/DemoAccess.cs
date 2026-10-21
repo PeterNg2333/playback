@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Playback.Api.Db;
+using Playback.Domain.Workspace;
 
 namespace Playback.Api.Security;
 
@@ -20,7 +21,7 @@ public sealed class DemoAccess
     readonly string? origin = Environment.GetEnvironmentVariable("PLAYBACK_PUBLIC_ORIGIN");
     readonly bool allowHttp;
     public bool Enabled { get; }
-    string CredentialVersion(string account) => Playback.Domain.Workspace.DemoCredentials.Version(account, password!);
+    string CredentialVersion(string account) => DemoCredentials.Version(account, password!);
 
     public DemoAccess(IHostEnvironment environment)
     {
@@ -170,7 +171,7 @@ public sealed class DemoAccess
         CsrfCookie, csrf.GetAndStoreTokens(http).RequestToken!, new CookieOptions
         { HttpOnly = false, Secure = !allowHttp, SameSite = SameSiteMode.Strict, Path = "/" });
 
-    static bool ValidUsername(string name) => Playback.Domain.Workspace.DemoCredentials.ValidUsername(name);
+    static bool ValidUsername(string name) => DemoCredentials.ValidUsername(name);
 
     static Task Reject(HttpContext http, int status, string error)
     {

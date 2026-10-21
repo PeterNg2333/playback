@@ -5,7 +5,8 @@ using Playback.Api.Terms;
 using Playback.Api.Db;
 using Playback.Api.Audio.Asr;
 using Playback.Api.Ask;
-using Playback.Api.Activity; using Playback.Application.Workspace;
+using Playback.Api.Activity;
+using Playback.Application.Workspace;
 namespace Playback.Infrastructure.Workspace;
 public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel gemini, JevTermClassifier jev, IAsrAdapter asr, AiFlow flow) : IRuntimeProjections
 {

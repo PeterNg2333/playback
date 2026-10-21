@@ -1,9 +1,8 @@
+using Playback.Domain.Evidence;
 using Playback.Domain.Notes;
-using Playback.Api.Terms;
-using Playback.Api.Sources;
 using System.Text.RegularExpressions;
 
-namespace Playback.Api.Db;
+namespace Playback.Domain.Models;
 
 // Sessions, the groups that hold them, their teaching materials and language settings.
 public sealed record SessionView(
@@ -25,7 +24,7 @@ public sealed record SessionView(
     string NoteLanguage = "zh-Hant",
     string? AsrModel = null)
 {
-    public List<Playback.Api.Sources.TranscriptSourceGroup> SourceGroups => new Playback.Api.Sources.SourceReferences(this).Groups;
+    public List<TranscriptSourceGroup> SourceGroups => new SourceReferences(this).Groups;
     // Superseded transcript ID → the active segment that replaced it. Transcripts holds active rows only.
     public IReadOnlyDictionary<string, string> Supersessions { get; init; } = new Dictionary<string, string>();
 }

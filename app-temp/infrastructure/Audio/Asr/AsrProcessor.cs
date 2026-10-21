@@ -1,4 +1,6 @@
-using Playback.Api.Db; using Playback.Api.Activity; using Playback.Infrastructure.Activity;
+using Playback.Api.Db;
+using Playback.Api.Activity;
+using Playback.Infrastructure.Activity;
 namespace Playback.Api.Audio.Asr;
 // Compatibility adapter for capture/recovery callers. There is one transcription use case.
 public sealed class AsrProcessor(PlaybackStore store, IAsrAdapter asr, ILogger<AsrProcessor> logger, AiActivity activity)

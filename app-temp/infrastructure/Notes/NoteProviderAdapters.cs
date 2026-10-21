@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using Playback.Application.Notes;
 using Playback.Api.Activity;
-using Playback.Api.Db;
 using Playback.Api.Providers;
+using Playback.Domain.Models;
 
 namespace Playback.Api.Notes;
 

@@ -10,10 +10,10 @@ public static class LanguageSettings
         [Out] char[]? destination, int destinationLength, IntPtr version, IntPtr reserved, IntPtr sortHandle);
     public static void ValidateAsr(string language)
     {
-        Playback.Domain.Audio.AsrLanguage.Validate(language);
+        AsrLanguage.Validate(language);
     }
 
-    public static string? ProviderHint(string language) => Playback.Domain.Audio.AsrLanguage.ProviderHint(language);
+    public static string? ProviderHint(string language) => AsrLanguage.ProviderHint(language);
 
     public static void ValidateNote(string language) => NoteLanguage.ValidateNote(language);
 

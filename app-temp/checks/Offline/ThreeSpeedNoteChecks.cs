@@ -1,5 +1,5 @@
-using Playback.Api.Db;
 using Playback.Application.Notes;
+using Playback.Domain.Models;
 using Playback.Domain.Notes;
 
 // The three-speed note workflow over an in-memory store with the fixture model: jots while recording, segments as windows

@@ -1,5 +1,5 @@
-using Playback.Api.Db;
 using Playback.Api.Translation;
+using Playback.Domain.Models;
 
 // Translation: what context a batch carries, how replies map back to transcripts, and that a retry
 // of two late passages does not resend a three-hour lecture.

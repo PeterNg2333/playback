@@ -2,6 +2,7 @@ using System.Text.Json;
 using Google.GenAI;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using Playback.Domain.Assistance;
 
 namespace Playback.Api.Providers;
 
@@ -11,9 +12,9 @@ public class GeminiLanguageModel : ITextGenerator
     public string Model => Environment.GetEnvironmentVariable("PLAYBACK_GEMINI_MODEL") is { Length: > 0 } model
         ? model is "gemini-3.1-flash-lite" or "gemini-3.5-flash-lite" ? model : throw new InvalidOperationException("Routine Gemini model is not allowlisted")
         : DefaultModel;
-    public const string ExplanationPromptVersion = Playback.Domain.Assistance.ModelInstructions.ExplanationPromptVersion;
-    public const string ExplanationInstructions = Playback.Domain.Assistance.ModelInstructions.Explanation;
-    public const string SearchInstructions = Playback.Domain.Assistance.ModelInstructions.Search;
+    public const string ExplanationPromptVersion = ModelInstructions.ExplanationPromptVersion;
+    public const string ExplanationInstructions = ModelInstructions.Explanation;
+    public const string SearchInstructions = ModelInstructions.Search;
     readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(120) };
     public virtual bool IsConfigured => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GOOGLE_AI_STUDIO_API_KEY"));
 

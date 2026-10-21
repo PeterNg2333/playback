@@ -1,4 +1,5 @@
 using Playback.Application.Recording;
+using Playback.Domain.Models;
 using Microsoft.Extensions.Primitives;
 namespace Playback.Api.Db;
 public partial class PlaybackStore : IChunkRepository

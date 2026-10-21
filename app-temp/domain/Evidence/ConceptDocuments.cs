@@ -1,6 +1,6 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 
-namespace Playback.Api.Sources;
+namespace Playback.Domain.Evidence;
 
 // What the concept graph indexes: one document per source per minute of lecture, made of the active transcript rows
 // that start in it. A rerun changes a bucket's text and hash, so the graph replaces exactly that document and rebuilds

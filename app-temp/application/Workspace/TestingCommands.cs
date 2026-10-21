@@ -1,4 +1,4 @@
-using Playback.Api.Db;
+using Playback.Domain.Models;
 namespace Playback.Application.Workspace;
 public interface ITestingRepository
 {

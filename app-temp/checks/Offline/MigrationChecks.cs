@@ -10,6 +10,7 @@ using Playback.Api.Notes;
 using Playback.Api.Terms;
 using Playback.Api.Translation;
 using Playback.Application.Workspace;
+using Playback.Domain.Models;
 using Playback.Infrastructure;
 
 static class MigrationChecks

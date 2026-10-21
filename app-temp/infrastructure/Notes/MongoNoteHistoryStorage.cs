@@ -1,5 +1,6 @@
 using MongoDB.Driver;
 using Playback.Application.Notes;
+using Playback.Domain;
 using Playback.Domain.Notes;
 namespace Playback.Infrastructure.Notes;
 public sealed class MongoNoteHistoryStorage(IMongoCollection<NoteHead> heads, IMongoCollection<Note> history) : INoteHistoryStorage
@@ -20,7 +21,7 @@ public sealed class MongoNoteHistoryStorage(IMongoCollection<NoteHead> heads, IM
             return;
         }
         // Deterministic identity makes an interrupted/competing history flush idempotent.
-        note.Id = "note_" + Playback.Domain.ContentHash.Of(note.SessionId + ":" + note.Version);
+        note.Id = "note_" + ContentHash.Of(note.SessionId + ":" + note.Version);
         try {await history.InsertOneAsync(note);}
         catch (MongoWriteException ex) when (ex.WriteError.Category == ServerErrorCategory.DuplicateKey)
         {
