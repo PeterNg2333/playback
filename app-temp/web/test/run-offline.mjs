@@ -12,6 +12,7 @@ const all = [
   "session-loading",
   "session-rerun",
   "transcript-recording",
+  "browser-recording",
   "notes-citations-chat",
   "notes-reading-sources",
   "note-tree",

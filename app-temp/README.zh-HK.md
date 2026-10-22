@@ -7,7 +7,8 @@
 ## 點樣運作
 
 ```text
-Windows 咪高峰／系統聲 ── .NET API ── 每段最多約 8 秒 WAV（本機磁碟）
+Browser 錄音（咪高峰／分享螢幕嘅聲）── 上載 ─┐
+Windows 咪高峰／系統聲（API 部機）───────────┴─ .NET API ── 每段最多約 8 秒 WAV（本機磁碟）
                               ├─ ASR（OpenRouter Qwen3-ASR，或 SenseVoice）→ 逐字稿（MongoDB）
                               ├─ 筆記（Qwen3.8 Flash，經 OpenRouter；冇 key 就用 Gemini）
                               ├─ 翻譯、術語解釋、Ask（Gemini；術語排序用 Jev）
@@ -15,7 +16,9 @@ Windows 咪高峰／系統聲 ── .NET API ── 每段最多約 8 秒 WAV�
 React/Vite 網頁 ── 同一個 API
 ```
 
-- **錄音**：開始前揀 Microphone、System audio（全機播放聲）或兩者；兩個來源分開保存。Silero VAD 判斷人聲，靜音唔送 ASR，原始錄音一定保留。錄音喺運行 API 嗰部 Windows 電腦進行，網頁重載唔會停錄音。
+- **錄音**：開始前揀 Microphone、System audio（全機播放聲）或兩者；兩個來源分開保存。Silero VAD 判斷人聲，靜音唔送 ASR，原始錄音一定保留。錄音有兩種，API 兩種都提供時，錄音掣旁邊有「Recorder」可以揀：
+  - **Browser**：網頁自己錄，再上載去 API，雲端部署（Linux）只有呢種。咪高峰用 browser 權限；System audio 要分享螢幕：Chrome／Edge on Windows 揀「整個螢幕」再勾「同時分享系統音訊」（分享一個 tab 就只有嗰個 tab 嘅聲）。手機 browser 只可以錄咪高峰。每段 16 kHz mono WAV 先存喺 browser（IndexedDB），按次序上載；斷線會重試，重載頁面之後會繼續補傳，錄音掣旁邊 ↑N 係未上載嘅段數。暫停唔會閂咪同分享，繼續錄唔使再揀螢幕。限制：冇灰字預覽（正式逐字稿到咗先顯示）；錄緊嗰段未封存就閂 tab 會失去嗰幾秒；停止分享螢幕就冇系統聲。
+  - **Windows (API)**：運行 API 嗰部 Windows 電腦用 WASAPI 錄，網頁重載唔會停錄音，有灰字預覽。
 - **逐字稿**：每段封存後自動送 ASR，最多兩個並行；失敗會重試，之後可以手動重試。錄音期間約每 2 秒有灰字預覽，正式稿到咗就取代。原文同顯示文字（例如繁體轉換）分開保存。
 - **Session rerun**：停錄音之後可以將已保存音訊合成 20–90 秒窗口再辨識；新結果成為一個 segment，取代舊列但保留第一遍文字。**Lineage** 將筆記引用同術語映射到新 segment。
 - **筆記（三速）**：錄音期間每完成一分鐘寫一段 live jot，每完成五分鐘寫一個 segment（筆記、概念、ASR 更正）；按 Stop 之後先整理成大綱，再逐個主題潤飾。逐字稿改咗（第二遍 ASR 或 rerun）嘅五分鐘窗口會重寫，只有引用佢嘅主題會重新潤飾，其他主題唔郁。可以鎖定 block、對全份／主題／block 下指令、Rebuild、睇歷史同還原；人手改過或者鎖咗嘅 block 唔會俾 AI 換走。繁體筆記用 OpenCC 轉走簡體字。設計同費用見 [POC 結果](../docs/poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md)。
@@ -68,7 +71,8 @@ Week 3 測試素材喺 `app-temp/data/test-audio/sampleAudio/`：`sampleAudio.m4
 
 ## 已知限制
 
-- 錄音依賴 Windows WASAPI，Linux container 錄唔到音；未做連續三小時實機測試。
+- Linux container 只可以用 Browser 錄音；Browser 錄音只喺 offline fixture（Edge 假咪高峰、模擬螢幕分享）驗過，未經真 API／MongoDB、真分享系統聲或雲端驗收。兩種錄音都未做連續三小時實機測試。
+- 廣東話逐字稿嘅繁體顯示用 Windows API（`LanguageSettings.CantoneseDisplay`），Linux 上會出錯，部署前要改。
 - ASR 唔係原生 streaming：灰字預覽係短音檔請求，會增加費用。
 - 自然課堂筆記質素、粵語準確度、三小時費用都未完整驗收；最新數字見 [POC 結果](../docs/poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md)。
 - 冇講者分離；教材只收純文字（PDF／PPT 抽取見 [研究](../docs/research/document-extraction.zh-HK.md)）。

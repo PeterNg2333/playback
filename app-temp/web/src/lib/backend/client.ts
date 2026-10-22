@@ -29,7 +29,24 @@ export const api = {
   ) => request("PUT", path, body, schema, options?.signal),
   delete: (path: string, options?: RequestOptions) =>
     request("DELETE", path, undefined, undefined, options?.signal),
+  // A multipart body, such as an audio chunk with its identity fields.
+  upload: <T = unknown>(
+    path: string,
+    form: FormData,
+    schema?: ZodType<T>,
+    options?: RequestOptions,
+  ) => request("POST", path, form, schema, options?.signal),
 };
+
+// An error response from the API; `status` tells a rejected request from one worth retrying.
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
 
 function requestScope(signal?: AbortSignal) {
   const controller = new AbortController();
@@ -82,11 +99,12 @@ export function csrfToken() {
 
 async function responseError(response: Response) {
   const error = await response.json().catch(() => ({}));
-  return new Error(
+  return new ApiError(
     error.error ||
       (response.status >= 500
         ? "The Playback backend is unavailable or did not respond. Start the server and retry. Your question is retained."
         : `HTTP ${response.status}`),
+    response.status,
   );
 }
 
@@ -99,13 +117,15 @@ async function request<T>(
 ): Promise<T> {
   const scope = requestScope(signal);
   try {
+    // FormData sets its own multipart Content-Type and length.
+    const form = body instanceof FormData;
     const response = await fetchApi(path, {
       signal: scope.signal,
       method,
       headers: {
-        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...(body && !form ? { "Content-Type": "application/json" } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: form ? body : body ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
       throw await responseError(response);

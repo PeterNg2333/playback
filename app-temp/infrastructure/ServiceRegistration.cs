@@ -48,6 +48,8 @@ public static class ServiceRegistration
         services.AddSingleton<IRecordingControl>(s => s.GetRequiredService<WindowsAudioCaptureService>());
         services.AddSingleton<IRecordingAccess>(s => s.GetRequiredService<PlaybackStore>());
         services.AddSingleton<RecordingCommands>();
+        services.AddSingleton<IUploadedStreams>(s => s.GetRequiredService<PlaybackStore>());
+        services.AddSingleton<UploadedRecordingCommands>();
         services.AddSingleton<SessionAudioRenderer>();
         services.AddSingleton<IChunkRepository>(s => s.GetRequiredService<PlaybackStore>());
         services.AddSingleton<IAsrJobs>(s => s.GetRequiredService<AsrQueue>());

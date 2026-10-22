@@ -173,15 +173,25 @@ The original unsecured local Development mode retains its access. No database wa
 cleared or migrated. Assigning existing notes to a user requires a separately
 scoped migration; no ownership transfer was performed here.
 
-## Recording limitation
+## Recording
 
-The existing recording controls use Windows WASAPI on the machine running the
-API. A Linux Cloud Run container cannot access the user's microphone or system
-audio; its UI displays “Recording unavailable”. This deployment supports the
-existing workspace/API but does **not** add a
-browser recorder or a local Windows capture bridge. Those require separate work.
-The authenticated WAV chunk-upload API remains available for a compatible client;
-this guide does not claim browser recording or three-hour cloud recording acceptance.
+A Linux Cloud Run container cannot use the Windows WASAPI recorder, so health
+reports `localCapture: false` and the page records in the browser instead: the
+microphone through the browser's permission, system audio by sharing a screen
+with audio (Chrome/Edge on Windows: Entire screen and “Also share system audio”;
+a shared tab gives that tab's audio; phone browsers record the microphone only).
+The page keeps 16 kHz mono WAV chunks in IndexedDB and uploads them in order to
+the authenticated `POST /api/chunks`, retrying after failures and reloads; it
+opens, renews and closes their stream with `PUT /api/sessions/{id}/streams/{streamId}`,
+and Stop asks for the after-lecture notes. Browser APIs need HTTPS, which Cloud
+Run provides. Uploads go through the same origin and CSRF checks as other writes.
+
+This was checked offline only (Edge's fake microphone, a page-made screen share,
+fixture API). It has not been run against a deployed instance, real shared
+system audio or a three-hour recording. Browser recording has no live interim
+text. Cantonese display conversion (`LanguageSettings.CantoneseDisplay`) still
+calls a Windows API and throws on Linux, so Cantonese sessions cannot be read in
+the container until it is replaced.
 
 References: [Cloud Run container contract](https://docs.cloud.google.com/run/docs/container-contract),
 [billing settings](https://docs.cloud.google.com/run/docs/configuring/billing-settings),

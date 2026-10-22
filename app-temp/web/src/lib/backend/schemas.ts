@@ -285,6 +285,7 @@ export const HealthSchema = z.object({
   sessionAudioMix: z.boolean().optional(),
   recordingSourceSelection: z.boolean().optional(),
   localCapture: z.boolean().optional(),
+  uploadStreams: z.boolean().optional(),
   sessionLanguageSettings: z.boolean().optional(),
   liveAsrPreview: z.boolean().optional(),
   elapsedRecordingClock: z.boolean().optional(),
@@ -309,6 +310,8 @@ export const HealthSchema = z.object({
     .optional(),
 });
 export const RecordingModeSchema = z.enum(["microphone", "system", "both"]);
+// Who records: this browser tab, which uploads the audio, or the API on its own Windows computer.
+export const RecorderKindSchema = z.enum(["browser", "server"]);
 export const CaptureStatusSchema = z.object({
   state: z.enum(["idle", "recording", "paused"]),
   sessionId: z.string().nullish(),
@@ -397,4 +400,5 @@ export type Answer = z.infer<typeof AnswerSchema>;
 export type Health = z.infer<typeof HealthSchema>;
 export type CaptureStatus = z.infer<typeof CaptureStatusSchema>;
 export type RecordingMode = z.infer<typeof RecordingModeSchema>;
+export type RecorderKind = z.infer<typeof RecorderKindSchema>;
 export type NoteEditLog = z.infer<typeof NoteEditLogSchema>;

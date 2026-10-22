@@ -108,6 +108,7 @@ static async Task RunOffline(bool notesOnly)
     if (!notesOnly)
     {
         RecordingChecks.Run();
+        await RecordingChecks.UploadedStreams();
         await AudioProjectionChecks.Run();
         await SessionDeletionChecks.Run();
         await AsrChecks.Run();

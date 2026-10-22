@@ -11,7 +11,7 @@ player bar and the Ask panel, and hands each the session being shown.
 | --- | --- | --- |
 | `pages/` | The page layout only | `PlaybackPage.tsx` |
 | `features/library/` | Sessions and groups in the sidebar, which session is shown, reloading what the page shows | `LibrarySidebar.tsx`, `refreshWorkspace.ts` |
-| `features/recording/` | Record/pause/stop, the recorder's status, the input level meter | `Recorder.tsx` |
+| `features/recording/` | Record/pause/stop with either recorder (this browser, or the API's Windows recorder), the recorder's status, the input level meter, audio waiting to upload | `Recorder.tsx`, `browserRecorder.ts` |
 | `features/transcript/` | The transcript timeline: its entries, virtual list, row kinds (`rows/`), ASR status and session settings, the session rerun dialog and its progress row | `TranscriptPanel.tsx`, `RerunDialog.tsx` |
 | `features/player/` | Playback of saved audio through one `<audio>` element | `useAudioPlayer.ts` |
 | `features/materials/` | Teaching materials: list and attach | `MaterialsList.tsx` |
@@ -48,7 +48,17 @@ player bar and the Ask panel, and hands each the session being shown.
 
 - Open a session: `library/SessionItem` → `openSession` → `refreshWorkspace(id)`
   → `selectedSessionId` → `useSelectedSession` in the page → the columns.
-- Record: `recording/Recorder` → `useCapture` → `/capture/*`. When the recorder
+- Record in the browser (offered when health has `uploadStreams`; the only
+  recorder when health says `localCapture: false`, as in a Linux container):
+  `recording/Recorder` → `useCapture` → `browserRecorder` opens the microphone
+  (`getUserMedia`) and/or system audio (`getDisplayMedia` with audio), cuts
+  16-bit mono WAV chunks (16 kHz when the browser resamples) by the Windows
+  recorder's rules, and queues them in IndexedDB (`uploadQueue.ts`). The queue
+  sends them in order to `POST /api/chunks`, retries with backoff, online and
+  after a reload, and then the stream's close (`PUT /api/sessions/{id}/streams/{streamId}`;
+  Stop also asks for the after-lecture notes). While this tab records,
+  `captureQuery` returns the browser recorder's status instead of the API's.
+- Record with the API's Windows recorder: `recording/Recorder` → `useCapture` → `/capture/*`. When the recorder
   saves audio for the shown session, `useSelectedSession` reads it again and
   `transcript/Timeline` replaces the live row with the saved one.
 - Save notes: `notes/NotesPanel` → `useNoteDraft.save` → `/notes` with the base
@@ -93,7 +103,7 @@ Namespaces follow project and folder: `Playback.Domain.*`, `Playback.Application
 
 | Flow | Path |
 | --- | --- |
-| Recording | `RecordingCommands` authorizes/control transitions through `IRecordingControl`; WASAPI retains per-source original WAVs and durable stream identity |
+| Recording | `RecordingCommands` authorizes/control transitions through `IRecordingControl`; WASAPI retains per-source original WAVs and durable stream identity. A browser recording uploads its chunks through `ChunkCommands.Import` and keeps its stream through `UploadedRecordingCommands` (`application/Recording/UploadedRecording.cs`): the owner's session only, a lease renewed while recording, closed at pause and Stop, never reopened once closed; Stop requests the note flush as the Windows Stop does |
 | Saved transcription | Hosted `AsrQueue` invokes application `Transcription`, with audio preparation, provider and repository ports; confirmed originals and provider identity remain separate from display/translation |
 | Transcript second pass | `TranscriptReview` admits new confirmed chunks after 30 s or four chunks per source/stream; `TranscriptReviewWorker` persists completion/retries and retains first-pass text. Corrections use the note session lock, invalidate translations, and rerun notes once per changed batch. Original audio and source IDs stay stable |
 | Session rerun | `SessionRerun` (`application/Recording`) plans windows with `RerunWindows.Plan` (`domain/Audio`): consecutive saved chunks of one capture stream, closed at the first pause (a chunk sealed under 7.5 s, or a quiet chunk) after the requested 20–80 s (or 20 s later without one) and never past 90 s; an earlier window is never split. Each window is concatenated by `IRerunAudio` (`WavCombinedAudioFiles`, `rerun_<sha256>`), prepared by the same VAD step and sent with `Pass: rerun-<job>`. A changed result is saved as one segment (`Kind = window`, `ChunkIds`, `FirstPassOriginal`) that supersedes its rows inside the note lock (`IRerunRepository.Supersede`: segment first, then rows claimed only while active, undone together on a race). The job and its windows persist in `rerun_jobs`; `SessionRerunWorker` resumes at the next pending window and yields to a live ASR backlog. Notes afterwards: incremental (`NoteWorkflow.WritePending`: the five-minute windows whose transcript changed are written again) or rebuild (`NoteWorkflow.Rebuild`). `POST/GET /api/sessions/{id}/rerun`, `POST …/rerun/cancel`; the page reads the job as the `rerun` sync record |
@@ -163,8 +173,12 @@ names.
 - `library-sidebar.check.mjs`: sessions and groups, drag and keyboard moves.
 - `transcript-recording.check.mjs`: timeline, ASR states and retry, player,
   settings, terms, activity, recording controls, Ask failures, and an API without
-  the newer capability flags. It currently fails where a live preview row should
-  keep its text after its saved chunk fails ASR (already failing at 2ccb53e).
+  the newer capability flags.
+- `browser-recording.check.mjs`: the browser recorder with Edge's fake microphone
+  and a page-made screen share: WAV fields, hash and format, a timeline that
+  continues the session, retry after a 503, pause/resume/Stop stream order, audio
+  kept in IndexedDB across a reload, sharing stopped, a share without audio, the
+  recorder choice.
 - `session-loading.check.mjs`: loading state; a failed read keeps the draft.
 - `session-rerun.check.mjs`: a rerun window shown once with its first pass, the Rerun dialog request, progress and Stop, Rebuild notes.
 - `three-speed-live.check.mjs` (not in `test:offline`; `three-speed-live.mjs --browser` runs it against the saved live session): topic tree, source chips, a jump to the cited row, phone width.

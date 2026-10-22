@@ -36,6 +36,8 @@ public static class ChunkIdentity
     static readonly Regex Sha256 = new("^[a-f0-9]{64}$");
 
     public static bool IsSessionId(string value) => SessionId.IsMatch(value);
+    // Capture streams use the same 32-hex form as sessions.
+    public static bool IsStreamId(string value) => SessionId.IsMatch(value);
     public static bool IsSourceId(string value) => SourceId.IsMatch(value);
     public static bool IsSha256(string value) => Sha256.IsMatch(value);
 

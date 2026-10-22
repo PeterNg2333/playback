@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { create } from "zustand";
 import { useCallback } from "react";
-import type { RecordingMode } from "./backend/schemas";
+import type { RecorderKind, RecordingMode } from "./backend/schemas";
 
 // Browser-only UI state. Data read from the API lives in the TanStack Query cache.
 export type View = "notes" | "transcript";
@@ -24,6 +24,8 @@ type PlaybackState = {
   navOpen: boolean;
   view: View;
   recordingMode: RecordingMode;
+  // Used when the API offers both recorders; otherwise the one it offers records.
+  recorderKind: RecorderKind;
   noteMode: NoteMode;
   chatOpen: boolean;
   selection: Selection | null;
@@ -45,6 +47,7 @@ export const usePlaybackStore = create<PlaybackState>(() => ({
   navOpen: false,
   view: "transcript",
   recordingMode: "microphone",
+  recorderKind: "server",
   noteMode: "preview",
   chatOpen: false,
   selection: null,

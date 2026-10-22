@@ -39,6 +39,7 @@ public sealed class RuntimeProjections(PlaybackStore store, GeminiLanguageModel 
             sessionAudioMix = true,
             recordingSourceSelection = true,
             localCapture = OperatingSystem.IsWindows(),
+            uploadStreams = true,
             sessionLanguageSettings = true,
             liveAsrPreview = true,
             audioChunkMilliseconds = WindowsAudioCaptureService.ChunkMilliseconds,
