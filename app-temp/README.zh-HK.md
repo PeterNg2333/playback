@@ -53,7 +53,7 @@ Key 只由 process environment 讀；`pnpm.cmd dev` 會將 repo root 嘅 `.env` 
 | `PLAYBACK_ASR_REVIEW` | 開 | 逐 chunk 嘅第二遍 ASR；設 `no` 關閉 |
 | `PLAYBACK_PAUSE_EXTERNAL_ASR` | 關 | 設 `yes` 暫停送 ASR，錄音照存 |
 | `PLAYBACK_CONCEPT_GRAPH` | 關 | 設 `yes` 啟動 LightRAG sidecar，安裝見 [graph/README](graph/README.zh-HK.md) |
-| `PLAYBACK_MONGO_URI`／`PLAYBACK_MONGO_DATABASE` | `mongodb://127.0.0.1:27017`／`playback_prototype` | 資料庫；測試用 `playback_e2e` |
+| `PLAYBACK_MONGO_URI`／`PLAYBACK_MONGO_DATABASE` | `mongodb://127.0.0.1:27017`／`playback_prototype` | 資料庫；測試用 `playback_e2e`；Firestore 用 `playback-prototype`（database ID 唔准底線） |
 | `PLAYBACK_OFFLINE_TEST` | 關 | 設 `yes` 拒絕所有外部呼叫，API 只聽 127.0.0.1:5079 |
 
 ASR 模型、語言提示同 fallback 次序：見 [ASR adapters](docs/asr-adapters.zh-HK.md)。

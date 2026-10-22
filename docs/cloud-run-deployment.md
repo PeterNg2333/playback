@@ -143,6 +143,20 @@ integration would be a later code change. NFS/Filestore is another filesystem
 option, with additional VPC/NFS setup; Cloud Run mounts NFS without file locking.
 Keep one active instance/revision for the current in-process queues.
 
+### Firestore instead of Atlas (unverified)
+
+Firestore Enterprise edition with MongoDB compatibility keeps the database in the
+same Google Cloud project and avoids an Atlas IP access list. Its database IDs
+allow only lowercase letters, numbers and hyphens, so create the database as
+`playback-prototype` and add a seventh variable `PLAYBACK_MONGO_DATABASE=playback-prototype`.
+Use the connection string from the console; it must keep `loadBalanced=true`,
+`tls=true` and `retryWrites=false`. The C# driver 3.x is supported. The app has
+not run against Firestore: it relies on MongoDB duplicate-key errors for
+idempotent transcript, note-history and term writes, and Firestore documents that
+error codes may differ. Check repeated uploads and note saves before keeping data.
+See [behavior differences](https://docs.cloud.google.com/firestore/mongodb-compatibility/docs/behavior-differences)
+and [connection strings](https://docs.cloud.google.com/firestore/mongodb-compatibility/docs/connect).
+
 ## Login and request protection
 
 Usernames are saved in MongoDB; only the shared password comes from the environment.

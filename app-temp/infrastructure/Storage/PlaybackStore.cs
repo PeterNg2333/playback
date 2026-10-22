@@ -34,7 +34,8 @@ public partial class PlaybackStore : IActivityRepository, IConversationRepositor
         var settings = MongoClientSettings.FromConnectionString(PlaybackEnvironment.MongoUri);
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
         var database = PlaybackEnvironment.Database;
-        if (database is not ("playback_prototype" or "playback_e2e"))
+        // Firestore's MongoDB-compatible database IDs cannot contain underscores, so the cloud database uses a hyphen.
+        if (database is not ("playback_prototype" or "playback_e2e" or "playback-prototype"))
             throw new InvalidOperationException("MongoDB database is not allowlisted");
         db = new MongoClient(settings).GetDatabase(database);
     }
