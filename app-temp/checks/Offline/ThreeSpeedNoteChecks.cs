@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Playback.Application.Activity;
 using Playback.Application.Notes;
 using Playback.Domain.Models;
@@ -13,12 +14,14 @@ static class ThreeSpeedNoteChecks
         await Corrections();
         await LockedBlocksAndRebuild();
         await PolishGuard();
+        await LongTopicInParts();
         await Backoff();
         Aliases();
         Console.WriteLine("Three-speed note checks passed: a segment per closed five minutes before the last minute's jot, jots replaced by their segment, " +
             "Stop writes the open window and outlines and polishes it into finished topics with a summary, a corrected transcript rewrites only its window " +
             "and polishes only the topic it fed, locked blocks survive a rebuild, instructions rewrite a block but not a locked one, a polish that drops " +
-            "citations keeps the segment blocks, failures back off, aliases decode (fixture model only)");
+            "citations keeps the segment blocks, a long topic is polished in parts within the call size and a rejected part keeps its own segment blocks, " +
+            "failures back off, aliases decode (fixture model only)");
     }
 
     // A transcript line at a time in the lecture, confirmed now by the check's clock.
@@ -147,6 +150,25 @@ static class ThreeSpeedNoteChecks
         var note = Latest(store, "guard");
         Expect.That(note.Sections.All(NoteLayout.IsFinished) && note.Sections.SelectMany(x => x.Blocks).All(b => b.Id.StartsWith("s")),
             "A polish that dropped citations replaced the segment blocks");
+    }
+
+    // A topic longer than one polish call (6,000 characters of notes) is cut between blocks into parts polished separately; a
+    // part whose reply drops citations keeps its own segment blocks while the other part is polished.
+    static async Task LongTopicInParts()
+    {
+        var (store, _, model, notes) = Lecture("long");
+        var lines = store.Transcripts["long"].Where(x => x.StartMs < 300_000).ToList();
+        foreach (var row in lines) row.Original = $"Kernel point {row.StartMs / 1000} " + new string('x', 280);
+        model.PolishDropsCitationsIn = "Kernel point 290 ";
+        await notes.Generate("long", CancellationToken.None);
+        var polishes = model.Inputs.Select(x => JsonDocument.Parse(x[(x.IndexOf('\n') + 1)..]).RootElement).Where(x => x.TryGetProperty("topics", out _)).ToList();
+        Expect.That(polishes.Count == 3 && polishes.All(x => x.GetProperty("topics").EnumerateArray().Sum(t => t.GetProperty("notes").GetString()!.Length) <= 6_000),
+            "A long topic was not polished in calls within the size limit");
+        var topic = Latest(store, "long").Sections.Single(x => x.SegmentBlockIds.All(id => NoteLayout.SegmentOf(id) == 0));
+        Expect.That(topic.Blocks.Count > 2 && topic.Blocks[0].Id.StartsWith("p-") && topic.Blocks.Skip(1).All(b => NoteLayout.SegmentOf(b.Id) == 0) &&
+            topic.Blocks[^1].SourceIds.Single() == "long-290", "The polished part and the rejected part's segment blocks were not kept in order");
+        Expect.That(topic.Blocks.SelectMany(b => b.SourceIds).Order().SequenceEqual(lines.Select(x => x.Id).Order()),
+            "A long topic's parts lost or repeated sources");
     }
 
     static async Task Backoff()

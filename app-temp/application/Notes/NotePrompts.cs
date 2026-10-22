@@ -3,7 +3,8 @@ using Playback.Domain.Notes;
 namespace Playback.Application.Notes;
 
 // What the note model is asked to do, one task per speed: a live jot per minute, a segment per five minutes, and at Stop an
-// outline and a polish per top-level topic; plus a rewrite when the owner asks. Changing any text here changes the version.
+// outline and a polish of each top-level topic (in parts when it is long); plus a rewrite when the owner asks. Changing any
+// text here changes the version.
 // The wording and limits come from the 2026-10-21 proof of concept (docs/poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md).
 public static class NotePrompts
 {

@@ -52,7 +52,7 @@
 ## 發現（未改 code）
 
 1. **Outline 仍然冇子題**：9–10 個平排大題、層數 1；polish 喺 block 入面自己加 a)／b) 小標題，但 topic tree 只有一層。
-2. **大題太大時 polish 會超時**：一個大題超過大約 30 個 block，Qwen 有機會過 100 秒；Gemini fallback 嘅回覆又過唔到 guard，結果嗰段冇潤飾。可以按 block 數拆開 polish，或者 polish 用較長 deadline。
+2. **大題太大時 polish 會超時**：一個大題超過大約 30 個 block，Qwen 有機會過 100 秒；Gemini fallback 嘅回覆又過唔到 guard，結果嗰段冇潤飾。可以按 block 數拆開 polish，或者 polish 用較長 deadline。**已修（同日）**：每個 polish call 最多 6,000 字筆記，長嘅大題拆段各自潤飾（見 [checklist](next-session-checklist.zh-HK.md) 第 E 節）。Live 複驗（`-- --finish`：將 Stop 前嘅 version 162 複製去新 session，再 Stop 一次）：outline 30.5 s；16 個 polish call 16–41 s（中位數 25 s，最多 2,457 output token），0 個到 deadline、0 個 fallback；15 個大題全部潤飾；Stop → 完成 157 s（原本 187 s）；17 calls、US$0.021。Outline 每次唔同，今次 15 個較細嘅大題，只有一個要拆兩段。結果喺 run folder 嘅 `finish/`。
 3. **「(?)」太多**：239 個（POC 63），103 個喺同一個 Windbg 示範大題（`dd` (?)、`1D0` (?)、`KeServiceDescriptorTable` (?)），因為 prompt 要求重構嘅指令同數字都標。謹慎但影響閱讀。
 4. **筆記短咗**：34.6k 字，POC 42.0k。
 5. **Rebuild 要 15 分鐘**：`WriteDue` 逐個窗口寫；並行（最多 4 個 call）可以快大約四倍。

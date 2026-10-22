@@ -84,7 +84,7 @@ try
         case ["--week3-term-live", var folder]:
             await Week3StoreRun.Term(folder);
             break;
-        // MongoDB playback_e2e; record, edit and rebuild are paid (PLAYBACK_THREE_SPEED_LIVE=yes). three-speed-live.mjs runs them.
+        // MongoDB playback_e2e; record, edit, rebuild and finish are paid (PLAYBACK_THREE_SPEED_LIVE=yes). three-speed-live.mjs runs them.
         case ["--three-speed-live", var folder, var phase]:
             await ThreeSpeedLiveRun.Run(folder, phase);
             break;

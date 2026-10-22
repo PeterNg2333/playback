@@ -3,6 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging.Abstractions;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Playback.Application.Activity;
 using Playback.Application.Notes;
@@ -20,6 +22,8 @@ using Playback.Infrastructure.Storage;
 //   edit     a second-pass correction of one line, then the notes-only rerun (WritePending)
 //   rebuild  one block locked, then Rebuild notes
 //   report   metrics from the database and the call ledger (no provider call)
+//   finish   Stop's outline and polish again with the current code, on a copy of the notes the record phase had before its
+//            outline; results and a ledger of its own in <folder>/finish/, so the record run's totals stay as they were
 // Every provider call goes through BudgetWriter, which appends to ledger.jsonl and refuses calls once the folder's
 // reported spend reaches PLAYBACK_THREE_SPEED_MAX_USD.
 static class ThreeSpeedLiveRun
@@ -40,7 +44,7 @@ static class ThreeSpeedLiveRun
         Environment.SetEnvironmentVariable("PLAYBACK_MONGO_URI", "mongodb://127.0.0.1:27017");
         Environment.SetEnvironmentVariable("PLAYBACK_MONGO_DATABASE", "playback_e2e");
         // A dry run answers every call with the fixture note model: the same phases on MongoDB, no network.
-        var paid = phase is "record" or "edit" or "rebuild" && !Dry;
+        var paid = phase is "record" or "edit" or "rebuild" or "finish" && !Dry;
         if (paid && Environment.GetEnvironmentVariable("PLAYBACK_THREE_SPEED_LIVE") != "yes")
             throw new InvalidOperationException("Explicit live opt-in required (PLAYBACK_THREE_SPEED_LIVE=yes)");
         Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", paid ? "no" : "yes");
@@ -54,6 +58,7 @@ static class ThreeSpeedLiveRun
             case "edit": await Edit(store, folder); break;
             case "rebuild": await Rebuild(store, folder); break;
             case "report": await Report(store, folder); break;
+            case "finish": await FinishAgain(store, folder); break;
             default: throw new InvalidOperationException("Unknown phase");
         }
     }
@@ -132,10 +137,9 @@ static class ThreeSpeedLiveRun
 
     sealed record LiveRun(PlaybackStore Store, string Id, SimClock Clock, BudgetWriter Writer, NoteWorkflow Notes, NoteStoreAdapter Adapter, string Folder);
 
-    static async Task<LiveRun> Open(PlaybackStore store, string folder, string phase, DateTime simStart)
+    static async Task<LiveRun> Open(PlaybackStore store, string folder, string phase, DateTime simStart, string? id = null)
     {
-        var seed = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(folder, "seed.json")))!;
-        var id = (string)seed["id"]!;
+        id ??= (string)JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(folder, "seed.json")))!["id"]!;
         var clock = new SimClock(simStart);
         var max = double.Parse(Environment.GetEnvironmentVariable("PLAYBACK_THREE_SPEED_MAX_USD") ?? "0.3", System.Globalization.CultureInfo.InvariantCulture);
         var writer = new BudgetWriter(Dry ? new GeminiNoteWriter(new FixtureNoteModel()) : NoteWriters.Create(new GeminiLanguageModel()), Path.Combine(folder, "ledger.jsonl"), phase, max, clock, simStart);
@@ -314,6 +318,104 @@ static class ThreeSpeedLiveRun
         Console.WriteLine($"Rebuild: locked block {(passed ? "kept" : "NOT kept")} ({kept.Topic?.Title}); {calls.Count} calls, US${calls.Sum(x => x.CostUsd):0.0000}, {watch.Elapsed.TotalSeconds:0} s.");
         if (!passed) Environment.ExitCode = 1;
     }
+
+    // ── Finish again: Stop's outline and polish on a copy of the notes before the record phase's outline ──
+
+    // The copy is a new playback_e2e session with the same captions at their first-pass text and the notes version saved just
+    // before Stop's outline, so every segment is current and Stop only outlines and polishes. Passes when Stop finishes, no
+    // polish call runs into the deadline and every topic is polished.
+    static async Task FinishAgain(PlaybackStore store, string folder)
+    {
+        var output = Path.Combine(folder, "finish");
+        var file = Path.Combine(output, "finish.json");
+        if (File.Exists(file)) { Console.WriteLine("Finish reused; delete finish/finish.json to pay for it again."); return; }
+        Directory.CreateDirectory(output);
+        var seed = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(folder, "seed.json")))!;
+        var source = (string)seed["id"]!;
+        var before = (await store.NoteHistory(source)).OrderBy(x => x.Version).TakeWhile(x => x.Author != "notes final").LastOrDefault()
+            ?? throw new InvalidOperationException("The record run saved no notes before its outline");
+
+        var title = "E2E Week 3 finish again " + Guid.NewGuid().ToString("N")[..6];
+        var id = JsonSerializer.SerializeToElement(await store.CreateSession(title, (string?)seed["groupId"]), Json).GetProperty("id").GetString()!;
+        await store.SetLanguages(id, "en", "zh-Hant");
+        await store.AddMaterial(id, "Week 3 course glossary (from Tutorial.txt)", await File.ReadAllTextAsync(Glossary));
+        var rows = (await Transcripts().Find(x => x.SessionId == source).ToListAsync()).Select(x =>
+        {
+            var copy = BsonSerializer.Deserialize<Transcript>(Remap(x.ToBsonDocument(), source, id).AsBsonDocument);
+            if (copy.FirstPassOriginal is { } first) { copy.Original = first; copy.FirstPassOriginal = null; }
+            return copy;
+        }).ToList();
+        await Transcripts().InsertManyAsync(rows);
+        var adapter = new NoteStoreAdapter(store);
+        var session = (await adapter.Session(id))!;
+        // Each segment was written from its window under the source IDs; the copy's text must give the same hash.
+        var windows = NoteTimeline.Windows(session).ToDictionary(x => x.Index);
+        var note = BsonSerializer.Deserialize<Note>(Remap(before.ToBsonDocument(), source, id).AsBsonDocument);
+        foreach (var segment in note.Segments)
+        {
+            var window = windows[segment.Index];
+            var original = ContentHash.Of(session.NoteLanguage + "\n" + string.Join("\n", window.Lines.Select(x => x.Id.Replace(id, source) + "\t" + x.Text)));
+            if (original != before.Segments.Single(x => x.Index == segment.Index).InputHash)
+                throw new InvalidOperationException($"Window {segment.Index} of the copy is not the text its segment was written from");
+            segment.InputHash = window.Hash;
+        }
+        await adapter.Save(id, new SectionUpdate(note.Sections, note.Citations, note.Segments, [], []),
+            ContentHash.Of("finish copy\n" + source + "\n" + before.Version), session.NoteVersion, session.NoteLanguage, "notes segment");
+        session = (await adapter.Session(id))!;
+        if (NoteTimeline.Plan(session, closeAll: true).Segments.Count > 0 || session.Sections.Any(NoteLayout.IsFinished))
+            throw new InvalidOperationException("The copy is not the notes before the outline");
+        Console.WriteLine($"Copied version {before.Version} of {source} ({note.Segments.Count} segments) to {title} ({id}); Stop now.");
+
+        var run = await Open(store, output, "finish", DateTime.UtcNow, id);
+        await store.RequestNoteFlush(id);
+        var stopAt = DateTime.UtcNow;
+        var watch = Stopwatch.StartNew();
+        var finished = false;
+        while (watch.Elapsed < TimeSpan.FromMinutes(10))
+        {
+            await Drive(run, maxTicks: 1);
+            if ((await store.NoteGate(id))?.FlushRequested == false) { finished = true; break; }
+            run.Clock.Advance(TimeSpan.FromSeconds(1));
+        }
+        var stopMs = watch.ElapsedMilliseconds;
+        var after = await Latest(run);
+        var calls = run.Writer.Entries.Where(x => x.Phase == "finish").ToList();
+        var polishes = calls.Where(x => x.Task == NotePrompts.Polish.Name).ToList();
+        var outline = calls.LastOrDefault(x => x.Task == NotePrompts.Outline.Name);
+        var topics = after.Sections.Where(NoteLayout.IsFinished).ToList();
+        var unpolished = topics.Where(t => t.Blocks.Any(b => NoteLayout.SegmentOf(b.Id) is not null)).ToList();
+        var deadline = polishes.Count(x => (x.Writer?["failures"] as JsonArray ?? []).Any(f => ((string?)f?["error"])?.Contains("exceeded") == true));
+        var largest = topics.MaxBy(t => t.SegmentBlockIds.Count);
+        var summaries = (await new AiActivity(store).Read(id)).Where(x => x.Task == "Note polish").Select(x => x.Summary).ToList();
+        var passed = finished && deadline == 0 && unpolished.Count == 0 && calls.All(x => x.Error is null);
+        await Write(file, new
+        {
+            passed, sessionId = id, copiedFrom = new { sessionId = source, version = before.Version, segments = note.Segments.Count },
+            stop = new { acknowledgedMs = finished ? stopMs : (long?)null, outlineDoneMs = outline is null ? (long?)null : (long)(outline.EndedAt - stopAt).TotalMilliseconds },
+            calls = calls.Count, costUsd = Math.Round(calls.Sum(x => x.CostUsd), 5),
+            polish = new { calls = polishes.Count, medianMs = Median(polishes.Select(x => x.LatencyMs)), maxMs = polishes.Select(x => x.LatencyMs).DefaultIfEmpty().Max(),
+                maxOutputTokens = polishes.Select(x => x.OutputTokens).DefaultIfEmpty().Max(), deadlineFallbacks = deadline,
+                fallbacks = polishes.Count(x => x.Writer is not null), summaries },
+            topics = topics.Count, topLevel = topics.Count(x => x.ParentId is null), unpolishedTopics = unpolished.Select(x => x.Title),
+            largest = largest is null ? null : new { largest.Title, segmentBlocks = largest.SegmentBlockIds.Count, blocks = largest.Blocks.Count,
+                polishedBlocks = largest.Blocks.Count(x => x.Id.StartsWith("p-")) },
+            ledger = calls.Select(x => new { x.Task, x.Model, x.LatencyMs, x.InputTokens, x.OutputTokens, x.CostUsd, fallback = x.Writer is not null, x.Error })
+        });
+        await File.WriteAllTextAsync(Path.Combine(output, "notes.md"), after.Markdown);
+        Console.WriteLine($"Finish: {(finished ? "Stop finished" : "Stop did NOT finish")} in {stopMs / 1000.0:0.0} s; {polishes.Count} polish calls, longest " +
+            $"{polishes.Select(x => x.LatencyMs).DefaultIfEmpty().Max() / 1000.0:0.0} s, {deadline} past the deadline; {unpolished.Count} of {topics.Count} topics " +
+            $"left unpolished; {calls.Count} calls, US${calls.Sum(x => x.CostUsd):0.0000}.");
+        if (!passed) Environment.ExitCode = 1;
+    }
+
+    // Every string (and field name) naming the source session names the copy instead: IDs, session fields, citations.
+    static BsonValue Remap(BsonValue value, string from, string to) => value switch
+    {
+        BsonString text => new BsonString(text.Value.Replace(from, to, StringComparison.Ordinal)),
+        BsonDocument document => new BsonDocument(document.Select(x => new BsonElement(x.Name.Replace(from, to, StringComparison.Ordinal), Remap(x.Value, from, to)))),
+        BsonArray array => new BsonArray(array.Select(x => Remap(x, from, to))),
+        _ => value
+    };
 
     // ── Report ──
 

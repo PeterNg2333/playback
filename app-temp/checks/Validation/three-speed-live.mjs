@@ -7,6 +7,8 @@
 //                            summary), edit (one corrected line, notes-only rerun), rebuild (one locked block), report.
 //                            Every phase with a saved <phase>.json is reused, never paid twice; the cap covers the
 //                            folder's whole ledger.jsonl, earlier attempts included.
+//   --finish [--max-usd 0.05] only Stop's outline and polish again with the current code, on a copy of the record phase's
+//                            notes before its outline; results and its own ledger in <folder>/finish/. Paid unless --dry.
 //   --dry                    the same phases with the fixture note model: needs MongoDB, no network, no cost.
 //   --browser                the saved session in the real page: offline API (5079) on playback_e2e and Vite (5176).
 //   --folder <path>          run folder (default app-temp/data/validation/runs/2026-10-22-three-speed-live).
@@ -21,19 +23,20 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 // pnpm passes its "--" separator through.
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const option = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
-const known = ["--live", "--dry", "--browser", "--max-usd", "--folder"];
+const known = ["--live", "--dry", "--browser", "--finish", "--max-usd", "--folder"];
 for (const [i, arg] of args.entries())
   if (!known.includes(arg) && !["--max-usd", "--folder"].includes(args[i - 1])) throw new Error(`Unknown option ${arg}`);
 const live = args.includes("--live");
 const dry = args.includes("--dry");
+const finish = args.includes("--finish");
 const folder = path.resolve(root, option("--folder", "app-temp/data/validation/runs/2026-10-22-three-speed-live"));
-const maxUsd = Number(option("--max-usd", "0.3"));
+const maxUsd = Number(option("--max-usd", finish ? "0.05" : "0.3"));
 if (!(maxUsd > 0 && maxUsd <= 1)) throw new Error("--max-usd must be above 0 and at most 1");
 const dll = path.join(root, "app-temp/checks/bin/verification/net10.0/Playback.Checks.dll");
 const secrets = ["GOOGLE_AI_STUDIO_API_KEY", "JEV_API_KEY", "OPENROUTER_API_KEY"];
 const redact = (text) => secrets.reduce((safe, name) => (process.env[name] ? safe.split(process.env[name]).join("[redacted]") : safe), text);
 
-if (!live && !dry && !args.includes("--browser")) {
+if (!live && !dry && !finish && !args.includes("--browser")) {
   const file = path.join(folder, "results.json");
   if (!existsSync(file)) {
     console.log("Offline default: no saved results in " + path.relative(root, folder) + ". --live runs the paid acceptance (see the header).");
@@ -47,7 +50,14 @@ if (!live && !dry && !args.includes("--browser")) {
       `${r.afterStop.citedMinutes}/${r.afterStop.lectureMinutes} minutes cited; Stop to outline ${(r.stop.outlineDoneMs / 1000).toFixed(0)} s; ` +
       `edit ${r.edit?.passed ? "passed" : "failed"}, rebuild ${r.rebuild?.passed ? "passed" : "failed"}, browser ${browser ? (browser.passed ? "passed" : "failed") : "not run"}.`,
   );
-  process.exit(r.passed && browser?.passed !== false ? 0 : 1);
+  const again = path.join(folder, "finish", "finish.json");
+  const f = existsSync(again) ? JSON.parse(readFileSync(again, "utf8")) : null;
+  if (f)
+    console.log(
+      `Finish again: ${f.passed ? "passed" : "failed"}; ${f.polish.calls} polish calls, longest ${(f.polish.maxMs / 1000).toFixed(0)} s, ` +
+        `${f.polish.deadlineFallbacks} past the deadline, ${f.unpolishedTopics.length} of ${f.topics} topics unpolished; US$${f.costUsd}.`,
+    );
+  process.exit(r.passed && browser?.passed !== false && f?.passed !== false ? 0 : 1);
 }
 
 mkdirSync(folder, { recursive: true });
@@ -67,6 +77,13 @@ function phase(name, env = {}) {
     child.on("error", reject);
     child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`Phase ${name} failed (${code})`))));
   });
+}
+
+if (finish) {
+  if (!existsSync(dll)) throw new Error("Build the checks to bin/verification first (see the header)");
+  if (!dry && !process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY must be in the process environment");
+  await phase("finish", dry ? { PLAYBACK_THREE_SPEED_DRY: "yes" } : { PLAYBACK_THREE_SPEED_LIVE: "yes", PLAYBACK_THREE_SPEED_MAX_USD: String(maxUsd) });
+  process.exit(0);
 }
 
 if (live || dry) {

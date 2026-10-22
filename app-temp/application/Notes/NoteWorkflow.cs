@@ -9,7 +9,7 @@ using Playback.Domain.Notes;
 namespace Playback.Application.Notes;
 
 // Writes a session's notes at three speeds (NotePrompts): while recording, a live jot for each finished minute and a segment
-// for each finished five minutes; after Stop, an outline and a polish per top-level topic. Segments are the record the AI
+// for each finished five minutes; after Stop, an outline and a polish of each top-level topic. Segments are the record the AI
 // keeps; topics are laid out from them (NoteLayout). A segment whose transcript changed (a correction or a session rerun) is
 // written again, and only the finished topics polished from it are polished again: lineage decides what an update touches.
 // Every change is saved as a new note version through INoteRepository.
@@ -19,6 +19,8 @@ public sealed class NoteWorkflow : IAsyncDisposable
     const int MaxInstructionLength = 2_000;
     const int MaxMaterialChars = 12_000;
     const int MaxRelatedBlocks = 8;
+    // About 3k output tokens, 40–45 s from Qwen3.8 Flash; a 14.6k-character topic in one call ran past the 100 s deadline.
+    const int MaxPolishChars = 6_000;
     static readonly TimeSpan[] Backoff = [TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15)];
     static readonly TimeSpan IdleAfter = TimeSpan.FromMinutes(1);
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
@@ -270,6 +272,11 @@ public sealed class NoteWorkflow : IAsyncDisposable
     sealed record OutlineEntry(string Key, string Title, string Parent, List<string> Blocks);
     sealed record PolishReply(List<PolishedTopic> Topics);
     sealed record PolishedTopic(string Key, string Markdown);
+    // Consecutive segment blocks of one topic polished together, and the polished text once a reply passes the guard.
+    sealed record PolishPart(List<NoteBlock> Blocks)
+    {
+        public string? Markdown { get; set; }
+    }
 
     // With outline, and no finished topics yet or segments no finished topic covers: outline and polish everything. Otherwise
     // only the finished topics whose segment blocks were rewritten are polished again. Returns the saved (or current) note.
@@ -297,7 +304,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
         }
         var blocks = segments.SelectMany(x => x.Blocks).ToDictionary(x => x.Id);
         var polished = await Polish(session, stale.Select(t => (t, 1, t.SegmentBlockIds.Select(id => blocks[id]).ToList())).ToList(), ct);
-        foreach (var topic in stale) topic.Blocks = PolishedBlocks(topic, polished.GetValueOrDefault(topic.Id), topic.SegmentBlockIds.Select(id => blocks[id]));
+        foreach (var topic in stale) topic.Blocks = PolishedBlocks(topic, polished[topic.Id]);
         return await Save(session, topics, null, "notes final", "repolish:" + string.Join("|", stale.Select(t => t.Id + string.Join(",", t.SegmentBlockIds))));
     }
 
@@ -324,7 +331,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             foreach (var group in topics.GroupBy(x => x.ParentId)) { var order = 0; foreach (var topic in group) topic.Order = order++; }
             int Depth(NoteSection t) => t.ParentId is null ? 1 : 1 + Depth(topics.First(x => x.Id == t.ParentId));
             var polished = await Polish(session, topics.Select(t => (t, Depth(t), t.SegmentBlockIds.Select(id => byId[id]).ToList())).ToList(), ct);
-            foreach (var topic in topics) topic.Blocks = PolishedBlocks(topic, polished.GetValueOrDefault(topic.Id), topic.SegmentBlockIds.Select(id => byId[id]));
+            foreach (var topic in topics) topic.Blocks = PolishedBlocks(topic, polished[topic.Id]);
             // Edited and locked blocks keep their text: one the finish wrote again (same ID) is replaced by the edited version,
             // any other joins the topic that cites most of the same sources.
             foreach (var edited in NoteLayout.Edited(note.Sections.Select(NoteTree.Clone)))
@@ -348,56 +355,94 @@ public sealed class NoteWorkflow : IAsyncDisposable
         static string aliasesFree(string text) => Regex.Replace(text, @"\s*\[(?:T|B)\d+(?:\s*,\s*(?:T|B)\d+)*\]", "");
     }
 
-    // One polish call per top-level topic (with its subtopics), at most four at a time. A reply that keeps under 80% of a
-    // topic's citations or half its length is not used: that topic keeps its segment blocks.
-    async Task<Dictionary<string, string>> Polish(NoteSession session, List<(NoteSection Topic, int Depth, List<NoteBlock> Blocks)> topics, CancellationToken ct)
+    // Each top-level topic (with its subtopics) is polished in calls of at most MaxPolishChars of notes, at most four calls at
+    // a time; a longer topic is cut between blocks into parts of about equal length, polished one by one. A reply that keeps
+    // under 80% of a part's citations or half its length is not used: that part keeps its segment blocks. Returns every
+    // topic's parts in order.
+    async Task<Dictionary<string, List<PolishPart>>> Polish(NoteSession session, List<(NoteSection Topic, int Depth, List<NoteBlock> Blocks)> topics, CancellationToken ct)
     {
-        var result = new ConcurrentDictionary<string, string>();
+        var result = topics.ToDictionary(x => x.Topic.Id, _ => new List<PolishPart>());
         var roots = topics.Where(x => x.Topic.ParentId is null || topics.All(p => p.Topic.Id != x.Topic.ParentId)).ToList();
         List<(NoteSection Topic, int Depth, List<NoteBlock> Blocks)> Subtree(NoteSection root) =>
             topics.Where(x => x.Topic == root).Concat(topics.Where(x => x.Topic.ParentId == root.Id).SelectMany(x => Subtree(x.Topic))).ToList();
-        await Task.WhenAll(roots.Select(async root =>
+        var calls = new List<(NoteAliases Aliases, List<(NoteSection Topic, int Depth, PolishPart Part, string Notes)> Items)>();
+        foreach (var root in roots)
         {
             var scope = Subtree(root.Topic);
-            if (scope.All(x => x.Blocks.Count == 0)) return;
             var aliases = new NoteAliases(scope.SelectMany(x => x.Blocks).SelectMany(b => b.SourceIds));
-            var original = scope.ToDictionary(x => x.Topic.Id, x => aliases.Encode(string.Join("\n\n", x.Blocks.Select(b => b.Body))));
-            var keys = scope.Select((x, i) => (Key: "k" + (i + 1), x.Topic.Id)).ToDictionary(x => x.Key, x => x.Id);
+            var items = new List<(NoteSection Topic, int Depth, PolishPart Part, string Notes)>();
+            foreach (var (topic, depth, blocks) in scope)
+                foreach (var part in PolishParts(blocks.Select(b => (Block: b, Text: aliases.Encode(b.Body))).ToList()))
+                {
+                    var polishPart = new PolishPart(part.Select(x => x.Block).ToList());
+                    result[topic.Id].Add(polishPart);
+                    items.Add((topic, depth, polishPart, string.Join("\n\n", part.Select(x => x.Text))));
+                }
+            var size = 0;
+            foreach (var item in items)
+            {
+                if (size == 0 || size + item.Notes.Length > MaxPolishChars) { calls.Add((aliases, [])); size = 0; }
+                calls[^1].Items.Add(item);
+                size += item.Notes.Length;
+            }
+        }
+        await Task.WhenAll(calls.Select(async batch =>
+        {
+            var (aliases, items) = batch;
+            var keys = items.Select((item, i) => (Key: "k" + (i + 1), Item: item)).ToDictionary(x => x.Key, x => x.Item);
             var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new
             {
-                topics = scope.Select((x, i) => new { key = "k" + (i + 1), title = x.Topic.Title, depth = x.Depth, notes = original[x.Topic.Id] })
+                topics = keys.Select(x => new { key = x.Key, title = x.Value.Topic.Title, depth = x.Value.Depth, notes = x.Value.Notes })
             }, Json);
             PolishReply reply;
             NoteActivity call;
-            // A failed polish (already recorded in activity) leaves these topics with their segment blocks.
+            // A failed polish (already recorded in activity) leaves these parts with their segment blocks.
             try
             {
                 (reply, call) = await Call<PolishReply>(session, NotePrompts.Polish, "Note polish", NotePrompts.PolishInstructions(session.NoteLanguage),
-                    input, scope.SelectMany(x => x.Blocks).SelectMany(b => b.SourceIds), ct);
+                    input, items.SelectMany(item => item.Part.Blocks).SelectMany(b => b.SourceIds), ct);
             }
             catch (Exception) when (!ct.IsCancellationRequested) { return; }
             var kept = 0;
-            foreach (var item in reply.Topics.Where(x => keys.ContainsKey(x.Key)))
+            foreach (var polished in reply.Topics.Where(x => keys.ContainsKey(x.Key)))
             {
-                var id = keys[item.Key];
-                var before = Regex.Matches(original[id], @"\bT\d+\b").Select(m => m.Value).ToHashSet();
-                var after = Regex.Matches(item.Markdown, @"\bT\d+\b").Select(m => m.Value).ToHashSet();
+                var (_, _, part, notes) = keys[polished.Key];
+                var before = Regex.Matches(notes, @"\bT\d+\b").Select(m => m.Value).ToHashSet();
+                var after = Regex.Matches(polished.Markdown, @"\bT\d+\b").Select(m => m.Value).ToHashSet();
                 var cited = before.Count == 0 ? 1 : before.Count(after.Contains) / (double)before.Count;
-                if (cited < 0.8 || item.Markdown.Length < original[id].Length * 0.5) continue;
-                result[id] = InScript(aliases.Decode(Regex.Replace(item.Markdown, @"^#{1,6}\s+(.+?)\s*$", "**$1**", RegexOptions.Multiline)), session);
+                if (cited < 0.8 || polished.Markdown.Length < notes.Length * 0.5) continue;
+                part.Markdown = InScript(aliases.Decode(Regex.Replace(polished.Markdown, @"^#{1,6}\s+(.+?)\s*$", "**$1**", RegexOptions.Multiline)), session);
                 kept++;
             }
-            await activity.End(call, "completed", $"{kept} of {scope.Count} topics polished; the rest keep their segment blocks");
+            var noun = items.Any(item => result[item.Topic.Id].Count > 1) ? "topic parts" : "topics";
+            await activity.End(call, "completed", $"{kept} of {items.Count} {noun} polished; the rest keep their segment blocks");
         }));
-        return new(result);
+        return result;
     }
 
-    static List<NoteBlock> PolishedBlocks(NoteSection topic, string? polished, IEnumerable<NoteBlock> segmentBlocks)
+    // Consecutive blocks in parts of about equal length, each at most MaxPolishChars unless one block alone is longer.
+    static List<List<(NoteBlock Block, string Text)>> PolishParts(List<(NoteBlock Block, string Text)> blocks)
     {
-        var blocks = polished is null
-            ? segmentBlocks.Select(b => NoteLayout.Block(b.Id, b.Role, b.Body, b.SourceIds)).ToList()
-            : [NoteLayout.Block("p-" + ContentHash.Of(topic.Id + "\n" + polished)[..12], "detail", polished,
-                segmentBlocks.SelectMany(b => b.SourceIds))];
+        var total = blocks.Sum(x => x.Text.Length);
+        if (total <= MaxPolishChars) return blocks.Count == 0 ? [] : [blocks];
+        var target = total / (int)Math.Ceiling(total / (double)MaxPolishChars);
+        var parts = new List<List<(NoteBlock Block, string Text)>>();
+        var length = 0;
+        foreach (var block in blocks)
+        {
+            if (parts.Count == 0 || length >= target || length + block.Text.Length > MaxPolishChars) { parts.Add([]); length = 0; }
+            parts[^1].Add(block);
+            length += block.Text.Length;
+        }
+        return parts;
+    }
+
+    // A polished part becomes one block citing its segment blocks' sources; a part not polished keeps its segment blocks.
+    static List<NoteBlock> PolishedBlocks(NoteSection topic, IEnumerable<PolishPart> parts)
+    {
+        var blocks = parts.SelectMany(part => part.Markdown is { } polished
+            ? [NoteLayout.Block("p-" + ContentHash.Of(topic.Id + "\n" + polished)[..12], "detail", polished, part.Blocks.SelectMany(b => b.SourceIds))]
+            : part.Blocks.Select(b => NoteLayout.Block(b.Id, b.Role, b.Body, b.SourceIds))).ToList();
         var edited = topic.Blocks.Where(b => b.UserEdited).ToList();
         return blocks.Where(b => edited.All(e => e.Id != b.Id)).Concat(edited).Select((b, i) => { b.Order = i; return b; }).ToList();
     }

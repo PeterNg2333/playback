@@ -17,6 +17,8 @@ sealed class FixtureNoteModel : GeminiLanguageModel
     public readonly ConcurrentDictionary<string, int> Calls = new();
     public int TotalCalls => Calls.Values.Sum();
     public bool FailNext, PolishDropsCitations;
+    // Drop citations only from polished notes that contain this text.
+    public string? PolishDropsCitationsIn;
     public readonly ConcurrentBag<string> Inputs = new();
 
     public override Task<string> Complete(NoteTask task, string instructions, string prompt, CancellationToken ct,
@@ -52,7 +54,8 @@ sealed class FixtureNoteModel : GeminiLanguageModel
             "NotePolish" => new
             {
                 topics = Rows(root.GetProperty("topics")).Select(t => new { key = t.GetProperty("key").GetString(),
-                    markdown = PolishDropsCitations ? System.Text.RegularExpressions.Regex.Replace(t.GetProperty("notes").GetString()!, @"\s*\[T\d+(?:, T\d+)*\]", "") + " polished"
+                    markdown = PolishDropsCitations || PolishDropsCitationsIn is { } marker && t.GetProperty("notes").GetString()!.Contains(marker)
+                        ? System.Text.RegularExpressions.Regex.Replace(t.GetProperty("notes").GetString()!, @"\s*\[T\d+(?:, T\d+)*\]", "") + " polished"
                         : t.GetProperty("notes").GetString() + "\n\nPolished." })
             },
             "NoteRewrite" => new { markdown = "Rewritten: " + root.GetProperty("target").GetProperty("markdown").GetString() },
