@@ -31,6 +31,8 @@ static class LegacyNotePatch
     // Changes one stored note in place. allowed is the session's source IDs, as NoteSections.Compact expects.
     public static Change Patch(BsonDocument note, IReadOnlySet<string> allowed)
     {
+        // Notes saved with shared parts were written by the current app and never need this patch.
+        if (NoteParts.HasParts(note)) return new(0, 0, 0, 0, 0);
         var sessionId = note.GetValue("SessionId", "").AsString;
         var citations = Array(note, "Citations").Select(x => BsonSerializer.Deserialize<NoteCitation>(x.AsBsonDocument)).ToList();
         var known = citations.Count;

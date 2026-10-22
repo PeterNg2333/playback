@@ -1,3 +1,4 @@
+using MongoDB.Bson;
 using MongoDB.Driver;
 using Playback.Domain.Models;
 using Playback.Infrastructure.Audio;
@@ -38,6 +39,7 @@ public partial class PlaybackStore
         await Collection<TranslationVersion>("translation_versions").DeleteManyAsync(x => x.SessionId == id);
         await Collection<Note>("notes").DeleteManyAsync(x => x.SessionId == id);
         await Collection<NoteHead>("note_heads").DeleteOneAsync(x => x.Id == id);
+        await Collection<BsonDocument>("note_parts").DeleteManyAsync(Builders<BsonDocument>.Filter.Eq("SessionId", id));
         await Collection<TermInsight>("term_insights").DeleteManyAsync(x => x.SessionId == id);
         await Collection<Material>("materials").DeleteManyAsync(x => x.SessionId == id);
         await Collection<CitationRecord>("citations").DeleteManyAsync(x => x.SessionId == id);
@@ -46,14 +48,14 @@ public partial class PlaybackStore
         await Collection<ConversationRecord>("conversations").DeleteManyAsync(x => x.SessionId == id);
         await Collection<ActivityRecord>("ai_activity").DeleteManyAsync(x => x.SessionId == id);
         await Collection<NoteGateRecord>("note_gates").DeleteManyAsync(x => x.SessionId == id);
-        await Collection<MongoDB.Bson.BsonDocument>("note_organization").DeleteOneAsync(new MongoDB.Bson.BsonDocument("_id", id));
-        await Collection<MongoDB.Bson.BsonDocument>("note_rewrites").DeleteManyAsync(new MongoDB.Bson.BsonDocument("SessionId", id));
+        await Collection<BsonDocument>("note_organization").DeleteOneAsync(new BsonDocument("_id", id));
+        await Collection<BsonDocument>("note_rewrites").DeleteManyAsync(new BsonDocument("SessionId", id));
         await Collection<CombinedAudioSegment>("combined_audio").DeleteManyAsync(x => x.SessionId == id);
-        await Collection<MongoDB.Bson.BsonDocument>("speech_boundaries").DeleteManyAsync(new MongoDB.Bson.BsonDocument("SessionId", id));
+        await Collection<BsonDocument>("speech_boundaries").DeleteManyAsync(new BsonDocument("SessionId", id));
         await Collection<AudioStreamRecord>("audio_streams").DeleteManyAsync(x => x.SessionId == id);
         await Collection<RerunJob>("rerun_jobs").DeleteManyAsync(x => x.SessionId == id);
-        await Collection<MongoDB.Bson.BsonDocument>("processing_settings").DeleteOneAsync(new MongoDB.Bson.BsonDocument("_id", "session:" + id));
-        await Collection<MongoDB.Bson.BsonDocument>("term_explanation_history").DeleteManyAsync(new MongoDB.Bson.BsonDocument("SessionId", id));
+        await Collection<BsonDocument>("processing_settings").DeleteOneAsync(new BsonDocument("_id", "session:" + id));
+        await Collection<BsonDocument>("term_explanation_history").DeleteManyAsync(new BsonDocument("SessionId", id));
         await Collection<SessionRecord>("sessions").DeleteOneAsync(x => x.Id == id);
         syncLogs.TryRemove(id, out _);
         foreach (var reader in syncStates.Where(x => x.Value.SessionId == id)) syncStates.TryRemove(reader.Key, out _);

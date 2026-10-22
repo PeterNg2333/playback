@@ -1,3 +1,4 @@
+using MongoDB.Bson;
 using MongoDB.Driver;
 using Playback.Application.Activity;
 using Playback.Domain.Models;
@@ -7,6 +8,7 @@ public partial class PlaybackStore
     public async Task EnsureRecoveryIndexes(CancellationToken ct)
     {
         await Collection<Note>("notes").Indexes.CreateOneAsync(new CreateIndexModel<Note>(Builders<Note>.IndexKeys.Ascending(x => x.SessionId).Descending(x => x.Version), new CreateIndexOptions {Name = "note_session_version"}), cancellationToken: ct);
+        await Collection<BsonDocument>("note_parts").Indexes.CreateOneAsync(new CreateIndexModel<BsonDocument>(Builders<BsonDocument>.IndexKeys.Ascending("SessionId"), new CreateIndexOptions {Name = "note_part_session"}), cancellationToken: ct);
         await Collection<ChunkRecord>("chunks").Indexes.CreateOneAsync(new CreateIndexModel<ChunkRecord>(Builders<ChunkRecord>.IndexKeys.Ascending(x => x.Status).Ascending(x => x.RecordedAt), new CreateIndexOptions {Name = "chunk_recovery"}), cancellationToken: ct);
         await Collection<ChunkRecord>("chunks").Indexes.CreateOneAsync(new CreateIndexModel<ChunkRecord>(Builders<ChunkRecord>.IndexKeys.Ascending(x => x.SessionId).Ascending(x => x.StartMs), new CreateIndexOptions {Name = "chunk_session_time"}), cancellationToken: ct);
         await Collection<Transcript>("transcripts").Indexes.CreateOneAsync(new CreateIndexModel<Transcript>(Builders<Transcript>.IndexKeys.Ascending(x => x.SessionId).Ascending(x => x.StartMs), new CreateIndexOptions {Name = "transcript_session_time"}), cancellationToken: ct);

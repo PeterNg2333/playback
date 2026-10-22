@@ -1,3 +1,4 @@
+using MongoDB.Bson;
 using MongoDB.Driver;
 using Playback.Infrastructure.Notes;
 using Playback.Application.Notes;
@@ -9,8 +10,9 @@ namespace Playback.Infrastructure.Storage;
 public partial class PlaybackStore
 {
     MongoNoteRepository? noteRepository;
-    MongoNoteRepository NoteRepository => noteRepository ??= new(Collection<Note>("notes"), Collection<NoteGateRecord>("note_gates"),
-        new NoteStoreAdapter(this), new NoteStoreAdapter(this), noteWriteLocks, id => Touch(id, "note"), new MongoNoteHistoryStorage(Collection<NoteHead>("note_heads"), Collection<Note>("notes")), Supersessions);
+    MongoNoteRepository NoteRepository => noteRepository ??= new(
+        new MongoNoteHistoryStorage(Collection<BsonDocument>("note_heads"), Collection<BsonDocument>("notes"), Collection<BsonDocument>("note_parts")),
+        Collection<NoteGateRecord>("note_gates"), new NoteStoreAdapter(this), new NoteStoreAdapter(this), noteWriteLocks, id => Touch(id, "note"), Supersessions);
     NoteCommands NoteCommands => new(new NoteStoreAdapter(this), new NoteStoreAdapter(this));
     public Task<object> SaveNote(string id, string markdown, string author, int? basedOnVersion = null) => NoteCommands.SaveNote(id, markdown, author, basedOnVersion);
     public virtual Task<List<Note>> NoteHistory(string id) => NoteRepository.History(id);

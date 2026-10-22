@@ -122,6 +122,7 @@ static async Task RunOffline(bool notesOnly)
         await RateLimitGuardChecks.Run();
     }
     await NoteHistoryJournalChecks.Run();
+    NotePartsChecks.Run();
     await LegacyNotePatchChecks.Run();
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();
