@@ -1,5 +1,4 @@
 import { useMemo, useRef, type Ref } from "react";
-import clsx from "clsx";
 import { CitedMarkdown, indexMarkdownSources } from "../sources/CitedMarkdown";
 import { askAboutTerm } from "../ask/askAbout";
 import { visibleTerms } from "../terms/visibleTerms";
@@ -187,7 +186,7 @@ export function NotePreview({
   return (
     <div data-testid="note-content" ref={ref}>
       {sections?.length ? (
-        noteOutline(sections).map(({section, number, depth}) => {
+        noteOutline(sections).map(({ section, number, depth }) => {
           const ids = [...new Set(section.blocks.flatMap((x) => x.sourceIds))];
           return (
             <section
@@ -197,8 +196,29 @@ export function NotePreview({
               data-section-id={section.id}
               key={section.id}
             >
-              <CitedMarkdown value={"#".repeat(depth + 1) + " " + topicMarker(number, depth) + " " + section.title} {...common} reading />
-              <ol data-point-depth={depth} className={clsx("note-points space-y-2 pl-5", depth === 1 ? "list-[lower-alpha]" : depth === 2 ? "list-[lower-roman]" : "list-decimal")}>{[...section.blocks].sort((a, b) => a.order - b.order).map(block => <li key={block.id}><CitedMarkdown value={block.body} {...common} reading /></li>)}</ol>
+              <CitedMarkdown
+                value={
+                  "#".repeat(depth + 1) +
+                  " " +
+                  topicMarker(number, depth) +
+                  " " +
+                  section.title
+                }
+                {...common}
+                reading
+              />
+              <div className="space-y-2">
+                {[...section.blocks]
+                  .sort((a, b) => a.order - b.order)
+                  .map((block) => (
+                    <CitedMarkdown
+                      key={block.id}
+                      value={block.body}
+                      {...common}
+                      reading
+                    />
+                  ))}
+              </div>
               {!reading && ids.length > 0 && (
                 <SourceCitation
                   groups={[{ id: section.id, transcriptIds: ids }]}
@@ -210,12 +230,21 @@ export function NotePreview({
               )}
               {!reading && (
                 <small className="mt-1.5 block text-[10px] text-muted">
-                  {section.blocks.length} blocks · section v
-                  {section.version}
+                  {section.blocks.length} blocks · section v{section.version}
                   {section.userEdited ? " · protected user edits" : ""}
                 </small>
               )}
-              {!reading && session && section.blocks.length > 0 && <div className="mt-2 flex flex-wrap gap-3">{section.blocks.map(block => <NoteBlockEditor key={block.id} session={session} block={block} />)}</div>}
+              {!reading && session && section.blocks.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {section.blocks.map((block) => (
+                    <NoteBlockEditor
+                      key={block.id}
+                      session={session}
+                      block={block}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
           );
         })

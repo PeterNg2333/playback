@@ -42,7 +42,7 @@ const sections = [
     "example",
     "Worked example",
     "sharing",
-    "Example: n=10 gives R/10. [source-b]",
+    "- **Example**: n=10 gives R/10. [source-b]",
     "source-b",
   ),
 ];
@@ -134,6 +134,17 @@ try {
       .count(),
     1,
   );
+  const point = await page
+    .locator('[data-section-id="example"] li')
+    .evaluate((li) => ({
+      marker: getComputedStyle(li).listStyleType,
+      inOrderedList: !!li.closest("ol"),
+    }));
+  assert.deepEqual(
+    point,
+    { marker: "disc", inOrderedList: false },
+    "A block's bullet list must render as a plain first-level list, not under an a)/i) block marker",
+  );
   const hierarchy = await page
     .locator("[data-topic-depth]")
     .evaluateAll((rows) =>
@@ -176,7 +187,7 @@ try {
     fullPage: true,
   });
   console.log(
-    "Note tree browser checks passed: numbered hierarchy, math and source preview, protected block edit draft/conflict and mobile width (fixture API)",
+    "Note tree browser checks passed: numbered hierarchy, unmarked block lists, math and source preview, protected block edit draft/conflict and mobile width (fixture API)",
   );
 } finally {
   await browser?.close();

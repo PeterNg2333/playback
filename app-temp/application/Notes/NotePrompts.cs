@@ -8,7 +8,7 @@ namespace Playback.Application.Notes;
 // The wording and limits come from the 2026-10-21 proof of concept (docs/poc-three-speed-notes-asr-context-2026-10-21.zh-HK.md).
 public static class NotePrompts
 {
-    public const string Version = "three-speed-v1";
+    public const string Version = "three-speed-v2";
 
     public static readonly NoteTask Jot = new("NoteLiveJot", Schema("""
         {"points":{"type":"array","items":{"type":"object","properties":{"text":{"type":"string"},"sources":{"type":"array","items":{"type":"string"}}}}}}
@@ -32,6 +32,14 @@ public static class NotePrompts
         {"topics":{"type":"array","items":{"type":"object","properties":{"key":{"type":"string"},"markdown":{"type":"string"}}}}}
         """), 32768);
     public static readonly NoteTask Rewrite = new("NoteRewrite", Schema("""{"markdown":{"type":"string"}}"""), 16384);
+
+    // One Markdown shape for every note body, so finished topics read alike whichever call wrote them.
+    const string Format = """
+        Format: a Markdown bullet list. Each point is one "- " item; start it with a short bold label when it names an aspect
+        ("- **Label**: text"). Details, steps and examples are nested "- " items under their point (numbered "1." items for
+        ordered steps). Never write a bold label as a paragraph of its own. Use tables for comparisons and code formatting for
+        commands and names.
+        """;
 
     static string Style(string language) => $"""
         Write in {NoteLanguage.OutputDescription(language)}; keep English technical names, APIs, commands and code in English.
@@ -59,11 +67,10 @@ public static class NotePrompts
         jottings after class. Input: course (materials), outline (titles written so far with their times), previous (the notes
         of the previous window; continue it without repeating it), window (transcript lines [alias, time, source, text]).
         title: a noun-phrase heading naming this window's main subject. blocks: the notes in lecture order, one block per idea;
-        kind is definition, concept, procedure, example, demo, caveat or logistics. Use nested lists, short bold labels, tables
-        for comparisons and code formatting for commands and names. Leave out greetings, filler and repetition. Every block
-        lists its supporting aliases in sources. concepts: technical concepts this window defines or explains, with a
+        kind is definition, concept, procedure, example, demo, caveat or logistics. Leave out greetings, filler and repetition.
+        Every block lists its supporting aliases in sources. concepts: technical concepts this window defines or explains, with a
         one-sentence definition the transcript supports. corrections: each misrecognized word you wrote as another term.
-        """ + "\n" + Style(language);
+        """ + "\n" + Format + "\n" + Style(language);
 
     public static string OutlineInstructions(string language) =>
         $"""
@@ -81,11 +88,11 @@ public static class NotePrompts
     public static string PolishInstructions(string language) =>
         """
         You edit one topic of lecture notes into its final form. Input: topics with key, title, depth and their notes. For each
-        key return its markdown: merge points repeated across windows, order them so a reader can follow, and use nested lists,
-        tables and code formatting where they help. Keep every fact, condition, number, command, example and demonstration
-        outcome, every "(?)" and every citation [T…] (attached to the sentence it supports). Do not add facts. The topics are
-        already headings: never write Markdown headings (#) or repeat the title; use bold labels for sub-points.
-        """ + "\n" + Style(language);
+        key return its markdown: merge points repeated across windows and order them so a reader can follow. Keep every fact,
+        condition, number, command, example and demonstration outcome, every "(?)" and every citation [T…] (attached to the
+        sentence it supports). Do not add facts. The topics are already headings: never write Markdown headings (#) or repeat
+        the title.
+        """ + "\n" + Format + "\n" + Style(language);
 
     public static string RewriteInstructions(string language) =>
         """
@@ -93,8 +100,8 @@ public static class NotePrompts
         markdown), transcript (the lines its citations and the related notes cite, [alias, time, source, text]) and related
         (notes from other parts of the same lecture that share its concepts; cite their transcript lines when you refer to
         them). Keep every fact, number, command, "(?)" and citation unless the instruction removes it; add only what the
-        transcript supports. Never write Markdown headings (#).
-        """ + "\n" + Style(language);
+        transcript supports. Never write Markdown headings (#). Unless the instruction asks for another layout:
+        """ + "\n" + Format + "\n" + Style(language);
 
     public static string LiveTitle(string language) => language switch
     {
