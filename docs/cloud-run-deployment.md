@@ -260,6 +260,45 @@ text. Cantonese display conversion (`LanguageSettings.CantoneseDisplay`) still
 calls a Windows API and throws on Linux, so Cantonese sessions cannot be read in
 the container until it is replaced.
 
+## Deployment status and next actions
+
+Deployed on 2026-10-27 to https://playback-1052670402311.asia-east1.run.app as revision `playback-00001-zlm`
+(project `peterngdev`, region `asia-east1`). The bucket mount works and signing keys were written to it. Sign-in,
+browser recording of the microphone, live transcription and live notes were tried once and worked.
+
+1. **Restore the shared `openrouter-api-key` secret.** Revision 1 was deployed before secret names had the `playback-`
+   prefix. It added version 2, holding Playback's key, to the project's existing `openrouter-api-key`, which
+   `graphrag-console` reads as `latest`. Follow this order:
+   - Run `npm run deploy:cloud-run` again, so Playback uses the `playback-*` secrets.
+   - Then restore the original value as `latest` and remove the unprefixed copies:
+     ```bash
+     gcloud secrets versions access 1 --secret=openrouter-api-key --project=peterngdev | gcloud secrets versions add openrouter-api-key --data-file=- --project=peterngdev
+     gcloud secrets versions disable 2 --secret=openrouter-api-key --project=peterngdev
+     gcloud secrets delete google-ai-studio-api-key --project=peterngdev
+     gcloud secrets delete jev-api-key --project=peterngdev
+     ```
+2. **Set up CI/CD with a Cloud Build trigger.** Pushes to `main` build the image and run
+   `gcloud run deploy playback --image=...`, which replaces only the image and keeps secrets, the volume and scaling.
+   - Connect `PeterNg2333/playback` under Cloud Build > Repositories in `asia-east1`. This needs a browser sign-in to
+     GitHub.
+   - Add a `cloudbuild.yaml` with the steps build, push and deploy.
+   - Create the trigger on `main`.
+   - Grant the build service account `roles/run.developer` on the service, and `roles/iam.serviceAccountUser` on
+     `playback-run`.
+
+   Secret values still change only through `npm run deploy:cloud-run`. CI builds without running the offline checks,
+   because some of them need Windows (the M4A fixture and Cantonese conversion). The Docker build still compiles the
+   API and the web app.
+3. **Verify on the cloud mount**:
+   - playback and seeking;
+   - deleting a session;
+   - a finished chunk becoming `.opus` in the bucket about 2 minutes after recording;
+   - a rerun on Opus audio;
+   - signing in again after a new revision;
+   - `prompts/` appearing in the bucket.
+4. **Replace the Windows-only Cantonese display conversion** (`LanguageSettings.CantoneseDisplay`) before relying on
+   Cantonese sessions in the container. Sessions whose language is `yue` or `yue-en` throw on Linux.
+
 References: [Cloud Run container contract](https://docs.cloud.google.com/run/docs/container-contract),
 [billing settings](https://docs.cloud.google.com/run/docs/configuring/billing-settings),
 [ASP.NET Core cookie authentication](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/cookie?view=aspnetcore-10.0),
