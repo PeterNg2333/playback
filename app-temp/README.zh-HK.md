@@ -53,6 +53,8 @@ Key 只由 process environment 讀；`pnpm.cmd dev` 會將 repo root 嘅 `.env` 
 | `PLAYBACK_ASR_REVIEW` | 開 | 逐 chunk 嘅第二遍 ASR；設 `no` 關閉 |
 | `PLAYBACK_PAUSE_EXTERNAL_ASR` | 關 | 設 `yes` 暫停送 ASR，錄音照存 |
 | `PLAYBACK_CONCEPT_GRAPH` | 關 | 設 `yes` 啟動 LightRAG sidecar，安裝見 [graph/README](graph/README.zh-HK.md) |
+| `ENVIRONMENT` | 唔設定 | `local`：一律用本機 Docker MongoDB（`127.0.0.1:27017`，`pnpm.cmd dev` 會自動開 container），唔理 `PLAYBACK_MONGO_URI`；`dev`／`prod`：一定要有 `PLAYBACK_MONGO_URI`，冇就報錯，唔會開 container；唔設定：有 URI 用 URI，冇就用本機。Docker image 預設 `prod` |
+| `PLAYBACK_COMPRESS_AUDIO` | `dev`／`prod` 開，其他關 | 做完 ASR 同第二遍嘅 chunk 轉做 24 kb/s Opus（約細十倍）再刪 WAV；讀取時自動解返做 WAV。設 `yes`／`no` 強制開關；本機舊錄音預設唔郁 |
 | `PLAYBACK_MONGO_URI`／`PLAYBACK_MONGO_DATABASE` | `mongodb://127.0.0.1:27017`／`playback_prototype` | 資料庫；測試用 `playback_e2e`；Firestore 用 `playback-prototype`（database ID 唔准底線） |
 | `PLAYBACK_OFFLINE_TEST` | 關 | 設 `yes` 拒絕所有外部呼叫，API 只聽 127.0.0.1:5079 |
 

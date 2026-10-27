@@ -26,6 +26,7 @@ public partial class PlaybackStore
         if (!directory.StartsWith(audioRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Audio path is outside the session directory");
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        decodedAudio.Remove(id);
         var captureRoot = PlaybackEnvironment.CaptureFolder;
         var captureDirectory = Path.GetFullPath(Path.Combine(captureRoot, id));
         if (!captureDirectory.StartsWith(captureRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))

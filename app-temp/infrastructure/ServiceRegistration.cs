@@ -56,6 +56,7 @@ public static class ServiceRegistration
         services.AddSingleton<IAudioRenderer>(s => s.GetRequiredService<SessionAudioRenderer>());
         services.AddSingleton<ChunkCommands>();
         services.AddHostedService<CombinedAudioWorker>();
+        services.AddHostedService<AudioCompressionWorker>();
 
         services.AddSingleton<INoteWriter>(s => NoteWriters.Create(s.GetRequiredService<GeminiLanguageModel>()));
         services.AddSingleton<IJevTransport>(s => s.GetRequiredService<JevTransport>());

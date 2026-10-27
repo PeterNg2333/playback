@@ -1,3 +1,4 @@
+using Playback.Infrastructure;
 using Playback.Infrastructure.Storage;
 using System.Text.Json;
 
@@ -6,8 +7,8 @@ using System.Text.Json;
 static class NoteStoreChecks
 {
     public static async Task Run() {
-        var uri = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_URI");
-        if (uri is not null && !uri.StartsWith("mongodb://127.0.0.1:") && !uri.StartsWith("mongodb://localhost:"))
+        var uri = PlaybackEnvironment.MongoUri;
+        if (!uri.StartsWith("mongodb://127.0.0.1:") && !uri.StartsWith("mongodb://localhost:"))
             throw new InvalidOperationException("Offline store checks require localhost MongoDB");
         Environment.SetEnvironmentVariable("PLAYBACK_MONGO_DATABASE", "playback_e2e");
         Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");

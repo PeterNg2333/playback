@@ -1,6 +1,7 @@
 using Playback.Application.Activity;
 using Playback.Application.Ask;
 using Playback.Infrastructure.Providers;
+using Playback.Infrastructure;
 using Playback.Infrastructure.Storage;
 using System.Text.Json;
 
@@ -10,8 +11,8 @@ static class ConversationStoreChecks
 {
     public static async Task Run()
     {
-        var mongoUri = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_URI");
-        if (mongoUri is not null && !(mongoUri.StartsWith("mongodb://127.0.0.1:", StringComparison.Ordinal) || mongoUri.StartsWith("mongodb://localhost:", StringComparison.Ordinal)))
+        var mongoUri = PlaybackEnvironment.MongoUri;
+        if (!(mongoUri.StartsWith("mongodb://127.0.0.1:", StringComparison.Ordinal) || mongoUri.StartsWith("mongodb://localhost:", StringComparison.Ordinal)))
             throw new InvalidOperationException("This offline check requires a localhost MongoDB");
         Environment.SetEnvironmentVariable("PLAYBACK_MONGO_DATABASE", "playback_e2e");
         Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");

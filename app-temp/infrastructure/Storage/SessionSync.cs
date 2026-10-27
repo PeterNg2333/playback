@@ -52,6 +52,14 @@ public partial class PlaybackStore
         public string NoteLanguage = "zh-Hant";
         public int FullReads, RecordQueries;
     }
+    // Edits are not stored: the current note's come from the version it was based on, mapped through the same lineage.
+    async Task<Note?> WithEdits(string id, Note? note, IReadOnlyDictionary<string, string> supersessions)
+    {
+        if (note is null) return null;
+        var previous = note.BasedOnVersion is { } based && await NoteRepository.Version(id, based) is { } found ? Lineage.Apply(found, supersessions) : null;
+        note.Edits = NoteChangeLog.Between(previous, note);
+        return note;
+    }
     static object SyncMeta(SessionRecord session, Note? note) => new {
         session.Id, session.Title, session.GroupId, session.CreatedAt,
         noteMarkdown = note?.Markdown ?? "", noteVersion = note?.Version ?? 0,
@@ -66,8 +74,9 @@ public partial class PlaybackStore
         if (kind == "combined-audio") records.Add(new(kind, id, new { combinedAudioSegments = await CombinedAudio(id) }));
         if (kind == "meta") {
             var session = await SessionSettings(id);
-            var note = await NoteRepository.Latest(id) is { } latest ? Lineage.Apply(latest, await Supersessions(id)) : null;
-            records.Add(new("meta", id, SyncMeta(session, note)));
+            var supersessions = await Supersessions(id);
+            var note = await NoteRepository.Latest(id) is { } latest ? Lineage.Apply(latest, supersessions) : null;
+            records.Add(new("meta", id, SyncMeta(session, await WithEdits(id, note, supersessions))));
         }
         if (kind == "lineage") records.Add(new(kind, id, new { supersededBy = await Supersessions(id) }));
         if (kind == "rerun") records.Add(new(kind, id, new { rerun = await RerunStatus(id) }));
@@ -145,7 +154,8 @@ public partial class PlaybackStore
                     state.NoteLanguage = session.NoteLanguage;
                     Add("meta", id, SyncMeta(new SessionRecord { Id = id, Title = session.Title, GroupId = session.GroupId, CreatedAt = session.CreatedAt,
                         TranslationEnabled = session.TranslationEnabled, TranslationLanguage = session.TranslationLanguage,
-                        AsrLanguage = session.AsrLanguage, AsrModel = session.AsrModel, NoteLanguage = session.NoteLanguage }, session.CurrentNote));
+                        AsrLanguage = session.AsrLanguage, AsrModel = session.AsrModel, NoteLanguage = session.NoteLanguage },
+                        await WithEdits(id, session.CurrentNote, await Supersessions(id))));
                     foreach (var item in session.Transcripts) Add("transcript", item.Id, item);
                     foreach (var item in session.Chunks) Add("chunk", item.Id, item);
                     foreach (var item in session.Materials) Add("material", item.Id, item);

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MongoDB.Driver;
 using Playback.Domain.Models;
+using Playback.Infrastructure;
 using Playback.Infrastructure.Storage;
 
 // Session sync against local MongoDB (playback_e2e): 900 microphone and system sources page in, idle polling
@@ -8,7 +9,7 @@ using Playback.Infrastructure.Storage;
 static class SessionSyncStoreChecks
 {
     public static async Task Run() {
-        var uri = Environment.GetEnvironmentVariable("PLAYBACK_MONGO_URI") ?? "mongodb://127.0.0.1:27017";
+        var uri = PlaybackEnvironment.MongoUri;
         if (!uri.StartsWith("mongodb://127.0.0.1:") && !uri.StartsWith("mongodb://localhost:")) throw new InvalidOperationException("Store checks require localhost MongoDB");
         Environment.SetEnvironmentVariable("PLAYBACK_MONGO_DATABASE", "playback_e2e");
         Environment.SetEnvironmentVariable("PLAYBACK_OFFLINE_TEST", "yes");

@@ -4,6 +4,11 @@ namespace Playback.Domain.Notes;
 
 public static class NoteChangeLog
 {
+    // Every version is saved whole (as shared parts), so its line edits are not stored: they are worked out again from
+    // the version it was based on, the same way the save did.
+    public static List<NoteEdit> Between(Note? previous, Note note) =>
+        Build(previous?.Markdown ?? "", note.Markdown, note.Citations.SelectMany(x => x.SourceIds), []);
+
     public static List<NoteEdit> Build(string before, string after,
         IEnumerable<string> transcriptIds, IEnumerable<string> materialIds)
     {
