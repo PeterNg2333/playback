@@ -1,0 +1,15 @@
+# CI/CD for the Cloud Run service: a Cloud Build trigger on pushes to main builds the root Dockerfile, pushes the image and
+# swaps only the image on the existing service, so secrets, the /data volume and scaling stay as deploy-cloud-run.mjs set them.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, -t, asia-east1-docker.pkg.dev/$PROJECT_ID/playback/playback:$SHORT_SHA, .]
+  - name: gcr.io/cloud-builders/docker
+    args: [push, asia-east1-docker.pkg.dev/$PROJECT_ID/playback/playback:$SHORT_SHA]
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: [run, deploy, playback, --image=asia-east1-docker.pkg.dev/$PROJECT_ID/playback/playback:$SHORT_SHA,
+      --region=asia-east1, --quiet]
+timeout: 1800s
+options:
+  # Required when the trigger runs as a user-specified service account.
+  logging: CLOUD_LOGGING_ONLY

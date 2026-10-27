@@ -279,12 +279,32 @@ browser recording of the microphone, live transcription and live notes were trie
      ```
 2. **Set up CI/CD with a Cloud Build trigger.** Pushes to `main` build the image and run
    `gcloud run deploy playback --image=...`, which replaces only the image and keeps secrets, the volume and scaling.
-   - Connect `PeterNg2333/playback` under Cloud Build > Repositories in `asia-east1`. This needs a browser sign-in to
-     GitHub.
-   - Add a `cloudbuild.yaml` with the steps build, push and deploy.
-   - Create the trigger on `main`.
-   - Grant the build service account `roles/run.developer` on the service, and `roles/iam.serviceAccountUser` on
-     `playback-run`.
+   The build steps are in [`cloudbuild.yaml`](../cloudbuild.yaml). The image tag is the commit's short SHA.
+   - Push `main` to GitHub.
+   - Connect `PeterNg2333/playback` to Cloud Build through the GitHub App, in `asia-east1`. A 1st gen or 2nd gen
+     connection both work. This needs a browser sign-in to GitHub.
+   - Create the build service account and grant it what the build needs:
+     ```bash
+     gcloud iam service-accounts create playback-deployer --project=peterngdev
+     SA=playback-deployer@peterngdev.iam.gserviceaccount.com
+     gcloud projects add-iam-policy-binding peterngdev --member=serviceAccount:$SA --role=roles/artifactregistry.writer
+     gcloud projects add-iam-policy-binding peterngdev --member=serviceAccount:$SA --role=roles/logging.logWriter
+     gcloud run services add-iam-policy-binding playback --region=asia-east1 --project=peterngdev --member=serviceAccount:$SA --role=roles/run.developer
+     gcloud iam service-accounts add-iam-policy-binding playback-run@peterngdev.iam.gserviceaccount.com --project=peterngdev --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
+     ```
+   - Create the trigger on `main`. Changes that touch only documentation or `scripts/` do not trigger a build. In the
+     console, set the branch to `^main$`, add the ignored files `docs/**`, `scripts/**` and `**/*.md`, set the type to
+     Cloud Build configuration file at `cloudbuild.yaml`, and choose the `playback-deployer` service account. For a
+     2nd gen connection, the same trigger can be created with this command; take the connection and repository names
+     from the connection step:
+     ```bash
+     gcloud builds triggers create github --name=playback-main --region=asia-east1 --project=peterngdev \
+       --repository=projects/peterngdev/locations/asia-east1/connections/<connection>/repositories/<repository> \
+       --branch-pattern='^main$' --build-config=cloudbuild.yaml \
+       --service-account=projects/peterngdev/serviceAccounts/playback-deployer@peterngdev.iam.gserviceaccount.com \
+       --ignored-files='docs/**,scripts/**,**/*.md'
+     ```
+   - Push a small change, then check Cloud Build > History and the new Cloud Run revision.
 
    Secret values still change only through `npm run deploy:cloud-run`. CI builds without running the offline checks,
    because some of them need Windows (the M4A fixture and Cantonese conversion). The Docker build still compiles the
