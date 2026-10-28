@@ -60,6 +60,7 @@ public static class ServiceRegistration
         services.AddSingleton<INoteWriter>(s => NoteWriters.Create(s.GetRequiredService<GeminiLanguageModel>()));
         services.AddSingleton<IJevTransport>(s => s.GetRequiredService<JevTransport>());
         services.AddSingleton<NoteStoreAdapter>();
+        services.AddSingleton<NoteExport>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<INoteWriter>()));
         services.AddSingleton<NoteCommands>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>()));
         services.AddSingleton<NoteWorkflow>(s => new(s.GetRequiredService<NoteStoreAdapter>(), s.GetRequiredService<NoteStoreAdapter>(),
             s.GetRequiredService<INoteWriter>(),

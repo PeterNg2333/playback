@@ -42,6 +42,7 @@ app.MapChunks();
 app.MapRerun();
 app.MapConcepts();
 app.MapNotes();
+app.MapExports();
 app.MapTerms();
 app.MapAsk();
 app.MapActivity();

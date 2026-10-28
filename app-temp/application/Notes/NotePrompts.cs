@@ -254,7 +254,7 @@ public static class NotePrompts
     };
 
     // Every object closed and every property required, as strict structured outputs need.
-    static string Schema(string properties)
+    internal static string Schema(string properties)
     {
         var root = System.Text.Json.Nodes.JsonNode.Parse("{\"type\":\"object\",\"properties\":" + properties + "}")!;
         void Close(System.Text.Json.Nodes.JsonNode? node)

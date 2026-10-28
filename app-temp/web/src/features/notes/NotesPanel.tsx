@@ -18,6 +18,7 @@ import { Menu, MenuItem } from "../../components/Menu";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
 import { InstructionDialog } from "./InstructionDialog";
+import { ExportDialog } from "../export/ExportDialog";
 import { TopicTree } from "./TopicTree";
 import { VersionChanges } from "./VersionChanges";
 import { saveLanguages, saveNoteKind } from "../transcript/saveSettings";
@@ -56,7 +57,7 @@ export function NotesPanel({
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
   const [noteDialog, setNoteDialog] = useState<
-    "history" | "instruction" | null
+    "history" | "instruction" | "export" | null
   >(null);
   const body = useRef<HTMLDivElement>(null);
   const renderedNotes = useRef<HTMLDivElement>(null);
@@ -372,6 +373,16 @@ export function NotesPanel({
                 >
                   Rebuild notes…
                 </MenuItem>
+                <div className="my-1 border-t border-line" />
+                <MenuItem
+                  disabled={!session?.noteMarkdown}
+                  onClick={() => {
+                    close();
+                    setNoteDialog("export");
+                  }}
+                >
+                  Export to Word…
+                </MenuItem>
               </div>
             )}
           </Menu>
@@ -511,6 +522,13 @@ export function NotesPanel({
           key={session?.id}
           session={session}
           draftDirty={draft.isDirty}
+          onClose={() => setNoteDialog(null)}
+        />
+      )}
+      {noteDialog === "export" && session && (
+        <ExportDialog
+          key={session.id}
+          session={session}
           onClose={() => setNoteDialog(null)}
         />
       )}
