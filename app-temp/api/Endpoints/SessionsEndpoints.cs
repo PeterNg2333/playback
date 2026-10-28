@@ -24,6 +24,9 @@ public static class SessionsEndpoints
         app.MapPut("/api/sessions/{id}/languages", async (
             string id, LanguagesInput input, WorkspaceCommands store) =>
             await store.SetLanguages(id, input.AsrLanguage, input.NoteLanguage, input.AsrModel));
+        app.MapPut("/api/sessions/{id}/note-kind", async (
+            string id, NoteKindInput input, WorkspaceCommands store) =>
+            await store.SetNoteKind(id, input.Kind));
         app.MapPost("/api/sessions/{id}/translation/retry", async (string id, WorkspaceCommands store) =>
         {
             await store.RetryTranslations(id);
@@ -47,3 +50,4 @@ public record MoveSessionInput(string? GroupId);
 public record TranslationInput(bool Enabled, string Language);
 public record LanguagesInput(string AsrLanguage, string NoteLanguage, string? AsrModel = null);
 public record MaterialInput(string Name, string Text);
+public record NoteKindInput(string Kind);

@@ -15,6 +15,8 @@ public interface IWorkspaceRepository
     Task<object> MoveSession(string id, string? groupId);
     Task<SessionRecord> SetLanguages(string id, string asrLanguage, string noteLanguage, string? asrModel = null);
     Task<SessionRecord> SetTranslation(string id, bool enabled, string language);
+    // A default so test stores that predate note types still build.
+    Task<SessionRecord> SetNoteKind(string id, string kind) => throw new NotSupportedException("Note types are not supported by this store");
     Task RetryTranslations(string id);
     Task<SessionView?> Session(string id);
     Task<List<Transcript>> AllTranscripts(string id);
@@ -38,6 +40,11 @@ public sealed class WorkspaceCommands(IWorkspaceRepository repository)
         return repository.SetLanguages(id, asrLanguage, noteLanguage, asrModel);
     }
     public Task<SessionRecord> SetTranslation(string id, bool enabled, string language) => repository.SetTranslation(id, enabled, language);
+    public Task<SessionRecord> SetNoteKind(string id, string kind)
+    {
+        Playback.Domain.Notes.NoteKinds.Validate(kind);
+        return repository.SetNoteKind(id, kind);
+    }
     public async Task RetryTranslations(string id)
     {
         var session = await repository.Session(id) ?? throw new InvalidOperationException("Session not found");

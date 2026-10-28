@@ -91,6 +91,23 @@ public partial class PlaybackStore
         }
         finally { writeLock.Release(); }
     }
+    public async Task<SessionRecord> SetNoteKind(string id, string kind)
+    {
+        Playback.Domain.Notes.NoteKinds.Validate(kind);
+        await RequireSessionOwner(id);
+        var writeLock = noteWriteLocks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        await writeLock.WaitAsync();
+        try
+        {
+            var result = await Collection<SessionRecord>("sessions").FindOneAndUpdateAsync(x => x.Id == id,
+                Builders<SessionRecord>.Update.Set(x => x.NoteKind, kind),
+                new FindOneAndUpdateOptions<SessionRecord> { ReturnDocument = ReturnDocument.After })
+                ?? throw new InvalidOperationException("Session not found");
+            Touch(id, "display-settings");
+            return result;
+        }
+        finally { writeLock.Release(); }
+    }
     public virtual async Task<SessionView?> Session(string id)
     {
         var session = await Collection<SessionRecord>("sessions").Find(x => x.Id == id).FirstOrDefaultAsync();
@@ -130,7 +147,7 @@ public partial class PlaybackStore
             insights,
             note,
             session.AsrLanguage,
-            session.NoteLanguage, session.AsrModel) { Supersessions = supersessions };
+            session.NoteLanguage, session.AsrModel) { Supersessions = supersessions, NoteKind = Playback.Domain.Notes.NoteKinds.Normalize(session.NoteKind) };
     }
     public async Task<object> AddMaterial(string id, string name, string text)
     {

@@ -8,6 +8,7 @@ export const GroupNameSchema = z.string().trim().min(1).max(80);
 export const QuestionSchema = z.string().trim().min(1).max(1000);
 export const AsrLanguageSchema = z.enum(["auto", "yue-en", "yue", "zh", "en"]);
 export const NoteLanguageSchema = z.enum(["zh-Hant", "zh-Hans", "en"]);
+export const NoteKindSchema = z.enum(["lecture", "meeting"]);
 
 export const TranscriptSchema = z.object({
   id: z.string(),
@@ -192,6 +193,7 @@ export const SessionSchema = SessionSummarySchema.extend({
   asrLanguage: AsrLanguageSchema.default("auto"),
   asrModel: z.string().nullish(),
   noteLanguage: NoteLanguageSchema.default("zh-Hant"),
+  noteKind: NoteKindSchema.default("lecture"),
   materials: z.array(MaterialSchema),
   transcripts: z.array(TranscriptSchema),
   chunks: z.array(ChunkSchema),

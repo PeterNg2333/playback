@@ -204,7 +204,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
         var recent = lines.Where(x => x.At >= minute * NoteTimeline.MinuteMs - 3 * NoteTimeline.MinuteMs && x.At < minute * NoteTimeline.MinuteMs).ToList();
         var aliases = new NoteAliases(recent.Concat(current).Select(x => x.Id));
         var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new { recent = aliases.Rows(recent), @new = aliases.Rows(current) }, Json);
-        var (reply, call) = await Call<JotReply>(session, NotePrompts.Jot, "Live jot", NotePrompts.JotInstructions(session.NoteLanguage), input,
+        var (reply, call) = await Call<JotReply>(session, NotePrompts.Jot, "Live jot", NotePrompts.JotInstructions(session.NoteLanguage, session.NoteKind), input,
             current.Select(x => x.Id), ct);
         try
         {
@@ -239,7 +239,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             previous = before.LastOrDefault() is { } last ? new { last.Title, notes = string.Join("\n\n", last.Blocks.Select(b => Uncited(b.Body))) } : null,
             window = aliases.Rows(window.Lines)
         }, Json);
-        var (reply, call) = await Call<SegmentReply>(session, NotePrompts.Segment, "Note segment", NotePrompts.SegmentInstructions(session.NoteLanguage),
+        var (reply, call) = await Call<SegmentReply>(session, session.IsMeeting ? NotePrompts.MeetingSegment : NotePrompts.Segment, "Note segment", NotePrompts.SegmentInstructions(session.NoteLanguage, session.NoteKind),
             input, window.Lines.Select(x => x.Id), ct);
         try
         {
@@ -278,9 +278,34 @@ public sealed class NoteWorkflow : IAsyncDisposable
         public string? Markdown { get; set; }
     }
 
+    // The finish for either note type. Meeting minutes add the record sections (summary, attendees, decisions, questions and
+    // actions) once the discussion topics are finished, and write them again whenever the finish changed the notes. Lecture
+    // notes never keep record sections: a session switched back to lecture notes loses them on its next finish.
+    async Task<object> Finish(NoteSession session, CancellationToken ct, bool outline = true)
+    {
+        var oldMinutes = session.Sections.Where(t => IsMinutes(session.Id, t)).Select(NoteTree.Clone).ToList();
+        if (!session.IsMeeting)
+        {
+            if (oldMinutes.Count > 0)
+            {
+                await Save(session, session.Sections.Where(t => !IsMinutes(session.Id, t)).Select(NoteTree.Clone).ToList(), null,
+                    "notes final", "minutes-removed:" + session.NoteVersion);
+                session = await Session(session.Id);
+            }
+            return await FinishNotes(session, ct, outline);
+        }
+        var before = session.NoteVersion;
+        var result = await FinishNotes(session, ct, outline);
+        var after = await Session(session.Id);
+        var discussed = after.Sections.Any(t => NoteLayout.IsFinished(t) && !IsMinutes(after.Id, t));
+        var hasMinutes = after.Sections.Any(t => IsMinutes(after.Id, t));
+        if (!discussed || (after.NoteVersion == before && hasMinutes)) return result;
+        return await Minutes(after, oldMinutes.Count > 0 ? oldMinutes : after.Sections.Where(t => IsMinutes(after.Id, t)).Select(NoteTree.Clone).ToList(), ct);
+    }
+
     // With outline, and no finished topics yet or segments no finished topic covers: outline and polish everything. Otherwise
     // only the finished topics whose segment blocks were rewritten are polished again. Returns the saved (or current) note.
-    async Task<object> Finish(NoteSession session, CancellationToken ct, bool outline = true)
+    async Task<object> FinishNotes(NoteSession session, CancellationToken ct, bool outline = true)
     {
         var note = session.CurrentNote;
         var segments = note?.Segments ?? [];
@@ -318,7 +343,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             blocks = blocks.Select((x, i) => new object[] { "B" + (i + 1), NoteTimeline.Clock(x.Segment.StartMs), x.Segment.Title, x.Block.Role,
                 Regex.Replace(Uncited(x.Block.Body), @"\s+", " ").Trim() is var text && text.Length > 160 ? text[..160] : text })
         }, Json);
-        var (reply, call) = await Call<OutlineReply>(session, NotePrompts.Outline, "Note outline", NotePrompts.OutlineInstructions(session.NoteLanguage),
+        var (reply, call) = await Call<OutlineReply>(session, NotePrompts.Outline, "Note outline", NotePrompts.OutlineInstructions(session.NoteLanguage, session.NoteKind),
             input, segments.SelectMany(s => s.SourceIds), ct);
         try
         {
@@ -334,7 +359,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             foreach (var topic in topics) topic.Blocks = PolishedBlocks(topic, polished[topic.Id]);
             // Edited and locked blocks keep their text: one the finish wrote again (same ID) is replaced by the edited version,
             // any other joins the topic that cites most of the same sources.
-            foreach (var edited in NoteLayout.Edited(note.Sections.Select(NoteTree.Clone)))
+            foreach (var edited in NoteLayout.Edited(note.Sections.Where(t => !IsMinutes(session.Id, t)).Select(NoteTree.Clone)))
             {
                 if (topics.FirstOrDefault(t => t.Blocks.Any(b => b.Id == edited.Id)) is { } rewritten)
                 {
@@ -399,7 +424,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             // A failed polish (already recorded in activity) leaves these parts with their segment blocks.
             try
             {
-                (reply, call) = await Call<PolishReply>(session, NotePrompts.Polish, "Note polish", NotePrompts.PolishInstructions(session.NoteLanguage),
+                (reply, call) = await Call<PolishReply>(session, NotePrompts.Polish, "Note polish", NotePrompts.PolishInstructions(session.NoteLanguage, session.NoteKind),
                     input, items.SelectMany(item => item.Part.Blocks).SelectMany(b => b.SourceIds), ct);
             }
             catch (Exception) when (!ct.IsCancellationRequested) { return; }
@@ -447,6 +472,113 @@ public sealed class NoteWorkflow : IAsyncDisposable
         return blocks.Where(b => edited.All(e => e.Id != b.Id)).Concat(edited).Select((b, i) => { b.Order = i; return b; }).ToList();
     }
 
+    // ── Meeting minutes: the record sections ──
+
+    sealed record MinutesReply(List<MinutesText> Summary, List<MinutesAttendee> Attendees, List<MinutesText> Decisions,
+        List<MinutesQuestion> Questions, List<MinutesAction> Actions);
+    sealed record MinutesText(string Text, List<string> Sources);
+    sealed record MinutesAttendee(string Name, string Party, List<string> Sources);
+    sealed record MinutesQuestion(string Question, string AskedBy, string Clarification, string ClarifiedBy, string Status, List<string> Sources);
+    sealed record MinutesAction(string Owner, string Task, string Deadline, List<string> Sources);
+
+    static readonly string[] MinutesKeys = ["summary", "attendees", "decisions", "questions", "actions"];
+    static string MinutesTopicId(string sessionId, string key) => NoteLayout.TopicId(sessionId, "meeting-minutes", key);
+    static bool IsMinutes(string sessionId, NoteSection topic) => MinutesKeys.Any(key => topic.Id == MinutesTopicId(sessionId, key));
+
+    // One call over every segment block compiles the sections; the summary and attendees go first, the discussion topics
+    // follow, then decisions, questions and actions. A section the owner edited or locked keeps its blocks and title.
+    async Task<object> Minutes(NoteSession session, List<NoteSection> previous, CancellationToken ct)
+    {
+        var note = session.CurrentNote!;
+        var blocks = note.Segments.OrderBy(x => x.Index).SelectMany(x => x.Blocks).ToList();
+        var aliases = new NoteAliases(blocks.SelectMany(b => b.SourceIds));
+        var input = Prefix(session) + "\n" + JsonSerializer.Serialize(new
+        {
+            blocks = blocks.Select(b => new object[] { b.Role, aliases.Encode(b.Body) })
+        }, Json);
+        var (reply, call) = await Call<MinutesReply>(session, NotePrompts.Minutes, "Meeting minutes", NotePrompts.MinutesInstructions(session.NoteLanguage),
+            input, blocks.SelectMany(b => b.SourceIds), ct);
+        try
+        {
+            var labels = NotePrompts.LabelsFor(session.NoteLanguage);
+            // Citations belong in sources; any alias left in a text field is dropped.
+            string Text(string? text) => InScript(Regex.Replace(text ?? "", @"\s*\[(?:\s*T\d+\s*[,;]?)+\]", "").Trim(), session);
+            List<string> Ids(List<string>? sources) => aliases.Sources(sources ?? []).ToList();
+            string Cite(List<string> ids) => ids.Count == 0 ? "" : " [" + string.Join(", ", ids) + "]";
+            string Cell(string text, string empty) =>
+                string.IsNullOrWhiteSpace(text) ? empty : Regex.Replace(text, @"\s*\r?\n\s*", " ").Replace("|", "\\|");
+            var used = new List<string>();
+            string Bullets(IEnumerable<MinutesText> items)
+            {
+                var lines = items.Select(x => (Text: Text(x.Text), Ids: Ids(x.Sources))).Where(x => x.Text.Length > 0)
+                    .Select(x => { used.AddRange(x.Ids); return "- " + x.Text + Cite(x.Ids); }).ToList();
+                return lines.Count == 0 ? "- " + labels.NoneRecorded : string.Join("\n", lines);
+            }
+            string Table(string[] header, IEnumerable<(string[] Cells, List<string> Ids)> rows)
+            {
+                var body = rows.Where(r => r.Cells.Any(c => c.Length > 0 && c != "—")).Select(r =>
+                {
+                    used.AddRange(r.Ids);
+                    var cells = r.Cells.ToArray();
+                    cells[^1] += Cite(r.Ids);
+                    return "| " + string.Join(" | ", cells) + " |";
+                }).ToList();
+                if (body.Count == 0) return "- " + labels.NoneRecorded;
+                return "| " + string.Join(" | ", header) + " |\n|" + string.Concat(header.Select(_ => " --- |")) + "\n" + string.Join("\n", body);
+            }
+
+            var sections = new Dictionary<string, (string Title, string Body, List<string> Sources)>();
+            void Add(string key, string title, string body)
+            {
+                sections[key] = (title, body, used.Distinct(StringComparer.Ordinal).ToList());
+                used.Clear();
+            }
+            Add("summary", labels.Summary, Bullets(reply.Summary ?? []));
+            Add("attendees", labels.Attendees, Table([labels.Name, labels.Party],
+                (reply.Attendees ?? []).Select(x => (new[] { Cell(Text(x.Name), "—"), Cell(Text(x.Party), "—") }, Ids(x.Sources)))));
+            Add("decisions", labels.Decisions, Bullets(reply.Decisions ?? []));
+            Add("questions", labels.Questions, Table([labels.Question, labels.AskedBy, labels.Clarification, labels.Status],
+                (reply.Questions ?? []).Select(x =>
+                {
+                    var clarification = Text(x.Clarification);
+                    var by = Text(x.ClarifiedBy);
+                    if (clarification.Length > 0 && by.Length > 0) clarification += "（" + by + "）";
+                    var answered = x.Status == "answered" && clarification.Length > 0;
+                    return (new[] { Cell(Text(x.Question), "—"), Cell(Text(x.AskedBy), "—"), Cell(clarification, "—"),
+                        answered ? labels.Answered : labels.Open }, Ids(x.Sources));
+                })));
+            Add("actions", labels.Actions, Table([labels.Owner, labels.Task, labels.Deadline],
+                (reply.Actions ?? []).Select(x => (new[] { Cell(Text(x.Owner), labels.NotAssigned), Cell(Text(x.Task), "—"),
+                    Cell(Text(x.Deadline), labels.NotStated) }, Ids(x.Sources)))));
+
+            NoteSection Section(string key)
+            {
+                var (title, body, sources) = sections[key];
+                var id = MinutesTopicId(session.Id, key);
+                var old = previous.FirstOrDefault(t => t.Id == id);
+                var edited = old?.Blocks.Where(b => b.UserEdited).ToList() ?? [];
+                var content = edited.Count > 0 ? edited : [NoteLayout.Block("m-" + ContentHash.Of(id + "\n" + body)[..12], "minutes", body, sources)];
+                return new NoteSection
+                {
+                    Id = id, Title = old?.UserEdited == true ? old.Title : title, UserEdited = old?.UserEdited ?? false,
+                    Blocks = content.Select((b, i) => { b.Order = i; return b; }).ToList()
+                };
+            }
+            var head = new[] { Section("summary"), Section("attendees") };
+            var tail = new[] { Section("decisions"), Section("questions"), Section("actions") };
+            var rest = session.Sections.Where(t => !IsMinutes(session.Id, t)).Select(NoteTree.Clone).ToList();
+            var roots = rest.Where(t => t.ParentId is null).OrderBy(t => NoteLayout.IsFinished(t) ? 0 : 1).ThenBy(t => t.Order).ToList();
+            var finishedRoots = roots.Where(NoteLayout.IsFinished).ToList();
+            var order = 0;
+            foreach (var topic in head.Concat(finishedRoots).Concat(tail).Concat(roots.Where(t => !NoteLayout.IsFinished(t)))) topic.Order = order++;
+            var topics = head.Concat(rest).Concat(tail).ToList();
+            var saved = await Save(session, topics, null, "notes final", "minutes:" + JsonSerializer.Serialize(reply, Json));
+            await activity.End(call, "completed", $"{reply.Decisions?.Count ?? 0} decisions, {reply.Questions?.Count ?? 0} questions, {reply.Actions?.Count ?? 0} actions");
+            return saved;
+        }
+        catch (Exception ex) { await activity.Fail(call, ex); throw; }
+    }
+
     // ── Rewrite on request ──
 
     sealed record RewriteReply(string Markdown);
@@ -474,7 +606,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
             transcript = aliases.Rows(used),
             related = related.Select(b => aliases.Encode(b.Body))
         }, Json);
-        var (reply, call) = await Call<RewriteReply>(session, NotePrompts.Rewrite, "Note instruction", NotePrompts.RewriteInstructions(session.NoteLanguage),
+        var (reply, call) = await Call<RewriteReply>(session, NotePrompts.Rewrite, "Note instruction", NotePrompts.RewriteInstructions(session.NoteLanguage, session.NoteKind),
             input, cited, ct);
         var body = InScript(aliases.Decode(reply.Markdown), session).Trim();
         if (NoteContent.IsPlaceholder(body)) { await activity.End(call, "completed", "No text returned; nothing changed"); return null; }
@@ -492,7 +624,7 @@ public sealed class NoteWorkflow : IAsyncDisposable
         IEnumerable<string> sources, CancellationToken ct)
     {
         var call = await activity.Begin(session.Id, label, writer.Provider, writer.Model, sources, session.NoteVersion);
-        activity.Context(call, NotePrompts.Version, instructions, input);
+        activity.Context(call, NotePrompts.VersionFor(session.NoteKind), instructions, input);
         await callSlots.WaitAsync(ct);
         try
         {
