@@ -9,7 +9,7 @@ namespace Playback.Application.Notes;
 public static class NotePrompts
 {
     public const string Version = "three-speed-v2";
-    public const string MeetingVersion = "meeting-minutes-v1";
+    public const string MeetingVersion = "meeting-minutes-v2";
     public static string VersionFor(string kind) => kind == NoteKinds.Meeting ? MeetingVersion : Version;
 
     public static readonly NoteTask Jot = new("NoteLiveJot", Schema("""
@@ -139,7 +139,8 @@ public static class NotePrompts
         repetitions and spoken fragments into clear statements and leave out greetings and small talk. Keep every name, number,
         date, deadline and condition. Say who said, asked or owns something only when the transcript or the materials make it
         clear; never invent a name, an owner, a deadline or a decision. The materials may list the attendees, their parties and
-        the agenda: use them to spell names and recognize who is who.
+        the agenda, or be the minutes of an earlier meeting: use them to spell names and recognize who is who, never as a
+        record of this meeting.
         The transcript is machine recognition with errors and does not say who is speaking. A reconstructed or guessed name,
         number or date gets "(?)" right after it. Never invent content the transcript does not support.
         Cite with transcript aliases in square brackets at the end of the sentence or bullet they support, for example [T12] or
@@ -206,12 +207,15 @@ public static class NotePrompts
 
     public static string MinutesInstructions(string language) =>
         $"""
-        You compile the record sections of meeting minutes. Input: course (materials; they may list the attendees, their
-        parties and the agenda) and blocks [kind, text]: every block of the meeting's minutes in meeting order, with transcript
-        citations [T…]. Return:
+        You compile the record sections of meeting minutes. Input: course (materials; they may list this meeting's attendees,
+        their parties and the agenda, or be the minutes of an earlier meeting) and blocks [kind, text]: every block of this
+        meeting's minutes in meeting order, with transcript citations [T…]. Everything you return is about this meeting, taken
+        from the blocks: the materials only help spell names and tell parties apart. An earlier meeting's attendees, decisions,
+        questions and actions belong here only when this meeting's blocks raise them again. Return:
         summary: 3–6 one-sentence outcomes of the meeting.
-        attendees: the people the materials list as attending, and the people the minutes show speaking or being addressed in
-          the meeting; party is their organization, team or role when known, else "". Leave out people only mentioned.
+        attendees: the people the blocks show speaking or being addressed in this meeting, and the people the materials list
+          as attending this meeting (not an earlier one); party is their organization, team or role when the blocks or the
+          materials say it, else "". Leave out people only mentioned.
         decisions: each thing agreed or decided, one sentence each.
         questions: each substantive question raised. askedBy: who asked, "" if not clear. clarification: the answer or
           clarification given, "" if none was given. clarifiedBy: who gave it, "" if not clear. status: answered when a
