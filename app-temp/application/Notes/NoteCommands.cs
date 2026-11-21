@@ -12,6 +12,15 @@ public sealed class NoteCommands(INoteRepository repository, INoteEvidence evide
     const int MaxBlockLength = 32_000;
 
     public Task<List<Note>> History(string id) => repository.History(id);
+    // Each version with the edits from the version it was based on; edits are not stored.
+    public async Task<List<Note>> EditLog(string id)
+    {
+        var history = await repository.History(id);
+        var byVersion = history.ToDictionary(x => x.Version);
+        foreach (var note in history)
+            note.Edits = NoteChangeLog.Between(note.BasedOnVersion is { } based ? byVersion.GetValueOrDefault(based) : null, note);
+        return history;
+    }
     public Task<Note?> Version(string id, int version) => repository.Version(id, version);
     public Task<object> Page(string id, int? before, int limit = 20) => repository.Page(id, before, limit);
 

@@ -34,7 +34,7 @@ static class MigrationChecks
         var workers = provider.GetServices<IHostedService>().ToList();
         // The independent migration commit also builds with the preserved translation WIP left unstaged.
         if ((object)provider.GetRequiredService<TranslationAgent>() is IHostedService translation) workers.Add(translation);
-        Expect.That(workers.Count is 8 or 9 && workers.Any(x => x is ConceptGraphWorker) && workers.Any(x => x is TranscriptReviewWorker) && workers.Any(x => x is SessionRerunWorker) && workers.All(x => x is BackgroundService), "Processing workers do not share a hosted lifecycle");
+        Expect.That(workers.Count is 9 or 10 && workers.Any(x => x is AudioCompressionWorker) && workers.Any(x => x is ConceptGraphWorker) && workers.Any(x => x is TranscriptReviewWorker) && workers.Any(x => x is SessionRerunWorker) && workers.All(x => x is BackgroundService), "Processing workers do not share a hosted lifecycle");
         foreach (var worker in workers) await worker.StartAsync(default);
         foreach (var worker in workers.AsEnumerable().Reverse()) await worker.StopAsync(default).WaitAsync(TimeSpan.FromSeconds(5));
         Console.WriteLine("Migration checks passed: model/feature assemblies, persistence-free domain, legacy BSON contracts/owner IDs, complete service composition, hosted start/cancellation/shutdown (offline; no devices/database/providers)");

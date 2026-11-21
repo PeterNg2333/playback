@@ -5,8 +5,13 @@ using Playback.Domain.Models;
 namespace Playback.Infrastructure.Storage;
 public partial class PlaybackStore
 {
+    // AI activity is an execution log, not lecture data: the database keeps 30 days of it (MongoDB removes expired
+    // documents within a minute, Firestore within a day).
+    public static readonly TimeSpan ActivityRetention = TimeSpan.FromDays(30);
     public async Task EnsureRecoveryIndexes(CancellationToken ct)
     {
+        await Collection<ActivityRecord>("ai_activity").Indexes.CreateOneAsync(new CreateIndexModel<ActivityRecord>(Builders<ActivityRecord>.IndexKeys.Ascending(x => x.SessionId).Descending(x => x.StartedAt), new CreateIndexOptions {Name = "activity_session_time"}), cancellationToken: ct);
+        await Collection<ActivityRecord>("ai_activity").Indexes.CreateOneAsync(new CreateIndexModel<ActivityRecord>(Builders<ActivityRecord>.IndexKeys.Ascending(x => x.StartedAt), new CreateIndexOptions {Name = "activity_expiry", ExpireAfter = ActivityRetention}), cancellationToken: ct);
         await Collection<Note>("notes").Indexes.CreateOneAsync(new CreateIndexModel<Note>(Builders<Note>.IndexKeys.Ascending(x => x.SessionId).Descending(x => x.Version), new CreateIndexOptions {Name = "note_session_version"}), cancellationToken: ct);
         await Collection<BsonDocument>("note_parts").Indexes.CreateOneAsync(new CreateIndexModel<BsonDocument>(Builders<BsonDocument>.IndexKeys.Ascending("SessionId"), new CreateIndexOptions {Name = "note_part_session"}), cancellationToken: ct);
         await Collection<ChunkRecord>("chunks").Indexes.CreateOneAsync(new CreateIndexModel<ChunkRecord>(Builders<ChunkRecord>.IndexKeys.Ascending(x => x.Status).Ascending(x => x.RecordedAt), new CreateIndexOptions {Name = "chunk_recovery"}), cancellationToken: ct);

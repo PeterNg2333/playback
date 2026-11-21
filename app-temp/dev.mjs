@@ -196,9 +196,11 @@ export async function ensureMongo(
   } = {},
 ) {
   if (health.mongo) return true;
-  if (process.env.PLAYBACK_MONGO_URI) {
+  // ENVIRONMENT=local always uses the bundled container; dev and prod, or a URI without ENVIRONMENT, never start it.
+  const stage = process.env.ENVIRONMENT?.toLowerCase();
+  if (stage !== "local" && (process.env.PLAYBACK_MONGO_URI || stage === "dev" || stage === "prod")) {
     console.warn(
-      "Configured MongoDB is unavailable. Check PLAYBACK_MONGO_URI; the bundled container was not started.",
+      `Configured MongoDB is unavailable. Check PLAYBACK_MONGO_URI${stage ? ` (ENVIRONMENT=${stage})` : ""}; the bundled container was not started.`,
     );
     return false;
   }

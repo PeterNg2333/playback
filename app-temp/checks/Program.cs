@@ -67,6 +67,9 @@ try
         case ["--rerun-live-ask", var session, var output, var label]:
             await RerunLiveCheck.Ask(session, output, label);
             break;
+        case ["--mongo-storage-live"]:
+            await MongoStorageLiveCheck.Run();
+            break;
         case ["--openrouter-stream-live", var mode]:
             await OpenRouterStreamLiveCheck.Run(mode);
             break;
@@ -124,6 +127,9 @@ static async Task RunOffline(bool notesOnly)
     }
     await NoteHistoryJournalChecks.Run();
     NotePartsChecks.Run();
+    await StorageSizeChecks.Run();
+    OpusAudioChecks.Run();
+    DatabaseTargetChecks.Run();
     await LegacyNotePatchChecks.Run();
     await MigrationChecks.Run();
     await TranscriptionWorkflowChecks.Run();

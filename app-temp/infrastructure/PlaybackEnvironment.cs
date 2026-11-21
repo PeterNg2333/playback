@@ -21,6 +21,14 @@ public static class PlaybackEnvironment
     public static bool AutomaticAsr => !Offline && !ExternalAsrPaused;
     public static bool ResumeSavedAsr => Read("PLAYBACK_RESUME_SAVED_ASR") != "no";
 
+    // Finished chunks become Opus and their WAV is removed: on by default for dev and prod, off for local recordings.
+    public static bool CompressAudio => Read("PLAYBACK_COMPRESS_AUDIO") switch
+    {
+        "yes" => true,
+        "no" => false,
+        _ => Stage is "dev" or "prod"
+    };
+
     public static bool AutomaticNotes => Read("PLAYBACK_AUTO_NOTES") != "no";
     public static bool AutomaticTerms => Read("PLAYBACK_AUTO_TERMS") != "no";
 
@@ -28,7 +36,21 @@ public static class PlaybackEnvironment
     public static bool AllowsAutomaticWork(string sessionId) =>
         !ValidationApi || Read("PLAYBACK_VALIDATION_SESSION") == sessionId;
 
-    public static string MongoUri => Read("PLAYBACK_MONGO_URI") ?? "mongodb://127.0.0.1:27017";
+    // ENVIRONMENT=local: the Docker MongoDB on this machine (app-temp/compose.yaml), whatever PLAYBACK_MONGO_URI says.
+    // dev or prod: PLAYBACK_MONGO_URI, required. Unset: PLAYBACK_MONGO_URI, else the local default (scripts and checks).
+    public const string LocalMongoUri = "mongodb://127.0.0.1:27017";
+    public static string? Stage => Read("ENVIRONMENT")?.ToLowerInvariant() switch
+    {
+        null or "" => null,
+        var stage when stage is "local" or "dev" or "prod" => stage,
+        _ => throw new InvalidOperationException("ENVIRONMENT must be local, dev or prod")
+    };
+    public static string MongoUri => Stage switch
+    {
+        "local" => LocalMongoUri,
+        null => Read("PLAYBACK_MONGO_URI") ?? LocalMongoUri,
+        var stage => Read("PLAYBACK_MONGO_URI") ?? throw new InvalidOperationException($"ENVIRONMENT={stage} needs PLAYBACK_MONGO_URI")
+    };
     public static string Database => Read("PLAYBACK_MONGO_DATABASE") ?? "playback_prototype";
 
     // Synthetic test data may be written only by checks: offline, or the validation API on the test database.
@@ -45,6 +67,7 @@ public static class PlaybackEnvironment
     // app-temp/data, found from the API's build output (bin/<configuration>/<framework>/).
     public static string AudioFolder => DataFolder("audio");
     public static string CaptureFolder => DataFolder("local-capture");
+    public static string PromptFolder => DataFolder("prompts");
     // The concept graph sidecar keeps one LightRAG workspace per session here (PLAYBACK_GRAPH_DIR for the sidecar).
     public static string GraphFolder => DataFolder("graph");
 

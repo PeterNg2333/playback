@@ -22,6 +22,7 @@ RUN dotnet publish -c Release --no-restore -o /publish /p:UseAppHost=false
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production \
+    ENVIRONMENT=prod \
     PORT=8080
 COPY --from=api /publish/ ./
 COPY --from=web /src/web/dist/ ./wwwroot/

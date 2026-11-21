@@ -69,7 +69,8 @@ public partial class PlaybackStore
                     Encoding.ASCII.GetString(header, 8, 4) != "WAVE")
                     throw new InvalidOperationException("Expected RIFF/WAVE audio");
             }
-            File.Move(temporary, path, false);
+            // A retried upload of a chunk already kept as Opus adds nothing.
+            if (!File.Exists(Path.ChangeExtension(path, ".opus"))) File.Move(temporary, path, false);
         }
         catch (IOException) when (File.Exists(path)) { File.Delete(temporary); }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
@@ -95,11 +96,18 @@ public partial class PlaybackStore
     public async Task<ChunkRecord?> Chunk(string id)
     {
         var chunk = await Collection<ChunkRecord>("chunks").Find(x => x.Id == id).FirstOrDefaultAsync();
-        if (chunk is not null) chunk.Path = ChunkIdentity.WavPath(audioRoot, chunk.SessionId, chunk.SourceId, chunk.Sequence, chunk.Hash);
+        if (chunk is not null) chunk.Path = chunk.Storage == "opus" && ChunkAudioPath(chunk.Id) is { } decoded ? decoded
+            : ChunkIdentity.WavPath(audioRoot, chunk.SessionId, chunk.SourceId, chunk.Sequence, chunk.Hash);
         return chunk;
     }
-    public string? ChunkAudioPath(string chunkId) =>
-        ChunkIdentity.WavPath(audioRoot, chunkId) is { } path && File.Exists(path) ? path : null;
+    // The saved WAV, or the Opus copy decoded to a WAV; readers always get a WAV path.
+    public string? ChunkAudioPath(string chunkId)
+    {
+        if (ChunkIdentity.WavPath(audioRoot, chunkId) is not { } path) return null;
+        if (File.Exists(path)) return path;
+        var opus = Path.ChangeExtension(path, ".opus");
+        return File.Exists(opus) ? decodedAudio.Path(chunkId, opus) : null;
+    }
     public async Task<(long Awaiting, long Failed)> MigrateLegacyAsrStatuses()
     {
         var waiting = await Collection<ChunkRecord>("chunks").UpdateManyAsync(

@@ -1,0 +1,19 @@
+# Cloud Build uploads only what the Dockerfile builds; .dockerignore then narrows the context again.
+/*
+!/Dockerfile
+!/.dockerignore
+!/app-temp/
+/app-temp/*
+!/app-temp/api/
+!/app-temp/domain/
+!/app-temp/application/
+!/app-temp/infrastructure/
+!/app-temp/web/
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/test/
+**/output/
+**/.env
+**/.env.*

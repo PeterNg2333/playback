@@ -20,7 +20,7 @@ public static class NotesEndpoints
         app.MapPost("/api/sessions/{id}/notes/{version:int}/restore", async (string id, int version, int? basedOnVersion, NoteCommands notes) =>
             await notes.RestoreNote(id, version, basedOnVersion));
         app.MapGet("/api/sessions/{id}/notes/edits", async (string id, NoteCommands notes) =>
-            (await notes.History(id)).Select(note => new
+            (await notes.EditLog(id)).Select(note => new
             {
                 note.Version,
                 note.BasedOnVersion,

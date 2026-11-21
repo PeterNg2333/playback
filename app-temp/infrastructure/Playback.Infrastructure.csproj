@@ -6,6 +6,8 @@
     <OpenccVersion>1.7.0</OpenccVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Concentus" Version="2.2.2" />
+    <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
     <ProjectReference Include="../application/Playback.Application.csproj" />
     <PackageReference Include="MongoDB.Driver" Version="3.12.0" />
     <PackageReference Include="Google.GenAI" Version="1.22.0" />

@@ -18,6 +18,8 @@ public sealed class ChunkRecord
     public string Status { get; set; } = ChunkStatus.PendingAsr;
     public string? Error { get; set; }
     public int AsrAttempts { get; set; }
+    // How the saved audio is kept: null until finished chunks are considered, "opus" once compressed, "wav" when it stays WAV.
+    public string? Storage { get; set; }
     public string Path { get; set; } = "";
 }
 

@@ -43,11 +43,12 @@ legacy records, isolation after restart and account switching in a real browser.
 For your own local run, populate your private `.env` yourself and pass it at runtime:
 
 ```powershell
-docker run --name playback-demo --env-file .env --env PLAYBACK_PUBLIC_ORIGIN=http://localhost:8080 --publish 127.0.0.1:8080:8080 --mount type=volume,source=playback_demo_data,target=/data playback:cloud-run
+docker run --name playback-demo --env-file .env --env ENVIRONMENT=dev --env PLAYBACK_PUBLIC_ORIGIN=http://localhost:8080 --publish 127.0.0.1:8080:8080 --mount type=volume,source=playback_demo_data,target=/data playback:cloud-run
 ```
 
 Open `http://localhost:8080`. Set `PLAYBACK_MONGO_URI` to a reachable database;
-`127.0.0.1` inside a container is the container itself. For a local host database,
+`127.0.0.1` inside a container is the container itself, so `--env ENVIRONMENT=dev`
+overrides a `.env` that says `local` (which would point the container at itself). For a local host database,
 Docker Desktop provides `host.docker.internal`. Audio metadata and its saved files
 must belong to the same dataset: an empty new volume does not contain audio from
 an existing Windows installation. Stop with `docker stop playback-demo`; retain
@@ -55,8 +56,12 @@ the named data volume for subsequent runs.
 
 ## Configuration
 
-`.env.example` contains only six values: MongoDB connection, public origin, shared
-password and three provider keys. Paste these into Cloud Run's Variables & Secrets.
+`.env.example` contains seven values: `ENVIRONMENT`, MongoDB connection, public
+origin, shared password and three provider keys. Paste all but `ENVIRONMENT` into
+Cloud Run's Variables & Secrets; the image already sets `ENVIRONMENT=prod`, which
+requires `PLAYBACK_MONGO_URI` instead of falling back to a local database.
+`ENVIRONMENT=local` makes the app use the Docker MongoDB on `127.0.0.1:27017`
+whatever the URI says; `dev`, `prod` or no value use `PLAYBACK_MONGO_URI`.
 Cloud Run does not load a local `.env` automatically. Leave unused provider keys
 empty. Use `demo123!` as the sample shared password.
 
@@ -78,9 +83,28 @@ slash. Local HTTP is accepted only for a loopback origin such as
 `http://localhost:8080`. Production startup requires a password and origin.
 Unconfigured native Development retains the existing Vite workflow.
 
-`GET /healthz` checks process liveness; authenticated `/api/health` reports database
-and provider readiness. `.env`, local recordings and build outputs are excluded
+`GET /healthz` checks process liveness locally; on Cloud Run's `run.app` URL the
+front end answers that path itself (404), so probe `/api/health` there (401 before
+sign-in). Authenticated `/api/health` reports database and provider readiness. `.env`, local recordings and build outputs are excluded
 from the Docker build context.
+
+## Scripted Cloud Run setup
+
+`npm run deploy:cloud-run` runs [app-temp/deploy-cloud-run.mjs](../app-temp/deploy-cloud-run.mjs) with
+the local gcloud login. It deploys project `peterngdev` in region `asia-east1`; edit the constants at the top of the
+script to change either. The run is billable and network-bound, and it does the following:
+
+- creates the Artifact Registry repository, the service account `playback-run`, and the private bucket
+  `peterngdev-playback-data` (7-day soft delete) if they are missing;
+- copies the five secret values from `.env` into Secret Manager without printing them, adding a version only when a
+  value changed;
+- builds the image with Cloud Build (`.gcloudignore` uploads only the Dockerfile's sources and refuses any `.env`);
+- deploys the service: public ingress, instance-based billing, 0 to 1 instances, 1 vCPU and 1 GiB memory, 300 s
+  timeout, with the bucket mounted at `/data`;
+- sets `PLAYBACK_PUBLIC_ORIGIN` to the service's `https://playback-<project number>.asia-east1.run.app` URL.
+
+MongoDB Atlas must accept Cloud Run's changing outbound addresses, for example a `0.0.0.0/0` network access entry
+protected by the database password and TLS.
 
 ## Manual Cloud Run setup
 
@@ -123,18 +147,32 @@ MongoDB stores chunk metadata and session ownership, along with notes, transcrip
 materials and chats. Windows capture also uses `data/local-capture` while sealing
 and importing WAVs. The image does not include existing local recordings.
 
-The proposed cloud setup is **Cloud Run service + a private Cloud Storage bucket
-for audio + MongoDB Atlas for workspace data**. Cloud Run's local disk is temporary.
-For the current filesystem-based code, mount a writable bucket at `/data/audio`:
+The proposed cloud setup is **Cloud Run service + one private Cloud Storage bucket
+mounted at `/data` + MongoDB Atlas or Firestore for workspace data**. Cloud Run's
+local disk is temporary. The bucket holds the recordings (`/data/audio`), the
+login signing keys (`/data/keys`) and AI activity instructions (`/data/prompts`,
+one write-once file per SHA-256, so `ai_activity` documents keep only the hash):
 
 1. Create a private bucket in the service's region; keep public access blocked.
+   Signing keys live in it, so it must never be made public. Keep soft delete on
+   (or turn on Object Versioning): the database names recordings and prompts only
+   by hash, so a deleted object cannot be rebuilt from MongoDB.
 2. Grant the service account `roles/storage.objectUser` on that bucket.
-3. Add a Cloud Storage bucket volume at `/data/audio`, writable, with mount options
+3. Add a Cloud Storage bucket volume at `/data`, writable, with mount options
    `uid=1654;gid=1654` to match the container user.
-4. Keep `/data/keys` on separate persistent private storage if logins must survive
-   instance replacement. Signing keys must not be stored in public storage.
-5. Verify upload, immediate playback, seeking, retries, deletion and instance
-   replacement against the real cloud mount before keeping real recordings.
+4. Verify upload, immediate playback, seeking, retries, deletion, a prompt shown in
+   the AI flow and login after instance replacement against the real cloud mount
+   before keeping real recordings.
+
+With `ENVIRONMENT=prod` (the image default) a chunk whose ASR and second pass are
+done is kept as 24 kb/s Opus, about a tenth of its WAV (a 3-hour source ≈ 35 MB
+instead of 345 MB), and decoded to a temporary WAV (at most 128 MB, in Cloud
+Run's memory-backed `/tmp`) when played, rerun or rendered. The second ASR pass
+and the first run on WAV; reruns of compressed audio hear the Opus version.
+AI activity documents expire after 30 days (TTL index `activity_expiry`; Firestore
+deletes within a day of expiry, billed as normal deletes); lecture data does not
+expire. A prompt is read from the bucket at most once per instance: saved and read texts
+stay in memory by hash, and the misses of one activity request are read in parallel.
 
 Bucket mounts use Cloud Storage FUSE: they are not fully POSIX-compliant and have
 no same-file write locking. The current temporary-file/move workflow passed on
@@ -142,6 +180,17 @@ local Docker but remains unverified on a bucket mount. A direct Cloud Storage AP
 integration would be a later code change. NFS/Filestore is another filesystem
 option, with additional VPC/NFS setup; Cloud Run mounts NFS without file locking.
 Keep one active instance/revision for the current in-process queues.
+
+The connection string goes in `PLAYBACK_MONGO_URI` (not `..._URL`). A remote
+database gets 15 s for the first server selection, localhost 2 s.
+`npm run test:mongo-storage-live` checks the storage format against that
+database in `playback_e2e` (one synthetic session, deleted afterwards). On
+2026-10-26 it passed against MongoDB Atlas: no null fields, a missing
+`SupersededBy` matched as null, prompts filed and read back; per document
+828 → 538 B for a transcript and 2,946 → 632 B for an activity with a notes
+prompt. From Windows, the .NET driver's own `mongodb+srv` DNS lookup took up to
+16 s while Node resolved it in under 0.1 s, so the run used a seed list
+resolved by Node; check first-request latency on Cloud Run (Linux) after deploy.
 
 ### Firestore instead of Atlas (unverified)
 
@@ -154,6 +203,10 @@ Use the connection string from the console; it must keep `loadBalanced=true`,
 not run against Firestore: it relies on MongoDB duplicate-key errors for
 idempotent transcript, note-history and term writes, and Firestore documents that
 error codes may differ. Check repeated uploads and note saves before keeping data.
+Null fields are not written, so recovery queries such as active transcripts
+(`SupersededBy: null`) rely on `{field: null}` matching a missing field, as MongoDB
+does; Firestore's documentation does not say, so check that a new transcript is
+listed and gets notes.
 See [behavior differences](https://docs.cloud.google.com/firestore/mongodb-compatibility/docs/behavior-differences)
 and [connection strings](https://docs.cloud.google.com/firestore/mongodb-compatibility/docs/connect).
 
@@ -206,6 +259,65 @@ system audio or a three-hour recording. Browser recording has no live interim
 text. Cantonese display conversion (`LanguageSettings.CantoneseDisplay`) still
 calls a Windows API and throws on Linux, so Cantonese sessions cannot be read in
 the container until it is replaced.
+
+## Deployment status and next actions
+
+Deployed on 2026-10-27 to https://playback-1052670402311.asia-east1.run.app as revision `playback-00001-zlm`
+(project `peterngdev`, region `asia-east1`). The bucket mount works and signing keys were written to it. Sign-in,
+browser recording of the microphone, live transcription and live notes were tried once and worked.
+
+1. **Restore the shared `openrouter-api-key` secret.** Revision 1 was deployed before secret names had the `playback-`
+   prefix. It added version 2, holding Playback's key, to the project's existing `openrouter-api-key`, which
+   `graphrag-console` reads as `latest`. Follow this order:
+   - Run `npm run deploy:cloud-run` again, so Playback uses the `playback-*` secrets.
+   - Then restore the original value as `latest` and remove the unprefixed copies:
+     ```bash
+     gcloud secrets versions access 1 --secret=openrouter-api-key --project=peterngdev | gcloud secrets versions add openrouter-api-key --data-file=- --project=peterngdev
+     gcloud secrets versions disable 2 --secret=openrouter-api-key --project=peterngdev
+     gcloud secrets delete google-ai-studio-api-key --project=peterngdev
+     gcloud secrets delete jev-api-key --project=peterngdev
+     ```
+2. **Set up CI/CD with a Cloud Build trigger.** Pushes to `main` build the image and run
+   `gcloud run deploy playback --image=...`, which replaces only the image and keeps secrets, the volume and scaling.
+   The build steps are in [`cloudbuild.yaml`](../cloudbuild.yaml). The image tag is the commit's short SHA.
+   - Push `main` to GitHub.
+   - Connect `PeterNg2333/playback` to Cloud Build through the GitHub App, in `asia-east1`. A 1st gen or 2nd gen
+     connection both work. This needs a browser sign-in to GitHub.
+   - Create the build service account and grant it what the build needs:
+     ```bash
+     gcloud iam service-accounts create playback-deployer --project=peterngdev
+     SA=playback-deployer@peterngdev.iam.gserviceaccount.com
+     gcloud projects add-iam-policy-binding peterngdev --member=serviceAccount:$SA --role=roles/artifactregistry.writer
+     gcloud projects add-iam-policy-binding peterngdev --member=serviceAccount:$SA --role=roles/logging.logWriter
+     gcloud run services add-iam-policy-binding playback --region=asia-east1 --project=peterngdev --member=serviceAccount:$SA --role=roles/run.developer
+     gcloud iam service-accounts add-iam-policy-binding playback-run@peterngdev.iam.gserviceaccount.com --project=peterngdev --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
+     ```
+   - Create the trigger on `main`. Changes that touch only documentation or `scripts/` do not trigger a build. In the
+     console, set the branch to `^main$`, add the ignored files `docs/**`, `scripts/**` and `**/*.md`, set the type to
+     Cloud Build configuration file at `cloudbuild.yaml`, and choose the `playback-deployer` service account. For a
+     2nd gen connection, the same trigger can be created with this command; take the connection and repository names
+     from the connection step:
+     ```bash
+     gcloud builds triggers create github --name=playback-main --region=asia-east1 --project=peterngdev \
+       --repository=projects/peterngdev/locations/asia-east1/connections/<connection>/repositories/<repository> \
+       --branch-pattern='^main$' --build-config=cloudbuild.yaml \
+       --service-account=projects/peterngdev/serviceAccounts/playback-deployer@peterngdev.iam.gserviceaccount.com \
+       --ignored-files='docs/**,scripts/**,**/*.md'
+     ```
+   - Push a small change, then check Cloud Build > History and the new Cloud Run revision.
+
+   Secret values still change only through `npm run deploy:cloud-run`. CI builds without running the offline checks,
+   because some of them need Windows (the M4A fixture and Cantonese conversion). The Docker build still compiles the
+   API and the web app.
+3. **Verify on the cloud mount**:
+   - playback and seeking;
+   - deleting a session;
+   - a finished chunk becoming `.opus` in the bucket about 2 minutes after recording;
+   - a rerun on Opus audio;
+   - signing in again after a new revision;
+   - `prompts/` appearing in the bucket.
+4. **Replace the Windows-only Cantonese display conversion** (`LanguageSettings.CantoneseDisplay`) before relying on
+   Cantonese sessions in the container. Sessions whose language is `yue` or `yue-en` throw on Linux.
 
 References: [Cloud Run container contract](https://docs.cloud.google.com/run/docs/container-contract),
 [billing settings](https://docs.cloud.google.com/run/docs/configuring/billing-settings),

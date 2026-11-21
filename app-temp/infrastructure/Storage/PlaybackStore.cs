@@ -32,7 +32,8 @@ public partial class PlaybackStore : IActivityRepository, IConversationRepositor
     {
         this.http = http;
         var settings = MongoClientSettings.FromConnectionString(PlaybackEnvironment.MongoUri);
-        settings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
+        // A stopped local database is reported at once; Atlas or Firestore needs DNS SRV and TLS on the first connection.
+        settings.ServerSelectionTimeout = TimeSpan.FromSeconds(settings.Servers.All(x => x.Host is "127.0.0.1" or "localhost") ? 2 : 15);
         var database = PlaybackEnvironment.Database;
         // Firestore's MongoDB-compatible database IDs cannot contain underscores, so the cloud database uses a hyphen.
         if (database is not ("playback_prototype" or "playback_e2e" or "playback-prototype"))

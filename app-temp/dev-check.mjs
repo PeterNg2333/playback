@@ -30,6 +30,8 @@ assert.equal(
 );
 
 const previousUri = process.env.PLAYBACK_MONGO_URI;
+const previousStage = process.env.ENVIRONMENT;
+delete process.env.ENVIRONMENT;
 let starts = 0;
 let checks = 0;
 const start = () => {
@@ -60,6 +62,24 @@ try {
   );
   assert.equal(starts, 1);
   assert.equal(checks, 3);
+
+  process.env.ENVIRONMENT = "prod";
+  assert.equal(
+    await ensureMongo({ mongo: false }, { start, check, pause }),
+    false,
+  );
+  assert.equal(starts, 1, "ENVIRONMENT=prod must never start the local container");
+
+  process.env.ENVIRONMENT = "local";
+  process.env.PLAYBACK_MONGO_URI = "mongodb://example.invalid:27017";
+  checks = 2;
+  assert.equal(
+    await ensureMongo({ mongo: false }, { start, check, pause }),
+    true,
+  );
+  assert.equal(starts, 2, "ENVIRONMENT=local must start the local container whatever the URI says");
+  delete process.env.ENVIRONMENT;
+  delete process.env.PLAYBACK_MONGO_URI;
 
   let pendingChecks = 0;
   assert.equal(
@@ -92,9 +112,11 @@ try {
     false,
   );
   console.log(
-    "Startup DB check passed: reuse ready DB, respect custom URI, start and wait, report Docker failure",
+    "Startup DB check passed: reuse ready DB, respect custom URI, start and wait, report Docker failure, ENVIRONMENT=local starts the container and prod never does",
   );
 } finally {
   if (previousUri === undefined) delete process.env.PLAYBACK_MONGO_URI;
   else process.env.PLAYBACK_MONGO_URI = previousUri;
+  if (previousStage === undefined) delete process.env.ENVIRONMENT;
+  else process.env.ENVIRONMENT = previousStage;
 }
