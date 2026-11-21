@@ -57,6 +57,7 @@ public partial class PlaybackStore
         await Collection<RerunJob>("rerun_jobs").DeleteManyAsync(x => x.SessionId == id);
         await Collection<BsonDocument>("processing_settings").DeleteOneAsync(new BsonDocument("_id", "session:" + id));
         await Collection<BsonDocument>("term_explanation_history").DeleteManyAsync(new BsonDocument("SessionId", id));
+        await Collection<ExportConversationRecord>("export_conversations").DeleteOneAsync(x => x.Id == id);
         await Collection<SessionRecord>("sessions").DeleteOneAsync(x => x.Id == id);
         syncLogs.TryRemove(id, out _);
         foreach (var reader in syncStates.Where(x => x.Value.SessionId == id)) syncStates.TryRemove(reader.Key, out _);
