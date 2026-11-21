@@ -3,7 +3,9 @@ import type { Session } from "../../lib/backend/schemas";
 import { askAboutTerm } from "../ask/askAbout";
 import { Button } from "../../components/Button";
 import { Tag } from "../../components/Tag";
-import { attachMaterial } from "./attachMaterial";
+import { useState } from "react";
+import { attachMaterial, type MaterialBudget } from "./attachMaterial";
+import { MaterialBudgetDialog } from "./MaterialBudgetDialog";
 
 const PREVIEW_CHARS = 180;
 
@@ -11,8 +13,12 @@ const PREVIEW_CHARS = 180;
 export function MaterialsList({ session }: { session: Session | null }) {
   const busy = usePlaybackStore((state) => state.busy);
   const workspaceLoading = usePlaybackStore((state) => state.workspaceLoading);
+  const [budget, setBudget] = useState<MaterialBudget | null>(null);
   return (
     <details className="border-b border-line" id="session-materials">
+      {budget && (
+        <MaterialBudgetDialog budget={budget} onClose={() => setBudget(null)} />
+      )}
       <summary className="flex cursor-pointer items-center gap-2 px-5 py-3 text-[11px] font-bold text-muted">
         Materials{" "}
         <span className="rounded-full bg-accent-soft px-1.5 py-px text-accent">
@@ -21,7 +27,7 @@ export function MaterialsList({ session }: { session: Session | null }) {
       </summary>
       <div className="px-5 pb-3">
         <Button
-          onClick={() => attachMaterial(session)}
+          onClick={async () => setBudget(await attachMaterial(session))}
           disabled={!session || !!busy || workspaceLoading}
         >
           Attach material
