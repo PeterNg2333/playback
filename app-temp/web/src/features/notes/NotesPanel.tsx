@@ -281,7 +281,7 @@ export function NotesPanel({
         <button
           className="h-9 shrink-0 rounded-full border border-line bg-white px-2.5 text-[12px] font-bold text-ink hover:bg-accent-soft disabled:cursor-not-allowed disabled:text-muted"
           disabled={!session?.noteMarkdown}
-          title="Export to Word with a template, and refine it with the AI"
+          title="Export to Word (.docx) with a template, and refine it with the AI"
           onClick={() => setNoteDialog("export")}
         >
           Export
@@ -380,16 +380,6 @@ export function NotesPanel({
                   }}
                 >
                   Rebuild notes…
-                </MenuItem>
-                <div className="my-1 border-t border-line" />
-                <MenuItem
-                  disabled={!session?.noteMarkdown}
-                  onClick={() => {
-                    close();
-                    setNoteDialog("export");
-                  }}
-                >
-                  Export to Word…
                 </MenuItem>
               </div>
             )}
