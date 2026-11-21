@@ -278,6 +278,14 @@ export function NotesPanel({
             <option value="draft">Live AI edit</option>
           </select>
         </div>
+        <button
+          className="h-9 shrink-0 rounded-full border border-line bg-white px-2.5 text-[12px] font-bold text-ink hover:bg-accent-soft disabled:cursor-not-allowed disabled:text-muted"
+          disabled={!session?.noteMarkdown}
+          title="Export to Word with a template, and refine it with the AI"
+          onClick={() => setNoteDialog("export")}
+        >
+          Export
+        </button>
         <div
           className="inline-flex h-9 shrink-0 items-stretch rounded-full border border-accent bg-white"
           role="group"

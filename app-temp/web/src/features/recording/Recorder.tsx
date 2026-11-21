@@ -1,9 +1,13 @@
 import clsx from "clsx";
+import { useState } from "react";
+import { api } from "../../lib/backend/client";
+import { refreshWorkspace } from "../library/refreshWorkspace";
+import { RecordStartDialog, type RecordChoice } from "./RecordStartDialog";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { useHealth } from "../../lib/useHealth";
 import { formatElapsed } from "../../lib/time";
-import { usePlaybackField, usePlaybackStore } from "../../lib/store";
+import { showError, usePlaybackField, usePlaybackStore } from "../../lib/store";
 import {
   RecorderKindSchema,
   RecordingModeSchema,
@@ -24,6 +28,7 @@ export function Recorder({ session }: { session: Session | null }) {
   const busy = usePlaybackStore((state) => state.busy);
   const health = useHealth();
   const uploads = useUploads();
+  const [asking, setAsking] = useState(false);
   const {
     status: capture,
     levels,
@@ -64,11 +69,42 @@ export function Recorder({ session }: { session: Session | null }) {
         Recording unavailable
       </span>
     );
+  // Recording starts at once, inside the click (the browser asks for the microphone or screen only then); the note
+  // settings are saved alongside, well before the first notes are written a minute in.
+  function start(choice: RecordChoice) {
+    setAsking(false);
+    if (!session) return;
+    void record("start");
+    const saves: Promise<unknown>[] = [];
+    if (choice.kind !== session.noteKind)
+      saves.push(
+        api.put(`/sessions/${session.id}/note-kind`, { kind: choice.kind }),
+      );
+    if (choice.language !== session.noteLanguage)
+      saves.push(
+        api.put(`/sessions/${session.id}/languages`, {
+          asrLanguage: session.asrLanguage,
+          noteLanguage: choice.language,
+          asrModel: session.asrModel ?? null,
+        }),
+      );
+    if (saves.length)
+      void Promise.all(saves)
+        .then(() => refreshWorkspace(session.id))
+        .catch(showError);
+  }
   return (
     <div
       className="flex flex-none items-center gap-1.25 md:gap-2.5"
       data-testid="recorder"
     >
+      {asking && session && (
+        <RecordStartDialog
+          session={session}
+          onStart={start}
+          onCancel={() => setAsking(false)}
+        />
+      )}
       {uploads.pending > 0 && (
         <span
           className={clsx(
@@ -139,7 +175,7 @@ export function Recorder({ session }: { session: Session | null }) {
                 ? "Record in this browser and upload the audio"
                 : "Record on the computer running the API"
             }
-            onClick={() => record("start")}
+            onClick={() => setAsking(true)}
             aria-label="Start recording"
           >
             <Icon name="record" className="size-3.5" />

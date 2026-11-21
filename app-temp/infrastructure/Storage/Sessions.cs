@@ -149,6 +149,9 @@ public partial class PlaybackStore
             session.AsrLanguage,
             session.NoteLanguage, session.AsrModel) { Supersessions = supersessions, NoteKind = Playback.Domain.Notes.NoteKinds.Normalize(session.NoteKind) };
     }
+    // Material texts only, for background work such as the speech-recognition vocabulary.
+    public async Task<List<string>> MaterialTexts(string id) =>
+        await Collection<Material>("materials").Find(x => x.SessionId == id).Project(x => x.Text).ToListAsync();
     public async Task<object> AddMaterial(string id, string name, string text)
     {
         WorkspaceRules.Material(name, text);

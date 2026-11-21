@@ -1,6 +1,7 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { Dialog, DialogActions, DialogButton } from "../../components/Dialog";
+import { Dialog, DialogButton } from "../../components/Dialog";
 import { api } from "../../lib/backend/client";
 import type { Session } from "../../lib/backend/schemas";
 import {
@@ -10,8 +11,9 @@ import {
   type ExportBlock,
 } from "./docxTemplate";
 
-// Export to Word: pick (or upload) a Word template, let the AI write this meeting's document in the template's structure
-// and tone, check the preview, then download a .docx that keeps the template's layout, styles, headers and footers.
+// Export to Word as a conversation: pick (or upload) a Word template, ask for a first draft, then tell the AI what to
+// change. Every reply keeps its version, so any version can be previewed and downloaded, and the conversation is saved
+// with the session: closing the window loses nothing. The .docx keeps the template's layout, headers, footers and styles.
 
 const TemplateSchema = z.object({
   id: z.string(),
@@ -32,15 +34,22 @@ const BlockSchema = z.object({
   text: z.string(),
   rows: z.array(z.object({ cells: z.array(z.string()) })),
 });
-const DraftSchema = z.object({
-  blocks: z.array(BlockSchema),
-  provider: z.string(),
-  model: z.string(),
+const TurnSchema = z.object({
+  id: z.string(),
+  role: z.enum(["user", "assistant"]),
+  text: z.string(),
+  templateId: z.string().nullish(),
+  templateName: z.string().nullish(),
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  noteVersion: z.number().nullish(),
+  createdAt: z.string(),
+  blocks: z.array(BlockSchema).nullish(),
 });
-type Draft = z.infer<typeof DraftSchema>;
+const TurnsSchema = z.array(TurnSchema);
+type Turn = z.infer<typeof TurnSchema>;
 
 const MAX_TEMPLATE_BYTES = 5_000_000;
-const labelStyle = "grid gap-1 text-[12px] font-bold";
 const fieldStyle =
   "w-full rounded-lg border border-line bg-white p-2 text-[13px] font-normal text-ink";
 
@@ -58,6 +67,13 @@ function fromBase64(text: string) {
 }
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+const timeOf = (iso: string) =>
+  new Date(iso).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 function pickDocx() {
   return new Promise<File | null>((resolve) => {
@@ -82,10 +98,7 @@ function pickDocx() {
 
 function Preview({ blocks }: { blocks: ExportBlock[] }) {
   return (
-    <div
-      className="grid max-h-[46dvh] gap-2 overflow-y-auto rounded-lg border border-line bg-white p-4 text-[12px] leading-[1.5]"
-      data-testid="export-preview"
-    >
+    <div className="grid max-h-[40dvh] gap-2 overflow-y-auto rounded-lg border border-line bg-white p-4 text-[12px] leading-[1.5]">
       {blocks.map((block, index) => {
         if (block.kind === "table")
           return (
@@ -141,16 +154,23 @@ export function ExportDialog({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const bottom = useRef<HTMLDivElement>(null);
   const [templates, setTemplates] = useState<z.infer<typeof TemplatesSchema>>(
     [],
   );
   const [templateId, setTemplateId] = useState("");
-  const [instruction, setInstruction] = useState("");
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
   const [busy, setBusy] = useState<
-    "" | "loading" | "upload" | "draft" | "download" | "delete"
+    "" | "loading" | "upload" | "send" | "download" | "delete" | "clear"
   >("loading");
   const [error, setError] = useState("");
+
+  const versions = turns.filter((turn) => turn.blocks?.length);
+  const latest = versions.at(-1);
+  const versionNumber = (turn: Turn) => versions.indexOf(turn) + 1;
 
   async function loadTemplates(select?: string) {
     const list = await api.get("/export-templates", TemplatesSchema);
@@ -160,13 +180,28 @@ export function ExportDialog({
         select ??
         (list.some((x) => x.id === current) ? current : (list[0]?.id ?? "")),
     );
+    return list;
   }
   useEffect(() => {
     dialog.current?.showModal();
-    loadTemplates()
+    (async () => {
+      const [list, saved] = await Promise.all([
+        loadTemplates(),
+        api.get(`/sessions/${session.id}/export/conversation`, TurnsSchema),
+      ]);
+      setTurns(saved);
+      const last = saved.filter((turn) => turn.blocks?.length).at(-1);
+      setOpen(last?.id ?? null);
+      // Continue with the template the latest version was written for.
+      if (last?.templateId && list.some((x) => x.id === last.templateId))
+        setTemplateId(last.templateId);
+    })()
       .catch((failure) => setError(message(failure)))
       .finally(() => setBusy(""));
   }, []);
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: "end" });
+  }, [turns.length, pending]);
 
   async function run(kind: typeof busy, work: () => Promise<void>) {
     setBusy(kind);
@@ -195,84 +230,116 @@ export function ExportDialog({
         { name: file.name, contentBase64: toBase64(bytes), outline },
         TemplateSchema,
       );
-      setDraft(null);
       await loadTemplates(saved.id);
     });
 
-  const remove = () =>
+  const removeTemplate = () =>
     run("delete", async () => {
       const template = templates.find((x) => x.id === templateId);
       if (
         !template ||
-        !window.confirm(`Delete the template "${template.name}"?`)
+        !window.confirm(
+          `Delete the template "${template.name}"? Versions written with it can no longer be downloaded.`,
+        )
       )
         return;
       await api.delete(`/export-templates/${template.id}`);
-      setDraft(null);
       await loadTemplates("");
     });
 
-  const generate = () =>
-    run("draft", async () => {
-      setDraft(
-        await api.post(
-          `/sessions/${session.id}/export/draft`,
-          { templateId, instruction: instruction.trim() || null },
-          DraftSchema,
-        ),
-      );
+  const send = (text: string) =>
+    run("send", async () => {
+      setPending(text);
+      try {
+        const added = await api.post(
+          `/sessions/${session.id}/export/message`,
+          { templateId, message: text || null },
+          TurnsSchema,
+        );
+        setTurns((current) => [...current, ...added]);
+        setOpen(added.find((turn) => turn.blocks?.length)?.id ?? null);
+        setDraft("");
+      } finally {
+        setPending(null);
+      }
     });
 
-  const download = () =>
+  const clear = () =>
+    run("clear", async () => {
+      if (
+        !window.confirm(
+          "Start over? This conversation and all its versions are deleted.",
+        )
+      )
+        return;
+      await api.delete(`/sessions/${session.id}/export/conversation`);
+      setTurns([]);
+      setOpen(null);
+    });
+
+  const download = (turn: Turn) =>
     run("download", async () => {
-      if (!draft) return;
-      const template = await api.get(
-        `/export-templates/${templateId}`,
-        TemplateFileSchema,
-      );
+      if (!turn.blocks?.length || !turn.templateId) return;
+      const template = await api
+        .get(`/export-templates/${turn.templateId}`, TemplateFileSchema)
+        .catch(() => {
+          throw new Error(
+            `The template "${turn.templateName ?? ""}" this version was written for has been deleted.`,
+          );
+        });
       const bytes = await buildDocx(
         fromBase64(template.contentBase64),
-        draft.blocks,
+        turn.blocks,
       );
-      downloadDocx(bytes, session.title || "Meeting minutes");
+      const n = versionNumber(turn);
+      downloadDocx(
+        bytes,
+        `${session.title || "Meeting minutes"}${n > 1 ? ` v${n}` : ""}`,
+      );
     });
 
   const working = busy !== "";
+  const templateChanged =
+    !!latest && !!templateId && latest.templateId !== templateId;
+  const canSend =
+    !working && !!templateId && !!session.noteMarkdown && !!draft.trim();
   return (
     <Dialog
       ref={dialog}
-      className="w-[min(760px,calc(100vw-32px))]"
+      className="w-[min(860px,calc(100vw-32px))]"
       aria-labelledby="export-title"
       onClose={onClose}
       onCancel={(event) => {
         if (working) event.preventDefault();
       }}
     >
-      <div className="grid gap-3 p-5 text-[12px]">
-        <h2 id="export-title" className="text-base font-bold">
-          Export to Word
-        </h2>
-        <p className="text-muted">
-          The AI rewrites these notes in the structure, layout and tone of a
-          Word template, such as minutes you sent a client before. The exported
-          file keeps the template's page setup, headers, footers, logo and
-          styles.
-        </p>
-        <div className={labelStyle}>
-          Template
-          <div className="flex flex-wrap gap-2">
+      <div className="grid max-h-[calc(100dvh-48px)] grid-rows-[auto_minmax(0,1fr)_auto] text-[12px]">
+        <header className="grid gap-2 border-b border-line p-4">
+          <div className="flex items-center gap-2">
+            <h2 id="export-title" className="flex-1 text-base font-bold">
+              Export to Word
+            </h2>
+            <DialogButton
+              disabled={working || turns.length === 0}
+              onClick={() => void clear()}
+            >
+              Start over
+            </DialogButton>
+            <DialogButton disabled={busy === "send"} onClick={onClose}>
+              Close
+            </DialogButton>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px] font-bold">Template</span>
             <select
               aria-label="Template"
               className={fieldStyle + " min-w-0 flex-1"}
               value={templateId}
               disabled={working || templates.length === 0}
-              onChange={(event) => {
-                setTemplateId(event.target.value);
-                setDraft(null);
-              }}
+              onChange={(event) => setTemplateId(event.target.value)}
             >
               {templates.length === 0 && (
-                <option value="">No templates yet</option>
+                <option value="">No templates yet: upload one</option>
               )}
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
@@ -284,65 +351,151 @@ export function ExportDialog({
               {busy === "upload" ? "Uploading…" : "Upload .docx…"}
             </DialogButton>
             {templateId && (
-              <DialogButton disabled={working} onClick={() => void remove()}>
+              <DialogButton
+                disabled={working}
+                onClick={() => void removeTemplate()}
+              >
                 Delete
               </DialogButton>
             )}
           </div>
+          {templateChanged && (
+            <p className="text-[11px] text-[#9a591c]">
+              The latest version was written for another template; the next
+              message writes a new first draft with this one. Earlier messages
+              still apply.
+            </p>
+          )}
+        </header>
+
+        <div className="grid content-start gap-3 overflow-y-auto bg-surface p-4">
+          {busy === "loading" && <p className="text-muted">Loading…</p>}
+          {busy !== "loading" && turns.length === 0 && !pending && (
+            <div className="grid justify-items-start gap-2 rounded-lg border border-dashed border-line bg-white p-4">
+              <p>
+                The AI rewrites these notes in the structure, layout and tone of
+                your template, such as minutes you sent a client before. Then
+                tell it what to change: each reply is a new version you can
+                download, and this conversation is kept with the session.
+              </p>
+              <DialogButton
+                variant="primary"
+                disabled={working || !templateId || !session.noteMarkdown}
+                onClick={() => void send("")}
+              >
+                Write the first draft
+              </DialogButton>
+            </div>
+          )}
+          {turns.map((turn) =>
+            turn.role === "user" ? (
+              turn.text ? (
+                <div
+                  key={turn.id}
+                  className="max-w-[80%] justify-self-end rounded-lg bg-accent px-3 py-2 whitespace-pre-wrap text-white"
+                >
+                  {turn.text}
+                </div>
+              ) : null
+            ) : (
+              <div
+                key={turn.id}
+                className="grid max-w-full gap-2 justify-self-start rounded-lg border border-line bg-white p-3"
+              >
+                {turn.text && (
+                  <p className="whitespace-pre-wrap">{turn.text}</p>
+                )}
+                {!!turn.blocks?.length && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong>Version {versionNumber(turn)}</strong>
+                    <span className="text-[11px] text-muted">
+                      {timeOf(turn.createdAt)} · {turn.templateName}
+                      {turn.noteVersion !== session.noteVersion &&
+                        " · written from earlier notes"}
+                    </span>
+                    <span className="flex-1" />
+                    <DialogButton
+                      className="py-1"
+                      onClick={() => setOpen(open === turn.id ? null : turn.id)}
+                    >
+                      {open === turn.id ? "Hide" : "Preview"}
+                    </DialogButton>
+                    <DialogButton
+                      className="py-1"
+                      variant={turn === latest ? "primary" : "plain"}
+                      disabled={working}
+                      onClick={() => void download(turn)}
+                    >
+                      Download .docx
+                    </DialogButton>
+                  </div>
+                )}
+                {open === turn.id && turn.blocks && (
+                  <Preview blocks={turn.blocks} />
+                )}
+              </div>
+            ),
+          )}
+          {pending !== null && (
+            <>
+              {pending && (
+                <div className="max-w-[80%] justify-self-end rounded-lg bg-accent px-3 py-2 whitespace-pre-wrap text-white opacity-70">
+                  {pending}
+                </div>
+              )}
+              <p className="text-muted" role="status">
+                Writing{latest && !templateChanged ? " the next version" : ""}…
+                this can take a minute.
+              </p>
+            </>
+          )}
+          <div ref={bottom} />
         </div>
-        <label className={labelStyle}>
-          Extra instructions (optional)
-          <textarea
-            className={fieldStyle + " min-h-16"}
-            maxLength={2000}
-            value={instruction}
-            disabled={working}
-            placeholder="e.g. More formal; leave out internal discussion; write in English"
-            onChange={(event) => setInstruction(event.target.value)}
-          />
-        </label>
-        {draft && (
-          <div className="grid gap-1">
-            <strong className="text-[12px]">Preview</strong>
-            <Preview blocks={draft.blocks} />
-            <small className="text-muted">
-              Written by {draft.provider} · {draft.model}. Check names, dates
-              and any "[TBC]" before sending; the Word file is formatted like
-              the template.
-            </small>
+
+        <footer className="grid gap-2 border-t border-line p-4">
+          {error && (
+            <p role="alert" className="text-red-700">
+              {error}
+            </p>
+          )}
+          <div className="flex items-end gap-2">
+            <textarea
+              aria-label="Message to the AI"
+              className={clsx(fieldStyle, "min-h-14 flex-1 resize-y")}
+              maxLength={4000}
+              value={draft}
+              disabled={busy === "send"}
+              placeholder={
+                latest
+                  ? "What should change? e.g. More formal; move action items to the top; the venue was Room 3A"
+                  : "Optional wishes for the first draft, e.g. leave out internal discussion"
+              }
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  (event.metaKey || event.ctrlKey) &&
+                  canSend
+                ) {
+                  event.preventDefault();
+                  void send(draft.trim());
+                }
+              }}
+            />
+            <DialogButton
+              variant="primary"
+              disabled={!canSend}
+              onClick={() => void send(draft.trim())}
+            >
+              {busy === "send" ? "Writing…" : "Send"}
+            </DialogButton>
           </div>
-        )}
-        <p className="text-muted">
-          The template's text and these notes are sent to the note model. Source
-          links are left out of the export.
-        </p>
-        {error && (
-          <p role="alert" className="text-red-700">
-            {error}
-          </p>
-        )}
-        <DialogActions>
-          <DialogButton disabled={working} onClick={onClose}>
-            Close
-          </DialogButton>
-          <DialogButton
-            disabled={working || !templateId || !session.noteMarkdown}
-            onClick={() => void generate()}
-          >
-            {busy === "draft"
-              ? "Writing…"
-              : draft
-                ? "Write again"
-                : "Generate preview"}
-          </DialogButton>
-          <DialogButton
-            variant="primary"
-            disabled={working || !draft}
-            onClick={() => void download()}
-          >
-            {busy === "download" ? "Building…" : "Download .docx"}
-          </DialogButton>
-        </DialogActions>
+          <small className="text-muted">
+            ⌘/Ctrl + Enter sends. The template's text, these notes and your
+            messages go to the note model; source links are left out. Check
+            names, dates and any "[TBC]" before sending the file on.
+          </small>
+        </footer>
       </div>
     </Dialog>
   );

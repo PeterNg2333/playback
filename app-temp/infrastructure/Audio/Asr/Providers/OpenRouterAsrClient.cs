@@ -12,6 +12,10 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
     readonly HttpClient http;
     readonly TimeSpan attemptTimeout;
     public AsrModel Model { get; }
+    // A session's expected vocabulary (AsrVocabulary), sent through provider options to the recognizers that take one.
+    public Func<string, CancellationToken, Task<IReadOnlyList<string>>>? Vocabulary { get; init; }
+    // Models whose provider refused a request carrying vocabulary; they are asked without it from then on.
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> VocabularyRefused = new();
 
     public OpenRouterAsrClient() : this(new HttpClientHandler { AllowAutoRedirect = false },
         Environment.GetEnvironmentVariable("PLAYBACK_ASR_MODEL") ?? "qwen/qwen3-asr-1.7b") { }
@@ -39,7 +43,12 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
         if (new FileInfo(request.Path).Length is < 44 or > 25_000_000)
             throw new InvalidOperationException("ASR WAV must be 44 bytes to 25 MB");
         var wav = AsrAudioPreparer.Prepare(request.Path, deadline.Token);
+        IReadOnlyList<string> terms = [];
+        if (Vocabulary is not null)
+            try { terms = await Vocabulary(request.SessionId, deadline.Token); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { terms = []; }
         var failures = new List<string>();
+        string? vocabularyNote = null;
         var models = new[] { model }.Concat(AsrModelOptions.Fallbacks).Distinct().Take(3).ToList();
         foreach (var candidate in models)
         {
@@ -48,9 +57,24 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
             attempt.CancelAfter(request.Preview ? TimeSpan.FromSeconds(5) : attemptTimeout);
             try
             {
-                var result = await Send(request, candidate, wav, key, attempt.Token);
-                return result with { FallbackSummary = failures.Count == 0 ? null :
-                    "ASR model fallback: " + string.Join(" → ", failures.Append(candidate)) };
+                AsrResult result;
+                var withVocabulary = terms.Count > 0 && !VocabularyRefused.ContainsKey(candidate);
+                try
+                {
+                    result = await Send(request, candidate, wav, key, attempt.Token, withVocabulary ? terms : []);
+                    if (withVocabulary) vocabularyNote = $"vocabulary hint sent ({terms.Count} terms from materials)";
+                }
+                catch (HttpRequestException ex) when (withVocabulary && ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity)
+                {
+                    // The serving provider did not accept the hint: ask again without it, and leave it out for this model.
+                    VocabularyRefused[candidate] = true;
+                    vocabularyNote = $"vocabulary hint not accepted by {candidate}; transcribed without it";
+                    result = await Send(request, candidate, wav, key, attempt.Token, []);
+                }
+                var notes = new List<string>();
+                if (failures.Count > 0) notes.Add("ASR model fallback: " + string.Join(" → ", failures.Append(candidate)));
+                if (vocabularyNote is not null) notes.Add(vocabularyNote);
+                return result with { FallbackSummary = notes.Count == 0 ? null : string.Join("; ", notes) };
             }
             catch (OperationCanceledException) when (!deadline.IsCancellationRequested && attempt.IsCancellationRequested)
             {
@@ -70,7 +94,23 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
         (ex.StatusCode is null or HttpStatusCode.BadRequest or HttpStatusCode.NotFound or HttpStatusCode.RequestTimeout or
             HttpStatusCode.UnprocessableEntity or HttpStatusCode.TooManyRequests || (int)ex.StatusCode >= 500);
 
-    async Task<AsrResult> Send(AsrRequest request, string model, byte[] wav, string key, CancellationToken ct)
+    // Provider-native vocabulary fields, keyed by OpenRouter provider slug; OpenRouter forwards only the options of the
+    // provider that serves the request, so options for the others are dropped.
+    public static Dictionary<string, object> VocabularyOptions(IReadOnlyList<string> terms)
+    {
+        var prompt = Playback.Domain.Audio.AsrVocabulary.Prompt(terms);
+        var keyterms = terms.Where(x => x.Length <= 50).Take(50).ToArray();
+        return new()
+        {
+            ["groq"] = new { prompt },
+            ["openai"] = new { prompt },
+            ["deepinfra"] = new { prompt },
+            ["elevenlabs"] = new { keyterms },
+            ["assemblyai"] = new { keyterms_prompt = keyterms }
+        };
+    }
+
+    async Task<AsrResult> Send(AsrRequest request, string model, byte[] wav, string key, CancellationToken ct, IReadOnlyList<string> terms)
     {
         using var message = new HttpRequestMessage(HttpMethod.Post, "https://openrouter.ai/api/v1/audio/transcriptions");
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
@@ -86,6 +126,7 @@ public sealed class OpenRouterAsrClient : IAsrAdapter, IDisposable
             ["response_format"] = "json"
         };
         if (LanguageSettings.ProviderHint(request.Language) is { } hint) payload["language"] = hint;
+        if (terms.Count > 0) payload["provider"] = new { options = VocabularyOptions(terms) };
         message.Content = JsonContent.Create(payload);
         using var response = await http.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode)

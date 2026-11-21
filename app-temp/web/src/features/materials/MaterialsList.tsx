@@ -14,7 +14,7 @@ export function MaterialsList({ session }: { session: Session | null }) {
   return (
     <details className="border-b border-line" id="session-materials">
       <summary className="flex cursor-pointer items-center gap-2 px-5 py-3 text-[11px] font-bold text-muted">
-        Text materials{" "}
+        Materials{" "}
         <span className="rounded-full bg-accent-soft px-1.5 py-px text-accent">
           {session?.materials.length || 0}
         </span>
@@ -24,8 +24,13 @@ export function MaterialsList({ session }: { session: Session | null }) {
           onClick={() => attachMaterial(session)}
           disabled={!session || !!busy || workspaceLoading}
         >
-          Attach text material
+          Attach material
         </Button>
+        <p className="mt-1.5 text-[10px] leading-[1.4] text-muted">
+          Text, Word, PowerPoint, Excel or PDF. The AI reads them as background
+          for notes, Ask and export, and names and terms in them help speech
+          recognition.
+        </p>
         {session?.materials.map((material) => (
           <article
             className="scroll-mt-5 border-b border-line py-3 last:border-b-0"

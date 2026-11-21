@@ -39,7 +39,8 @@ public static class ServiceRegistration
         services.AddSingleton<ITextGenerator>(s => s.GetRequiredService<GeminiLanguageModel>());
         services.AddSingleton<JevTransport>();
 
-        services.AddSingleton<IAsrAdapter>(_ => AsrAdapters.Create());
+        services.AddSingleton<AsrVocabularySource>();
+        services.AddSingleton<IAsrAdapter>(s => AsrAdapters.Create(s.GetRequiredService<AsrVocabularySource>().Terms));
         services.AddSingleton<AsrProcessor>();
         services.AddSingleton<AsrQueue>();
         services.AddHostedService(s => s.GetRequiredService<AsrQueue>());
