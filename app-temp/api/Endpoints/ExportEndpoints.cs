@@ -38,24 +38,26 @@ public static class ExportEndpoints
             NoteExport export, CancellationToken ct) =>
         {
             var message = NoteExport.CleanMessage(input.Message);
-            var template = await store.ExportTemplate(input.TemplateId) ?? throw new InvalidOperationException("Template not found");
+            // No template ID: the document is laid out by the model from the owner's messages.
+            var template = string.IsNullOrEmpty(input.TemplateId) ? null
+                : await store.ExportTemplate(input.TemplateId) ?? throw new InvalidOperationException("Template not found");
             var turns = await store.ExportTurns(id);
             var history = turns.Select(x => new NoteExport.ExportMessage(x.Role, x.Text)).Where(x => x.Text.Length > 0).ToList();
             // A draft written for another template names that template's elements: start afresh from the minutes.
             var latest = turns.LastOrDefault(x => x.BlocksJson is not null);
-            var draft = latest?.TemplateId == template.Id
+            var draft = latest is not null && (latest.TemplateId ?? "") == (template?.Id ?? "")
                 ? JsonSerializer.Deserialize<List<NoteExport.ExportBlock>>(latest.BlocksJson!, Json)
                 : null;
             var session = await store.Session(id) ?? throw new InvalidOperationException("Session not found");
             await Writing.WaitAsync(ct);
             NoteExport.ExportRevision revision;
-            try { revision = await export.Revise(id, template.Name, template.Outline, history, draft, message, ct); }
+            try { revision = await export.Revise(id, template?.Name, template?.Outline, history, draft, message, ct); }
             finally { Writing.Release(); }
             var now = DateTime.UtcNow;
-            var asked = new ExportTurnRecord { Id = Guid.NewGuid().ToString("N"), Role = "user", Text = message, TemplateId = template.Id,
-                TemplateName = template.Name, NoteVersion = session.NoteVersion, CreatedAt = now };
+            var asked = new ExportTurnRecord { Id = Guid.NewGuid().ToString("N"), Role = "user", Text = message, TemplateId = template?.Id,
+                TemplateName = template?.Name, NoteVersion = session.NoteVersion, CreatedAt = now };
             var answered = new ExportTurnRecord { Id = Guid.NewGuid().ToString("N"), Role = "assistant", Text = revision.Reply,
-                BlocksJson = JsonSerializer.Serialize(revision.Blocks, Json), TemplateId = template.Id, TemplateName = template.Name,
+                BlocksJson = JsonSerializer.Serialize(revision.Blocks, Json), TemplateId = template?.Id, TemplateName = template?.Name,
                 Provider = revision.Provider, Model = revision.Model, NoteVersion = session.NoteVersion, CreatedAt = now.AddMilliseconds(1) };
             await store.AddExportTurns(id, asked, answered);
             return new[] { View(asked), View(answered) };
@@ -70,4 +72,4 @@ public static class ExportEndpoints
 }
 
 public record TemplateInput(string Name, string ContentBase64, string Outline);
-public record ExportMessageInput(string TemplateId, string? Message = null);
+public record ExportMessageInput(string? TemplateId = null, string? Message = null);

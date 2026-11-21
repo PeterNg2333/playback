@@ -5,14 +5,20 @@ import { Dialog, DialogButton } from "../../components/Dialog";
 import { api } from "../../lib/backend/client";
 import type { Session } from "../../lib/backend/schemas";
 import {
+  blankTemplate,
   buildDocx,
   downloadDocx,
   readTemplate,
   type ExportBlock,
 } from "./docxTemplate";
+import {
+  defaultFirstDraft,
+  firstDraftPrompt,
+  rememberFirstDraft,
+} from "./firstDraftPrompt";
 
-// Export to Word as a conversation: pick (or upload) a Word template, ask for a first draft, then tell the AI what to
-// change. Every reply keeps its version, so any version can be previewed and downloaded, and the conversation is saved
+// Export to Word as a conversation: pick (or upload) a Word template, or none, ask for a first draft with editable
+// instructions, then tell the AI what to change. Every reply keeps its version, so any version can be previewed and downloaded, and the conversation is saved
 // with the session: closing the window loses nothing. The .docx keeps the template's layout, headers, footers and styles.
 
 const TemplateSchema = z.object({
@@ -177,8 +183,7 @@ export function ExportDialog({
     setTemplates(list);
     setTemplateId(
       (current) =>
-        select ??
-        (list.some((x) => x.id === current) ? current : (list[0]?.id ?? "")),
+        select ?? (list.some((x) => x.id === current) ? current : ""),
     );
     return list;
   }
@@ -192,9 +197,13 @@ export function ExportDialog({
       setTurns(saved);
       const last = saved.filter((turn) => turn.blocks?.length).at(-1);
       setOpen(last?.id ?? null);
-      // Continue with the template the latest version was written for.
-      if (last?.templateId && list.some((x) => x.id === last.templateId))
-        setTemplateId(last.templateId);
+      // Continue with the template the latest version was written for (or none); a first export starts with none.
+      const continued =
+        last?.templateId && list.some((x) => x.id === last.templateId)
+          ? last.templateId
+          : "";
+      setTemplateId(continued);
+      if (!last) setDraft(firstDraftPrompt(session.noteLanguage, !!continued));
     })()
       .catch((failure) => setError(message(failure)))
       .finally(() => setBusy(""));
@@ -230,6 +239,8 @@ export function ExportDialog({
         { name: file.name, contentBase64: toBase64(bytes), outline },
         TemplateSchema,
       );
+      if (!latest && draft === firstDraftPrompt(session.noteLanguage, false))
+        setDraft(firstDraftPrompt(session.noteLanguage, true));
       await loadTemplates(saved.id);
     });
 
@@ -253,9 +264,11 @@ export function ExportDialog({
       try {
         const added = await api.post(
           `/sessions/${session.id}/export/message`,
-          { templateId, message: text || null },
+          { templateId: templateId || null, message: text || null },
           TurnsSchema,
         );
+        if (!latest)
+          rememberFirstDraft(session.noteLanguage, !!templateId, text);
         setTurns((current) => [...current, ...added]);
         setOpen(added.find((turn) => turn.blocks?.length)?.id ?? null);
         setDraft("");
@@ -279,18 +292,21 @@ export function ExportDialog({
 
   const download = (turn: Turn) =>
     run("download", async () => {
-      if (!turn.blocks?.length || !turn.templateId) return;
-      const template = await api
-        .get(`/export-templates/${turn.templateId}`, TemplateFileSchema)
-        .catch(() => {
-          throw new Error(
-            `The template "${turn.templateName ?? ""}" this version was written for has been deleted.`,
-          );
-        });
-      const bytes = await buildDocx(
-        fromBase64(template.contentBase64),
-        turn.blocks,
-      );
+      if (!turn.blocks?.length) return;
+      const templateBytes = turn.templateId
+        ? fromBase64(
+            (
+              await api
+                .get(`/export-templates/${turn.templateId}`, TemplateFileSchema)
+                .catch(() => {
+                  throw new Error(
+                    `The template "${turn.templateName ?? ""}" this version was written for has been deleted.`,
+                  );
+                })
+            ).contentBase64,
+          )
+        : await blankTemplate();
+      const bytes = await buildDocx(templateBytes, turn.blocks);
       const n = versionNumber(turn);
       downloadDocx(
         bytes,
@@ -299,10 +315,9 @@ export function ExportDialog({
     });
 
   const working = busy !== "";
-  const templateChanged =
-    !!latest && !!templateId && latest.templateId !== templateId;
-  const canSend =
-    !working && !!templateId && !!session.noteMarkdown && !!draft.trim();
+  const templateChanged = !!latest && (latest.templateId ?? "") !== templateId;
+  const canSend = !working && !!session.noteMarkdown && !!draft.trim();
+  const defaultDraft = defaultFirstDraft(session.noteLanguage, !!templateId);
   return (
     <Dialog
       ref={dialog}
@@ -335,12 +350,21 @@ export function ExportDialog({
               aria-label="Template"
               className={fieldStyle + " min-w-0 flex-1"}
               value={templateId}
-              disabled={working || templates.length === 0}
-              onChange={(event) => setTemplateId(event.target.value)}
+              disabled={working}
+              onChange={(event) => {
+                const next = event.target.value;
+                // Before the first draft, an untouched instruction follows the choice of template or none.
+                if (
+                  !latest &&
+                  (draft ===
+                    firstDraftPrompt(session.noteLanguage, !!templateId) ||
+                    !draft.trim())
+                )
+                  setDraft(firstDraftPrompt(session.noteLanguage, !!next));
+                setTemplateId(next);
+              }}
             >
-              {templates.length === 0 && (
-                <option value="">No templates yet: upload one</option>
-              )}
+              <option value="">No template (the AI lays it out)</option>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.name}
@@ -361,9 +385,13 @@ export function ExportDialog({
           </div>
           {templateChanged && (
             <p className="text-[11px] text-[#9a591c]">
-              The latest version was written for another template; the next
-              message writes a new first draft with this one. Earlier messages
-              still apply.
+              The latest version was written{" "}
+              {latest?.templateId
+                ? "for another template"
+                : "without a template"}
+              ; the next message writes a new first draft
+              {templateId ? " with this template" : " without one"}. Earlier
+              messages still apply.
             </p>
           )}
         </header>
@@ -373,18 +401,14 @@ export function ExportDialog({
           {busy !== "loading" && turns.length === 0 && !pending && (
             <div className="grid justify-items-start gap-2 rounded-lg border border-dashed border-line bg-white p-4">
               <p>
-                The AI rewrites these notes in the structure, layout and tone of
-                your template, such as minutes you sent a client before. Then
-                tell it what to change: each reply is a new version you can
-                download, and this conversation is kept with the session.
+                {templateId
+                  ? "The AI rewrites these notes in the structure, layout and tone of your template, such as minutes you sent a client before."
+                  : "Without a template, the AI lays out the minutes itself, following the instructions below. To match a client's format, upload minutes you sent before as a template."}{" "}
+                Check the instructions below, edit them as you like, then write
+                the first draft. After that, tell the AI what to change: each
+                reply is a new version you can download, and this conversation
+                is kept with the session.
               </p>
-              <DialogButton
-                variant="primary"
-                disabled={working || !templateId || !session.noteMarkdown}
-                onClick={() => void send("")}
-              >
-                Write the first draft
-              </DialogButton>
             </div>
           )}
           {turns.map((turn) =>
@@ -409,7 +433,8 @@ export function ExportDialog({
                   <div className="flex flex-wrap items-center gap-2">
                     <strong>Version {versionNumber(turn)}</strong>
                     <span className="text-[11px] text-muted">
-                      {timeOf(turn.createdAt)} · {turn.templateName}
+                      {timeOf(turn.createdAt)} ·{" "}
+                      {turn.templateName ?? "No template"}
                       {turn.noteVersion !== session.noteVersion &&
                         " · written from earlier notes"}
                     </span>
@@ -458,17 +483,38 @@ export function ExportDialog({
               {error}
             </p>
           )}
+          {!latest && (
+            <div className="flex items-center gap-2">
+              <strong className="flex-1">
+                Instructions for the first draft
+              </strong>
+              {draft !== defaultDraft && (
+                <button
+                  type="button"
+                  className="text-[11px] text-accent underline disabled:opacity-50"
+                  disabled={busy === "send"}
+                  onClick={() => setDraft(defaultDraft)}
+                >
+                  Reset to default
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex items-end gap-2">
             <textarea
               aria-label="Message to the AI"
-              className={clsx(fieldStyle, "min-h-14 flex-1 resize-y")}
+              className={clsx(
+                fieldStyle,
+                "flex-1 resize-y",
+                latest ? "min-h-14" : "min-h-40",
+              )}
               maxLength={4000}
               value={draft}
               disabled={busy === "send"}
               placeholder={
                 latest
                   ? "What should change? e.g. More formal; move action items to the top; the venue was Room 3A"
-                  : "Optional wishes for the first draft, e.g. leave out internal discussion"
+                  : "What should the first draft contain, and in what tone?"
               }
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
@@ -487,12 +533,17 @@ export function ExportDialog({
               disabled={!canSend}
               onClick={() => void send(draft.trim())}
             >
-              {busy === "send" ? "Writing…" : "Send"}
+              {busy === "send"
+                ? "Writing…"
+                : latest
+                  ? "Send"
+                  : "Write the first draft"}
             </DialogButton>
           </div>
           <small className="text-muted">
-            ⌘/Ctrl + Enter sends. The template's text, these notes and your
-            messages go to the note model; source links are left out. Check
+            ⌘/Ctrl + Enter sends. Your edits to the first-draft instructions are
+            remembered in this browser. The template's text, these notes and
+            your messages go to the note model; source links are left out. Check
             names, dates and any "[TBC]" before sending the file on.
           </small>
         </footer>
