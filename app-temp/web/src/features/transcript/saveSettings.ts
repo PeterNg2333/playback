@@ -7,13 +7,15 @@ import { refreshWorkspace } from "../library/refreshWorkspace";
 
 // Per-session recognition and note languages, and transcript translation.
 
-export function saveLanguages(
+// Resolves true once the setting is saved.
+export async function saveLanguages(
   session: Session,
   asrLanguage: Session["asrLanguage"],
   noteLanguage: Session["noteLanguage"],
   asrModel: string | null = session.asrModel ?? null,
 ) {
-  return runAction("languages", async () => {
+  let saved = false;
+  await runAction("languages", async () => {
     await api.put(`/sessions/${session.id}/languages`, {
       asrLanguage,
       noteLanguage,
@@ -24,8 +26,25 @@ export function saveLanguages(
           ? null
           : asrModel,
     });
+    saved = true;
     await refreshWorkspace(session.id);
   });
+  return saved;
+}
+
+// Lecture notes or meeting minutes: which prompts write this session's notes from now on.
+// Resolves true once the setting is saved.
+export async function saveNoteKind(
+  session: Session,
+  kind: Session["noteKind"],
+) {
+  let saved = false;
+  await runAction("note type", async () => {
+    await api.put(`/sessions/${session.id}/note-kind`, { kind });
+    saved = true;
+    await refreshWorkspace(session.id);
+  });
+  return saved;
 }
 
 // Shows the new translation setting at once and puts the old one back if saving fails.

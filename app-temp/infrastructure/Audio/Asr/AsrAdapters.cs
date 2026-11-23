@@ -19,9 +19,9 @@ public static class AsrAdapters
         _ => throw new InvalidOperationException("PLAYBACK_ASR_PROVIDER must be openrouter or sensevoice")
     };
 
-    public static IAsrAdapter Create() => ConfiguredProvider() switch
+    public static IAsrAdapter Create(Func<string, CancellationToken, Task<IReadOnlyList<string>>>? vocabulary = null) => ConfiguredProvider() switch
     {
-        "openrouter" => new OpenRouterAsrClient(),
+        "openrouter" => new OpenRouterAsrClient { Vocabulary = vocabulary },
         _ => new SenseVoiceClient()
     };
 }

@@ -37,7 +37,7 @@ public static class NoteTimeline
 
     public static List<NoteWindow> Windows(NoteSession session) => Lines(session).GroupBy(x => (int)(x.At / WindowMs))
         .Select(group => new NoteWindow(group.Key, group.ToList(),
-            ContentHash.Of(session.NoteLanguage + "\n" + string.Join("\n", group.Select(x => x.Id + "\t" + x.Text)))))
+            ContentHash.Of(session.NoteLanguage + "\n" + (session.IsMeeting ? "meeting\n" : "") + string.Join("\n", group.Select(x => x.Id + "\t" + x.Text)))))
         .ToList();
 
     // A window is closed once later speech exists, or when every window counts as closed (after Stop, or on request).

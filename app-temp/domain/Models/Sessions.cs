@@ -27,6 +27,8 @@ public sealed record SessionView(
     public List<TranscriptSourceGroup> SourceGroups => new SourceReferences(this).Groups;
     // Superseded transcript ID → the active segment that replaced it. Transcripts holds active rows only.
     public IReadOnlyDictionary<string, string> Supersessions { get; init; } = new Dictionary<string, string>();
+    // lecture or meeting (NoteKinds).
+    public string NoteKind { get; init; } = NoteKinds.Lecture;
 }
 public sealed class SessionRecord
 {
@@ -40,6 +42,8 @@ public sealed class SessionRecord
     public string AsrLanguage { get; set; } = "auto";
     public string? AsrModel { get; set; }
     public string NoteLanguage { get; set; } = "zh-Hant";
+    // lecture or meeting (NoteKinds); null for sessions saved before note types existed.
+    public string? NoteKind { get; set; }
 }
 public sealed class GroupRecord
 {

@@ -12,6 +12,9 @@ public sealed record NoteSession(string Id, string NoteMarkdown, int NoteVersion
     public List<PendingNoteAudio> PendingAudio { get; init; } = [];
     // Superseded transcript ID → its replacing segment; historical versions are read through it.
     public IReadOnlyDictionary<string, string> Supersessions { get; init; } = new Dictionary<string, string>();
+    // lecture or meeting (NoteKinds): which prompts write the notes.
+    public string NoteKind { get; init; } = NoteKinds.Lecture;
+    public bool IsMeeting => NoteKind == NoteKinds.Meeting;
 }
 public sealed record PendingNoteAudio(string SourceId, long EndMs);
 

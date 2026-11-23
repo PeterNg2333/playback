@@ -31,7 +31,10 @@ if (!access.Enabled) app.UseCors();
 access.Use(app);
 if (access.Enabled) app.UseMiddleware<WorkspaceAccessMiddleware>();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// The PDF reader's worker is a JavaScript module (.mjs), which the default type list may not name.
+var contentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+contentTypes.Mappings[".mjs"] = "text/javascript";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = contentTypes });
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 app.MapHealth();
@@ -42,6 +45,7 @@ app.MapChunks();
 app.MapRerun();
 app.MapConcepts();
 app.MapNotes();
+app.MapExports();
 app.MapTerms();
 app.MapAsk();
 app.MapActivity();

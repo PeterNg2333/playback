@@ -18,8 +18,11 @@ import { Menu, MenuItem } from "../../components/Menu";
 import { EmptyState } from "../../components/EmptyState";
 import { Button } from "../../components/Button";
 import { InstructionDialog } from "./InstructionDialog";
+import { ExportDialog } from "../export/ExportDialog";
 import { TopicTree } from "./TopicTree";
 import { VersionChanges } from "./VersionChanges";
+import { saveLanguages, saveNoteKind } from "../transcript/saveSettings";
+import { NoteKindSchema, NoteLanguageSchema } from "../../lib/backend/schemas";
 
 // The activity tasks that write notes (NoteWorkflow): jots, segments, the finish and owner instructions.
 const noteTasks = new Set([
@@ -28,6 +31,7 @@ const noteTasks = new Set([
   "Note outline",
   "Note polish",
   "Note instruction",
+  "Meeting minutes",
 ]);
 
 // A line under the notes saying why AI notes have not appeared yet.
@@ -53,7 +57,7 @@ export function NotesPanel({
   const markdown = draft.text;
   const [reading, setReading] = useState(true);
   const [noteDialog, setNoteDialog] = useState<
-    "history" | "instruction" | null
+    "history" | "instruction" | "export" | null
   >(null);
   const body = useRef<HTMLDivElement>(null);
   const renderedNotes = useRef<HTMLDivElement>(null);
@@ -160,6 +164,18 @@ export function NotesPanel({
     [session?.transcripts],
   );
   const waitingForSpeech = transcriptChars === 0 && !session?.noteMarkdown;
+  const isMeeting = session?.noteKind === "meeting";
+  const noteTitle = isMeeting ? "Meeting minutes" : "Lecture notes";
+  // A new note type or language applies to what is written next; notes already written are offered a rebuild.
+  const offerRebuild = (saved: boolean) => {
+    if (
+      saved &&
+      session?.noteVersion &&
+      session.transcripts.length &&
+      session.rerun?.status !== "running"
+    )
+      usePlaybackStore.setState({ rerunDialog: "notes" });
+  };
 
   const latestNote = activity.items.find(
     (item) =>
@@ -182,12 +198,26 @@ export function NotesPanel({
         data-testid="notes-toolbar"
       >
         <div className="flex h-10 min-w-0 flex-1 items-center gap-1 rounded-full border border-line bg-white px-2 sm:gap-2 sm:px-3">
-          <h2
-            className="min-w-0 flex-1 truncate text-[13px] font-bold max-sm:sr-only"
-            title="Lecture notes"
+          <h2 className="sr-only">{noteTitle}</h2>
+          <select
+            aria-label="Note type"
+            title="Note type"
+            className="min-w-0 flex-1 cursor-pointer truncate bg-transparent text-[13px] font-bold text-ink max-sm:w-24 max-sm:flex-none disabled:cursor-default"
+            value={session?.noteKind ?? "lecture"}
+            disabled={!session || !!busy}
+            onChange={async (event) => {
+              if (!session) return;
+              offerRebuild(
+                await saveNoteKind(
+                  session,
+                  NoteKindSchema.parse(event.target.value),
+                ),
+              );
+            }}
           >
-            Lecture notes
-          </h2>
+            <option value="lecture">Lecture notes</option>
+            <option value="meeting">Meeting minutes</option>
+          </select>
           <span className="hidden text-[10px] text-muted 2xl:inline">
             v{session?.noteVersion || 0}
           </span>
@@ -248,6 +278,14 @@ export function NotesPanel({
             <option value="draft">Live AI edit</option>
           </select>
         </div>
+        <button
+          className="h-9 shrink-0 rounded-full border border-line bg-white px-2.5 text-[12px] font-bold text-ink hover:bg-accent-soft disabled:cursor-not-allowed disabled:text-muted"
+          disabled={!session?.noteMarkdown}
+          title="Export to Word (.docx) with a template, and refine it with the AI"
+          onClick={() => setNoteDialog("export")}
+        >
+          Export
+        </button>
         <div
           className="inline-flex h-9 shrink-0 items-stretch rounded-full border border-accent bg-white"
           role="group"
@@ -279,6 +317,39 @@ export function NotesPanel({
                 >
                   Revise with AI
                 </MenuItem>
+                <div className="my-1 border-t border-line" />
+                <label
+                  className="grid gap-1 px-3 py-1.5 text-[11px] text-muted"
+                  htmlFor="notes-menu-language"
+                >
+                  Notes language
+                  <select
+                    id="notes-menu-language"
+                    className="w-full rounded-[7px] border border-line bg-white p-1.5 text-[12px] text-ink"
+                    value={session?.noteLanguage ?? "zh-Hant"}
+                    disabled={
+                      !session || !!busy || !health?.sessionLanguageSettings
+                    }
+                    onChange={async (event) => {
+                      if (!session) return;
+                      const language = NoteLanguageSchema.parse(
+                        event.target.value,
+                      );
+                      close();
+                      offerRebuild(
+                        await saveLanguages(
+                          session,
+                          session.asrLanguage,
+                          language,
+                        ),
+                      );
+                    }}
+                  >
+                    <option value="zh-Hant">TC · Traditional Chinese</option>
+                    <option value="zh-Hans">SC · Simplified Chinese</option>
+                    <option value="en">EN · English</option>
+                  </select>
+                </label>
                 <div className="my-1 border-t border-line" />
                 <MenuItem
                   disabled={!session || !health?.sectionNotes}
@@ -449,6 +520,13 @@ export function NotesPanel({
           key={session?.id}
           session={session}
           draftDirty={draft.isDirty}
+          onClose={() => setNoteDialog(null)}
+        />
+      )}
+      {noteDialog === "export" && session && (
+        <ExportDialog
+          key={session.id}
+          session={session}
           onClose={() => setNoteDialog(null)}
         />
       )}

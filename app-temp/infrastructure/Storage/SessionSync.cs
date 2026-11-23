@@ -64,6 +64,7 @@ public partial class PlaybackStore
         session.Id, session.Title, session.GroupId, session.CreatedAt,
         noteMarkdown = note?.Markdown ?? "", noteVersion = note?.Version ?? 0,
         session.TranslationEnabled, session.TranslationLanguage, session.AsrLanguage, session.AsrModel, session.NoteLanguage,
+        noteKind = Playback.Domain.Notes.NoteKinds.Normalize(session.NoteKind),
         currentNote = note is null ? null : new { note.Author, note.BasedOnVersion,
             note.InputHash, note.TranscriptIds, note.MaterialIds, note.Edits, note.Sections, note.Citations }
     };
@@ -154,7 +155,7 @@ public partial class PlaybackStore
                     state.NoteLanguage = session.NoteLanguage;
                     Add("meta", id, SyncMeta(new SessionRecord { Id = id, Title = session.Title, GroupId = session.GroupId, CreatedAt = session.CreatedAt,
                         TranslationEnabled = session.TranslationEnabled, TranslationLanguage = session.TranslationLanguage,
-                        AsrLanguage = session.AsrLanguage, AsrModel = session.AsrModel, NoteLanguage = session.NoteLanguage },
+                        AsrLanguage = session.AsrLanguage, AsrModel = session.AsrModel, NoteLanguage = session.NoteLanguage, NoteKind = session.NoteKind },
                         await WithEdits(id, session.CurrentNote, await Supersessions(id))));
                     foreach (var item in session.Transcripts) Add("transcript", item.Id, item);
                     foreach (var item in session.Chunks) Add("chunk", item.Id, item);
